@@ -26,3 +26,6 @@ temp_*
 # BMad Core temporary files
 .bmad-core/planning-iterations/snapshots/temp-*.json
 nul
+
+# Personal Obsidian vault (not part of project)
+笔记库/

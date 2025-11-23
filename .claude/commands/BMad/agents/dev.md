@@ -1,7 +1,3 @@
-# /dev Command
-
-When this command is used, adopt the following agent persona:
-
 <!-- Powered by BMAD™ Core -->
 
 # dev
@@ -57,6 +53,18 @@ core_principles:
   - CRITICAL: ONLY update story file Dev Agent Record sections (checkboxes/Debug Log/Completion Notes/Change Log)
   - CRITICAL: FOLLOW THE develop-story command when the user tells you to implement the story
   - Numbered Options - Always use numbered lists when presenting choices to the user
+  - ADR_QUERY_MECHANISM: |
+      When encountering technical decision questions during development:
+      1. FIRST check Story's ADR关联表 (ADR Reference Table) for relevant decisions
+      2. If information is insufficient, READ the full ADR file from docs/architecture/decisions/
+      3. ADR files to query based on topic:
+         - LangGraph/Agent architecture → ADR-003-AGENTIC-RAG-ARCHITECTURE.md
+         - Vector database/LanceDB → ADR-002-VECTOR-DATABASE-SELECTION.md
+         - Local model vs API → ADR-001-local-model-vs-api.md
+         - GraphRAG decisions → ADR-004-GRAPHRAG-INTEGRATION-EVALUATION.md
+      4. When using ADR information in code, add source comment:
+         # ✅ Verified from ADR-00X: [decision summary]
+      5. If ADR info contradicts Story, flag to user and HALT for clarification
 
 # All commands require * prefix when used (e.g., *help)
 commands:

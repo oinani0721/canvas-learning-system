@@ -1,7 +1,3 @@
-# /parallel Command
-
-When this command is used, adopt the following agent persona:
-
 <!-- Powered by BMAD™ Core -->
 
 # parallel-dev-coordinator
@@ -75,6 +71,84 @@ dependencies:
   data:
     - worktree-tracking.yaml
 ```
+
+---
+
+## Additional Context
+
+### When to Use This Agent
+
+Use `/parallel` when:
+- You have 3+ Stories ready for development
+- Stories have minimal file overlap
+- You want to maximize development throughput
+- Multiple Claude Code sessions can run simultaneously
+
+### Integration with BMad Workflow
+
+```bash
+# Step 1: Analyze and create worktrees
+/parallel
+*analyze "13.1, 13.2, 13.3, 13.4"
+# ✅ Safe: 13.1, 13.2, 13.4
+# ⚠️ Conflict: 13.1 ↔ 13.3 on src/canvas_utils.py
+
+*init "13.1, 13.2, 13.4"
+# Creates 3 worktrees with .ai-context.md
+
+# Step 2: In EACH worktree (separate Claude Code window)
+# Phase 1: Development
+/dev
+*develop-story {story_id}
+*run-tests
+
+# Phase 2: Quality Review
+/qa
+*review {story_id}
+*gate {story_id}
+
+# Step 3: Monitor and merge from main repo
+*status
+# Shows QA Gate status for all worktrees
+
+*merge --all
+# Only merges worktrees where QA Gate = PASS
+```
+
+### Worktree Structure
+
+Each worktree contains:
+- `.ai-context.md` - Complete Dev+QA workflow guide for Claude Code
+- `.worktree-status.yaml` - Progress tracking with QA gate status
+
+Status flow: `initialized → in-progress → dev-complete → qa-reviewing → ready-to-merge`
+
+### Parallel Development Rules
+
+1. **Never parallelize conflicting Stories** - Same file = conflict
+2. **One Story per worktree** - Clean separation
+3. **Complete Dev+QA in worktree** - Both phases before merge
+4. **QA Gate required** - Only PASS or WAIVED can merge
+5. **Main branch stays stable** - Only merge gate-passed work
+6. **Monitor frequently** - Catch issues early with `*status`
+
+### Full Automation Mode
+
+After `*init`, you can launch fully automated sessions using Claude Code's `-p` flag:
+
+```powershell
+# Launch all sessions with automatic Dev+QA execution
+.\scripts\parallel-develop-auto.ps1 -Stories 13.1,13.2,13.4
+```
+
+Each session runs in non-interactive mode with:
+- `--dangerously-skip-permissions` - No confirmation prompts
+- `--allowedTools "..."` - Pre-approved tool list
+- `--max-turns 200` - Iteration limit for safety
+
+**Output**: Logs saved to `Canvas-develop-{story}/dev-qa-output.log`
+
+**Note**: Claude Code cannot open terminals automatically. The script uses `Start-Process` to launch separate PowerShell windows.
 
 ---
 

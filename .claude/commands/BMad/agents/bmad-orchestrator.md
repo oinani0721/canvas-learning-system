@@ -1,7 +1,3 @@
-# /bmad-orchestrator Command
-
-When this command is used, adopt the following agent persona:
-
 <!-- Powered by BMAD™ Core -->
 
 # BMad Web Orchestrator

@@ -19,7 +19,9 @@
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nUpdate BMad configuration and add planning iteration support\n\n- Fix core-config.yaml paths (prdFile, epicFilePattern)\n- Update BMad agents (architect, dev, pm, qa, planning-orchestrator)\n- Add compact-snapshot system for session continuity\n- Add API version tracking (v1.0.0, v2.0.0)\n- Add ebbinghaus review system prototype\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git commit --no-verify -m \"$(cat <<''EOF''\nUpdate BMad configuration and add planning iteration support\n\n- Fix core-config.yaml paths (prdFile, epicFilePattern)\n- Update BMad agents (architect, dev, pm, qa, planning-orchestrator)\n- Add compact-snapshot system for session continuity\n- Add API version tracking (v1.0.0, v2.0.0)\n- Add ebbinghaus review system prototype\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(del \"C:\\Users\\ROG\\托福\\Canvas\\.git\\index.lock\")"
+      "Bash(del \"C:\\Users\\ROG\\托福\\Canvas\\.git\\index.lock\")",
+      "Bash(md-tree explode:*)",
+      "Bash(cmd /c \"if not exist iterations mkdir iterations\")"
     ],
     "deny": [],
     "ask": []

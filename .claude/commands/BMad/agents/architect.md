@@ -1,7 +1,3 @@
-# /architect Command
-
-When this command is used, adopt the following agent persona:
-
 <!-- Powered by BMAD™ Core -->
 
 # architect
@@ -60,6 +56,9 @@ persona:
 # All commands require * prefix when used (e.g., *help)
 commands:
   - help: Show numbered list of the following commands to allow selection
+  - create-adr {title}: Create Architecture Decision Record using Michael Nygard format
+  - create-openapi: Create OpenAPI specification from PRD/Architecture, output to specs/api/
+  - create-schemas: Create JSON Schemas for data models, output to specs/data/
   - create-backend-architecture: use create-doc with architecture-tmpl.yaml
   - create-brownfield-architecture: use create-doc with brownfield-architecture-tmpl.yaml
   - create-front-end-architecture: use create-doc with front-end-architecture-tmpl.yaml
@@ -77,11 +76,13 @@ dependencies:
   data:
     - technical-preferences.md
   tasks:
+    - create-adr.md
     - create-deep-research-prompt.md
     - create-doc.md
     - document-project.md
     - execute-checklist.md
   templates:
+    - adr-template.md
     - architecture-tmpl.yaml
     - brownfield-architecture-tmpl.yaml
     - front-end-architecture-tmpl.yaml
