@@ -1,0 +1,52 @@
+{
+  "nodes": [
+    {
+      "id": "material-test123",
+      "type": "text",
+      "text": "测试材料节点",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "text-50c086525450438c",
+      "type": "text",
+      "x": 850,
+      "y": 0,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "问题1"
+    },
+    {
+      "id": "text-5c1c7cd4983f40d8",
+      "type": "text",
+      "x": 850,
+      "y": 150,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-test123-50c08652-321143",
+      "fromNode": "material-test123",
+      "toNode": "text-50c086525450438c",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-50c08652-5c1c7cd4-321143",
+      "fromNode": "text-50c086525450438c",
+      "toNode": "text-5c1c7cd4983f40d8",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    }
+  ]
+}

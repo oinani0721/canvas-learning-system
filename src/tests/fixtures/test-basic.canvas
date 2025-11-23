@@ -1,0 +1,23 @@
+{
+  "nodes": [
+    {
+      "id": "node-test123",
+      "type": "text",
+      "text": "测试节点",
+      "x": 100,
+      "y": 200,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-test456",
+      "fromNode": "node-test123",
+      "toNode": "node-test789",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ]
+}

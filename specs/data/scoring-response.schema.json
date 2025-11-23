@@ -1,0 +1,363 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/scoring-response.json",
+  "title": "Scoring Agent Response Schema",
+  "description": "Scoring Agent专用响应schema，定义4维评分系统的输出格式",
+  "type": "object",
+  "required": ["agent_name", "status", "timestamp", "result"],
+  "properties": {
+    "agent_name": {
+      "type": "string",
+      "const": "scoring-agent",
+      "description": "必须是scoring-agent"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["success", "error", "timeout"]
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "duration_ms": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "result": {
+      "type": "object",
+      "description": "4维评分结果",
+      "required": ["accuracy", "imagery", "completeness", "originality", "total_score", "color"],
+      "properties": {
+        "accuracy": {
+          "type": "integer",
+          "description": "准确性评分（0-25分）",
+          "minimum": 0,
+          "maximum": 25,
+          "examples": [22]
+        },
+        "imagery": {
+          "type": "integer",
+          "description": "具象性评分（0-25分）",
+          "minimum": 0,
+          "maximum": 25,
+          "examples": [18]
+        },
+        "completeness": {
+          "type": "integer",
+          "description": "完整性评分（0-25分）",
+          "minimum": 0,
+          "maximum": 25,
+          "examples": [20]
+        },
+        "originality": {
+          "type": "integer",
+          "description": "原创性评分（0-25分）",
+          "minimum": 0,
+          "maximum": 25,
+          "examples": [15]
+        },
+        "total_score": {
+          "type": "integer",
+          "description": "总分（accuracy + imagery + completeness + originality，0-100分）",
+          "minimum": 0,
+          "maximum": 100,
+          "examples": [75]
+        },
+        "color": {
+          "type": "string",
+          "description": "根据总分判断的颜色流转结果",
+          "enum": ["1", "2", "3"],
+          "examples": ["3"],
+          "pattern": "^[123]$"
+        },
+        "dimension_analysis": {
+          "type": "object",
+          "description": "每个维度的详细分析（可选）",
+          "properties": {
+            "accuracy": {
+              "type": "object",
+              "properties": {
+                "score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 25
+                },
+                "feedback": {
+                  "type": "string",
+                  "description": "准确性维度的反馈",
+                  "examples": ["概念理解基本准确，但缺少关键要素"]
+                },
+                "strengths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "examples": [["正确理解了否定和交换的过程"]]
+                },
+                "improvements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "examples": [["需要补充逻辑等价性"]]
+                }
+              }
+            },
+            "imagery": {
+              "type": "object",
+              "properties": {
+                "score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 25
+                },
+                "feedback": {
+                  "type": "string"
+                },
+                "strengths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "improvements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "completeness": {
+              "type": "object",
+              "properties": {
+                "score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 25
+                },
+                "feedback": {
+                  "type": "string"
+                },
+                "strengths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "improvements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "originality": {
+              "type": "object",
+              "properties": {
+                "score": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 25
+                },
+                "feedback": {
+                  "type": "string"
+                },
+                "strengths": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "improvements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "recommendations": {
+          "type": "array",
+          "description": "根据维度弱项推荐的agents列表（Story 2.9智能推荐）",
+          "items": {
+            "type": "string",
+            "enum": [
+              "basic-decomposition",
+              "deep-decomposition",
+              "oral-explanation",
+              "clarification-path",
+              "comparison-table",
+              "memory-anchor",
+              "four-level-explanation",
+              "example-teaching"
+            ]
+          },
+          "uniqueItems": true,
+          "minItems": 0,
+          "maxItems": 5,
+          "examples": [
+            ["clarification-path", "oral-explanation"]
+          ]
+        },
+        "recommendation_rationale": {
+          "type": "object",
+          "description": "推荐理由（可选）",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "examples": [
+            {
+              "clarification-path": "Accuracy较低，需要系统化澄清概念",
+              "oral-explanation": "Imagery较低，需要生动的口语化解释"
+            }
+          ]
+        },
+        "color_transition": {
+          "type": "object",
+          "description": "颜色流转详情（可选）",
+          "properties": {
+            "previous_color": {
+              "type": "string",
+              "enum": ["1", "2", "3", "6"],
+              "description": "原始颜色（如果知道）"
+            },
+            "new_color": {
+              "type": "string",
+              "enum": ["1", "2", "3"],
+              "description": "新颜色"
+            },
+            "rule_applied": {
+              "type": "string",
+              "description": "应用的颜色流转规则",
+              "examples": ["总分60-79分，流转为紫色（3）"]
+            }
+          }
+        }
+      }
+    },
+    "error": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["type", "message"]
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "concept": {
+          "type": "string",
+          "description": "评分的概念名称"
+        },
+        "node_id": {
+          "type": "string",
+          "description": "黄色节点ID"
+        },
+        "canvas_path": {
+          "type": "string",
+          "description": "Canvas文件路径"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "agent_name": "scoring-agent",
+      "status": "success",
+      "timestamp": "2025-01-18T10:30:45Z",
+      "duration_ms": 2500,
+      "result": {
+        "accuracy": 22,
+        "imagery": 18,
+        "completeness": 20,
+        "originality": 15,
+        "total_score": 75,
+        "color": "3",
+        "dimension_analysis": {
+          "accuracy": {
+            "score": 22,
+            "feedback": "概念理解基本准确，但缺少关键要素",
+            "strengths": ["正确理解了否定和交换的过程"],
+            "improvements": ["需要补充逻辑等价性", "需要说明与原命题的关系"]
+          },
+          "imagery": {
+            "score": 18,
+            "feedback": "解释较为抽象，缺乏具体例子",
+            "strengths": ["使用了清晰的操作步骤"],
+            "improvements": ["需要添加具体命题的例子", "可以使用图示或类比"]
+          },
+          "completeness": {
+            "score": 20,
+            "feedback": "覆盖了主要内容，但有遗漏",
+            "strengths": ["包含了定义的核心要素"],
+            "improvements": ["缺少应用场景", "未提及常见错误"]
+          },
+          "originality": {
+            "score": 15,
+            "feedback": "主要是书面表述的重复，缺乏个人理解",
+            "strengths": ["使用了自己的语言组织"],
+            "improvements": ["需要添加个人例子", "可以使用类比帮助理解"]
+          }
+        },
+        "recommendations": [
+          "clarification-path",
+          "oral-explanation",
+          "memory-anchor"
+        ],
+        "recommendation_rationale": {
+          "clarification-path": "Accuracy较低（22/25），需要系统化澄清概念的完整定义",
+          "oral-explanation": "Imagery较低（18/25），需要生动的口语化解释和具体例子",
+          "memory-anchor": "Originality较低（15/25），需要生动类比帮助记忆"
+        },
+        "color_transition": {
+          "previous_color": "1",
+          "new_color": "3",
+          "rule_applied": "总分75分（60-79分区间），流转为紫色（3）- 似懂非懂"
+        }
+      },
+      "metadata": {
+        "concept": "逆否命题",
+        "node_id": "yellow-001",
+        "canvas_path": "笔记库/离散数学/离散数学.canvas"
+      }
+    },
+    {
+      "agent_name": "scoring-agent",
+      "status": "success",
+      "timestamp": "2025-01-18T10:32:30Z",
+      "duration_ms": 2800,
+      "result": {
+        "accuracy": 24,
+        "imagery": 23,
+        "completeness": 22,
+        "originality": 18,
+        "total_score": 87,
+        "color": "2",
+        "recommendations": [],
+        "color_transition": {
+          "previous_color": "3",
+          "new_color": "2",
+          "rule_applied": "总分87分（≥80分），流转为绿色（2）- 完全理解"
+        }
+      },
+      "metadata": {
+        "concept": "充分条件",
+        "node_id": "yellow-002",
+        "canvas_path": "笔记库/离散数学/离散数学.canvas"
+      }
+    }
+  ]
+}

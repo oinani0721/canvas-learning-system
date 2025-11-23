@@ -1,0 +1,191 @@
+# Canvas Learning System - Project Status Tracking
+# BMad YAML Status File
+# Purpose: Track Epic/Story completion status across sessions
+# Loaded at: Session start via .claude/hooks/session-start-load-status.ps1
+
+project:
+  name: Canvas Learning System
+  version: v1.2
+  current_phase: implementation  # BMad Phase 4
+  bmad_integration_status: correcting_misalignment
+  last_updated: 2025-11-19
+
+# Epic/Story Completion Status
+epics:
+  epic-1:
+    name: Basic Learning System
+    status: completed
+    completion_date: 2025-10-15
+    stories: [1.1, 1.2, 1.3]
+    description: 红色节点拆解、AI解释生成、个人理解填写
+
+  epic-2:
+    name: Scoring System
+    status: completed
+    completion_date: 2025-10-20
+    stories: [2.1, 2.2, 2.3]
+    description: 4维评分系统（Accuracy/Imagery/Completeness/Originality）
+
+  epic-3:
+    name: Color Flow System
+    status: completed
+    completion_date: 2025-10-22
+    stories: [3.1, 3.2]
+    description: 红→紫→绿颜色流转机制
+
+  epic-4:
+    name: Verification Whiteboard
+    status: completed
+    completion_date: 2025-10-25
+    stories: [4.1, 4.2, 4.3]
+    description: 检验白板生成、无辅助知识复现、盲区检测
+
+  epic-5:
+    name: Multi-Agent Orchestration
+    status: completed
+    completion_date: 2025-10-28
+    stories: [5.1, 5.2]
+    description: 14个专项Agent协作、智能调度
+
+  epic-6:
+    name: Memory System Integration
+    status: completed
+    completion_date: 2025-10-30
+    stories: [6.1, 6.2]
+    description: Graphiti知识图谱集成
+
+  epic-10:
+    name: Async Parallel Execution Engine
+    status: completed
+    completion_date: 2025-11-10
+    stories: [10.1, 10.2]
+    description: 异步并行执行（8倍性能提升，12并发Agent）
+    key_achievement: 100s → 12s for 10 nodes
+
+  epic-12:
+    name: BMad Integration Correction
+    status: in-progress
+    current_story: Phase 1 Testing
+    started_date: 2025-11-19
+    stories:
+      completed: [12.1, 12.2, 12.3, 12.4]  # Phase 1 完成
+      in-progress: [12.0]  # Phase 1 验证测试
+      pending: [12.5, 12.6, 12.7, 12.8]  # Phase 2-4
+    description: 修正Helper System和Planning Phase错位，对齐BMad官方标准
+    substories:
+      12.1: CLAUDE.md更新 - 澄清BMad集成 ✅
+      12.2: YAML Status跟踪文件创建 ✅
+      12.3: Session-start hook创建 ✅
+      12.4: CLAUDE.md分片 (27KB → 12.2KB, 55%减少) ✅
+      12.5: OpenAPI Specs创建 (待Phase 2)
+      12.6: Contract Testing实现 (待Phase 2)
+      12.7: ADRs创建 (待Phase 3)
+      12.8: helpers.md正确结构化 (待Phase 4)
+    phase_1_achievements:
+      - 消除"Helper System管理全局上下文"幻觉
+      - 消除"Planning Phase自动执行"幻觉
+      - 明确BMad对话驱动理念
+      - CLAUDE.md减少55%体积（12.2KB）
+      - YAML Status跟踪系统完成
+      - Session-start hook自动加载完成
+
+# Next Actions (Priority Order)
+next_actions:
+  - 🔄 重启Claude Code session测试Phase 1成果
+  - 验证session-start hook加载YAML状态
+  - 验证CLAUDE.md BMad集成指南清晰度
+  - 用修正后的系统开发新Epic（测试全局视野改善）
+  - (可选) 继续Phase 2-4: OpenAPI + Contract Testing + ADRs + helpers.md
+
+# Blocked Items
+blocked_items: []
+
+# Technical Debt
+technical_debt:
+  - item: CLAUDE.md已优化（27KB → 12.2KB）
+    priority: completed
+    resolution: Epic 12.4 - Document Sharding ✅
+  - item: 缺少OpenAPI Specs
+    priority: high
+    resolution: Epic 12.5 - 创建Canvas API规范
+  - item: 缺少Contract Testing
+    priority: high
+    resolution: Epic 12.6 - 实现Schemathesis测试
+  - item: 缺少ADR文档
+    priority: medium
+    resolution: Epic 12.7 - 记录架构决策
+  - item: helpers.md未正确结构化
+    priority: medium
+    resolution: Epic 12.8 - 重构helpers.md
+
+# Architecture Context (devLoadAlwaysFiles)
+devload_always_files:
+  - docs/architecture/coding-standards.md  # API注解规范、Skills验证
+  - docs/architecture/tech-stack.md        # langgraph、graphiti、neo4j
+  - docs/architecture/project-structure.md # 3层架构
+  - docs/architecture/canvas-layer-architecture.md
+  - CANVAS_ERROR_LOG.md  # Canvas操作规范
+
+# Statistics
+stats:
+  total_epics: 8
+  completed_epics: 7
+  in_progress_epics: 1
+  total_agents: 14
+  test_pass_rate: 99.2%  # 357/360
+  documentation_coverage: 100%
+
+# Parallel Development System (v3.1)
+parallel_development:
+  enabled: true
+  version: "1.0.0"
+
+  # Story Status Definitions (Extended)
+  status_definitions:
+    pending: "Story not yet started"
+    draft: "Story being drafted by @sm"
+    in-progress: "Story being developed by @dev"
+    dev-complete: "Development done, tests passed, awaiting QA"  # NEW
+    qa-review: "Under QA review"
+    completed: "Fully completed and merged"
+    blocked: "Blocked by dependency or issue"
+    deferred: "Moved to next sprint/batch"
+
+  # Current Sprint Parallel State
+  current_sprint:
+    sprint_id: null  # Set when parallel sprint starts
+    phase: null  # "draft", "develop", "merge", "qa", "finalize"
+    total_stories: 0
+    active_worktrees: []
+    qa_groups: []
+    started_at: null
+
+  # Worktree Tracking (populated during parallel development)
+  worktrees: {}
+  # Example:
+  # worktrees:
+  #   "13.1":
+  #     path: "../Canvas-develop-13.1"
+  #     branch: "story-13.1"
+  #     status: "dev-complete"
+  #     affected_files:
+  #       - src/canvas_utils.py
+  #     started_at: "2025-11-20T10:00:00Z"
+  #     completed_at: "2025-11-20T11:30:00Z"
+
+  # Conflict Log
+  conflicts_detected: []
+  # Example:
+  # conflicts_detected:
+  #   - file: "src/canvas_utils.py"
+  #     stories: ["13.3", "13.6"]
+  #     resolved: false
+  #     resolution: null
+
+# Notes
+notes:
+  - "Epic 12 is critical - Correcting BMad integration misalignment"
+  - "After Epic 12: Focus on SDD (Specification-Driven Design)"
+  - "Key insight: BMad is conversation-driven, not script-driven"
+  - "Helper System = Phase 4 token optimizer, NOT global context manager"
+  - "YAML Status = Progress tracking, NOT workflow orchestrator"

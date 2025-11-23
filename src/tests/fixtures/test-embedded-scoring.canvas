@@ -1,0 +1,135 @@
+{
+  "nodes": [
+    {
+      "id": "material-node-1",
+      "type": "text",
+      "text": "测试材料：逆否命题\n\n如果原命题是'若p则q'，则逆否命题是'若非q则非p'。逆否命题与原命题等价。",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "question-unscored",
+      "type": "text",
+      "text": "什么是逆否命题？",
+      "x": 500,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "yellow-filled",
+      "type": "text",
+      "text": "逆否命题就是把原命题的条件和结论都取反，然后交换位置。比如'若下雨则地湿'的逆否命题是'若地不湿则没下雨'。这两个命题的真假性是完全一样的。",
+      "x": 500,
+      "y": 350,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "question-empty-yellow",
+      "type": "text",
+      "text": "逆否命题与否命题的区别是什么？",
+      "x": 1000,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "yellow-empty",
+      "type": "text",
+      "text": "",
+      "x": 1000,
+      "y": 350,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "question-already-scored-green",
+      "type": "text",
+      "text": "为什么逆否命题与原命题等价？",
+      "x": 1500,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "yellow-green",
+      "type": "text",
+      "text": "因为逻辑上，'若p则q'和'若非q则非p'表达的是同一个因果关系，只是从不同角度陈述。可以用真值表证明它们在所有情况下真假性都相同。",
+      "x": 1500,
+      "y": 350,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "question-no-yellow",
+      "type": "text",
+      "text": "如何用真值表证明等价性？",
+      "x": 2000,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-1",
+      "fromNode": "material-node-1",
+      "toNode": "question-unscored",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "edge-2",
+      "fromNode": "question-unscored",
+      "toNode": "yellow-filled",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "edge-3",
+      "fromNode": "material-node-1",
+      "toNode": "question-empty-yellow",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "edge-4",
+      "fromNode": "question-empty-yellow",
+      "toNode": "yellow-empty",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "edge-5",
+      "fromNode": "material-node-1",
+      "toNode": "question-already-scored-green",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "edge-6",
+      "fromNode": "question-already-scored-green",
+      "toNode": "yellow-green",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "edge-7",
+      "fromNode": "material-node-1",
+      "toNode": "question-no-yellow",
+      "fromSide": "right",
+      "toSide": "left"
+    }
+  ]
+}

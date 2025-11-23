@@ -1,0 +1,209 @@
+{
+  "context7_validation_results": {
+    "graphiti": {
+      "technology_name": "Graphiti",
+      "context7_confidence_score": 8.2,
+      "validation_status": "verified",
+      "performance_benchmarks": {
+        "query_response_time_ms": {
+          "current": 85,
+          "baseline": 120,
+          "improvement_percentage": 29.2
+        },
+        "data_consistency_score": {
+          "current": 99.8,
+          "baseline": 97.5,
+          "improvement_percentage": 2.4
+        }
+      },
+      "integration_health": {
+        "neo4j_connection_status": "stable",
+        "memory_usage_mb": 384,
+        "cpu_usage_percent": 12.5,
+        "error_rate_24h": 0.02
+      },
+      "risk_assessment": {
+        "total_risks": 2,
+        "high_priority_risks": 0,
+        "overall_risk_level": "low",
+        "risk_details": [
+          {
+            "category": "performance",
+            "level": "low",
+            "description": "Graphiti查询性能表现优异",
+            "impact": "如果性能退化，可能影响查询响应时间",
+            "mitigation": "持续监控查询性能",
+            "probability": 0.1,
+            "impact_score": 0.3
+          }
+        ]
+      }
+    },
+    "mcp_memory": {
+      "technology_name": "MCP Memory Service",
+      "context7_confidence_score": 8.6,
+      "validation_status": "verified",
+      "performance_benchmarks": {
+        "embedding_generation_ms": {
+          "current": 45,
+          "baseline": 65,
+          "improvement_percentage": 30.8
+        },
+        "similarity_search_ms": {
+          "current": 25,
+          "baseline": 35,
+          "improvement_percentage": 28.6
+        }
+      },
+      "integration_health": {
+        "service_connection_status": "stable",
+        "vector_db_performance": "optimal",
+        "api_success_rate": 99.7
+      },
+      "risk_assessment": {
+        "total_risks": 2,
+        "high_priority_risks": 0,
+        "overall_risk_level": "low",
+        "risk_details": []
+      }
+    },
+    "aiomultiprocess": {
+      "technology_name": "aiomultiprocess",
+      "context7_confidence_score": 7.7,
+      "validation_status": "verified",
+      "performance_benchmarks": {
+        "parallel_efficiency_ratio": {
+          "current": 4.8,
+          "baseline": 3.2,
+          "improvement_percentage": 50.0
+        }
+      },
+      "integration_health": {
+        "process_pool_status": "healthy",
+        "worker_processes_count": 8
+      },
+      "risk_assessment": {
+        "total_risks": 2,
+        "high_priority_risks": 0,
+        "overall_risk_level": "medium",
+        "risk_details": []
+      }
+    }
+  },
+  "monitoring_metrics": {
+    "graphiti": {
+      "neo4j_cluster_status": {
+        "cluster_health": "optimal",
+        "active_nodes": 3,
+        "data_replication_status": "synced",
+        "backup_status": "current",
+        "disk_usage_percentage": 67.3,
+        "memory_usage_percentage": 71.2
+      },
+      "query_performance_metrics": {
+        "average_query_time_ms": 85,
+        "p95_query_time_ms": 180,
+        "p99_query_time_ms": 320,
+        "queries_per_second": 45.2
+      },
+      "data_consistency_checks": {
+        "node_consistency_score": 99.97,
+        "relationship_consistency_score": 99.94,
+        "schema_validation_status": "passed"
+      }
+    },
+    "mcp_memory": {
+      "service_status": {
+        "service_health": "optimal",
+        "uptime_hours": 720,
+        "version": "latest"
+      },
+      "vector_database_metrics": {
+        "total_vectors": 89234,
+        "vector_dimensionality": 1536,
+        "index_status": "optimized"
+      },
+      "memory_operations_metrics": {
+        "memory_operations_per_hour": 1250,
+        "average_operation_latency_ms": 38,
+        "operation_success_rate": 99.7
+      }
+    },
+    "parallel_processing": {
+      "process_pool_status": {
+        "active_workers": 8,
+        "worker_utilization": 80.0,
+        "process_health_score": 98.5
+      },
+      "concurrency_performance": {
+        "parallel_efficiency_ratio": 4.8,
+        "resource_contention_score": 15.2
+      }
+    }
+  },
+  "technical_debt_data": {
+    "code_quality_metrics": {
+      "technical_debt_score": 12.5,
+      "code_complexity_average": 6.8,
+      "test_coverage_percentage": 92.3,
+      "maintainability_index": 85.7
+    },
+    "dependency_health": {
+      "outdated_dependencies": 2,
+      "vulnerability_count": 0,
+      "license_compliance": "100%",
+      "dependency_freshness_score": 94.5
+    },
+    "performance_risks": [
+      {
+        "risk_category": "memory_usage",
+        "risk_level": "medium",
+        "description": "Graphiti内存使用接近阈值",
+        "current_value": 71.2,
+        "threshold": 80.0,
+        "trend": "increasing"
+      }
+    ]
+  },
+  "alerts": [
+    {
+      "alert_id": "alert-001",
+      "severity": "info",
+      "component": "graphiti_monitoring",
+      "message": "Graphiti查询性能表现优异，超出基准29.2%",
+      "timestamp": "2025-01-22T20:45:00Z",
+      "auto_resolvable": true,
+      "acknowledged": true
+    },
+    {
+      "alert_id": "alert-002",
+      "severity": "warning",
+      "component": "technical_debt",
+      "message": "Graphiti内存使用接近阈值",
+      "timestamp": "2025-01-22T18:30:00Z",
+      "auto_resolvable": false,
+      "acknowledged": false
+    }
+  ],
+  "dashboard_configurations": {
+    "technical_monitoring": {
+      "dashboard_id": "dash-001",
+      "title": "Canvas学习系统 - 技术监控仪表板",
+      "description": "实时监控Canvas学习系统所有技术组件的运行状态",
+      "panels": [
+        {
+          "panel_id": "system_overview",
+          "title": "系统概览",
+          "panel_type": "overview",
+          "position": {"x": 0, "y": 0, "w": 6, "h": 2}
+        },
+        {
+          "panel_id": "performance_charts",
+          "title": "性能监控",
+          "panel_type": "chart",
+          "position": {"x": 0, "y": 2, "w": 8, "h": 4}
+        }
+      ]
+    }
+  }
+}

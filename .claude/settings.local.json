@@ -1,0 +1,57 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install:*)",
+      "Bash(Get-ChildItem -Path \"C:\\Users\\ROG\\托福\\Canvas\\docs\" -Recurse -File)",
+      "Bash(Where-Object { $_xtension -match '\\.(md|yaml|json)$' })",
+      "Bash(Select-Object FullName, Length, LastWriteTime)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize -Wrap)",
+      "Bash(if not exist \"C:\\Users\\ROG\\托福\\Canvas\\docs\\stories\" mkdir \"C:\\Users\\ROG\\托福\\Canvas\\docs\\stories\")",
+      "Bash(powershell:*)",
+      "Skill(graphiti)",
+      "Bash(python:*)",
+      "mcp__web-search-prime__webSearchPrime",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.reddit.com)",
+      "WebFetch(domain:redreamality.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:marmelab.com)",
+      "WebFetch(domain:www.plantocode.com)",
+      "WebFetch(domain:levelup.gitconnected.com)",
+      "WebFetch(domain:eclipsesource.com)",
+      "WebFetch(domain:arxiv.org)",
+      "Bash(md-tree explode:*)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd complete Canvas Learning System structure with BMad integration\n\n- Add .bmad-core/ configuration and tasks for BMad 4.0 workflow\n- Add .claude/ agents, commands, hooks, and skills\n- Add docs/ with PRD, architecture, epics, and stories\n- Add specs/ with OpenAPI and JSON Schema definitions\n- Add scripts/ for iteration management and utilities\n- Add src/ core modules and tests/ test suites\n- Update CLAUDE.md with comprehensive BMad workflow guide\n- Add project-file-index.md for anti-hallucination\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(.gitignore)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -NoProfile -File \".claude\\hooks\\session-start-snapshot-manager.ps1\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -NoProfile -File \".claude\\hooks\\pre-compact-auto-save.ps1\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ]
+  }
+}

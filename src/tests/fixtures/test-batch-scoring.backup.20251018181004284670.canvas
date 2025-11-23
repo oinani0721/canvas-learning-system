@@ -1,0 +1,90 @@
+{
+  "nodes": [
+    {
+      "id": "question-abc123",
+      "type": "text",
+      "text": "什么是逆否命题？",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "yellow-def456",
+      "type": "text",
+      "text": "逆否命题就是将原命题的条件和结论都否定后再互换位置。例如：如果原命题是'若p则q'，那么逆否命题就是'若非q则非p'。",
+      "x": 450,
+      "y": 0,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "question-ghi789",
+      "type": "text",
+      "text": "什么是充分条件？",
+      "x": 0,
+      "y": 400,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "yellow-jkl012",
+      "type": "text",
+      "text": "充分条件就是p能推出q，有了p就一定有q。",
+      "x": 450,
+      "y": 400,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "question-mno345",
+      "type": "text",
+      "text": "什么是必要条件？",
+      "x": 0,
+      "y": 800,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "yellow-pqr678",
+      "type": "text",
+      "text": "必要条件就是没有q就一定没有p，q是p的必要条件。",
+      "x": 450,
+      "y": 800,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-abc123-def456",
+      "fromNode": "question-abc123",
+      "toNode": "yellow-def456",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-ghi789-jkl012",
+      "fromNode": "question-ghi789",
+      "toNode": "yellow-jkl012",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-mno345-pqr678",
+      "fromNode": "question-mno345",
+      "toNode": "yellow-pqr678",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "个人理解"
+    }
+  ]
+}

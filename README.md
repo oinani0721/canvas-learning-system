@@ -1414,6 +1414,101 @@ git add . && git commit -m "Planning Iteration 1: Initial PRD"
 @planning-orchestrator "Start iteration 6 for algorithm change"
 ```
 
+### Phase 5: 并行开发 (Parallel Development) ⚡ NEW
+
+**适用场景**: 需要同时开发多个Story（8+个）时使用
+
+#### 5.1 依赖分析
+
+```powershell
+# 分析Story之间的文件冲突
+.\scripts\analyze-dependencies.ps1 -StoriesPath "docs/stories" -Stories "13.1,13.2,13.3"
+
+# 输出示例:
+# ✅ Safe to parallelize: 13.1, 13.2
+# ⚠️ Conflict detected: 13.1, 13.3 on src/canvas_utils.py
+```
+
+#### 5.2 创建Worktree
+
+```powershell
+# 为无冲突的Story创建worktree
+.\scripts\init-worktrees.ps1 -Stories "13.1,13.2" -BasePath "C:\Users\ROG\托福" -Phase "develop"
+
+# 每个worktree包含:
+# - .ai-context.md (Story上下文)
+# - .worktree-status.yaml (状态跟踪)
+```
+
+#### 5.3 并行开发
+
+```powershell
+# 在新的Claude Code窗口中打开各worktree
+cd "C:\Users\ROG\托福\Canvas-develop-13.1"
+claude  # 开始开发Story 13.1
+
+# 另一个窗口
+cd "C:\Users\ROG\托福\Canvas-develop-13.2"
+claude  # 开始开发Story 13.2
+```
+
+#### 5.4 监控进度
+
+```powershell
+# 查看所有worktree状态
+.\scripts\check-worktree-status.ps1 -BasePath "C:\Users\ROG\托福"
+
+# 输出:
+# Worktree                   Story      Status          Tests
+# Canvas-develop-13.1        13.1       in-progress     Not Run
+# Canvas-develop-13.2        13.2       completed       Passed
+
+# 持续监控
+.\scripts\check-worktree-status.ps1 -Watch -Interval 30
+```
+
+#### 5.5 合并完成的工作
+
+```powershell
+# 合并所有已完成的worktree
+.\scripts\merge-worktrees.ps1 -BasePath "C:\Users\ROG\托福"
+```
+
+#### 5.6 清理
+
+```powershell
+# 清理所有worktree
+.\scripts\cleanup-worktrees.ps1 -Force
+
+# 同时删除分支
+.\scripts\cleanup-worktrees.ps1 -Force -DeleteBranches
+```
+
+#### 配置文件
+
+配置位于 `.bmad-core/parallel-dev-config.yaml`:
+
+```yaml
+parallel_dev:
+  max_concurrent: 8      # 最大并行worktree数
+  batch_size: 4          # 每批处理数量
+  qa_groups: 3           # QA组数量
+
+  dependencies:
+    analyze_before_develop: true  # 开发前分析依赖
+    block_on_conflict: false      # 冲突时是否阻止
+
+  status:
+    use_independent_files: true   # 使用独立状态文件
+```
+
+#### 最佳实践
+
+1. **先分析后创建**: 始终先运行 `analyze-dependencies.ps1`
+2. **避免冲突**: 有冲突的Story应顺序开发
+3. **定期检查状态**: 使用 `-Watch` 模式监控进度
+4. **UTF-8路径**: 包含中文的路径需要UTF-8编码支持
+
 ---
 
 ## 🎯 核心功能

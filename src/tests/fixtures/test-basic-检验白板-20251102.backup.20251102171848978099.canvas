@@ -1,0 +1,46 @@
+{
+  "nodes": [
+    {
+      "id": "text-d52bf37d298a4955",
+      "type": "text",
+      "x": 100,
+      "y": 100,
+      "width": 500,
+      "height": 150,
+      "color": "5",
+      "text": "# 检验白板\n\n生成时间: 2025-11-02 17:18\n检验问题: 1 个\n主题聚类: 1 个\n\n这是动态学习白板,你可以:\n- 在黄色节点填写个人理解\n- 拆解问题为更小的子问题\n- 添加补充解释节点\n- 持续扩展直到接近原白板复杂度",
+      "originalCanvasPath": "tests/fixtures/test-basic.canvas",
+      "generationTimestamp": "2025-11-02T17:18:48.873979"
+    },
+    {
+      "id": "question-5726b9bccd904534",
+      "type": "text",
+      "x": 100,
+      "y": 300,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "问题1",
+      "sourceNodeId": null
+    },
+    {
+      "id": "understanding-fe1001b7406f4657",
+      "type": "text",
+      "x": 100,
+      "y": 450,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请填写你的理解]"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-e52d2168677944ed",
+      "fromNode": "question-5726b9bccd904534",
+      "toNode": "understanding-fe1001b7406f4657",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ]
+}

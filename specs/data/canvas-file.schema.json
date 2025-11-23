@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/canvas-file.schema.json",
+  "title": "Canvas File",
+  "description": "Obsidian Canvas文件完整数据定义 - 包含所有节点和边",
+  "type": "object",
+  "required": ["nodes", "edges"],
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "description": "Canvas中所有节点",
+      "items": {
+        "$ref": "#/definitions/node"
+      },
+      "minItems": 0
+    },
+    "edges": {
+      "type": "array",
+      "description": "Canvas中所有边（连接）",
+      "items": {
+        "$ref": "#/definitions/edge"
+      },
+      "minItems": 0
+    }
+  },
+  "definitions": {
+    "node": {
+      "type": "object",
+      "required": ["id", "type", "x", "y"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "description": "节点唯一标识，UUID格式"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["text", "file", "group", "link"],
+          "description": "节点类型"
+        },
+        "text": {
+          "type": "string",
+          "description": "文本内容，当type=text时必填"
+        },
+        "file": {
+          "type": "string",
+          "description": "文件路径，当type=file时必填"
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "链接URL，当type=link时必填"
+        },
+        "x": {
+          "type": "integer",
+          "description": "节点X坐标位置"
+        },
+        "y": {
+          "type": "integer",
+          "description": "节点Y坐标位置"
+        },
+        "width": {
+          "type": "integer",
+          "default": 250,
+          "minimum": 50
+        },
+        "height": {
+          "type": "integer",
+          "default": 60,
+          "minimum": 30
+        },
+        "color": {
+          "type": "string",
+          "enum": ["1", "2", "3", "5", "6"],
+          "description": "颜色代码: 1=红色, 2=橙色, 3=黄色, 5=绿色, 6=紫色"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "text"
+              }
+            }
+          },
+          "then": {
+            "required": ["text"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "file"
+              }
+            }
+          },
+          "then": {
+            "required": ["file"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "link"
+              }
+            }
+          },
+          "then": {
+            "required": ["url"]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "required": ["id", "fromNode", "toNode"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "description": "边唯一标识，UUID格式"
+        },
+        "fromNode": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "description": "起始节点ID"
+        },
+        "fromSide": {
+          "type": "string",
+          "enum": ["top", "bottom", "left", "right"],
+          "default": "bottom"
+        },
+        "toNode": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+          "description": "目标节点ID"
+        },
+        "toSide": {
+          "type": "string",
+          "enum": ["top", "bottom", "left", "right"],
+          "default": "top"
+        },
+        "label": {
+          "type": "string",
+          "description": "边标签"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "examples": [
+    {
+      "nodes": [
+        {
+          "id": "abc123-def456-789012",
+          "type": "text",
+          "text": "这是一个概念节点",
+          "x": 100,
+          "y": 200,
+          "width": 250,
+          "height": 60,
+          "color": "1"
+        },
+        {
+          "id": "xyz789-uvw456-123abc",
+          "type": "text",
+          "text": "个人理解区域",
+          "x": 150,
+          "y": 320,
+          "width": 250,
+          "height": 150,
+          "color": "6"
+        }
+      ],
+      "edges": [
+        {
+          "id": "edge1-abc-xyz",
+          "fromNode": "abc123-def456-789012",
+          "fromSide": "bottom",
+          "toNode": "xyz789-uvw456-123abc",
+          "toSide": "top"
+        }
+      ]
+    }
+  ],
+  "additionalProperties": false
+}

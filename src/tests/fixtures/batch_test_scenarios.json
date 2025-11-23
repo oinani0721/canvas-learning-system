@@ -1,0 +1,209 @@
+{
+  "basic_test_scenarios": [
+    {
+      "name": "small_basic_decomposition",
+      "concurrent_agents": 2,
+      "total_tasks": 5,
+      "agent_type": "basic-decomposition",
+      "task_complexity": "low",
+      "expected_duration_seconds": 30,
+      "expected_success_rate": 0.9
+    },
+    {
+      "name": "medium_mixed_agents",
+      "concurrent_agents": 4,
+      "total_tasks": 10,
+      "agent_type": "mixed",
+      "task_complexity": "medium",
+      "expected_duration_seconds": 60,
+      "expected_success_rate": 0.8
+    },
+    {
+      "name": "large_stress_test",
+      "concurrent_agents": 8,
+      "total_tasks": 50,
+      "agent_type": "mixed",
+      "task_complexity": "high",
+      "expected_duration_seconds": 300,
+      "expected_success_rate": 0.7
+    }
+  ],
+  "agent_configs": {
+    "basic-decomposition": {
+      "default_material": "解释这个概念的基本含义",
+      "timeout_seconds": 60,
+      "expected_output_fields": ["sub_questions", "total_count", "has_guidance"]
+    },
+    "oral-explanation": {
+      "default_material": "用口语化的方式解释这个理论",
+      "timeout_seconds": 90,
+      "expected_output_fields": ["explanation_text", "word_count", "structure_complete"]
+    },
+    "scoring-agent": {
+      "default_material": "对这个理解进行评分",
+      "timeout_seconds": 30,
+      "expected_output_fields": ["score_breakdown", "total_score", "color_transition", "recommendations"]
+    },
+    "deep-decomposition": {
+      "default_material": "对这个复杂概念进行深度分解",
+      "timeout_seconds": 120,
+      "expected_output_fields": ["deep_questions", "analysis_depth", "insights"]
+    }
+  },
+  "test_materials": {
+    "离散数学": [
+      "什么是逆否命题？",
+      "解释德摩根定律",
+      "如何进行真值表分析？",
+      "什么是逻辑等价性？",
+      "解释命题逻辑的推理规则",
+      "如何构造逻辑证明？",
+      "什么是布尔代数？",
+      "解释卡诺图的使用方法",
+      "什么是范式转换？",
+      "如何判断论证的有效性？"
+    ],
+    "微积分": [
+      "解释导数的定义",
+      "什么是极限的概念？",
+      "如何计算不定积分？",
+      "解释泰勒级数展开",
+      "什么是偏导数？",
+      "如何应用洛必达法则？",
+      "解释拉格朗日中值定理",
+      "如何计算定积分？",
+      "什么是级数收敛？",
+      "解释二重积分的概念"
+    ],
+    "托福听力": [
+      "分析这个学术讲座的主旨",
+      "识别说话者的态度",
+      "理解讲座的组织结构",
+      "抓住关键细节信息",
+      "识别因果关系",
+      "理解专业术语定义",
+      "分析论证方法",
+      "识别对比观点",
+      "理解时间序列信息",
+      "抓住结论性观点"
+    ]
+  },
+  "performance_benchmarks": {
+    "serial_baseline": {
+      "concurrent_agents": 1,
+      "expected_tasks_per_second": 0.1,
+      "expected_avg_response_time_ms": 10000
+    },
+    "parallel_targets": {
+      "2_concurrent": {
+        "efficiency_multiplier_min": 1.8,
+        "efficiency_multiplier_max": 2.5,
+        "expected_tasks_per_second": 0.2,
+        "expected_avg_response_time_ms": 5000
+      },
+      "4_concurrent": {
+        "efficiency_multiplier_min": 3.2,
+        "efficiency_multiplier_max": 4.5,
+        "expected_tasks_per_second": 0.4,
+        "expected_avg_response_time_ms": 2500
+      },
+      "8_concurrent": {
+        "efficiency_multiplier_min": 6.0,
+        "efficiency_multiplier_max": 10.0,
+        "expected_tasks_per_second": 0.8,
+        "expected_avg_response_time_ms": 1250
+      }
+    }
+  },
+  "error_scenarios": [
+    {
+      "name": "timeout_error",
+      "trigger_condition": "timeout",
+      "expected_error_type": "TimeoutError",
+      "expected_recovery_strategy": "retry"
+    },
+    {
+      "name": "invalid_agent",
+      "trigger_condition": "invalid_agent_name",
+      "expected_error_type": "ValueError",
+      "expected_recovery_strategy": "fallback"
+    },
+    {
+      "name": "resource_exhaustion",
+      "trigger_condition": "memory_limit",
+      "expected_error_type": "MemoryError",
+      "expected_recovery_strategy": "skip"
+    }
+  ],
+  "context_isolation_tests": [
+    {
+      "test_name": "process_isolation",
+      "description": "验证不同Agent运行在独立进程中",
+      "verification_method": "process_id_comparison",
+      "expected_result": "all_different_process_ids"
+    },
+    {
+      "test_name": "memory_isolation",
+      "description": "验证Agent间内存空间隔离",
+      "verification_method": "memory_access_test",
+      "expected_result": "no_cross_agent_memory_access"
+    },
+    {
+      "test_name": "state_isolation",
+      "description": "验证Agent状态完全独立",
+      "verification_method": "state_modification_test",
+      "expected_result": "independent_state_changes"
+    }
+  ],
+  "quality_metrics": {
+    "result_validation": {
+      "minimum_confidence_score": 0.5,
+      "minimum_completeness_score": 0.6,
+      "required_output_fields": ["status"],
+      "max_result_size_mb": 50
+    },
+    "performance_thresholds": {
+      "max_memory_usage_mb": 1024,
+      "max_cpu_usage_percent": 90,
+      "min_throughput_tasks_per_second": 0.1,
+      "max_error_rate_percent": 20
+    }
+  },
+  "api_test_cases": [
+    {
+      "name": "single_task_submission",
+      "method": "POST",
+      "endpoint": "/api/v1/tasks/submit",
+      "expected_status": 200,
+      "required_response_fields": ["execution_id", "status"]
+    },
+    {
+      "name": "batch_task_submission",
+      "method": "POST",
+      "endpoint": "/api/v1/tasks/batch",
+      "expected_status": 200,
+      "required_response_fields": ["execution_id", "status", "task_count"]
+    },
+    {
+      "name": "execution_status_query",
+      "method": "GET",
+      "endpoint": "/api/v1/executions/{execution_id}/status",
+      "expected_status": 200,
+      "required_response_fields": ["execution_id", "overall_status", "task_queue"]
+    },
+    {
+      "name": "system_status_query",
+      "method": "GET",
+      "endpoint": "/api/v1/system/status",
+      "expected_status": 200,
+      "required_response_fields": ["system_healthy", "uptime_seconds", "active_executions"]
+    },
+    {
+      "name": "config_update",
+      "method": "PUT",
+      "endpoint": "/api/v1/config",
+      "expected_status": 200,
+      "required_response_fields": ["status", "updated_sections"]
+    }
+  ]
+}

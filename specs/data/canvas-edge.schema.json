@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/canvas-edge.schema.json",
+  "title": "Canvas Edge",
+  "description": "Obsidian Canvas边（连接）数据定义 - 定义节点间的连接关系",
+  "type": "object",
+  "required": ["id", "fromNode", "toNode"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "description": "边唯一标识，UUID格式",
+      "examples": ["edge1-abc123-def456"]
+    },
+    "fromNode": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "description": "起始节点ID，必须引用有效的节点UUID",
+      "examples": ["abc123-def456-789012"]
+    },
+    "fromSide": {
+      "type": "string",
+      "enum": ["top", "bottom", "left", "right"],
+      "default": "bottom",
+      "description": "起始节点连接方位: top=上, bottom=下, left=左, right=右",
+      "examples": ["bottom"]
+    },
+    "toNode": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
+      "description": "目标节点ID，必须引用有效的节点UUID",
+      "examples": ["xyz789-uvw456-123abc"]
+    },
+    "toSide": {
+      "type": "string",
+      "enum": ["top", "bottom", "left", "right"],
+      "default": "top",
+      "description": "目标节点连接方位: top=上, bottom=下, left=左, right=右",
+      "examples": ["top"]
+    },
+    "label": {
+      "type": "string",
+      "description": "边标签（可选），描述连接关系类型",
+      "examples": ["prerequisite", "explains"]
+    }
+  },
+  "examples": [
+    {
+      "id": "edge1-abc-def",
+      "fromNode": "abc123-def456-789012",
+      "fromSide": "bottom",
+      "toNode": "xyz789-uvw456-123abc",
+      "toSide": "top"
+    },
+    {
+      "id": "edge2-ghi-jkl",
+      "fromNode": "ghi123-jkl456-789012",
+      "fromSide": "right",
+      "toNode": "mno789-pqr456-123abc",
+      "toSide": "left",
+      "label": "prerequisite"
+    }
+  ],
+  "additionalProperties": false
+}

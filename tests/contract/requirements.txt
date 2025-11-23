@@ -1,0 +1,20 @@
+# Contract Testing Dependencies
+# Install: pip install -r tests/contract/requirements.txt
+
+# Core testing
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# JSON Schema validation
+jsonschema>=4.17.0
+
+# OpenAPI validation
+openapi-spec-validator>=0.5.0
+PyYAML>=6.0
+
+# Schemathesis for API contract testing (optional, for FastAPI)
+schemathesis>=3.19.0
+
+# HTTP client for contract tests (optional, for FastAPI)
+requests>=2.28.0
+httpx>=0.23.0

@@ -1,0 +1,236 @@
+# Document Frontmatter Template
+# 用于PRD、Architecture等Planning文档的YAML头部元数据模板
+
+# ========================================
+# PRD (Product Requirements Document) 模板
+# ========================================
+prd_frontmatter: |
+  ---
+  document_type: "PRD"
+  version: "1.0.0"
+  last_modified: "2025-11-19"
+  status: "draft"  # draft | in_review | approved | deprecated
+  iteration: 1
+
+  # 作者信息
+  authors:
+    - name: "PM Agent"
+      role: "Product Manager"
+
+  # 审核信息
+  reviewers:
+    - name: "PO Agent"
+      role: "Product Owner"
+      approved: false
+
+  # 版本兼容性声明
+  compatible_with:
+    architecture: "v1.0"  # 兼容的Architecture版本
+    api_spec: "v1.0"      # 兼容的API Spec版本
+
+  # 本次迭代的变更摘要
+  changes_from_previous:
+    - "Initial PRD creation"
+
+  # Git关联
+  git:
+    commit_sha: ""  # 由脚本自动填充
+    tag: ""         # 例如: planning-v1.0
+
+  # 元数据
+  metadata:
+    project_name: "Canvas Learning System"
+    epic_count: 0
+    fr_count: 0   # Functional Requirements count
+    nfr_count: 0  # Non-Functional Requirements count
+  ---
+
+# ========================================
+# Architecture Document 模板
+# ========================================
+architecture_frontmatter: |
+  ---
+  document_type: "Architecture"
+  version: "1.0.0"
+  last_modified: "2025-11-19"
+  status: "draft"  # draft | in_review | approved | deprecated
+  iteration: 1
+
+  # 作者信息
+  authors:
+    - name: "Architect Agent"
+      role: "Solution Architect"
+
+  # 审核信息
+  reviewers:
+    - name: "PO Agent"
+      role: "Product Owner"
+      approved: false
+
+  # 版本兼容性声明
+  compatible_with:
+    prd: "v1.0"              # 基于的PRD版本
+    api_spec: "v1.0"         # 对应的API Spec版本
+
+  # API Spec Hash (用于检测drift)
+  api_spec_hash: "sha256:..."  # 由脚本自动计算填充
+
+  # 本次迭代的变更摘要
+  changes_from_previous:
+    - "Initial Architecture design"
+
+  # Git关联
+  git:
+    commit_sha: ""
+    tag: ""
+
+  # 架构元数据
+  metadata:
+    components_count: 0
+    external_services: []
+    technology_stack:
+      frontend: []
+      backend: []
+      database: []
+      infrastructure: []
+  ---
+
+# ========================================
+# Epic Document 模板
+# ========================================
+epic_frontmatter: |
+  ---
+  document_type: "Epic"
+  epic_id: "EPIC-XX"
+  epic_name: "Epic Name"
+  version: "1.0.0"
+  status: "not_started"  # not_started | in_progress | completed | deprecated
+
+  # 父文档关联
+  parent_documents:
+    prd: "v1.0"
+    architecture: "v1.0"
+
+  # 依赖关系
+  dependencies:
+    prerequisite_epics: []  # 前置依赖的Epic IDs
+    dependent_epics: []     # 依赖本Epic的Epic IDs
+
+  # PRD追溯
+  traceability:
+    functional_requirements: []  # FR IDs
+    non_functional_requirements: []  # NFR IDs
+
+  # 工作量估算
+  estimation:
+    story_points: 0
+    estimated_stories: 0
+  ---
+
+# ========================================
+# Story Document 模板
+# ========================================
+story_frontmatter: |
+  ---
+  document_type: "Story"
+  story_id: "STORY-XX.YY"
+  story_name: "Story Name"
+  version: "1.0.0"
+  status: "not_started"  # not_started | in_progress | in_review | completed
+
+  # 父文档关联
+  parent_epic: "EPIC-XX"
+
+  # 追溯
+  traceability:
+    prd: "v1.0"
+    architecture: "v1.0"
+    api_spec: "v1.0"
+
+  # 实现信息
+  implementation:
+    assigned_to: "Dev Agent"
+    estimated_hours: 0
+    actual_hours: 0
+
+  # 测试信息
+  testing:
+    test_cases: []
+    qa_status: "pending"
+  ---
+
+# ========================================
+# Technical Spec 模板
+# ========================================
+technical_spec_frontmatter: |
+  ---
+  document_type: "Technical Spec"
+  spec_type: "API"  # API | Data | Behavior | Interface
+  version: "1.0.0"
+  last_modified: "2025-11-19"
+  status: "draft"
+
+  # 关联文档
+  related_documents:
+    prd: "v1.0"
+    architecture: "v1.0"
+    epic: "EPIC-XX"
+
+  # Spec元数据
+  metadata:
+    endpoints_count: 0  # 对于API Spec
+    entities_count: 0   # 对于Data Spec
+    scenarios_count: 0  # 对于Behavior Spec
+  ---
+
+# ========================================
+# ADR (Architecture Decision Record) 模板
+# ========================================
+adr_frontmatter: |
+  ---
+  document_type: "ADR"
+  adr_number: 1
+  title: "Decision Title"
+  date: "2025-11-19"
+  status: "proposed"  # proposed | accepted | rejected | deprecated | superseded
+
+  # 决策上下文
+  context:
+    prd_version: "v1.0"
+    architecture_version: "v1.0"
+    related_epics: []
+
+  # 决策者
+  deciders:
+    - "Architect Agent"
+    - "PM Agent"
+
+  # 如果被替代
+  superseded_by: ""  # ADR编号
+  supersedes: ""     # 被替代的ADR编号
+  ---
+
+# ========================================
+# 使用说明
+# ========================================
+#
+# 1. 在创建新文档时，复制对应的frontmatter到文档顶部
+# 2. 填充所有必需字段
+# 3. version字段遵循语义化版本规范 (Major.Minor.Patch)
+# 4. 每次迭代时更新version和changes_from_previous
+# 5. 使用脚本自动填充git相关字段和hash
+#
+# 示例:
+#
+# ```markdown
+# ---
+# document_type: "PRD"
+# version: "2.1.0"
+# last_modified: "2025-11-20"
+# ...
+# ---
+#
+# # PRD Title
+#
+# 文档内容...
+# ```

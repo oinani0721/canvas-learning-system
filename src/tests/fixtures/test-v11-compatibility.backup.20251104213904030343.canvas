@@ -1,0 +1,592 @@
+{
+  "nodes": [
+    {
+      "id": "material-123",
+      "type": "text",
+      "text": "Test Material Node",
+      "x": 0,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "text-fa5aa346f66c4533",
+      "type": "text",
+      "x": 850,
+      "y": 100,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-dc948a8c59ad4fca",
+      "type": "text",
+      "x": 850,
+      "y": 250,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-18b75783119743e3",
+      "type": "text",
+      "x": 850,
+      "y": 480,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-ea1ad57d66d741c7",
+      "type": "text",
+      "x": 850,
+      "y": 630,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-ba22edc11f624e20",
+      "type": "text",
+      "x": 850,
+      "y": 860,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-bbc8c7d0cfbe482f",
+      "type": "text",
+      "x": 850,
+      "y": 1010,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-286e09d005d54917",
+      "type": "text",
+      "x": 850,
+      "y": 1240,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-05fc334c9dc94d41",
+      "type": "text",
+      "x": 850,
+      "y": 1390,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-3607e6c6f459494a",
+      "type": "text",
+      "x": 850,
+      "y": 1620,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-e8a4d9ff38634d98",
+      "type": "text",
+      "x": 850,
+      "y": 1770,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-7613ac9c4a624f95",
+      "type": "text",
+      "x": 850,
+      "y": 2000,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-b5d84db6ccdf4415",
+      "type": "text",
+      "x": 850,
+      "y": 2150,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-abe3d73375d54c02",
+      "type": "text",
+      "x": 850,
+      "y": 2380,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-049fad0db32347c3",
+      "type": "text",
+      "x": 850,
+      "y": 2530,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-75e1a8563b794d33",
+      "type": "text",
+      "x": 850,
+      "y": 2760,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-9aeef814338c498c",
+      "type": "text",
+      "x": 850,
+      "y": 2910,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-90b1256550c54c72",
+      "type": "text",
+      "x": 850,
+      "y": 3140,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-678f32c6bc8b45c3",
+      "type": "text",
+      "x": 850,
+      "y": 3290,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-f90209706cf24f5f",
+      "type": "text",
+      "x": 850,
+      "y": 3520,
+      "width": 400,
+      "height": 120,
+      "color": "1",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-937fd8279434427d",
+      "type": "text",
+      "x": 850,
+      "y": 3670,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-29978c414188439a",
+      "type": "text",
+      "x": 850,
+      "y": 3900,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-81d2ef5190314530",
+      "type": "text",
+      "x": 850,
+      "y": 4050,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-74b817b5f4734dd5",
+      "type": "text",
+      "x": 850,
+      "y": 4280,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-87e5bbe1551340a0",
+      "type": "text",
+      "x": 850,
+      "y": 4430,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-f159503070be4229",
+      "type": "text",
+      "x": 850,
+      "y": 4660,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-1bd70aa03a714402",
+      "type": "text",
+      "x": 850,
+      "y": 4810,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-dc77042904334f63",
+      "type": "text",
+      "x": 850,
+      "y": 5040,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-971264e6f5b54f52",
+      "type": "text",
+      "x": 850,
+      "y": 5190,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-8ce3b0915ea94e19",
+      "type": "text",
+      "x": 850,
+      "y": 5420,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-0ad41131f05f425a",
+      "type": "text",
+      "x": 850,
+      "y": 5570,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    },
+    {
+      "id": "text-30d7cb368810410f",
+      "type": "text",
+      "x": 850,
+      "y": 5800,
+      "width": 400,
+      "height": 120,
+      "color": "4",
+      "text": "测试问题"
+    },
+    {
+      "id": "text-5ab60de184db4527",
+      "type": "text",
+      "x": 850,
+      "y": 5950,
+      "width": 350,
+      "height": 150,
+      "color": "6",
+      "text": "[请在此填写你对该问题的个人理解]"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-123-fa5aa346-526776",
+      "fromNode": "material-123",
+      "toNode": "text-fa5aa346f66c4533",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-fa5aa346-dc948a8c-526776",
+      "fromNode": "text-fa5aa346f66c4533",
+      "toNode": "text-dc948a8c59ad4fca",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-18b75783-526869",
+      "fromNode": "material-123",
+      "toNode": "text-18b75783119743e3",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-18b75783-ea1ad57d-526869",
+      "fromNode": "text-18b75783119743e3",
+      "toNode": "text-ea1ad57d66d741c7",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-ba22edc1-526879",
+      "fromNode": "material-123",
+      "toNode": "text-ba22edc11f624e20",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-ba22edc1-bbc8c7d0-526879",
+      "fromNode": "text-ba22edc11f624e20",
+      "toNode": "text-bbc8c7d0cfbe482f",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-286e09d0-527152",
+      "fromNode": "material-123",
+      "toNode": "text-286e09d005d54917",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-286e09d0-05fc334c-527152",
+      "fromNode": "text-286e09d005d54917",
+      "toNode": "text-05fc334c9dc94d41",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-3607e6c6-527163",
+      "fromNode": "material-123",
+      "toNode": "text-3607e6c6f459494a",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-3607e6c6-e8a4d9ff-527163",
+      "fromNode": "text-3607e6c6f459494a",
+      "toNode": "text-e8a4d9ff38634d98",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-7613ac9c-529359",
+      "fromNode": "material-123",
+      "toNode": "text-7613ac9c4a624f95",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-7613ac9c-b5d84db6-529359",
+      "fromNode": "text-7613ac9c4a624f95",
+      "toNode": "text-b5d84db6ccdf4415",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-abe3d733-545945",
+      "fromNode": "material-123",
+      "toNode": "text-abe3d73375d54c02",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-abe3d733-049fad0d-545945",
+      "fromNode": "text-abe3d73375d54c02",
+      "toNode": "text-049fad0db32347c3",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-75e1a856-545994",
+      "fromNode": "material-123",
+      "toNode": "text-75e1a8563b794d33",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-75e1a856-9aeef814-545994",
+      "fromNode": "text-75e1a8563b794d33",
+      "toNode": "text-9aeef814338c498c",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-90b12565-560049",
+      "fromNode": "material-123",
+      "toNode": "text-90b1256550c54c72",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-90b12565-678f32c6-560049",
+      "fromNode": "text-90b1256550c54c72",
+      "toNode": "text-678f32c6bc8b45c3",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-f9020970-591489",
+      "fromNode": "material-123",
+      "toNode": "text-f90209706cf24f5f",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-f9020970-937fd827-591489",
+      "fromNode": "text-f90209706cf24f5f",
+      "toNode": "text-937fd8279434427d",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-29978c41-836203",
+      "fromNode": "material-123",
+      "toNode": "text-29978c414188439a",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-29978c41-81d2ef51-836203",
+      "fromNode": "text-29978c414188439a",
+      "toNode": "text-81d2ef5190314530",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-74b817b5-935382",
+      "fromNode": "material-123",
+      "toNode": "text-74b817b5f4734dd5",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-74b817b5-87e5bbe1-935382",
+      "fromNode": "text-74b817b5f4734dd5",
+      "toNode": "text-87e5bbe1551340a0",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-f1595030-944093",
+      "fromNode": "material-123",
+      "toNode": "text-f159503070be4229",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-f1595030-1bd70aa0-944093",
+      "fromNode": "text-f159503070be4229",
+      "toNode": "text-1bd70aa03a714402",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-dc770429-944773",
+      "fromNode": "material-123",
+      "toNode": "text-dc77042904334f63",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-dc770429-971264e6-944773",
+      "fromNode": "text-dc77042904334f63",
+      "toNode": "text-971264e6f5b54f52",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-8ce3b091-994083",
+      "fromNode": "material-123",
+      "toNode": "text-8ce3b0915ea94e19",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-8ce3b091-0ad41131-994083",
+      "fromNode": "text-8ce3b0915ea94e19",
+      "toNode": "text-0ad41131f05f425a",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    },
+    {
+      "id": "edge-123-30d7cb36-132727",
+      "fromNode": "material-123",
+      "toNode": "text-30d7cb368810410f",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "拆解自"
+    },
+    {
+      "id": "edge-30d7cb36-5ab60de1-132727",
+      "fromNode": "text-30d7cb368810410f",
+      "toNode": "text-5ab60de184db4527",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "个人理解"
+    }
+  ]
+}

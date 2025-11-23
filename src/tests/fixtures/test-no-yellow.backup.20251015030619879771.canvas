@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "id": "node-test123",
+      "type": "text",
+      "text": "测试节点",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": []
+}

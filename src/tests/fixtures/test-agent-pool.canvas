@@ -1,0 +1,51 @@
+{
+  "nodes": [
+    {
+      "id": "question-001",
+      "type": "text",
+      "text": "什么是逆否命题？",
+      "x": 100,
+      "y": 100,
+      "width": 400,
+      "height": 200,
+      "color": "1"
+    },
+    {
+      "id": "understanding-001",
+      "type": "text",
+      "text": "逆否命题是原命题的逆和否命题的结合，即同时否定条件和结论并交换位置。",
+      "x": 100,
+      "y": 350,
+      "width": 400,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "material-001",
+      "type": "text",
+      "text": "命题逻辑基础知识\n\n1. 原命题：如果P，则Q\n2. 逆命题：如果Q，则P\n3. 否命题：如果非P，则非Q\n4. 逆否命题：如果非Q，则非P",
+      "x": 600,
+      "y": 100,
+      "width": 450,
+      "height": 300,
+      "color": "5"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-001",
+      "fromNode": "question-001",
+      "toNode": "understanding-001",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "edge-002",
+      "fromNode": "material-001",
+      "toNode": "question-001",
+      "fromSide": "left",
+      "toSide": "right",
+      "label": "参考"
+    }
+  ]
+}

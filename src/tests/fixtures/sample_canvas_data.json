@@ -1,0 +1,96 @@
+{
+  "nodes": [
+    {
+      "id": "node-math-calculus",
+      "type": "text",
+      "text": "数学概念：微积分\n\n微积分是数学分析的核心分支，主要包括两个基本概念：\n\n1. 导数：描述函数在某一点的变化率\n2. 积分：计算函数曲线下的面积\n\n微积分广泛应用于物理、工程、经济等领域。",
+      "x": 100,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "node-derivative",
+      "type": "text",
+      "text": "导数定义\n\n导数表示函数值随自变量变化的瞬时变化率。\n\n几何意义：切线斜率\n物理意义：变化速度\n\n公式：f'(x) = lim(h→0) [f(x+h) - f(x)] / h",
+      "x": 600,
+      "y": 50,
+      "width": 350,
+      "height": 200,
+      "color": "2"
+    },
+    {
+      "id": "node-integral",
+      "type": "text",
+      "text": "积分概念\n\n积分是导数的逆运算，用于计算累积量。\n\n定积分：计算曲线下面积\n不定积分：求原函数\n\n应用：面积、体积、长度计算",
+      "x": 600,
+      "y": 300,
+      "width": 350,
+      "height": 200,
+      "color": "2"
+    },
+    {
+      "id": "node-limit",
+      "type": "text",
+      "text": "极限概念\n\n极限是微积分的理论基础。\n\n描述函数值在自变量趋近某值时的行为。\n\n类型：\n- 数列极限\n- 函数极限\n- 单侧极限",
+      "x": 100,
+      "y": 450,
+      "width": 350,
+      "height": 200,
+      "color": "3"
+    },
+    {
+      "id": "node-application",
+      "type": "text",
+      "text": "实际应用\n\n微积分在现实世界中的应用：\n\n物理：运动学、电磁学\n工程：结构分析、信号处理\n经济：边际分析、优化问题\n生物：种群动态、生长模型",
+      "x": 600,
+      "y": 550,
+      "width": 350,
+      "height": 250,
+      "color": "2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-calculus-derivative",
+      "fromNode": "node-math-calculus",
+      "toNode": "node-derivative",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "包括"
+    },
+    {
+      "id": "edge-calculus-integral",
+      "fromNode": "node-math-calculus",
+      "toNode": "node-integral",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "包括"
+    },
+    {
+      "id": "edge-calculus-limit",
+      "fromNode": "node-math-calculus",
+      "toNode": "node-limit",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "基于"
+    },
+    {
+      "id": "edge-derivative-integral",
+      "fromNode": "node-derivative",
+      "toNode": "node-integral",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "互为逆运算"
+    },
+    {
+      "id": "edge-integral-application",
+      "fromNode": "node-integral",
+      "toNode": "node-application",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "应用于"
+    }
+  ]
+}

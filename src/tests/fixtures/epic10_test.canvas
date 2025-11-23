@@ -1,0 +1,35 @@
+{
+  "nodes": [
+    {
+      "id": "red-node-1",
+      "type": "text",
+      "text": "什么是逆否命题？它与原命题的关系是什么？",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "red-node-2",
+      "type": "text",
+      "text": "如何证明充分必要条件？有哪些常用方法？",
+      "x": 0,
+      "y": 400,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "red-node-3",
+      "type": "text",
+      "text": "集合的幂集是什么？如何计算幂集的元素个数？",
+      "x": 0,
+      "y": 800,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": []
+}

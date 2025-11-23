@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "id": "question-abc123",
+      "type": "text",
+      "text": "什么是逆否命题？",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": []
+}

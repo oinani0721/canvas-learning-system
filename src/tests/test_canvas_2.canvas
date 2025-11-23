@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "id": "test2-question-1",
+      "type": "text",
+      "x": 100,
+      "y": 100,
+      "width": 200,
+      "height": 100,
+      "color": "1",
+      "content": "什么是第二个测试概念？"
+    }
+  ],
+  "edges": []
+}

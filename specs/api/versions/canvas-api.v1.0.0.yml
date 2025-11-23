@@ -1,0 +1,672 @@
+openapi: 3.0.3
+info:
+  title: Canvas Learning System - Canvas API
+  version: 1.0.0
+  description: |
+    Canvas操作API，提供Canvas文件的读写、节点和边的CRUD操作。
+
+    **核心功能**:
+    - Canvas文件读写
+    - 节点CRUD操作（添加、查询、更新、删除）
+    - 边CRUD操作
+    - 颜色管理（5种颜色代码）
+    - 批量操作支持
+
+    **颜色系统**:
+    - "1" (红色): 不理解/未通过
+    - "2" (绿色): 完全理解/已通过
+    - "3" (紫色): 似懂非懂/待检验
+    - "5" (蓝色): AI补充解释
+    - "6" (黄色): 个人理解输出区
+
+  contact:
+    name: Canvas Learning System
+    url: https://github.com/canvas-learning-system
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+  - url: https://api.canvas-learning.com/v1
+    description: Production server
+
+tags:
+  - name: canvas
+    description: Canvas file operations
+  - name: nodes
+    description: Node CRUD operations
+  - name: edges
+    description: Edge CRUD operations
+  - name: analysis
+    description: Canvas analysis operations
+
+paths:
+  /canvas:
+    get:
+      tags: [canvas]
+      summary: Read Canvas file
+      description: 读取指定路径的Canvas文件，返回完整的Canvas JSON数据
+      operationId: readCanvas
+      parameters:
+        - name: path
+          in: query
+          required: true
+          description: Canvas文件的绝对路径或相对路径
+          schema:
+            type: string
+            example: "笔记库/离散数学/离散数学.canvas"
+      responses:
+        '200':
+          description: Successfully read Canvas file
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasData'
+        '404':
+          description: Canvas file not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '400':
+          description: Invalid file path
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    post:
+      tags: [canvas]
+      summary: Write Canvas file
+      description: 写入Canvas数据到指定文件，如果文件存在则覆盖
+      operationId: writeCanvas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [path, data]
+              properties:
+                path:
+                  type: string
+                  description: Canvas文件路径
+                  example: "笔记库/离散数学/离散数学.canvas"
+                data:
+                  $ref: '#/components/schemas/CanvasData'
+      responses:
+        '200':
+          description: Successfully wrote Canvas file
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  path:
+                    type: string
+                    example: "笔记库/离散数学/离散数学.canvas"
+                  nodes_count:
+                    type: integer
+                    example: 15
+                  edges_count:
+                    type: integer
+                    example: 12
+        '400':
+          description: Invalid Canvas data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/{canvasId}/nodes:
+    get:
+      tags: [nodes]
+      summary: List all nodes in Canvas
+      description: 获取Canvas中的所有节点列表
+      operationId: listNodes
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+        - name: color
+          in: query
+          required: false
+          description: 按颜色过滤节点
+          schema:
+            $ref: '#/components/schemas/ColorCode'
+        - name: type
+          in: query
+          required: false
+          description: 按节点类型过滤
+          schema:
+            type: string
+            enum: [text, file, group, link]
+      responses:
+        '200':
+          description: Successfully retrieved nodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Node'
+                  total:
+                    type: integer
+                    example: 15
+
+    post:
+      tags: [nodes]
+      summary: Add new node to Canvas
+      description: 向Canvas添加新节点
+      operationId: addNode
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeCreate'
+      responses:
+        '201':
+          description: Node created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '400':
+          description: Invalid node data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/{canvasId}/nodes/{nodeId}:
+    get:
+      tags: [nodes]
+      summary: Get node by ID
+      description: 根据节点ID获取节点详情
+      operationId: getNode
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+        - $ref: '#/components/parameters/NodeIdParam'
+      responses:
+        '200':
+          description: Successfully retrieved node
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags: [nodes]
+      summary: Update node
+      description: 更新节点的部分字段（如颜色、文本等）
+      operationId: updateNode
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+        - $ref: '#/components/parameters/NodeIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeUpdate'
+      responses:
+        '200':
+          description: Node updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Node'
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags: [nodes]
+      summary: Delete node
+      description: 删除指定节点
+      operationId: deleteNode
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+        - $ref: '#/components/parameters/NodeIdParam'
+      responses:
+        '204':
+          description: Node deleted successfully
+        '404':
+          description: Node not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/{canvasId}/edges:
+    get:
+      tags: [edges]
+      summary: List all edges in Canvas
+      description: 获取Canvas中的所有边列表
+      operationId: listEdges
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+      responses:
+        '200':
+          description: Successfully retrieved edges
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  edges:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Edge'
+                  total:
+                    type: integer
+                    example: 12
+
+    post:
+      tags: [edges]
+      summary: Add new edge to Canvas
+      description: 向Canvas添加新的连接边
+      operationId: addEdge
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeCreate'
+      responses:
+        '201':
+          description: Edge created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Edge'
+        '400':
+          description: Invalid edge data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/{canvasId}/edges/{edgeId}:
+    delete:
+      tags: [edges]
+      summary: Delete edge
+      description: 删除指定的边
+      operationId: deleteEdge
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+        - $ref: '#/components/parameters/EdgeIdParam'
+      responses:
+        '204':
+          description: Edge deleted successfully
+        '404':
+          description: Edge not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/{canvasId}/analyze:
+    post:
+      tags: [analysis]
+      summary: Analyze Canvas
+      description: |
+        分析Canvas的结构和统计信息
+        - 节点数量统计（按颜色分组）
+        - 边的数量统计
+        - 黄色节点提取（用于评分）
+        - 红色/紫色节点提取（用于生成检验问题）
+      operationId: analyzeCanvas
+      parameters:
+        - $ref: '#/components/parameters/CanvasIdParam'
+      responses:
+        '200':
+          description: Successfully analyzed Canvas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasAnalysis'
+
+components:
+  parameters:
+    CanvasIdParam:
+      name: canvasId
+      in: path
+      required: true
+      description: Canvas文件的唯一标识符（通常是文件路径的base64编码）
+      schema:
+        type: string
+        example: "6buY6K6w5bqTL-emu-aVo-aVsOWtpg"
+
+    NodeIdParam:
+      name: nodeId
+      in: path
+      required: true
+      description: 节点的唯一标识符
+      schema:
+        type: string
+        example: "question-001"
+
+    EdgeIdParam:
+      name: edgeId
+      in: path
+      required: true
+      description: 边的唯一标识符
+      schema:
+        type: string
+        example: "edge-001"
+
+  schemas:
+    CanvasData:
+      type: object
+      required: [nodes, edges]
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+          description: Canvas中的所有节点
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/Edge'
+          description: Canvas中的所有边
+      example:
+        nodes:
+          - id: "question-001"
+            type: "text"
+            x: 100
+            y: 200
+            width: 300
+            height: 100
+            color: "1"
+            text: "什么是逆否命题？"
+        edges:
+          - id: "edge-001"
+            fromNode: "question-001"
+            toNode: "yellow-001"
+            fromSide: "bottom"
+            toSide: "top"
+
+    Node:
+      type: object
+      required: [id, type, x, y, width, height]
+      properties:
+        id:
+          type: string
+          description: 节点唯一标识符
+          example: "question-001"
+        type:
+          type: string
+          enum: [text, file, group, link]
+          description: 节点类型
+          example: "text"
+        x:
+          type: integer
+          description: X坐标
+          example: 100
+        y:
+          type: integer
+          description: Y坐标
+          example: 200
+        width:
+          type: integer
+          description: 宽度
+          example: 300
+        height:
+          type: integer
+          description: 高度
+          example: 100
+        color:
+          $ref: '#/components/schemas/ColorCode'
+        text:
+          type: string
+          description: 文本节点的内容（仅type=text时存在）
+          example: "什么是逆否命题？"
+        file:
+          type: string
+          description: 文件节点的路径（仅type=file时存在）
+          example: "docs/逆否命题-口语化解释-20250115.md"
+        url:
+          type: string
+          description: 链接节点的URL（仅type=link时存在）
+          example: "https://example.com"
+
+    NodeCreate:
+      type: object
+      required: [type, x, y, width, height]
+      properties:
+        id:
+          type: string
+          description: 节点ID（可选，不提供时自动生成）
+          example: "question-001"
+        type:
+          type: string
+          enum: [text, file, group, link]
+          example: "text"
+        x:
+          type: integer
+          example: 100
+        y:
+          type: integer
+          example: 200
+        width:
+          type: integer
+          example: 300
+        height:
+          type: integer
+          example: 100
+        color:
+          $ref: '#/components/schemas/ColorCode'
+        text:
+          type: string
+          example: "什么是逆否命题？"
+        file:
+          type: string
+          example: "docs/explanation.md"
+        url:
+          type: string
+          example: "https://example.com"
+
+    NodeUpdate:
+      type: object
+      properties:
+        x:
+          type: integer
+          example: 150
+        y:
+          type: integer
+          example: 250
+        width:
+          type: integer
+          example: 320
+        height:
+          type: integer
+          example: 120
+        color:
+          $ref: '#/components/schemas/ColorCode'
+        text:
+          type: string
+          example: "更新后的文本内容"
+        file:
+          type: string
+          example: "docs/new-file.md"
+        url:
+          type: string
+          example: "https://new-url.com"
+
+    Edge:
+      type: object
+      required: [id, fromNode, toNode]
+      properties:
+        id:
+          type: string
+          description: 边的唯一标识符
+          example: "edge-001"
+        fromNode:
+          type: string
+          description: 起始节点ID
+          example: "question-001"
+        toNode:
+          type: string
+          description: 目标节点ID
+          example: "yellow-001"
+        fromSide:
+          type: string
+          enum: [top, right, bottom, left]
+          description: 起始节点的连接边（可选）
+          example: "bottom"
+        toSide:
+          type: string
+          enum: [top, right, bottom, left]
+          description: 目标节点的连接边（可选）
+          example: "top"
+        fromEnd:
+          type: string
+          enum: [none, arrow]
+          description: 起始端点样式（可选）
+          example: "none"
+        toEnd:
+          type: string
+          enum: [none, arrow]
+          description: 目标端点样式（可选）
+          example: "arrow"
+        color:
+          type: string
+          description: 边的颜色（可选）
+          example: "1"
+        label:
+          type: string
+          description: 边的标签（可选）
+          example: "derives from"
+
+    EdgeCreate:
+      type: object
+      required: [fromNode, toNode]
+      properties:
+        id:
+          type: string
+          description: 边ID（可选，不提供时自动生成）
+          example: "edge-001"
+        fromNode:
+          type: string
+          example: "question-001"
+        toNode:
+          type: string
+          example: "yellow-001"
+        fromSide:
+          type: string
+          enum: [top, right, bottom, left]
+          example: "bottom"
+        toSide:
+          type: string
+          enum: [top, right, bottom, left]
+          example: "top"
+        fromEnd:
+          type: string
+          enum: [none, arrow]
+          example: "none"
+        toEnd:
+          type: string
+          enum: [none, arrow]
+          example: "arrow"
+        color:
+          type: string
+          example: "1"
+        label:
+          type: string
+          example: "derives from"
+
+    ColorCode:
+      type: string
+      enum: ["1", "2", "3", "5", "6"]
+      description: |
+        Canvas颜色代码:
+        - "1" (红色): 不理解/未通过
+        - "2" (绿色): 完全理解/已通过
+        - "3" (紫色): 似懂非懂/待检验
+        - "5" (蓝色): AI补充解释
+        - "6" (黄色): 个人理解输出区
+      example: "1"
+
+    CanvasAnalysis:
+      type: object
+      properties:
+        total_nodes:
+          type: integer
+          description: 节点总数
+          example: 15
+        total_edges:
+          type: integer
+          description: 边总数
+          example: 12
+        nodes_by_color:
+          type: object
+          description: 按颜色分组的节点统计
+          properties:
+            red:
+              type: integer
+              description: 红色节点数量（不理解）
+              example: 3
+            green:
+              type: integer
+              description: 绿色节点数量（完全理解）
+              example: 5
+            purple:
+              type: integer
+              description: 紫色节点数量（似懂非懂）
+              example: 2
+            blue:
+              type: integer
+              description: 蓝色节点数量（AI解释）
+              example: 3
+            yellow:
+              type: integer
+              description: 黄色节点数量（个人理解）
+              example: 2
+        yellow_nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+          description: 所有黄色节点列表（用于评分）
+        verification_nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/Node'
+          description: 红色和紫色节点列表（用于生成检验问题）
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          description: 错误类型
+          example: "FileNotFoundError"
+        message:
+          type: string
+          description: 错误详细信息
+          example: "Canvas文件不存在: 笔记库/离散数学/离散数学.canvas"
+        details:
+          type: object
+          description: 额外的错误详情（可选）
+          additionalProperties: true

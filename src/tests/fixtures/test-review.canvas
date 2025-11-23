@@ -1,0 +1,70 @@
+{
+  "nodes": [
+    {
+      "id": "review-q1",
+      "type": "text",
+      "text": "逆否命题的定义是什么？",
+      "x": 100,
+      "y": 100,
+      "width": 400,
+      "height": 120,
+      "color": "1"
+    },
+    {
+      "id": "review-y1",
+      "type": "text",
+      "text": "逆否命题的定义：原命题p→q的逆否命题是¬q→¬p",
+      "x": 100,
+      "y": 250,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "review-q2",
+      "type": "text",
+      "text": "命题逻辑的基础概念？",
+      "x": 600,
+      "y": 100,
+      "width": 400,
+      "height": 120,
+      "color": "3"
+    },
+    {
+      "id": "review-y2",
+      "type": "text",
+      "text": "命题逻辑基础：研究命题之间的逻辑关系",
+      "x": 600,
+      "y": 250,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "review-new1",
+      "type": "text",
+      "text": "个人总结：逆否命题和原命题等价，这是我通过真值表验证的",
+      "x": 100,
+      "y": 500,
+      "width": 400,
+      "height": 150,
+      "color": "2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-r1",
+      "fromNode": "review-q1",
+      "fromSide": "bottom",
+      "toNode": "review-y1",
+      "toSide": "top"
+    },
+    {
+      "id": "edge-r2",
+      "fromNode": "review-q2",
+      "fromSide": "bottom",
+      "toNode": "review-y2",
+      "toSide": "top"
+    }
+  ]
+}

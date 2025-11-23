@@ -1,0 +1,63 @@
+{
+  "nodes": [
+    {
+      "id": "node-concept1",
+      "type": "text",
+      "text": "逆否命题的定义",
+      "x": 100,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "node-concept2",
+      "type": "text",
+      "text": "逆否命题的等价性证明",
+      "x": 600,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "color": "3"
+    },
+    {
+      "id": "node-concept3",
+      "type": "text",
+      "text": "命题逻辑基础",
+      "x": 1100,
+      "y": 100,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "node-concept4",
+      "type": "text",
+      "text": "真值表的构造方法",
+      "x": 100,
+      "y": 500,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    },
+    {
+      "id": "node-concept5",
+      "type": "text",
+      "text": "布尔代数运算规则",
+      "x": 600,
+      "y": 500,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge1",
+      "fromNode": "node-concept1",
+      "fromSide": "right",
+      "toNode": "node-concept2",
+      "toSide": "left"
+    }
+  ]
+}

@@ -1,0 +1,251 @@
+# ============================================================================
+# Canvas Learning System - Enhanced BMad Core Configuration
+# Version: 2.0 (Canvas Integration)
+# Date: 2025-11-17
+#
+# Purpose: BMad method configuration with Canvas-specific enhancements
+# Documentation: docs/RESEARCH_REPORT_BMAD_INTEGRATION.md
+# ============================================================================
+
+# <!-- Powered by BMAD™ Core -->
+
+# ====================
+# Project Metadata
+# ====================
+project:
+  name: "Canvas Learning System"
+  version: "1.2"
+  description: "AI-powered learning system based on Feynman technique with 14 specialized agents"
+  status: "Active Development"
+  epics_completed: [1, 2, 3, 4, 5, 10]
+
+# ====================
+# BMad Core Configuration (Original)
+# ====================
+markdownExploder: true
+slashPrefix: BMad
+
+qa:
+  qaLocation: docs/qa
+
+prd:
+  prdFile: docs/prd.md
+  prdVersion: v4
+  prdSharded: true
+  prdShardedLocation: docs/prd
+  epicFilePattern: epic-{n}*.md
+
+architecture:
+  architectureFile: docs/architecture.md
+  architectureVersion: v4
+  architectureSharded: true
+  architectureShardedLocation: docs/architecture
+
+customTechnicalDocuments: null
+devDebugLog: .ai/debug-log.md
+devStoryLocation: docs/stories
+
+# ====================
+# devLoadAlwaysFiles (Enhanced for Canvas)
+# ====================
+# Critical files loaded when Dev Agent activates via /dev command
+# NOT loaded at session start - only when Dev Agent is activated
+# Token Budget: ~18k tokens (optimized for 200k limit)
+#
+# Why These Files:
+# - coding-standards.md: Ensures API accuracy, prevents hallucinations
+# - tech-stack.md: Skills activation, zero-hallucination rules
+# - project-structure.md: File location map (replaces source-tree.md)
+# - canvas-layer-architecture.md: Core 4-layer architecture
+# - CANVAS_ERROR_LOG.md: Critical Canvas operation rules
+# - SDD specs: API contracts and data schemas for zero-hallucination
+devLoadAlwaysFiles:
+  - docs/architecture/coding-standards.md
+  - docs/architecture/tech-stack.md
+  - docs/architecture/project-structure.md
+  - docs/architecture/canvas-layer-architecture.md
+  - CANVAS_ERROR_LOG.md
+  # SDD Specifications
+  - specs/api/canvas-api.openapi.yml
+  - specs/data/canvas-node.schema.json
+  # Anti-Hallucination Index
+  - project-file-index.md
+
+# ====================
+# Helper System (Reference Documentation)
+# ====================
+# Reference pattern: @helpers.md#Section-Name
+# NOTE: This syntax is NOT auto-parsed by Claude
+# User must manually request Claude to read specific sections
+# This is reference documentation, not an auto-loading mechanism
+helpers:
+  enabled: true
+  main_file: .bmad-core/data/helpers.md
+  sections:
+    story_workflow: "Story-Development-Workflow"
+    testing: "Testing-Checklist"
+    agent_protocol: "Agent-Calling-Protocol"
+    canvas_colors: "Canvas-Color-System"
+    bmad_phases: "BMad-4-Phase-Workflow"
+
+# ====================
+# Templates
+# ====================
+templates:
+  prd: .bmad-core/templates/prd-template.md
+  story: .bmad-core/templates/story-template.md
+  adr: .bmad-core/templates/adr-template.md
+  test_suite: .bmad-core/templates/test-suite-template.py
+  agent: .bmad-core/templates/agent-template.md
+
+# ====================
+# Specification-Driven Design (SDD)
+# ====================
+# OpenAPI + JSON Schema + Gherkin for zero-hallucination development
+specifications:
+  enabled: true
+  api:
+    canvas: specs/api/canvas-api.openapi.yml
+    agent: specs/api/agent-api.openapi.yml
+  schemas:
+    node: specs/data/canvas-node.schema.json
+    edge: specs/data/canvas-edge.schema.json
+    agent_response: specs/data/agent-response.schema.json
+    scoring: specs/data/scoring-response.schema.json
+  behavior:
+    scoring: specs/behavior/scoring-workflow.feature
+    review: specs/behavior/review-board-workflow.feature
+
+# ====================
+# ADRs (Architecture Decision Records)
+# ====================
+adrs:
+  enabled: true
+  directory: docs/architecture/decisions
+  format: "Michael Nygard"
+  naming: "NNNN-title-with-dashes.md"
+  key_decisions:
+    - "0001-use-obsidian-canvas.md"
+    - "0002-langgraph-agents.md"
+    - "0003-graphiti-memory.md"
+    - "0004-async-execution-engine.md"
+
+# ====================
+# Skills Integration
+# ====================
+# Claude Code Skills for offline documentation
+skills:
+  - name: langgraph
+    path: .claude/skills/langgraph
+    activation: "@langgraph"
+    pages: 952
+  - name: graphiti
+    path: .claude/skills/graphiti
+    activation: "@graphiti"
+  - name: obsidian-canvas
+    path: .claude/skills/obsidian-canvas
+    activation: "@obsidian-canvas"
+
+# ====================
+# Context7 MCP
+# ====================
+# For tech without Skills
+context7:
+  enabled: true
+  libraries:
+    - id: "/websites/fastapi_tiangolo"
+      name: "FastAPI"
+      snippets: 22734
+    - id: "/websites/neo4j_cypher-manual_25"
+      name: "Neo4j Cypher"
+      snippets: 2032
+
+# ====================
+# Agent System
+# ====================
+# 14 specialized agents (12 learning + 2 system)
+agents:
+  directory: .claude/agents
+  count: 14
+  orchestrator: canvas-orchestrator.md
+  learning_agents: 12
+  system_agents: 2
+  parallel_execution:
+    enabled: true
+    max_concurrent: 12
+    performance_gain: 8.3  # 8.3x faster
+
+# ====================
+# Memory System (Epic 12)
+# ====================
+memory:
+  temporal:
+    enabled: true
+    backend: neo4j
+  graphiti:
+    enabled: true
+    backend: neo4j
+  semantic:
+    enabled: true
+    backend: lancedb
+    acceleration: cuda
+  ebbinghaus:
+    enabled: true
+    algorithm: py-fsrs
+
+# ====================
+# Testing Configuration
+# ====================
+testing:
+  framework: pytest
+  coverage_threshold: 99.0
+  test_directory: src/tests
+  contract_testing:
+    enabled: true
+    tool: schemathesis
+    specs:
+      - specs/api/canvas-api.openapi.yml
+      - specs/api/agent-api.openapi.yml
+
+# ====================
+# Document Sharding
+# ====================
+# BMad core innovation for context management
+sharding:
+  enabled: true
+  triggers:
+    consider_at: 20000      # tokens
+    recommend_at: 40000     # tokens
+    critical_at: 60000      # tokens
+  method: "Split by ## headings"
+
+# ====================
+# Zero-Hallucination Rules
+# ====================
+zero_hallucination:
+  enabled: true
+  priorities:
+    1: "Skills (offline)"
+    2: "Context7 (online)"
+    3: "Official docs (WebFetch)"
+  enforce_source_comments: true
+
+# ====================
+# Integration Points
+# ====================
+integration:
+  obsidian:
+    vault: "笔记库/"
+    canvas_ext: ".canvas"
+  neo4j:
+    enabled: true
+    uri: "bolt://localhost:7687"
+    database: "canvas_memory"
+  claude_code:
+    context: CLAUDE.md
+    commands: .claude/commands/
+    hooks: .claude/hooks/
+
+# ============================================================================
+# End of Enhanced Configuration
+# ============================================================================

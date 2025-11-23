@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "id": "parent-123",
+      "type": "text",
+      "text": "Parent Node for Testing",
+      "x": 100,
+      "y": 200,
+      "width": 400,
+      "height": 300,
+      "color": "1"
+    }
+  ],
+  "edges": []
+}

@@ -1,0 +1,44 @@
+{
+  "nodes": [
+    {
+      "id": "question-abc123",
+      "type": "text",
+      "text": "什么是逆否命题？",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "2"
+    },
+    {
+      "id": "yellow-def456",
+      "type": "text",
+      "text": "孤立的黄色节点，没有连接",
+      "x": 450,
+      "y": 0,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    },
+    {
+      "id": "yellow-ghi789",
+      "type": "text",
+      "text": "正常的黄色节点，有连接",
+      "x": 450,
+      "y": 400,
+      "width": 350,
+      "height": 150,
+      "color": "6"
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-abc123-ghi789",
+      "fromNode": "question-abc123",
+      "toNode": "yellow-ghi789",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "个人理解"
+    }
+  ]
+}

@@ -1,0 +1,189 @@
+# <!-- Powered by BMAD™ Core -->
+template:
+  id: story-template-v2
+  name: Story Document
+  version: 2.0
+  output:
+    format: markdown
+    filename: docs/stories/{{epic_num}}.{{story_num}}.{{story_title_short}}.md
+    title: "Story {{epic_num}}.{{story_num}}: {{story_title_short}}"
+
+workflow:
+  mode: interactive
+  elicitation: advanced-elicitation
+
+agent_config:
+  editable_sections:
+    - Status
+    - Story
+    - Acceptance Criteria
+    - Tasks / Subtasks
+    - Dev Notes
+    - Testing
+    - Change Log
+
+sections:
+  - id: status
+    title: Status
+    type: choice
+    choices: [Draft, Approved, InProgress, Review, Done]
+    instruction: Select the current status of the story
+    owner: scrum-master
+    editors: [scrum-master, dev-agent]
+
+  - id: story
+    title: Story
+    type: template-text
+    template: |
+      **As a** {{role}},
+      **I want** {{action}},
+      **so that** {{benefit}}
+    instruction: Define the user story using the standard format with role, action, and benefit
+    elicit: true
+    owner: scrum-master
+    editors: [scrum-master]
+
+  - id: acceptance-criteria
+    title: Acceptance Criteria
+    type: numbered-list
+    instruction: Copy the acceptance criteria numbered list from the epic file
+    elicit: true
+    owner: scrum-master
+    editors: [scrum-master]
+
+  - id: tasks-subtasks
+    title: Tasks / Subtasks
+    type: bullet-list
+    instruction: |
+      Break down the story into specific tasks and subtasks needed for implementation.
+      Reference applicable acceptance criteria numbers where relevant.
+    template: |
+      - [ ] Task 1 (AC: # if applicable)
+        - [ ] Subtask1.1...
+      - [ ] Task 2 (AC: # if applicable)
+        - [ ] Subtask 2.1...
+      - [ ] Task 3 (AC: # if applicable)
+        - [ ] Subtask 3.1...
+    elicit: true
+    owner: scrum-master
+    editors: [scrum-master, dev-agent]
+
+  - id: dev-notes
+    title: Dev Notes
+    instruction: |
+      Populate relevant information, only what was pulled from actual artifacts from docs folder, specs folder, and ADRs relevant to this story:
+      - Do not invent information
+      - MUST include SDD规范参考 and ADR决策关联 sections (required for Story to be Draft)
+      - If known add Relevant Source Tree info that relates to this story
+      - If there were important notes from previous story that are relevant to this one, include them here
+      - Put enough information in this section so that the dev agent should NEVER need to read the architecture documents, these notes along with the tasks and subtasks must give the Dev Agent the complete context it needs to comprehend with the least amount of overhead the information to complete the story, meeting all AC and completing all tasks+subtasks
+    elicit: true
+    owner: scrum-master
+    editors: [scrum-master]
+    sections:
+      - id: sdd-spec-reference
+        title: SDD规范参考 (必填)
+        instruction: |
+          从specs/目录提取与Story相关的SDD规范引用:
+
+          **API端点** (从OpenAPI specs):
+          - 端点路径和方法: `POST /api/canvas/analyze`
+          - 规范来源: `[Source: specs/api/canvas-api.openapi.yml#L156-L180]`
+          - 请求Schema: 引用OpenAPI中定义的请求体
+          - 响应Schema: 引用OpenAPI中定义的响应体
+
+          **数据Schema** (从JSON Schema):
+          - 模型名称: 例如 CanvasNode, AgentResponse
+          - Schema来源: `[Source: specs/data/canvas-node.schema.json]`
+          - 必填字段: 列出关键必填字段
+          - 验证规则: 列出重要的验证约束
+
+          **行为规范** (如有Gherkin specs):
+          - 场景名称和来源: `[Source: specs/behavior/scoring-workflow.feature]`
+
+          ⚠️ 此section为空时，Story不能标记为Draft
+        required: true
+        elicit: true
+        owner: scrum-master
+        editors: [scrum-master]
+
+      - id: adr-decisions
+        title: ADR决策关联 (必填)
+        instruction: |
+          列出影响本Story实现的架构决策记录:
+
+          | ADR编号 | 决策标题 | 对Story的影响 |
+          |---------|----------|---------------|
+          | ADR-001 | 使用Obsidian Canvas | Canvas操作必须使用JSON格式 |
+          | ADR-002 | Vector Database选型(LanceDB) | 向量存储使用LanceDB API |
+          | ADR-003 | Agentic RAG架构 | 采用Router-Fusion-Reranking模式 |
+
+          **关键约束** (从ADR Consequences提取):
+          - 约束1: [具体约束描述]
+          - 约束2: [具体约束描述]
+
+          来源引用: `[Source: ADR-{number}]`
+
+          ⚠️ 如果Story涉及的技术栈没有对应ADR，在此说明并建议Architect补充
+          ⚠️ 此section为空时，Story不能标记为Draft
+        required: true
+        elicit: true
+        owner: scrum-master
+        editors: [scrum-master]
+
+      - id: testing-standards
+        title: Testing
+        instruction: |
+          List Relevant Testing Standards from Architecture the Developer needs to conform to:
+          - Test file location
+          - Test standards
+          - Testing frameworks and patterns to use
+          - Any specific testing requirements for this story
+        elicit: true
+        owner: scrum-master
+        editors: [scrum-master]
+
+  - id: change-log
+    title: Change Log
+    type: table
+    columns: [Date, Version, Description, Author]
+    instruction: Track changes made to this story document
+    owner: scrum-master
+    editors: [scrum-master, dev-agent, qa-agent]
+
+  - id: dev-agent-record
+    title: Dev Agent Record
+    instruction: This section is populated by the development agent during implementation
+    owner: dev-agent
+    editors: [dev-agent]
+    sections:
+      - id: agent-model
+        title: Agent Model Used
+        template: "{{agent_model_name_version}}"
+        instruction: Record the specific AI agent model and version used for development
+        owner: dev-agent
+        editors: [dev-agent]
+
+      - id: debug-log-references
+        title: Debug Log References
+        instruction: Reference any debug logs or traces generated during development
+        owner: dev-agent
+        editors: [dev-agent]
+
+      - id: completion-notes
+        title: Completion Notes List
+        instruction: Notes about the completion of tasks and any issues encountered
+        owner: dev-agent
+        editors: [dev-agent]
+
+      - id: file-list
+        title: File List
+        instruction: List all files created, modified, or affected during story implementation
+        owner: dev-agent
+        editors: [dev-agent]
+
+  - id: qa-results
+    title: QA Results
+    instruction: Results from QA Agent QA review of the completed story implementation
+    owner: qa-agent
+    editors: [qa-agent]

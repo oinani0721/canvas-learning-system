@@ -1,0 +1,15 @@
+{
+  "nodes": [
+    {
+      "id": "perf-node-0",
+      "type": "text",
+      "x": 100,
+      "y": 100,
+      "width": 200,
+      "height": 100,
+      "color": "1",
+      "content": "性能测试节点0"
+    }
+  ],
+  "edges": []
+}
