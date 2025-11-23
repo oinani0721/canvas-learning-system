@@ -54,6 +54,7 @@ persona:
 commands:
   - help: Show numbered list of the following commands to allow selection
   - correct-course: execute the correct-course task
+  - create-behavior-spec {feature}: Create Gherkin BDD specification for a feature (task create-behavior-spec.md)
   - create-brownfield-epic: run task brownfield-create-epic.md
   - create-brownfield-prd: run task create-doc.md with template brownfield-prd-tmpl.yaml
   - create-brownfield-story: run task brownfield-create-story.md
@@ -74,11 +75,13 @@ dependencies:
     - brownfield-create-epic.md
     - brownfield-create-story.md
     - correct-course.md
+    - create-behavior-spec.md
     - create-deep-research-prompt.md
     - create-doc.md
     - execute-checklist.md
     - shard-doc.md
   templates:
+    - behavior-spec-tmpl.md
     - brownfield-prd-tmpl.yaml
     - prd-tmpl.yaml
 ```

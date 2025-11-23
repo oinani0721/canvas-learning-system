@@ -29,11 +29,11 @@ qa:
   qaLocation: docs/qa
 
 prd:
-  prdFile: docs/prd.md
+  prdFile: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md
   prdVersion: v4
   prdSharded: true
   prdShardedLocation: docs/prd
-  epicFilePattern: epic-{n}*.md
+  epicFilePattern: EPIC-{n}*.md
 
 architecture:
   architectureFile: docs/architecture.md
@@ -65,9 +65,13 @@ devLoadAlwaysFiles:
   - docs/architecture/project-structure.md
   - docs/architecture/canvas-layer-architecture.md
   - CANVAS_ERROR_LOG.md
-  # SDD Specifications
+  # SDD Specifications - ALL OpenAPI and JSON Schemas
   - specs/api/canvas-api.openapi.yml
+  - specs/api/agent-api.openapi.yml
   - specs/data/canvas-node.schema.json
+  - specs/data/canvas-edge.schema.json
+  - specs/data/agent-response.schema.json
+  - specs/data/scoring-response.schema.json
   # Anti-Hallucination Index
   - project-file-index.md
 

@@ -1,4 +1,31 @@
 ---
+<!-- TEMP_COMPACT_SNAPSHOT_START -->
+# Context Snapshot [2025-11-23 14:07:54]
+
+**Snapshot File**: .claude/compact-snapshot-20251123140754.md
+**Snapshot Time**: 2025-11-23 14:07:54
+**Valid For**: 2 hours (auto-cleanup after expiration)
+
+**Note**:
+- This is a context snapshot before conversation compression
+- Snapshot was automatically filled by PreCompact hook (PowerShell transcript parsing)
+- If continuing conversation after compression (within 2 hours), use Read tool to load snapshot file
+- If starting new conversation, SessionStart hook will automatically clean up this reference
+
+<!-- TEMP_COMPACT_SNAPSHOT_END -->
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
 
 ---
 ---
@@ -133,7 +160,7 @@ Canvas Learning System - Obsidian Canvas-based AI-assisted learning system using
 
 ### 1. Complete Agent Command Reference ⭐⭐⭐
 
-#### PM Agent (John 📋) - 12 Commands
+#### PM Agent (John 📋) - 13 Commands
 
 | Command | Description | Phase |
 |---------|-------------|-------|
@@ -142,6 +169,7 @@ Canvas Learning System - Obsidian Canvas-based AI-assisted learning system using
 | `*create-brownfield-prd` | PRD for existing projects | Phase 2 |
 | `*create-brownfield-epic` | Epic for brownfield projects | Phase 2 |
 | `*create-brownfield-story` | Story for brownfield projects | Phase 2 |
+| `*create-behavior-spec {feature}` | **Create Gherkin BDD specification** | **Phase 2** |
 | `*create-epic` | Create new epic | Phase 2 |
 | `*create-story` | Create user story | Phase 2 |
 | `*shard-prd` | Split large PRD into parts | Phase 2 |
@@ -150,12 +178,15 @@ Canvas Learning System - Obsidian Canvas-based AI-assisted learning system using
 | `*correct-course` | **Handle change triggers** | **Phase 2/4** |
 | `*exit` | Exit PM agent | Any |
 
-#### Architect Agent (Winston 🏗️) - 12 Commands
+#### Architect Agent (Winston 🏗️) - 14 Commands
 
 | Command | Description | Phase |
 |---------|-------------|-------|
 | `*help` | Show all available commands | Any |
-| `*create-backend-architecture` | Backend system design | **Phase 3** |
+| `*create-adr {title}` | Create Architecture Decision Record | **Phase 3** |
+| `*create-openapi` | Create OpenAPI specification from PRD/Architecture | **Phase 3** |
+| `*create-schemas` | Create JSON Schemas for data models | **Phase 3** |
+| `*create-backend-architecture` | Backend system design | Phase 3 |
 | `*create-front-end-architecture` | Frontend architecture | Phase 3 |
 | `*create-full-stack-architecture` | Full-stack design | Phase 3 |
 | `*create-brownfield-architecture` | Architecture for existing projects | Phase 3 |
@@ -274,7 +305,8 @@ Canvas Learning System - Obsidian Canvas-based AI-assisted learning system using
 #### Phase 2 使用 (Planning迭代)
 ```bash
 # 需要修改PRD/Architecture时
-User: "@planning-orchestrator Start iteration 4"
+User: "/planning"
+User: "*init"
 
 # 使用 *correct-course 进行变更分析
 User: "@pm *correct-course 添加Epic 13 - Ebbinghaus Review"
@@ -351,8 +383,8 @@ SM Agent:
 
 | Scenario | Use Planning Iteration Mgmt? | Tool |
 |----------|------------------------------|------|
-| First PRD creation | ✅ Yes (Iteration 1) | `@planning-orchestrator "Start iteration 1"` then `@pm *create-prd` |
-| Refine PRD/Architecture | ✅ Yes (Iteration 2+) | `@planning-orchestrator "Start iteration N"` then edit/`*create-prd` |
+| First PRD creation | ✅ Yes (Iteration 1) | `/planning` → `*init` then `/pm *create-prd` |
+| Refine PRD/Architecture | ✅ Yes (Iteration 2+) | `/planning` → `*init` then edit/`*create-prd` |
 | Add/modify Epic | ✅ Yes | Same as above |
 | Update API spec | ✅ Yes | Same as above |
 | Simple typo fix | ❌ Optional | Direct commit |
@@ -373,13 +405,15 @@ Marcus (Planning Orchestrator):
 Available commands: *init, *validate, *finalize, *rollback, *compare, *status
 
 # Step 2: Initialize Iteration
-*init "Epic 13 - Ebbinghaus Review"
+*init
 
 Marcus:
 ✅ Pre-flight checks passed
 ⏳ Initializing Iteration 4...
    └─ Snapshot: iterations/iteration-004.json
    └─ Branch: planning-iteration-4
+
+✅ Iteration 4 initialized
 📋 Ready for Planning changes
 
 # Step 3: Make Changes (使用 BMad PM Agent)
@@ -512,9 +546,11 @@ Orchestrator:
 
 ```bash
 # When changes affect multiple Epics
-User: "@planning-orchestrator Start iteration for cross-Epic refactoring"
+User: "/planning"
+User: "*init"
 
 Orchestrator:
+✅ Iteration N initialized
 ⏳ Scanning affected Epics...
 📊 Impact Analysis:
    - Epic 8: 3 stories affected

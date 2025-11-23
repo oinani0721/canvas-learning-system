@@ -677,7 +677,53 @@ async def read_items(token: str = Depends(oauth2_scheme)):
     return {"token": token}
 ```
 
-#### 规则3: 未验证的API不允许进入代码
+#### 规则3: Spec和ADR来源标注 (新增)
+
+**除了Skills/Context7，还必须标注Spec和ADR来源**:
+
+**Spec来源格式**:
+```python
+# ✅ Verified from specs/api/canvas-api.openapi.yml#L156
+# ✅ Verified from specs/data/canvas-node.schema.json#/properties/color
+```
+
+**ADR来源格式**:
+```python
+# ✅ Verified from ADR-002: LanceDB selected for vector storage
+# ✅ Verified from ADR-003: Using Agentic RAG pattern
+```
+
+**完整示例**:
+```python
+# ✅ Verified from specs/api/canvas-api.openapi.yml#POST-/api/canvas/{id}/nodes
+# ✅ Verified from specs/data/canvas-node.schema.json#/properties
+# ✅ Verified from ADR-002: LanceDB for embedding storage
+async def create_node(
+    canvas_id: str,
+    node_data: NodeCreateRequest
+) -> NodeResponse:
+    """创建Canvas节点并存储embedding"""
+    # 节点颜色必须是字符串 "1"-"6"
+    # (来自 canvas-node.schema.json: "color": {"type": "string", "enum": ["1","2","3","4","5","6"]})
+
+    # 使用LanceDB存储节点embedding
+    # (来自 ADR-002: Vector database selection - LanceDB)
+    await lancedb_client.store_embedding(node_data.text)
+
+    return NodeResponse(...)
+```
+
+**何时标注Spec**:
+- 调用API端点时 → 标注OpenAPI spec位置
+- 使用数据模型时 → 标注JSON Schema位置
+- 参数约束时 → 标注Schema约束定义
+
+**何时标注ADR**:
+- 使用特定技术选型时（如LanceDB、LangGraph）
+- 实现特定架构模式时（如Agentic RAG）
+- 遵循特定设计决策时
+
+#### 规则4: 未验证的API不允许进入代码
 
 **处理流程**:
 1. 如果Skills中找不到 → 查询Context7

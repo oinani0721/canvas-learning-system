@@ -5,9 +5,13 @@ Initialize Planning Phase Iteration
 """
 
 import sys
+import io
 import shutil
 from pathlib import Path
 from datetime import datetime
+
+# Fix Windows GBK encoding issue
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
@@ -96,12 +100,6 @@ def main():
         help='Iteration number (default: auto-increment)'
     )
     parser.add_argument(
-        '--goal',
-        type=str,
-        required=True,
-        help='Goal description for this iteration (e.g., "Epic 13 - Ebbinghaus Review")'
-    )
-    parser.add_argument(
         '--force',
         action='store_true',
         help='Skip Git clean check'
@@ -126,7 +124,6 @@ def main():
     else:
         iteration_num = get_next_iteration_number()
     print_status(f"Iteration number: {iteration_num}", "info")
-    print_status(f"Goal: {args.goal}", "info")
 
     # 创建snapshot
     print_status("Creating current state snapshot...", "progress")
@@ -146,9 +143,9 @@ def main():
     print("✅ Iteration Initialized Successfully!")
     print("="*60)
     print(f"\n   └─ Iteration: {iteration_num}")
-    print(f"   └─ Goal: {args.goal}")
     print(f"   └─ Git Commit: {get_git_sha()[:8]}")
     print(f"   └─ Snapshot: iterations/iteration-{iteration_num:03d}.json")
+    print(f"   └─ Branch: planning-iteration-{iteration_num}")
     print(f"\n📋 Ready for Planning changes")
     print(f"\n**Next Steps**:")
     print(f"1. Review the checklist: {checklist_path}")

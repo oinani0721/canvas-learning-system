@@ -59,7 +59,7 @@ This is the **command center** for Planning Phase operations, providing a unifie
 
 ### Workflow 1: Complete Iteration Cycle
 
-**Command**: `@planning-orchestrator "Start new iteration for [goal]"`
+**Command**: `/planning` → `*init`
 
 **Steps**:
 1. **Pre-Flight Check**
@@ -261,7 +261,7 @@ The orchestrator maintains state in `.bmad-core/planning-iterations/orchestrator
 
 | Command | Description | Example |
 |---------|-------------|---------|
-| `start iteration` | Begin new iteration cycle | `@planning-orchestrator "start iteration for Epic 12"` |
+| `*init` | Begin new iteration cycle (auto-numbered) | `/planning` → `*init` |
 | `validate current` | Validate current state | `@planning-orchestrator "validate current iteration"` |
 | `finalize iteration` | Complete current iteration | `@planning-orchestrator "finalize iteration 3"` |
 | `status report` | Generate status report | `@planning-orchestrator "status report"` |
@@ -285,21 +285,24 @@ The orchestrator maintains state in `.bmad-core/planning-iterations/orchestrator
 ### Example 1: Complete Iteration Cycle (Happy Path)
 
 ```bash
-User: "@planning-orchestrator 开始新的迭代，目标是添加用户认证功能"
+User: "/planning"
+User: "*init"
 
 Orchestrator:
 ✅ Pre-flight checks passed
 ⏳ Initializing Iteration 4...
-   └─ Calling @iteration-validator init...
    └─ Snapshot created: iteration-004.json
    └─ OpenAPI specs backed up
+   └─ Git branch: planning-iteration-4
+
+✅ Iteration 4 initialized
 
 📋 Pre-Iteration Checklist:
-   1. [ ] Define iteration goal ✅ (Done: "添加用户认证功能")
-   2. [ ] Review current PRD version
-   3. [ ] Identify affected Epics
+   1. [ ] Review current PRD version
+   2. [ ] Identify affected Epics
+   3. [ ] Plan modifications
 
-Please complete checklist items 2-3, then I will invoke @pm *correct course.
+Please complete checklist, then use @pm *correct course to make changes.
 
 ---
 

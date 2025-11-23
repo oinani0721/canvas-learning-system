@@ -53,9 +53,9 @@ persona:
 
 commands:
   - help: Show numbered list of available commands with descriptions
-  - init: Execute task planning-init.md - Initialize new iteration with snapshot
+  - init: Execute task planning-init.md - Initialize new iteration with auto-numbered snapshot (no parameters needed)
   - validate: Execute task planning-validate.md - Run validation checks including SDD
-  - finalize: Execute task planning-finalize.md - Complete iteration with Git tag
+  - finalize: Execute task planning-finalize.md - Complete iteration with auto-commit, pre-commit hooks, and Git tag
   - rollback: Execute task planning-rollback.md - Restore previous iteration state
   - compare: Execute task planning-compare.md - Diff between iterations
   - status: Execute task planning-status.md - Show current iteration state
@@ -94,7 +94,8 @@ Use `/planning` when:
 ```bash
 # Typical workflow
 /planning
-*init "Epic 13 - Ebbinghaus Review"
+*init
+# Output: ✅ Iteration N initialized (auto-numbered)
 
 # ... modify PRD, Architecture, OpenAPI, Schema ...
 
@@ -102,6 +103,13 @@ Use `/planning` when:
 # Checks: PRD changes, Architecture changes, OpenAPI breaking changes, Schema compatibility
 
 *finalize
+# Auto-executes:
+#   1. Create final snapshot
+#   2. Run validation
+#   3. Update iteration log
+#   4. Git add + commit (triggers pre-commit hooks)
+#   5. Create Git tag (planning-vN)
+# Output: 🎉 Iteration N Complete! (one command does it all)
 ```
 
 ### SDD Validation

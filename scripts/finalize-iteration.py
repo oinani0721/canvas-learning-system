@@ -21,6 +21,83 @@ from planning_utils import (
     read_file,
     write_file
 )
+import subprocess
+
+
+def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
+    """执行git add和commit，触发pre-commit hooks"""
+    try:
+        # Stage所有Planning相关文件
+        print_status("Staging changes...", "progress")
+
+        # Stage specific directories to avoid committing unrelated files
+        paths_to_stage = [
+            "docs/prd/",
+            "docs/architecture/",
+            "docs/epics/",
+            "specs/",
+            ".bmad-core/planning-iterations/",
+            "CHANGELOG.md"
+        ]
+
+        for path in paths_to_stage:
+            full_path = get_project_root() / path
+            if full_path.exists():
+                subprocess.run(
+                    ["git", "add", str(full_path)],
+                    cwd=get_project_root(),
+                    capture_output=True
+                )
+
+        # Also stage iteration snapshot
+        subprocess.run(
+            ["git", "add", f".bmad-core/planning-iterations/iteration-{iteration_num:03d}.json"],
+            cwd=get_project_root(),
+            capture_output=True
+        )
+
+        # Check if there are staged changes
+        result = subprocess.run(
+            ["git", "diff", "--cached", "--quiet"],
+            cwd=get_project_root(),
+            capture_output=True
+        )
+
+        if result.returncode == 0:
+            print_status("No changes to commit", "warning")
+            return True
+
+        # Create commit message
+        commit_msg = f"Planning: Iteration {iteration_num}"
+        if goal:
+            commit_msg += f" - {goal}"
+
+        commit_msg += "\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>"
+
+        # Execute commit (this triggers pre-commit hooks)
+        print_status("Committing changes (pre-commit hooks will run)...", "progress")
+        result = subprocess.run(
+            ["git", "commit", "-m", commit_msg],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            # Check if pre-commit hooks failed
+            if "pre-commit" in result.stderr.lower() or "hook" in result.stderr.lower():
+                print_status("Pre-commit hooks failed! Fix issues and retry.", "error")
+                print(result.stderr)
+            else:
+                print_status(f"Commit failed: {result.stderr}", "error")
+            return False
+
+        print_status("Changes committed successfully!", "success")
+        return True
+
+    except Exception as e:
+        print_status(f"Git commit error: {e}", "error")
+        return False
 
 def update_iteration_log(iteration_num: int, snapshot: dict, validation_passed: bool):
     """更新iteration-log.md"""
@@ -100,6 +177,16 @@ def main():
         action='store_true',
         help='Do not create Git tag'
     )
+    parser.add_argument(
+        '--no-commit',
+        action='store_true',
+        help='Do not auto-commit changes (manual commit required)'
+    )
+    parser.add_argument(
+        '--goal',
+        type=str,
+        help='Iteration goal for commit message'
+    )
 
     args = parser.parse_args()
 
@@ -160,30 +247,48 @@ def main():
     print_status("Creating post-correct-course checklist...", "progress")
     checklist_path = create_post_checklist(iteration_num)
 
+    # Git commit（如果需要）
+    commit_success = True
+    if not args.no_commit:
+        if confirm_action("Commit all Planning changes?"):
+            commit_success = git_commit_changes(iteration_num, args.goal)
+            if not commit_success:
+                print_status("Commit failed. Fix issues and run: git add . && git commit", "error")
+                return 1
+    else:
+        print_status("Skipping auto-commit (--no-commit specified)", "info")
+
     # 创建Git tag（如果需要）
-    if not args.no_tag:
+    if not args.no_tag and commit_success:
         tag_name = f"planning-v{iteration_num}"
         tag_message = f"Planning Phase Iteration {iteration_num}"
+        if args.goal:
+            tag_message += f": {args.goal}"
 
         if confirm_action(f"Create Git tag '{tag_name}'?"):
             create_git_tag(tag_name, tag_message)
 
     # 打印完成信息
     print("\n" + "="*60)
-    print("✅ Iteration Finalized Successfully!")
+    print("🎉 Iteration Finalized Successfully!")
     print("="*60)
     print(f"\n**Iteration**: {iteration_num}")
     print(f"**Snapshot**: iteration-{iteration_num:03d}.json")
     print(f"**Git Commit**: {snapshot['git_commit'][:8]}...")
     print(f"**Validation**: {"✅ Passed" if validation_passed else "⚠️ Warnings"}")
+    print(f"**Auto-Committed**: {"✅ Yes" if (not args.no_commit and commit_success) else "❌ No"}")
 
     print(f"\n**Next Steps**:")
     print(f"1. Review post-checklist: {checklist_path}")
-    print(f"2. Commit all changes:")
-    print(f"   git add .")
-    print(f"   git commit -m \"Planning Iteration {iteration_num} Complete\"")
-    print(f"3. Push to remote (if ready):")
-    print(f"   git push origin main --tags")
+    if args.no_commit:
+        print(f"2. Commit changes manually:")
+        print(f"   git add .")
+        print(f"   git commit -m \"Planning Iteration {iteration_num} Complete\"")
+        print(f"3. Push to remote (if ready):")
+        print(f"   git push origin main --tags")
+    else:
+        print(f"2. Push to remote (if ready):")
+        print(f"   git push origin main --tags")
     print("="*60)
 
     return 0

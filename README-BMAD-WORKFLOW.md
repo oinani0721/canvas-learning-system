@@ -274,20 +274,34 @@ Marcus:
 Phase 3 工作流
 ┌─────────────────────────────────────────────────────────┐
 │                                                         │
-│  1. /architect                                          │
-│     └─ *create-backend-architecture (或其他架构命令)     │
+│  1. /planning ⚡ (初始化迭代)                            │
+│     └─ *init "Architecture Design"                      │
+│     └─ 创建快照，跟踪Specs/ADR变更                       │
 │                                                         │
-│  2. 创建ADR (针对每个重要技术决策)  ⭐ 关键步骤          │
+│  2. /architect                                          │
+│     └─ *create-backend-architecture (或其他架构命令)     │
+│     └─ 创建OpenAPI specs和JSON Schemas                  │
+│                                                         │
+│  3. 创建ADR (针对每个重要技术决策)  ⭐ 关键步骤          │
 │     └─ *create-adr "技术选型标题"                       │
 │     └─ 重复直到所有决策都已记录                         │
 │                                                         │
-│  3. *doc-out (输出架构文档)                              │
+│  4. *doc-out (输出架构文档)                              │
 │                                                         │
-│  4. /po                                                 │
+│  5. /planning ⚡ (验证并完成迭代)                        │
+│     └─ *validate (检测Breaking Changes)                 │
+│     └─ *finalize (Git tag: arch-v1)                     │
+│                                                         │
+│  6. /po                                                 │
 │     └─ *execute-checklist-po (验证架构和ADR)            │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
+
+**⚠️ 重要**: Phase 3也需要使用Planning Iteration Management (`/planning`)来跟踪OpenAPI specs和JSON Schemas的变更。这确保：
+- Specs版本被记录
+- Breaking Changes被检测
+- 可以回滚到之前的架构版本
 
 #### 工作流要点
 
@@ -299,6 +313,19 @@ Phase 3 工作流
 ### 示例流程 (含ADR)
 
 ```bash
+# Step 0: 初始化迭代 ⚡ 新增步骤
+/planning
+
+Marcus (Planning Orchestrator):
+🎯 你好！我是Marcus，你的规划协调员。
+
+*init "Phase 3 - Architecture Design"
+
+Marcus:
+✅ Initializing Iteration...
+   └─ Snapshot: iterations/iteration-arch-001.json
+📋 Ready for Architecture changes
+
 # Step 1: 创建架构
 /architect
 
@@ -336,7 +363,28 @@ Winston:
 Winston:
 ✅ 已保存: docs/architecture.md
 
-# Step 4: PO验证 (含ADR检查)
+# Step 4: 验证并完成迭代 ⚡ 新增步骤
+/planning
+
+Marcus:
+🎯 规划协调员已激活
+
+*validate
+
+Marcus:
+⏳ Running validation...
+   └─ OpenAPI: No breaking changes ✅
+   └─ Schemas: Compatible ✅
+   └─ ADRs: 3 new ADRs detected ✅
+✅ Validation Passed!
+
+*finalize
+
+Marcus:
+✅ Git tag: arch-v1
+🎉 Architecture Iteration Complete!
+
+# Step 5: PO验证 (含ADR检查)
 /po
 
 Sarah (Product Owner):

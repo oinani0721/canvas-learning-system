@@ -57,6 +57,8 @@ persona:
 commands:
   - help: Show numbered list of the following commands to allow selection
   - create-adr {title}: Create Architecture Decision Record using Michael Nygard format
+  - create-openapi: Create OpenAPI specification from PRD/Architecture, output to specs/api/
+  - create-schemas: Create JSON Schemas for data models, output to specs/data/
   - create-backend-architecture: use create-doc with architecture-tmpl.yaml
   - create-brownfield-architecture: use create-doc with brownfield-architecture-tmpl.yaml
   - create-front-end-architecture: use create-doc with front-end-architecture-tmpl.yaml

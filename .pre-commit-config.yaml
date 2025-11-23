@@ -1,0 +1,80 @@
+# Pre-commit hooks configuration for Canvas Learning System
+# Install: pip install pre-commit && pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # Local hooks for SDD validation
+  - repo: local
+    hooks:
+      # PRD-Spec Drift Detection
+      - id: check-prd-spec-sync
+        name: Check PRD-Spec Synchronization
+        description: Detect drift between PRD and SDD specifications
+        entry: python scripts/check-prd-spec-sync.py
+        language: python
+        files: ^(docs/prd/|docs/epics/|specs/)
+        pass_filenames: false
+        stages: [commit]
+        verbose: true
+
+      # JSON Schema Validation
+      - id: validate-schemas
+        name: Validate JSON Schemas
+        description: Validate JSON Schema files for syntax and compatibility
+        entry: python scripts/validate-schemas.py
+        language: python
+        files: ^specs/data/.*\.json$
+        pass_filenames: true
+        stages: [commit]
+
+      # OpenAPI Spec Validation
+      - id: validate-openapi
+        name: Validate OpenAPI Specifications
+        description: Check OpenAPI specs for syntax errors
+        entry: python scripts/validate-openapi.py
+        language: python
+        files: ^specs/api/.*\.(yml|yaml)$
+        pass_filenames: true
+        stages: [commit]
+
+      # Gherkin Syntax Check
+      - id: validate-gherkin
+        name: Validate Gherkin Syntax
+        description: Check Gherkin feature files for syntax errors
+        entry: python scripts/validate-gherkin.py
+        language: python
+        files: ^specs/behavior/.*\.feature$
+        pass_filenames: true
+        stages: [commit]
+
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+        files: \.(md|py|yaml|yml|json)$
+      - id: end-of-file-fixer
+        files: \.(md|py|yaml|yml|json)$
+      - id: check-yaml
+        files: \.(yaml|yml)$
+      - id: check-json
+        files: \.json$
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  # Python code quality (optional, for src/ directory)
+  - repo: https://github.com/astral-sh/ruff
+    rev: v0.1.6
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^src/
+
+# Hook execution order and configuration
+default_stages: [commit]
+fail_fast: false
+
+# CI configuration
+ci:
+  autofix_commit_msg: 'style: auto-fix by pre-commit hooks'
+  autoupdate_commit_msg: 'chore: update pre-commit hooks'
