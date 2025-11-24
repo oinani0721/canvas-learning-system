@@ -86,16 +86,19 @@ def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
             ["git", "commit", "-m", commit_msg],
             cwd=get_project_root(),
             capture_output=True,
-            text=True
+            text=True,
+            encoding='utf-8',
+            errors='replace'
         )
 
         if result.returncode != 0:
             # Check if pre-commit hooks failed
-            if "pre-commit" in result.stderr.lower() or "hook" in result.stderr.lower():
+            stderr_lower = result.stderr.lower() if result.stderr else ""
+            if "pre-commit" in stderr_lower or "hook" in stderr_lower:
                 print_status("Pre-commit hooks failed! Fix issues and retry.", "error")
                 print(result.stderr)
             else:
-                print_status(f"Commit failed: {result.stderr}", "error")
+                print_status(f"Git commit error: {result.stderr}", "error")
             return False
 
         print_status("Changes committed successfully!", "success")
@@ -225,7 +228,15 @@ def main():
         print_status(f"Validating against Iteration {iteration_num - 1}...", "progress")
 
         try:
-            from validate_iteration import validate_iterations, load_validation_rules
+            # Import validate-iteration.py (has hyphen in filename)
+            import importlib.util
+            validate_script = Path(__file__).parent / "validate-iteration.py"
+            spec = importlib.util.spec_from_file_location("validate_iteration", validate_script)
+            validate_module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(validate_module)
+
+            validate_iterations = validate_module.validate_iterations
+            load_validation_rules = validate_module.load_validation_rules
 
             rules = load_validation_rules()
             result, prev_snapshot, curr_snapshot = validate_iterations(
@@ -246,8 +257,9 @@ def main():
 
         except Exception as e:
             print_status(f"Validation error: {e}", "error")
-            if not args.yes and not confirm_action("Continue anyway?"):
-                return 1
+            if not args.yes:
+                if not confirm_action("Continue anyway?"):
+                    return 1
             validation_passed = False
 
     # 更新iteration log

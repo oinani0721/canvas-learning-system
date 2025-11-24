@@ -400,9 +400,21 @@ def print_status(message: str, status: str = "info"):
         print(f"{ascii_icon} {message}")
 
 def confirm_action(prompt: str) -> bool:
-    """请求用户确认"""
-    response = input(f"{prompt} (y/N): ").strip().lower()
-    return response == 'y'
+    """请求用户确认
+
+    在非交互模式（如 Claude Code）下，如果无法获取输入，返回 False
+    """
+    try:
+        import sys
+        # Check if stdin is available for interactive input
+        if not sys.stdin.isatty():
+            print_status(f"{prompt} - Skipped (non-interactive mode)", "warning")
+            return False
+        response = input(f"{prompt} (y/N): ").strip().lower()
+        return response == 'y'
+    except (EOFError, OSError):
+        print_status(f"{prompt} - Skipped (no input available)", "warning")
+        return False
 
 # ========================================
 # 文件扫描
