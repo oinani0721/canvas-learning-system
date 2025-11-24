@@ -30,6 +30,28 @@
 - Cohere API ≤ $20/年 (仅检验白板使用)
 - LLM成本 (Query rewrite) ≤ $5/年
 
+### 1.4 行为规范 (Gherkin BDD)
+
+**文件**: `specs/behavior/three-layer-memory-agentic-rag.feature`
+
+| Story | 关联场景 | 场景编号 |
+|-------|----------|----------|
+| 12.2 | 单Canvas检索使用group_ids隔离 | #13 |
+| 12.3 | 大规模图谱性能保护机制 | #15 |
+| 12.5 | 评分/解释/拆解触发记忆写入 | #7, #8, #9 |
+| 12.8 | 记忆写入工具实现 | #7, #8, #9 |
+| 12.13 | Agentic RAG路由决策 | #2, #3 |
+| 12.14 | 三层记忆并行检索 | #1, #3, #4 |
+| 12.15 | 融合算法 (RRF/Weighted/Cascade) | #1, #2, #3 |
+| 12.16 | 混合Reranking策略 | #1, #6 |
+| 12.17 | 质量控制循环 | #4 |
+| 12.18 | Canvas集成和检验白板增强 | #1, #10, #11 |
+| 12.19 | 检验历史记录存储 | #11, #12 |
+| 12.20 | 针对性复习算法 | #10, #11 |
+| 12.22 | 跨Canvas题目关联 | #12, #14, #18 |
+
+**运行测试**: `pytest specs/behavior/three-layer-memory-agentic-rag.feature`
+
 ---
 
 ## 2. 技术架构概览
@@ -163,6 +185,8 @@ results = await graphiti_client.hybrid_search(
 - ✅ 所有操作类型的记忆调度规则文档化
 - ✅ 精确时序定义（先Canvas后记忆）
 - ✅ 错误处理策略定义（非关键路径不阻塞）
+
+**行为规范**: `three-layer-memory-agentic-rag.feature` 场景 #7, #8, #9
 
 ---
 
@@ -358,6 +382,8 @@ async def fan_out_retrieval(state: CanvasRAGState, runtime: Runtime) -> list[Sen
 - ✅ 总延迟<150ms（不含网络）
 - ✅ Retry policy配置（3次重试）
 
+**行为规范**: `three-layer-memory-agentic-rag.feature` 场景 #1, #3, #4, #5, #6
+
 ---
 
 #### Story 12.15: 融合算法实现
@@ -425,6 +451,8 @@ async def fan_out_retrieval(state: CanvasRAGState, runtime: Runtime) -> list[Sen
 - ✅ Temporal Memory正确更新FSRS卡片
 - ✅ 向后兼容：Epic 1-10功能不受影响
 
+**行为规范**: `three-layer-memory-agentic-rag.feature` 场景 #1, #10, #11
+
 ---
 
 ### Phase 4: 复习关联层 (Story 12.19-12.23)
@@ -474,6 +502,8 @@ async def fan_out_retrieval(state: CanvasRAGState, runtime: Runtime) -> list[Sen
 - ✅ 基于Graphiti查询相关题目
 - ✅ 支持按概念、难度、时间过滤
 - ✅ 返回结果包含Canvas路径和节点ID
+
+**行为规范**: `three-layer-memory-agentic-rag.feature` 场景 #12, #14, #18
 
 ---
 
