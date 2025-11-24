@@ -1,0 +1,111 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/langgraph-state.schema.json",
+  "title": "LangGraph Canvas学习状态",
+  "description": "LangGraph StateGraph的状态定义 (Epic 12)",
+  "type": "object",
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "会话ID"
+    },
+    "canvas_path": {
+      "type": "string",
+      "description": "当前Canvas文件路径"
+    },
+    "user_id": {
+      "type": "string",
+      "description": "用户ID"
+    },
+    "operation": {
+      "type": "string",
+      "enum": [
+        "decomposition",
+        "scoring",
+        "explanation",
+        "verification",
+        "review"
+      ],
+      "description": "当前操作类型"
+    },
+    "target_nodes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "目标节点ID列表"
+    },
+    "agent_type": {
+      "type": "string",
+      "description": "当前执行的Agent类型"
+    },
+    "messages": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": ["user", "assistant", "system"]
+          },
+          "content": {
+            "type": "string"
+          }
+        }
+      },
+      "description": "消息历史"
+    },
+    "write_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "node_id": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "object"
+          }
+        }
+      },
+      "description": "Canvas写入历史"
+    },
+    "last_operation": {
+      "type": "string",
+      "description": "上次操作"
+    },
+    "decomposition_results": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "拆解结果"
+    },
+    "scoring_results": {
+      "type": "object",
+      "description": "评分结果"
+    },
+    "error": {
+      "type": "string",
+      "description": "错误信息（如有）"
+    },
+    "config": {
+      "type": "object",
+      "properties": {
+        "thread_id": {
+          "type": "string",
+          "description": "LangGraph线程ID"
+        }
+      },
+      "description": "LangGraph配置"
+    }
+  },
+  "required": ["session_id", "canvas_path", "operation"]
+}

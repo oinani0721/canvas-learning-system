@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/canvas-association.schema.json",
+  "title": "Canvas关联",
+  "description": "跨Canvas关联关系定义 (Epic 16)",
+  "type": "object",
+  "properties": {
+    "association_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "关联唯一标识"
+    },
+    "source_canvas": {
+      "type": "string",
+      "description": "源Canvas路径"
+    },
+    "target_canvas": {
+      "type": "string",
+      "description": "目标Canvas路径"
+    },
+    "association_type": {
+      "type": "string",
+      "enum": ["prerequisite", "related", "extends", "references"],
+      "description": "关联类型"
+    },
+    "description": {
+      "type": "string",
+      "description": "关联描述"
+    },
+    "shared_concepts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "共享概念列表"
+    },
+    "relevance_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1,
+      "description": "相关度分数"
+    },
+    "bidirectional": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否双向关联"
+    },
+    "auto_generated": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否自动生成"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "创建时间"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "更新时间"
+    }
+  },
+  "required": ["association_id", "source_canvas", "target_canvas", "association_type"]
+}

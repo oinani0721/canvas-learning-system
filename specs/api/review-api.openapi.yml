@@ -1,0 +1,702 @@
+openapi: 3.0.3
+info:
+  title: Canvas Learning System - Review API
+  version: 1.0.0
+  description: |
+    艾宾浩斯复习系统API，提供复习概念管理、复习进度追踪、检验白板生成和复习历史分析功能。
+
+    **核心功能**:
+    - **复习概念管理**: 添加、查询、完成复习概念
+    - **智能调度**: 基于Py-FSRS算法的复习时间调度
+    - **检验白板生成**: 支持"全新检验"和"针对性复习"两种模式
+    - **历史分析**: 多次检验趋势分析、薄弱概念追踪
+    - **3层记忆整合**: 整合Temporal/Graphiti/Semantic数据源
+
+    **数据源**:
+    1. Canvas节点评分 (≥60分触发)
+    2. Temporal Memory - 学习行为数据
+    3. Graphiti Knowledge Graph - 概念关系网络
+    4. Semantic Memory - 文档交互数据
+
+    **关联文档**:
+    - PRD FR3: 艾宾浩斯复习提醒系统
+    - Epic 14: 艾宾浩斯复习系统迁移+UI集成
+    - Story 14.1-14.12: 完整复习系统实现
+
+  contact:
+    name: Canvas Learning System
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+
+tags:
+  - name: concepts
+    description: 复习概念管理
+  - name: schedule
+    description: 复习调度
+  - name: review-canvas
+    description: 检验白板生成
+  - name: history
+    description: 复习历史和分析
+
+paths:
+  /review/add-concept:
+    post:
+      tags: [concepts]
+      summary: 添加复习概念
+      description: |
+        将概念添加到复习队列。通常在评分≥60分时自动触发。
+
+        **触发时机**:
+        - 手动添加
+        - 评分Agent自动触发 (score ≥ 60)
+        - 3层记忆系统行为监控触发
+      operationId: addConcept
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddConceptRequest'
+      responses:
+        '201':
+          description: 概念已添加
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConceptResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: 概念已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /review/today-summary:
+    get:
+      tags: [schedule]
+      summary: 今日复习摘要
+      description: |
+        获取今日应复习的Canvas白板列表和概念统计。
+
+        **聚合算法**:
+        1. 查询所有到期概念
+        2. 按Canvas分组
+        3. 计算优先级（基于4维度综合评分）
+        4. 整合3层记忆系统数据
+      operationId: getTodaySummary
+      parameters:
+        - name: include_details
+          in: query
+          description: 是否包含详细概念列表
+          schema:
+            type: boolean
+            default: false
+        - name: sort_by
+          in: query
+          description: 排序方式
+          schema:
+            type: string
+            enum: [priority, due_date, canvas_name]
+            default: priority
+      responses:
+        '200':
+          description: 今日复习摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodaySummaryResponse'
+
+  /review/complete:
+    post:
+      tags: [concepts]
+      summary: 完成复习
+      description: |
+        标记概念复习完成，更新Py-FSRS卡片状态。
+
+        **评分等级** (FSRS Rating):
+        - 1: Again - 完全忘记
+        - 2: Hard - 困难回忆
+        - 3: Good - 正常回忆
+        - 4: Easy - 轻松回忆
+      operationId: completeReview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteReviewRequest'
+      responses:
+        '200':
+          description: 复习完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompleteReviewResponse'
+        '404':
+          description: 概念不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /review/history:
+    get:
+      tags: [history]
+      summary: 复习历史
+      description: |
+        获取复习历史记录，支持时间范围过滤和统计分析。
+      operationId: getHistory
+      parameters:
+        - name: days
+          in: query
+          description: 查询天数
+          schema:
+            type: integer
+            enum: [7, 30, 90]
+            default: 7
+        - name: canvas_path
+          in: query
+          description: 按Canvas过滤
+          schema:
+            type: string
+        - name: concept_name
+          in: query
+          description: 按概念名过滤
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 复习历史
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryResponse'
+
+  /review/generate-canvas:
+    post:
+      tags: [review-canvas]
+      summary: 生成检验白板
+      description: |
+        为指定Canvas生成检验白板，支持两种模式。
+
+        **模式选择**:
+        - `fresh`: 全新检验 - 不使用历史数据，盲测式检验
+        - `targeted`: 针对性复习 - 基于历史薄弱概念调整权重
+
+        **生成流程**:
+        1. 查询到期概念
+        2. (targeted模式) 查询Graphiti历史薄弱概念
+        3. 调用verification-question-agent
+        4. 创建检验白板文件
+        5. 存储(review)-[:GENERATED_FROM]->(original)到Graphiti
+      operationId: generateReviewCanvas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateCanvasRequest'
+      responses:
+        '201':
+          description: 检验白板已生成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateCanvasResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Canvas不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /review/progress/multi/{original_canvas_path}:
+    get:
+      tags: [history]
+      summary: 多次检验趋势分析
+      description: |
+        获取同一原白板的多次检验进度趋势。
+
+        **返回数据**:
+        - 每次检验的通过率曲线
+        - 薄弱概念的改善趋势
+        - 整体进步率
+      operationId: getMultiReviewProgress
+      parameters:
+        - name: original_canvas_path
+          in: path
+          required: true
+          description: 原Canvas文件路径
+          schema:
+            type: string
+            example: "离散数学.canvas"
+      responses:
+        '200':
+          description: 多次检验趋势
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultiReviewProgressResponse'
+        '404':
+          description: 无检验历史
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    AddConceptRequest:
+      type: object
+      required: [canvas_path, concept_name]
+      properties:
+        canvas_path:
+          type: string
+          description: Canvas文件路径
+          example: "离散数学.canvas"
+        concept_name:
+          type: string
+          description: 概念名称
+          example: "逆否命题"
+        node_id:
+          type: string
+          description: 节点ID（可选）
+          example: "node-001"
+        initial_score:
+          type: integer
+          description: 初始评分（触发此次添加的评分）
+          minimum: 0
+          maximum: 100
+          example: 75
+        source:
+          type: string
+          description: 添加来源
+          enum: [manual, scoring_agent, behavior_monitoring]
+          default: manual
+
+    ConceptResponse:
+      type: object
+      required: [concept_id, canvas_path, concept_name, created_at]
+      properties:
+        concept_id:
+          type: string
+          example: "concept-001"
+        canvas_path:
+          type: string
+          example: "离散数学.canvas"
+        concept_name:
+          type: string
+          example: "逆否命题"
+        node_id:
+          type: string
+          example: "node-001"
+        created_at:
+          type: string
+          format: date-time
+          example: "2025-01-18T10:30:00Z"
+        next_review:
+          type: string
+          format: date-time
+          description: 下次复习时间
+          example: "2025-01-19T10:30:00Z"
+        fsrs_state:
+          type: object
+          description: Py-FSRS卡片状态
+          properties:
+            stability:
+              type: number
+              example: 4.5
+            difficulty:
+              type: number
+              example: 5.2
+            elapsed_days:
+              type: integer
+              example: 0
+            scheduled_days:
+              type: integer
+              example: 1
+            reps:
+              type: integer
+              example: 0
+            lapses:
+              type: integer
+              example: 0
+            state:
+              type: string
+              enum: [New, Learning, Review, Relearning]
+              example: "New"
+
+    TodaySummaryResponse:
+      type: object
+      required: [date, total_concepts, total_canvases, canvases]
+      properties:
+        date:
+          type: string
+          format: date
+          example: "2025-01-18"
+        total_concepts:
+          type: integer
+          description: 今日应复习概念总数
+          example: 15
+        total_canvases:
+          type: integer
+          description: 涉及的Canvas数量
+          example: 3
+        canvases:
+          type: array
+          description: Canvas级别的复习任务
+          items:
+            type: object
+            properties:
+              canvas_path:
+                type: string
+                example: "离散数学.canvas"
+              canvas_name:
+                type: string
+                example: "离散数学"
+              concept_count:
+                type: integer
+                description: 该Canvas待复习概念数
+                example: 5
+              priority:
+                type: string
+                enum: [urgent, high, medium, low]
+                example: "high"
+              urgency_score:
+                type: number
+                description: 紧急度评分（0-100）
+                example: 85.5
+              last_review:
+                type: string
+                format: date-time
+                description: 上次复习时间
+                example: "2025-01-11T14:30:00Z"
+              concepts:
+                type: array
+                description: 概念列表（include_details=true时返回）
+                items:
+                  type: object
+                  properties:
+                    concept_name:
+                      type: string
+                      example: "逆否命题"
+                    due_date:
+                      type: string
+                      format: date-time
+                    overdue_days:
+                      type: integer
+                      example: 2
+                    priority:
+                      type: string
+                      enum: [urgent, high, medium, low]
+        statistics:
+          type: object
+          description: 统计信息
+          properties:
+            overdue_count:
+              type: integer
+              description: 逾期概念数
+              example: 3
+            new_count:
+              type: integer
+              description: 新概念数
+              example: 5
+            review_count:
+              type: integer
+              description: 复习概念数
+              example: 7
+
+    CompleteReviewRequest:
+      type: object
+      required: [concept_id, rating]
+      properties:
+        concept_id:
+          type: string
+          description: 概念ID
+          example: "concept-001"
+        rating:
+          type: integer
+          description: FSRS评分（1-4）
+          minimum: 1
+          maximum: 4
+          example: 3
+        review_duration:
+          type: integer
+          description: 复习耗时（秒）
+          example: 120
+        notes:
+          type: string
+          description: 复习备注
+          example: "需要加强理解条件和结论的关系"
+
+    CompleteReviewResponse:
+      type: object
+      required: [concept_id, next_review, fsrs_state]
+      properties:
+        concept_id:
+          type: string
+          example: "concept-001"
+        next_review:
+          type: string
+          format: date-time
+          description: 下次复习时间
+          example: "2025-01-21T10:30:00Z"
+        interval_days:
+          type: integer
+          description: 下次复习间隔天数
+          example: 3
+        fsrs_state:
+          type: object
+          description: 更新后的FSRS状态
+          properties:
+            stability:
+              type: number
+              example: 8.2
+            difficulty:
+              type: number
+              example: 4.8
+            state:
+              type: string
+              enum: [New, Learning, Review, Relearning]
+              example: "Review"
+
+    HistoryResponse:
+      type: object
+      required: [period, total_reviews, records]
+      properties:
+        period:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date
+              example: "2025-01-11"
+            end:
+              type: string
+              format: date
+              example: "2025-01-18"
+        total_reviews:
+          type: integer
+          description: 总复习次数
+          example: 45
+        records:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+                example: "2025-01-18"
+              reviews:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    concept_id:
+                      type: string
+                    concept_name:
+                      type: string
+                    canvas_path:
+                      type: string
+                    rating:
+                      type: integer
+                    review_time:
+                      type: string
+                      format: date-time
+        statistics:
+          type: object
+          properties:
+            average_rating:
+              type: number
+              description: 平均评分
+              example: 3.2
+            retention_rate:
+              type: number
+              description: 记忆保持率
+              example: 0.85
+            streak_days:
+              type: integer
+              description: 连续复习天数
+              example: 7
+            by_canvas:
+              type: object
+              additionalProperties:
+                type: integer
+              description: 按Canvas统计
+              example:
+                "离散数学.canvas": 15
+                "线性代数.canvas": 10
+
+    GenerateCanvasRequest:
+      type: object
+      required: [canvas_path]
+      properties:
+        canvas_path:
+          type: string
+          description: 原Canvas文件路径
+          example: "离散数学.canvas"
+        mode:
+          type: string
+          description: 检验模式
+          enum: [fresh, targeted]
+          default: fresh
+        concept_ids:
+          type: array
+          description: 指定概念ID（可选，默认所有到期概念）
+          items:
+            type: string
+          example: ["concept-001", "concept-002"]
+
+    GenerateCanvasResponse:
+      type: object
+      required: [review_canvas_path, original_canvas_path, mode, concepts_count]
+      properties:
+        review_canvas_path:
+          type: string
+          description: 生成的检验白板路径
+          example: "离散数学-检验白板-20250118.canvas"
+        original_canvas_path:
+          type: string
+          example: "离散数学.canvas"
+        mode:
+          type: string
+          enum: [fresh, targeted]
+          example: "targeted"
+        concepts_count:
+          type: integer
+          description: 包含的概念数
+          example: 5
+        weak_concepts:
+          type: array
+          description: 薄弱概念（targeted模式时返回）
+          items:
+            type: object
+            properties:
+              concept_name:
+                type: string
+                example: "逆否命题"
+              weakness_score:
+                type: number
+                description: 薄弱程度评分
+                example: 0.75
+              failure_count:
+                type: integer
+                description: 历史失败次数
+                example: 3
+        graphiti_relationship_id:
+          type: string
+          description: Graphiti关系ID
+          example: "rel-001"
+
+    MultiReviewProgressResponse:
+      type: object
+      required: [original_canvas_path, review_count, reviews]
+      properties:
+        original_canvas_path:
+          type: string
+          example: "离散数学.canvas"
+        review_count:
+          type: integer
+          description: 检验次数
+          example: 5
+        reviews:
+          type: array
+          description: 各次检验记录
+          items:
+            type: object
+            properties:
+              review_canvas_path:
+                type: string
+                example: "离散数学-检验白板-20250118.canvas"
+              date:
+                type: string
+                format: date-time
+                example: "2025-01-18T10:30:00Z"
+              mode:
+                type: string
+                enum: [fresh, targeted]
+                example: "fresh"
+              pass_rate:
+                type: number
+                description: 通过率
+                example: 0.8
+              total_concepts:
+                type: integer
+                example: 10
+              passed_concepts:
+                type: integer
+                example: 8
+        trends:
+          type: object
+          description: 趋势分析
+          properties:
+            pass_rate_trend:
+              type: array
+              description: 通过率趋势（折线图数据）
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  pass_rate:
+                    type: number
+            weak_concepts_improvement:
+              type: array
+              description: 薄弱概念改善趋势
+              items:
+                type: object
+                properties:
+                  concept_name:
+                    type: string
+                    example: "逆否命题"
+                  improvement_rate:
+                    type: number
+                    description: 改善率
+                    example: 0.25
+                  current_status:
+                    type: string
+                    enum: [weak, improving, mastered]
+                    example: "improving"
+            overall_progress:
+              type: object
+              properties:
+                progress_rate:
+                  type: number
+                  description: 整体进步率
+                  example: 0.35
+                trend_direction:
+                  type: string
+                  enum: [up, stable, down]
+                  example: "up"
+
+    Error:
+      type: object
+      required: [error, message]
+      properties:
+        error:
+          type: string
+          example: "ConceptNotFoundError"
+        message:
+          type: string
+          example: "Concept 'concept-001' not found"
+        details:
+          type: object
+          additionalProperties: true

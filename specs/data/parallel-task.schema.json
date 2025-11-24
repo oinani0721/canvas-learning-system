@@ -1,0 +1,104 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/parallel-task.schema.json",
+  "title": "并行处理任务",
+  "description": "智能并行处理系统的任务定义 (Epic 10)",
+  "type": "object",
+  "properties": {
+    "task_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "任务唯一标识"
+    },
+    "canvas_path": {
+      "type": "string",
+      "description": "Canvas文件路径"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["pending", "running", "completed", "failed", "cancelled"],
+      "description": "任务状态"
+    },
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/NodeGroup"
+      },
+      "description": "节点分组列表"
+    },
+    "total_nodes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "总节点数"
+    },
+    "completed_nodes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "已完成节点数"
+    },
+    "failed_nodes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "失败节点数"
+    },
+    "progress_percent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "进度百分比"
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "开始时间"
+    },
+    "completed_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "完成时间"
+    },
+    "execution_time_ms": {
+      "type": "integer",
+      "description": "执行时间(ms)"
+    },
+    "error_message": {
+      "type": "string",
+      "description": "错误信息（如有）"
+    }
+  },
+  "definitions": {
+    "NodeGroup": {
+      "type": "object",
+      "properties": {
+        "group_id": {
+          "type": "string",
+          "description": "分组ID"
+        },
+        "node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "节点ID列表"
+        },
+        "recommended_agent": {
+          "type": "string",
+          "description": "推荐Agent类型"
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "分组关键词"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "running", "completed", "failed"]
+        }
+      },
+      "required": ["group_id", "node_ids", "recommended_agent"]
+    }
+  },
+  "required": ["task_id", "canvas_path", "status", "groups"]
+}

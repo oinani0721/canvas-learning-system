@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/graphiti-entity.schema.json",
+  "title": "Graphiti知识图谱实体",
+  "description": "Graphiti知识图谱中的实体节点定义 (Epic 12)",
+  "type": "object",
+  "properties": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "实体唯一标识"
+    },
+    "name": {
+      "type": "string",
+      "description": "实体名称"
+    },
+    "entity_type": {
+      "type": "string",
+      "enum": ["concept", "canvas", "node", "document", "user"],
+      "description": "实体类型"
+    },
+    "summary": {
+      "type": "string",
+      "description": "实体摘要描述"
+    },
+    "attributes": {
+      "type": "object",
+      "description": "实体属性",
+      "properties": {
+        "canvas_path": {
+          "type": "string",
+          "description": "关联的Canvas路径"
+        },
+        "node_id": {
+          "type": "string",
+          "description": "关联的节点ID"
+        },
+        "color": {
+          "type": "string",
+          "enum": ["1", "2", "3", "5", "6"],
+          "description": "节点颜色"
+        },
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "评分"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "创建时间"
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "更新时间"
+    }
+  },
+  "required": ["uuid", "name", "entity_type", "created_at"]
+}

@@ -193,6 +193,11 @@ def main():
         type=str,
         help='Iteration goal for commit message'
     )
+    parser.add_argument(
+        '-y', '--yes',
+        action='store_true',
+        help='Auto-confirm all prompts (non-interactive mode)'
+    )
 
     args = parser.parse_args()
 
@@ -241,7 +246,7 @@ def main():
 
         except Exception as e:
             print_status(f"Validation error: {e}", "error")
-            if not confirm_action("Continue anyway?"):
+            if not args.yes and not confirm_action("Continue anyway?"):
                 return 1
             validation_passed = False
 
@@ -256,7 +261,7 @@ def main():
     # Git commit（如果需要）
     commit_success = True
     if not args.no_commit:
-        if confirm_action("Commit all Planning changes?"):
+        if args.yes or confirm_action("Commit all Planning changes?"):
             commit_success = git_commit_changes(iteration_num, args.goal)
             if not commit_success:
                 print_status("Commit failed. Fix issues and run: git add . && git commit", "error")
@@ -271,7 +276,7 @@ def main():
         if args.goal:
             tag_message += f": {args.goal}"
 
-        if confirm_action(f"Create Git tag '{tag_name}'?"):
+        if args.yes or confirm_action(f"Create Git tag '{tag_name}'?"):
             create_git_tag(tag_name, tag_message)
 
     # 打印完成信息

@@ -1,6 +1,6 @@
 # Planning Iteration 4 Validation Report
 
-**生成时间**: 2025-11-23 16:14:44
+**生成时间**: 2025-11-24 01:05:25
 
 ---
 
@@ -24,7 +24,7 @@
 
 ### 1. ❌ Architecture File Deletion
 
-**Details**: ['docs\\architecture\\GRAPHRAG-INTEGRATION-DESIGN.md', 'docs\\architecture\\GRAPHRAG-NECESSITY-ASSESSMENT.md']
+**Details**: ['docs\\architecture\\GRAPHRAG-NECESSITY-ASSESSMENT.md', 'docs\\architecture\\GRAPHRAG-INTEGRATION-DESIGN.md']
 
 **Severity**: HIGH
 

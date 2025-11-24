@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/fsrs-card.schema.json",
+  "title": "FSRS复习卡片",
+  "description": "基于Py-FSRS算法的复习卡片数据结构 (Epic 14)",
+  "type": "object",
+  "properties": {
+    "card_id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "卡片唯一标识"
+    },
+    "concept_id": {
+      "type": "string",
+      "description": "关联概念ID"
+    },
+    "canvas_path": {
+      "type": "string",
+      "description": "来源Canvas路径"
+    },
+    "node_id": {
+      "type": "string",
+      "description": "来源节点ID"
+    },
+    "due": {
+      "type": "string",
+      "format": "date-time",
+      "description": "下次复习时间"
+    },
+    "stability": {
+      "type": "number",
+      "minimum": 0,
+      "description": "记忆稳定性"
+    },
+    "difficulty": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 10,
+      "description": "难度 (1-10)"
+    },
+    "elapsed_days": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "距上次复习天数"
+    },
+    "scheduled_days": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "计划间隔天数"
+    },
+    "reps": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "复习次数"
+    },
+    "lapses": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "遗忘次数"
+    },
+    "state": {
+      "type": "string",
+      "enum": ["New", "Learning", "Review", "Relearning"],
+      "description": "卡片状态"
+    },
+    "last_review": {
+      "type": "string",
+      "format": "date-time",
+      "description": "上次复习时间"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "创建时间"
+    }
+  },
+  "required": ["card_id", "concept_id", "due", "stability", "difficulty", "state"]
+}

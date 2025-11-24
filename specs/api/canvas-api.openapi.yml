@@ -36,6 +36,10 @@ tags:
     description: Layer 3 - 编排API和Agent调度 (CanvasOrchestrator)
   - name: Layer4-Knowledge
     description: Layer 4 - 知识图谱和记忆层 (KnowledgeGraphLayer)
+  - name: CrossCanvas
+    description: 跨Canvas关联操作 (Epic 16)
+  - name: Monitoring
+    description: 性能监控和指标 (Epic 17)
   - name: Utilities
     description: 工具类API (颜色、评分等)
 
@@ -336,6 +340,346 @@ paths:
         '201':
           description: 成功添加知识
 
+  # Edge操作
+  /canvas/{canvas_path}/edges:
+    post:
+      summary: 创建边（连接）
+      operationId: createEdge
+      tags: [Layer1-JSON]
+      parameters:
+        - name: canvas_path
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeInput'
+      responses:
+        '201':
+          description: 成功创建边
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasEdge'
+
+  /canvas/{canvas_path}/edges/{edge_id}:
+    delete:
+      summary: 删除边
+      operationId: deleteEdge
+      tags: [Layer1-JSON]
+      parameters:
+        - name: canvas_path
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: edge_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 成功删除边
+
+  # 回滚操作
+  /canvas/rollback:
+    post:
+      summary: 回滚Canvas操作
+      operationId: rollbackCanvas
+      tags: [Layer2-Business]
+      description: |
+        回滚Canvas到之前的状态。支持两种模式：
+        - 按时间戳回滚
+        - 按步数回滚
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                canvas_path:
+                  type: string
+                  description: Canvas文件路径
+                rollback_steps:
+                  type: integer
+                  description: 回滚步数（与timestamp二选一）
+                  minimum: 1
+                  maximum: 50
+                timestamp:
+                  type: string
+                  format: date-time
+                  description: 回滚到指定时间戳（与rollback_steps二选一）
+              required: [canvas_path]
+      responses:
+        '200':
+          description: 回滚成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  canvas_path:
+                    type: string
+                  rollback_to:
+                    type: string
+                    format: date-time
+                  checkpoint_id:
+                    type: string
+                  changes_reverted:
+                    type: integer
+        '400':
+          description: 参数错误
+        '404':
+          description: Canvas或检查点不存在
+
+  # 跨Canvas关联 (Epic 16)
+  /canvas/associations:
+    get:
+      summary: 获取所有Canvas关联
+      operationId: listAssociations
+      tags: [CrossCanvas]
+      description: |
+        获取当前Vault中所有Canvas之间的关联关系。
+
+        **关联类型**:
+        - prerequisite: 前置知识
+        - related: 相关概念
+        - extends: 扩展内容
+        - references: 引用关系
+      parameters:
+        - name: canvas_path
+          in: query
+          required: false
+          description: 筛选特定Canvas的关联
+          schema:
+            type: string
+        - name: association_type
+          in: query
+          required: false
+          description: 筛选关联类型
+          schema:
+            type: string
+            enum: [prerequisite, related, extends, references]
+      responses:
+        '200':
+          description: 关联列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CanvasAssociation'
+
+    post:
+      summary: 创建Canvas关联
+      operationId: createAssociation
+      tags: [CrossCanvas]
+      description: |
+        创建两个Canvas之间的关联关系。
+
+        **存储位置**: Graphiti知识图谱
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssociationRequest'
+      responses:
+        '201':
+          description: 关联创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasAssociation'
+        '400':
+          description: 参数错误
+        '409':
+          description: 关联已存在
+
+  /canvas/associations/{association_id}:
+    get:
+      summary: 获取单个关联详情
+      operationId: getAssociation
+      tags: [CrossCanvas]
+      parameters:
+        - name: association_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 关联详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasAssociation'
+        '404':
+          description: 关联不存在
+
+    delete:
+      summary: 删除Canvas关联
+      operationId: deleteAssociation
+      tags: [CrossCanvas]
+      parameters:
+        - name: association_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 删除成功
+        '404':
+          description: 关联不存在
+
+  /canvas/{canvas_path}/related:
+    get:
+      summary: 获取相关Canvas推荐
+      operationId: getRelatedCanvases
+      tags: [CrossCanvas]
+      description: |
+        基于知识图谱分析，获取与指定Canvas相关的其他Canvas推荐。
+
+        **推荐算法**: 基于Graphiti语义相似度和概念关联
+      parameters:
+        - name: canvas_path
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: top_k
+          in: query
+          required: false
+          description: 返回推荐数量
+          schema:
+            type: integer
+            default: 5
+            maximum: 20
+      responses:
+        '200':
+          description: 相关Canvas推荐
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  canvas_path:
+                    type: string
+                  recommendations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        canvas_path:
+                          type: string
+                        relevance_score:
+                          type: number
+                          description: 相关度分数 (0-1)
+                        association_type:
+                          type: string
+                        shared_concepts:
+                          type: array
+                          items:
+                            type: string
+
+  # 性能监控 (Epic 17)
+  /metrics:
+    get:
+      summary: 获取Prometheus格式指标
+      operationId: getMetrics
+      tags: [Monitoring]
+      description: |
+        返回Prometheus格式的性能指标，用于监控系统集成。
+
+        **包含指标**:
+        - canvas_api_requests_total
+        - canvas_api_request_latency_seconds
+        - canvas_agent_execution_seconds
+        - canvas_memory_query_seconds
+      responses:
+        '200':
+          description: Prometheus格式指标
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  # HELP canvas_api_requests_total Total API requests
+                  # TYPE canvas_api_requests_total counter
+                  canvas_api_requests_total{method="GET",endpoint="/canvas",status="200"} 1234
+
+  /metrics/summary:
+    get:
+      summary: 获取指标摘要
+      operationId: getMetricsSummary
+      tags: [Monitoring]
+      description: 返回JSON格式的性能指标摘要，便于Dashboard展示
+      responses:
+        '200':
+          description: 指标摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MetricsSummary'
+
+  /metrics/alerts:
+    get:
+      summary: 获取当前告警
+      operationId: getActiveAlerts
+      tags: [Monitoring]
+      description: 获取当前活跃的性能告警列表
+      responses:
+        '200':
+          description: 活跃告警列表
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+                  total:
+                    type: integer
+
+  # 健康检查
+  /health:
+    get:
+      summary: 健康检查
+      operationId: healthCheck
+      tags: [Utilities]
+      description: |
+        检查API服务健康状态。
+
+        返回各组件状态：
+        - API服务
+        - Canvas文件系统
+        - 知识图谱连接
+        - 记忆系统连接
+      responses:
+        '200':
+          description: 服务健康
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+        '503':
+          description: 服务不健康
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+
 components:
   schemas:
     CanvasData:
@@ -486,3 +830,251 @@ components:
           type: number
           description: 执行时间（毫秒）
       required: [success, agent_type]
+
+    EdgeInput:
+      type: object
+      description: 边输入数据
+      properties:
+        fromNode:
+          type: string
+          description: 起始节点ID
+        toNode:
+          type: string
+          description: 目标节点ID
+        fromSide:
+          type: string
+          enum: [top, bottom, left, right]
+          description: 起始节点连接侧
+        toSide:
+          type: string
+          enum: [top, bottom, left, right]
+          description: 目标节点连接侧
+        color:
+          type: string
+          description: 边颜色（可选）
+        label:
+          type: string
+          description: 边标签（可选）
+      required: [fromNode, toNode]
+
+    HealthCheckResponse:
+      type: object
+      description: 健康检查响应
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: 整体健康状态
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+          description: API版本
+          example: "2.0.0"
+        components:
+          type: object
+          description: 各组件状态
+          properties:
+            api:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [up, down]
+                response_time_ms:
+                  type: number
+            canvas_filesystem:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [up, down]
+                vault_path:
+                  type: string
+            knowledge_graph:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [up, down]
+                connection:
+                  type: string
+            memory_system:
+              type: object
+              properties:
+                graphiti:
+                  type: string
+                  enum: [up, down]
+                temporal:
+                  type: string
+                  enum: [up, down]
+                semantic:
+                  type: string
+                  enum: [up, down]
+      required: [status, timestamp]
+
+    CanvasAssociation:
+      type: object
+      description: Canvas关联关系
+      properties:
+        id:
+          type: string
+          description: 关联唯一标识
+        source_canvas:
+          type: string
+          description: 源Canvas路径
+        target_canvas:
+          type: string
+          description: 目标Canvas路径
+        association_type:
+          type: string
+          enum: [prerequisite, related, extends, references]
+          description: |
+            关联类型:
+            - prerequisite: 前置知识
+            - related: 相关概念
+            - extends: 扩展内容
+            - references: 引用关系
+        description:
+          type: string
+          description: 关联描述
+        shared_concepts:
+          type: array
+          items:
+            type: string
+          description: 共享概念列表
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, source_canvas, target_canvas, association_type]
+
+    CreateAssociationRequest:
+      type: object
+      description: 创建关联请求
+      properties:
+        source_canvas:
+          type: string
+          description: 源Canvas路径
+        target_canvas:
+          type: string
+          description: 目标Canvas路径
+        association_type:
+          type: string
+          enum: [prerequisite, related, extends, references]
+        description:
+          type: string
+          description: 关联描述（可选）
+        bidirectional:
+          type: boolean
+          default: false
+          description: 是否创建双向关联
+      required: [source_canvas, target_canvas, association_type]
+
+    MetricsSummary:
+      type: object
+      description: 性能指标摘要
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        api:
+          type: object
+          properties:
+            requests_total:
+              type: integer
+              description: 总请求数
+            requests_per_second:
+              type: number
+              description: 每秒请求数
+            avg_latency_ms:
+              type: number
+              description: 平均延迟(ms)
+            p95_latency_ms:
+              type: number
+              description: P95延迟(ms)
+            error_rate:
+              type: number
+              description: 错误率
+        agents:
+          type: object
+          properties:
+            invocations_total:
+              type: integer
+            avg_execution_time_s:
+              type: number
+            by_type:
+              type: object
+              additionalProperties:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                  avg_time_s:
+                    type: number
+        memory_system:
+          type: object
+          properties:
+            graphiti:
+              type: object
+              properties:
+                queries_total:
+                  type: integer
+                avg_latency_ms:
+                  type: number
+            temporal:
+              type: object
+              properties:
+                events_total:
+                  type: integer
+                avg_latency_ms:
+                  type: number
+            semantic:
+              type: object
+              properties:
+                searches_total:
+                  type: integer
+                avg_latency_ms:
+                  type: number
+        resources:
+          type: object
+          properties:
+            cpu_usage_percent:
+              type: number
+            memory_usage_percent:
+              type: number
+            disk_usage_percent:
+              type: number
+
+    Alert:
+      type: object
+      description: 性能告警
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+          description: 告警名称
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        message:
+          type: string
+          description: 告警消息
+        triggered_at:
+          type: string
+          format: date-time
+        value:
+          type: number
+          description: 触发值
+        threshold:
+          type: number
+          description: 阈值
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+      required: [id, name, severity, message, triggered_at]

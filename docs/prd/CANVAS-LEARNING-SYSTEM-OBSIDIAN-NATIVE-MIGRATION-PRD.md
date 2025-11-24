@@ -102,7 +102,6 @@ RETURN
 **相关文档**:
 - `docs/SPRINT_CHANGE_PROPOSAL_SCP-005_GraphRAG过度设计纠偏.md`
 - `docs/architecture/ADR-004-GRAPHRAG-INTEGRATION-EVALUATION.md`
-- `docs/architecture/GRAPHRAG-NECESSITY-ASSESSMENT.md`
 
 ---
 
