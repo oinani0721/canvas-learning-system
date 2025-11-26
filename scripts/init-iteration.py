@@ -24,7 +24,8 @@ from planning_utils import (
     scan_planning_files,
     print_status,
     confirm_action,
-    write_file
+    write_file,
+    save_snapshot  # Bug fix: 添加 save_snapshot 导入
 )
 
 def backup_openapi_specs():
@@ -126,9 +127,14 @@ def main():
     print_status(f"Iteration number: {iteration_num}", "info")
 
     # 创建snapshot
+    # Bug fix: 使用当前 iteration_num 创建快照，并保存到文件
     print_status("Creating current state snapshot...", "progress")
     from snapshot_planning import create_snapshot
-    snapshot = create_snapshot(iteration_num - 1 if iteration_num > 1 else 1)
+    snapshot = create_snapshot(iteration_num)
+
+    # Bug fix: 调用 save_snapshot 保存到文件
+    snapshot_path = save_snapshot(snapshot, iteration_num)
+    print_status(f"Snapshot saved: {snapshot_path}", "success")
 
     # 备份OpenAPI specs
     print_status("Backing up OpenAPI specs...", "progress")
@@ -144,7 +150,7 @@ def main():
     print("="*60)
     print(f"\n   └─ Iteration: {iteration_num}")
     print(f"   └─ Git Commit: {get_git_sha()[:8]}")
-    print(f"   └─ Snapshot: iterations/iteration-{iteration_num:03d}.json")
+    print(f"   └─ Snapshot: {snapshot_path}")  # Bug fix: 使用实际保存路径
     print(f"   └─ Branch: planning-iteration-{iteration_num}")
     print(f"\n📋 Ready for Planning changes")
     print(f"\n**Next Steps**:")

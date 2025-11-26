@@ -1,6 +1,6 @@
 # SDD需求索引 (SDD Requirements Index)
 
-**生成时间**: 2025-11-25 20:29:02
+**生成时间**: 2025-11-26 04:17:47
 **生成脚本**: scripts/extract-sdd-requirements.py
 
 ---

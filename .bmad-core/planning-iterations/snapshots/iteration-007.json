@@ -1,0 +1,1907 @@
+{
+  "iteration": 7,
+  "timestamp": "2025-11-26T04:12:19.341535",
+  "git_commit": "5d0d2ac7d08924c938d79c4fdd2c38bbb26e36ea",
+  "files": {
+    "prd": [
+      {
+        "path": "docs\\prd\\agent-instance-pool-enhancement-prd.md",
+        "hash": "1044bbea9e7167ca7e442f1779f31482d8265794420cf0d1fc3c0ec87373e673",
+        "size": 21053,
+        "last_modified": "2025-11-19T03:48:52.722180",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\asyncio-parallel-execution-engine-prd.md",
+        "hash": "0f154263716a49681eb23f88f68e8bbfc41ea8dfd3d4f6395021f92f77deb5a2",
+        "size": 42588,
+        "last_modified": "2025-11-19T03:48:52.746790",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md",
+        "hash": "95c5cd3bacb5b22812a1b052da39ef732475ca9a79dce964a207842d62c05d3c",
+        "size": 263469,
+        "last_modified": "2025-11-23T18:03:01.676274",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\canvas-learning-system-prd.md",
+        "hash": "c931c71cd2e337e8836b87f19f7523fdd194b628d762390cbff101c9e36f5c93",
+        "size": 18837,
+        "last_modified": "2025-11-19T03:48:52.793948",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\CANVAS-LEARNING-SYSTEM-V2-EPIC-PLANNING.md",
+        "hash": "7f9bc55d9918407e48d9d253fe7d94bb768ea792d64fbea2e2693c0baa07c50c",
+        "size": 30707,
+        "last_modified": "2025-11-19T03:48:52.812009",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\CANVAS-LEARNING-SYSTEM-V2-TECH-UPGRADE-PRD.md",
+        "hash": "38fb1f5c8f680518ced389108443f0a2de470a3be7b37e3951ebc639cf899cf2",
+        "size": 55691,
+        "last_modified": "2025-11-19T03:48:52.830069",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\CANVAS-PRD-CHANGELOG-v1.1.8.md",
+        "hash": "611f5275494895e9bcacaf41ab6a92c13508190453522f291a779252dc5c5911",
+        "size": 17510,
+        "last_modified": "2025-11-19T03:48:52.847267",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\canvas-progress-tracking-system-prd.md",
+        "hash": "d4438f5e90eb89c2a0f26908ae3ddbf5a103a5283f49e506b460b82a775afcaa",
+        "size": 38126,
+        "last_modified": "2025-11-19T03:48:52.866299",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\canvas-robustness-enhancement-prd.md",
+        "hash": "0b1f05b4fe2dce149d95fa080b3a8f148633b8e96e016c327a4ede0006884a92",
+        "size": 13946,
+        "last_modified": "2025-11-19T03:48:52.886345",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\canvas-v2-upgrade-prd.md",
+        "hash": "d7bf087c6f13bce492d62d410f36fd774c1d8e0590f54d3ecf8f0cc7493c3b27",
+        "size": 38049,
+        "last_modified": "2025-11-19T03:48:52.909400",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\context7-technical-validation.md",
+        "hash": "6ddb782a63628d4206568cc0fff0d578d42f44be9686c253cf96b8658121b400",
+        "size": 11249,
+        "last_modified": "2025-11-19T03:48:52.929456",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\EPIC-0-TECHNICAL-DOCUMENTATION-SETUP.md",
+        "hash": "06c52bbab15c824766235cde3590f8960460348482bea1b9baa00c7f09c6eeab",
+        "size": 15384,
+        "last_modified": "2025-11-19T03:48:52.948571",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\EPIC-11-CHECK-NEW-VERSION.md",
+        "hash": "662eca1e87a4cc344905924fda6fdea26a7a535d03eaf287e320178775f6daef",
+        "size": 205238,
+        "last_modified": "2025-11-19T03:48:52.982992",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\EPIC-11-EXTRACTED-CURRENT.md",
+        "hash": "1831cca68a9cd91b777d23565b6e93eca09eed41f6728c8d9b0919266b0e43df",
+        "size": 7426,
+        "last_modified": "2025-11-19T03:48:53.004033",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\EPIC-11-FASTAPI-BACKEND-DETAILED.md",
+        "hash": "9609ed8f1cb1677ed1b3f324cdf61e5710f692d882ea64ce2009ad3afba55bf3",
+        "size": 28406,
+        "last_modified": "2025-11-19T03:48:53.022088",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\FULL-PRD-REFERENCE.md",
+        "hash": "4a97e1d89f8328c65796016c3dd559e2aaac691c76ffa28df2071ca8e25a6e7c",
+        "size": 58058,
+        "last_modified": "2025-11-19T03:48:53.042637",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\index.md",
+        "hash": "3e20f720221d584b36d348caa81838eb2d9ebd04773cb61835a5cbee062e6c35",
+        "size": 9784,
+        "last_modified": "2025-11-19T03:48:53.064692",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\intelligent-agent-scheduling-system-prd.md",
+        "hash": "d01c48dee4125d9450ff0053cfd11ad01554dd505bbfb4a5de18c1c1bbac0a27",
+        "size": 44841,
+        "last_modified": "2025-11-19T03:48:53.084726",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\PRD-CORE.md",
+        "hash": "9c6a51536ba4639cffd01106b30fad6e9d5712920c97fa3d72bff072b011bc7f",
+        "size": 10433,
+        "last_modified": "2025-11-21T07:09:56.954354",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\prd\\PRD-v1.1.1-CORRECTION-SUMMARY.md",
+        "hash": "d83ee91e0ca9dc47d8eded9eac0203459f56a111d1fda366f7498e2491a19bce",
+        "size": 22743,
+        "last_modified": "2025-11-19T03:48:53.104773",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\prd\\SCP-006-MULTIMODAL-ASSOCIATION.md",
+        "hash": "920bd5e02de7acf0a48bd72081ebd306a6e110e1f1cd4cd7738645df22c733ce",
+        "size": 6555,
+        "last_modified": "2025-11-21T07:21:40.735037",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\prd\\SECTION-1X-TECHNICAL-VERIFICATION-PROTOCOL.md",
+        "hash": "63833b79666d15b4a09a2687cf9e946fff09f23f83d2b974dcc9c7befc11f9d5",
+        "size": 17577,
+        "last_modified": "2025-11-19T03:48:53.128354",
+        "version": "1.2.0",
+        "metadata": {
+          "document_type": "PRD",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "architecture": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial PRD with frontmatter metadata"
+          ]
+        }
+      }
+    ],
+    "architecture": [
+      {
+        "path": "docs\\architecture\\ADR-001-local-model-vs-api.md",
+        "hash": "e8d7a424ef81c28d1e9c4aa27c0c00a1f460038387d147a8a7e2df8a6ad2926e",
+        "size": 16843,
+        "last_modified": "2025-11-21T07:20:44.041230",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 2,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\ADR-002-VECTOR-DATABASE-SELECTION.md",
+        "hash": "95591060b7d7bb0e8a6253dbedaa8451099c49496af78f414ccadedb0a5ef27a",
+        "size": 34293,
+        "last_modified": "2025-11-19T03:48:53.173478",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\ADR-003-AGENTIC-RAG-ARCHITECTURE.md",
+        "hash": "8abccc3097f6da23555ad8092d9ec8101616ffe4d00cc62d1faaed99e72009fc",
+        "size": 48921,
+        "last_modified": "2025-11-19T03:48:53.192530",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\ADR-004-GRAPHRAG-INTEGRATION-EVALUATION.md",
+        "hash": "df0e4d2feef1cc0d4cd2ce49055b607d784ae0fd4da122254b5ade7638a4d3e8",
+        "size": 28036,
+        "last_modified": "2025-11-19T03:48:53.216566",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\AGENTIC-RAG-ARCHITECTURE-RESEARCH.md",
+        "hash": "155159f98df0248e20f46ccd3e5dfc0cdcdb23798c8c3cb38ea32dbb9fb855f9",
+        "size": 29969,
+        "last_modified": "2025-11-19T03:48:53.237161",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\canvas-3-layer-architecture.md",
+        "hash": "c7fa94c6dc2f32c4ff5aaa6f82f6403f9a7fc5a7077d10d3e23c92710579cbac",
+        "size": 31334,
+        "last_modified": "2025-11-19T03:48:53.258206",
+        "version": "1.1.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\canvas-connection-rules.md",
+        "hash": "4ac84c46dfd818b47e9780098212f8ccec98564835cc597bf34efa89f4b82754",
+        "size": 12439,
+        "last_modified": "2025-11-19T03:48:53.281271",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\canvas-layer-architecture.md",
+        "hash": "614d2c544f6f2fe9cd229cbbbb8618ddf2e1851aea05a30578446e25e4df8bfc",
+        "size": 18613,
+        "last_modified": "2025-11-19T03:48:53.305334",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\canvas-layout-v1.1.md",
+        "hash": "f3a651aacc166877e6201fad979d368ba076e0cdd7b4d05daa2ab4fb1d1cd127",
+        "size": 12200,
+        "last_modified": "2025-11-19T03:48:53.325465",
+        "version": "1.1.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\canvas-progress-tracking-brownfield-architecture.md",
+        "hash": "b51514ff485220f14188a4f8e08477145954d9dca85e61aa2006336308a3aeab",
+        "size": 27933,
+        "last_modified": "2025-11-19T03:48:53.343679",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\coding-standards.md",
+        "hash": "4a90e8a4478e61e587f78fe652136100847753d9f5bbd97a7c20d95b1302c0a4",
+        "size": 22144,
+        "last_modified": "2025-11-22T23:05:21.786637",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\COMPREHENSIVE-TECHNICAL-PLAN-3LAYER-MEMORY-AGENTIC-RAG.md",
+        "hash": "993e784aba56c89f127f2970901c5878c8771b0c6c2b2bea44dc002d46e8260f",
+        "size": 33971,
+        "last_modified": "2025-11-19T03:48:53.382529",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\cross-canvas-association-architecture.md",
+        "hash": "355da2686ba1dcec05e03f1b3fc8513fa00b76f9a3479cbcbffd90ef64fc4c3e",
+        "size": 16321,
+        "last_modified": "2025-11-23T17:05:14.826583",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 16"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial Cross-Canvas Association Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\ebbinghaus-review-system-architecture.md",
+        "hash": "a2227ee929b6cf42934d5aee44df5ec61bc05bb1b0516825f97451c7d3394b83",
+        "size": 18269,
+        "last_modified": "2025-11-23T17:00:32.036958",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 14"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial Ebbinghaus Review System Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\EPIC-11-BACKEND-ARCHITECTURE.md",
+        "hash": "bf60012fc73b4b391e7d663d6af4a64f38eb757ffc953bbe59155e8968638789",
+        "size": 38108,
+        "last_modified": "2025-11-19T03:48:53.401578",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\EPIC-11-DATA-MODELS.md",
+        "hash": "fd149b537204d76756fc2846060a4505c3cb014e51ce9339cdc9e00ef0f78f87",
+        "size": 30279,
+        "last_modified": "2025-11-19T03:48:53.422215",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\epic10-concurrency-definition.md",
+        "hash": "3edc1b5877f5b337cfab73de01e11f0bf0ec95f8235b7f49dcfaeba5ea1811e5",
+        "size": 22555,
+        "last_modified": "2025-11-19T03:48:53.444272",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\epic10-implementation-guide.md",
+        "hash": "c7c31a922bf669e199c30468a8126d36119ea29ca519705a0a7cbbb15f744e48",
+        "size": 9427,
+        "last_modified": "2025-11-19T03:48:53.464327",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\epic10-intelligent-parallel-design.md",
+        "hash": "1fe8390784392c8a50be1d555f0306ddc89997b1c4bacbdc9cf5b5070d835c6a",
+        "size": 28073,
+        "last_modified": "2025-11-19T03:48:53.482942",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\FUSION-ALGORITHM-DESIGN.md",
+        "hash": "d2832c6066d4dae3043857afe73d283d1b273082c3eb05dfb8f71315e6fc7405",
+        "size": 35915,
+        "last_modified": "2025-11-19T03:48:53.502577",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\GRAPHITI-HYBRID-SEARCH-ANALYSIS.md",
+        "hash": "9a45f29be5086db17fb2184f58e00188b992a46a742fbacabd42f7cdf83841e9",
+        "size": 21740,
+        "last_modified": "2025-11-19T03:48:53.524316",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\GRAPHITI-KNOWLEDGE-GRAPH-INTEGRATION-ARCHITECTURE.md",
+        "hash": "12c62f6c680b56056e012260c021b6189d963b61657ec3d076a0c12ec73e915f",
+        "size": 124989,
+        "last_modified": "2025-11-19T03:48:53.546377",
+        "version": "1.1.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\index.md",
+        "hash": "84f12bd2597795dca12d173c3e759564fb3dacb9270cd206910924b9d30b9152",
+        "size": 9092,
+        "last_modified": "2025-11-19T03:48:53.607042",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\LANGGRAPH-INTEGRATION-DESIGN.md",
+        "hash": "eef7dda4525dee66ceff1edb219aa4eadf8cb61fe1ac9e6e0b261ccf8d7391db",
+        "size": 41765,
+        "last_modified": "2025-11-19T03:48:53.629067",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\LANGGRAPH-MEMORY-INTEGRATION-DESIGN.md",
+        "hash": "f7a0e32bb3c1a727782cffd78cc310d5f342b3c048b7a0c64dc9880f9bc0002e",
+        "size": 156920,
+        "last_modified": "2025-11-19T03:48:53.655092",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\MIGRATION-CHROMADB-TO-LANCEDB-ADAPTER.md",
+        "hash": "063959f68456f067774c8d0b62385be3f18ff6d3d3390b26a269a3de121eb1ed",
+        "size": 27435,
+        "last_modified": "2025-11-19T03:48:53.676621",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\MULTI-AGENT-CONCURRENT-ANALYSIS-SYSTEM-ARCHITECTURE.md",
+        "hash": "e626fdaefaccc6bac147c6dc3718082879f8eb181df94c9dd21eb9de5560ff4f",
+        "size": 63934,
+        "last_modified": "2025-11-19T03:48:53.699032",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\obsidian-plugin-architecture.md",
+        "hash": "ae6457625805377879981a2a92c3eef618894f2056dddcf65bfec8457627b34a",
+        "size": 12783,
+        "last_modified": "2025-11-23T16:58:05.269552",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 13",
+              "Epic 15",
+              "Epic 17"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial Obsidian Plugin Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\performance-monitoring-architecture.md",
+        "hash": "5a62ccadfc4c604004bc1e78cee249e58448a85325e5000c198078427b1514d4",
+        "size": 17400,
+        "last_modified": "2025-11-23T22:25:05.950087",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.9",
+            "epic": [
+              "Epic 17"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial Performance Monitoring Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\project-structure.md",
+        "hash": "b473b1c9bda3c54f94ad404a4ba98b121c4c3dea6e57da267244d217f1b6eabf",
+        "size": 29943,
+        "last_modified": "2025-11-19T03:48:53.721049",
+        "version": "2.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\RERANKING-STRATEGY-SELECTION.md",
+        "hash": "bbfb70b78757c3869fbcdeba830c872ed744b650775288611714d4d53405c023",
+        "size": 31170,
+        "last_modified": "2025-11-19T03:48:53.742610",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\rollback-recovery-architecture.md",
+        "hash": "f3e84a0f2eca7f58b250acccf5272cd20beb535166a9a545aca36a1fc1884e89",
+        "size": 22205,
+        "last_modified": "2025-11-23T17:23:11.288131",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 12",
+              "Epic 18"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial Rollback and Recovery Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\sot-hierarchy.md",
+        "hash": "c78663605d1d729fe2bcfe04916a2f6580b2164b45bda856861ccc6e8b422362",
+        "size": 13287,
+        "last_modified": "2025-11-25T12:11:20.870692",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\architecture\\sub-agent-calling-protocol.md",
+        "hash": "0ceda006bc31947d90e453a1f675af15e4f9dbbbcdc24e40d0c96ae47aff92b2",
+        "size": 14419,
+        "last_modified": "2025-11-19T03:48:53.761632",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\sub-agent-templates.md",
+        "hash": "b7e1d02cf2c423f9270947033d03009b3256f1737f3575548c4650db9c423041",
+        "size": 18400,
+        "last_modified": "2025-11-19T03:48:53.781665",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\tech-stack.md",
+        "hash": "c0aef1692603ffbe96a5e6f903ac1cc49fb1cf9e4e848f75c498439084a9a4f7",
+        "size": 17487,
+        "last_modified": "2025-11-19T03:48:53.799686",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "approved",
+          "iteration": 1,
+          "compatible_with": {
+            "prd": "v1.0",
+            "api_spec": "v1.0"
+          },
+          "changes_from_previous": [
+            "Initial Architecture with frontmatter metadata"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\ui-component-architecture.md",
+        "hash": "aec1bfe361df5253c0564890b0f34d209e780b2b22c4c9b1dee3a60b9652026b",
+        "size": 26476,
+        "last_modified": "2025-11-23T17:03:33.244989",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 13",
+              "Epic 14",
+              "Epic 15"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial UI Component Architecture document"
+          ]
+        }
+      },
+      {
+        "path": "docs\\architecture\\websocket-realtime-architecture.md",
+        "hash": "2f5cee5b2d13ab049bbb6f226a9819dcc1838d35b1899157b232d843e867f0d2",
+        "size": 18420,
+        "last_modified": "2025-11-23T17:07:04.534923",
+        "version": "1.0.0",
+        "metadata": {
+          "document_type": "Architecture",
+          "status": "draft",
+          "iteration": 5,
+          "compatible_with": {
+            "prd": "v1.1.8",
+            "epic": [
+              "Epic 11",
+              "Epic 13"
+            ]
+          },
+          "changes_from_previous": [
+            "Initial WebSocket Real-time Architecture document"
+          ]
+        }
+      }
+    ],
+    "epics": [
+      {
+        "path": "docs\\epics\\epic-10.2-async-parallel-execution-engine.md",
+        "hash": "d30e35db421c995d667e7f08784fd1e3fc0823e28ffb3fe9207e18aa6f83752f",
+        "size": 20834,
+        "last_modified": "2025-11-04T20:23:00.400177",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\EPIC-12-3LAYER-MEMORY-AGENTIC-RAG.md",
+        "hash": "7c72265c9b46b16813df2965913d31d5761a638b4aa0fe9a8d5744c2ff5da4fb",
+        "size": 57056,
+        "last_modified": "2025-11-14T22:40:43.700022",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\EPIC-12-STORY-MAP.md",
+        "hash": "0d37dd78325d1ed1c5ef86f85b4a2f04a330c51ed48619c4dddaa98732fff905",
+        "size": 58289,
+        "last_modified": "2025-11-14T22:46:57.341508",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-9.8-series-summary-roadmap.md",
+        "hash": "f12ec8a5f25ee4b38b47ac16aafde6eb86c0b6f1d66b184ff5d10c3c05fc726a",
+        "size": 11305,
+        "last_modified": "2025-10-26T14:48:31.680896",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-9.8.6-frontend-architecture-enhancement.md",
+        "hash": "fedf8ef993828c526e4727302b86c7ede3098b5ae63cded5bb07369ced937e96",
+        "size": 19946,
+        "last_modified": "2025-10-26T14:45:23.213147",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-9.8.7-performance-optimization.md",
+        "hash": "075e7554a287e646deb61adfb2113ae927d5858ed60ec6772f9b6596ce94e1b8",
+        "size": 23803,
+        "last_modified": "2025-10-26T14:46:24.112297",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-9.8.8-advanced-features.md",
+        "hash": "54ff1ba6862743433b32bc33704914eb40a077eaebc7f8408003e0830cc58571",
+        "size": 51894,
+        "last_modified": "2025-10-26T14:47:54.720375",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-neo4j-gds-integration.md",
+        "hash": "52bf1cb07bd0b466a36c3054155278b49d7ea9ddf2a5a4c0fcb46c7e5c380881",
+        "size": 7953,
+        "last_modified": "2025-11-14T23:27:48.942616",
+        "version": "no_frontmatter",
+        "metadata": {}
+      },
+      {
+        "path": "docs\\epics\\epic-test-validation.md",
+        "hash": "f78e83f7e2c973557d181ad201a1b8de7b1b38d6a63ca8a5df03d0537933f4ad",
+        "size": 1204,
+        "last_modified": "2025-11-19T03:36:42.888091",
+        "version": "no_frontmatter",
+        "metadata": {}
+      }
+    ],
+    "api_specs": [
+      {
+        "path": "specs\\api\\agent-api.openapi.yml",
+        "hash": "028d7ce167a309729734f5c03badb4c9d0bf2b31f28efb734ad0cf07dc5b873b",
+        "size": 19045,
+        "last_modified": "2025-11-25T18:47:08.875041",
+        "version": "1.0.0",
+        "metadata": {
+          "type": "openapi"
+        }
+      },
+      {
+        "path": "specs\\api\\canvas-api.openapi.yml",
+        "hash": "6595f02a93092544f3ea1e428aa4a80dfaaa10105d707ac2af9c686455d5a6f5",
+        "size": 29510,
+        "last_modified": "2025-11-25T18:47:07.064869",
+        "version": "2.0.0",
+        "metadata": {
+          "type": "openapi"
+        }
+      },
+      {
+        "path": "specs\\api\\fastapi-backend-api.openapi.yml",
+        "hash": "1f187d5f6fad136039b7315427e1fa4e123d681ea23c252bbef1a6aea8f048d9",
+        "size": 27211,
+        "last_modified": "2025-11-25T18:47:05.561168",
+        "version": "1.0.0",
+        "metadata": {
+          "type": "openapi"
+        }
+      },
+      {
+        "path": "specs\\api\\parallel-api.openapi.yml",
+        "hash": "304ed33ab1d62419acd8d47bbcf73d7b33f65615fb0f3b45dc0c48a15206a8e3",
+        "size": 16307,
+        "last_modified": "2025-11-25T18:47:42.136600",
+        "version": "1.0.0",
+        "metadata": {
+          "type": "openapi"
+        }
+      },
+      {
+        "path": "specs\\api\\review-api.openapi.yml",
+        "hash": "87391c396c44db0ba565a91a65087e3226dadb70669dc112f328e6aeea19c829",
+        "size": 30389,
+        "last_modified": "2025-11-25T18:55:53.721724",
+        "version": "1.0.0",
+        "metadata": {
+          "type": "openapi"
+        }
+      }
+    ],
+    "data_schemas": [
+      {
+        "path": "specs\\data\\agent-meta.schema.json",
+        "hash": "92b31d441df450f7b8f7f9af99246093f778afc3e9c2e3b673300a399a1c8ae8",
+        "size": 1317,
+        "last_modified": "2025-11-25T20:26:45.168931"
+      },
+      {
+        "path": "specs\\data\\agent-recommendation.schema.json",
+        "hash": "6afc8ceb56525ef8820ef9870962156ef5e7d9f96ac49d90112a1c51d9619d9e",
+        "size": 1032,
+        "last_modified": "2025-11-25T20:26:46.582557"
+      },
+      {
+        "path": "specs\\data\\agent-response.schema.json",
+        "hash": "ab6ca93169c81463589b86cad22ec4b28f380646c2fa5cd101d8f2152a71476f",
+        "size": 5107,
+        "last_modified": "2025-11-25T19:14:48.077576"
+      },
+      {
+        "path": "specs\\data\\agent-type.schema.json",
+        "hash": "8ad2618d79876a7ad9f786a0cb801e4779df50aed5c7cd1b43515e0c09c202ba",
+        "size": 1363,
+        "last_modified": "2025-11-25T20:26:43.681040"
+      },
+      {
+        "path": "specs\\data\\alert.schema.json",
+        "hash": "4b83a47c2d77f91d6a8adc4bf1e09714c406055080defbddb06559800fe413c4",
+        "size": 2306,
+        "last_modified": "2025-11-25T19:15:54.355601"
+      },
+      {
+        "path": "specs\\data\\canvas-association.schema.json",
+        "hash": "b0cbb0b914640ca1de7b0635b1000a9869a3f3f27c4c85f97b07a2937fdb537c",
+        "size": 2012,
+        "last_modified": "2025-11-25T19:13:53.462523"
+      },
+      {
+        "path": "specs\\data\\canvas-data.schema.json",
+        "hash": "487a84a718e0bf9aaefe947acbcca62994213091c103ac8ad43395eb49a1470e",
+        "size": 1179,
+        "last_modified": "2025-11-25T20:04:53.469138"
+      },
+      {
+        "path": "specs\\data\\canvas-edge.schema.json",
+        "hash": "2831da2ba2cee6f3037269042082b8990bd5997910c9c2c9f6c1efff668f39c2",
+        "size": 2653,
+        "last_modified": "2025-11-25T19:13:50.509504"
+      },
+      {
+        "path": "specs\\data\\canvas-file.schema.json",
+        "hash": "01e3cbe4c565a94f74498f739a010121f1884c214aa133040863e9e8cc8c54fb",
+        "size": 5356,
+        "last_modified": "2025-11-25T19:13:51.574970"
+      },
+      {
+        "path": "specs\\data\\canvas-meta.schema.json",
+        "hash": "5f9785b177c8ec9c8be3cc8a62ab012760c7ce8d9423560909856b3f15f5460c",
+        "size": 1794,
+        "last_modified": "2025-11-25T20:04:54.827463"
+      },
+      {
+        "path": "specs\\data\\canvas-node.schema.json",
+        "hash": "d0a4f6de7969cd1f917145f441ceda82bdf4a241d6d615ae9c731acef9039dc6",
+        "size": 3776,
+        "last_modified": "2025-11-25T19:13:49.326339"
+      },
+      {
+        "path": "specs\\data\\canvas-response.schema.json",
+        "hash": "76eb2e513db4d30cc45c48ab5839b11ba2e34e2846c4be8ca09d7f7f6eb580c2",
+        "size": 830,
+        "last_modified": "2025-11-25T20:04:56.398065"
+      },
+      {
+        "path": "specs\\data\\decompose-request.schema.json",
+        "hash": "d624a9655c12a4ed66e0a3ee6d383e4091105b9f51812615d69d62ac1bd58860",
+        "size": 1200,
+        "last_modified": "2025-11-25T19:14:49.086363"
+      },
+      {
+        "path": "specs\\data\\decompose-response.schema.json",
+        "hash": "704705b96f1b9a9bf05a5c9265b2e0916c4527f8df59bbb903deef410e5bab6d",
+        "size": 1250,
+        "last_modified": "2025-11-25T19:14:50.084683"
+      },
+      {
+        "path": "specs\\data\\edge-base.schema.json",
+        "hash": "0b7a8b719cb21fe3791881b19d03e29d6a7389534229166f9f4c2a462800e8ba",
+        "size": 2052,
+        "last_modified": "2025-11-25T20:04:22.333499"
+      },
+      {
+        "path": "specs\\data\\edge-create.schema.json",
+        "hash": "e154556adaaaf896bb541ef509898e8e75580f3f438fc0f3bd42c314fd45f676",
+        "size": 1211,
+        "last_modified": "2025-11-25T20:04:26.443198"
+      },
+      {
+        "path": "specs\\data\\edge-read.schema.json",
+        "hash": "6abca1a5a7233c470101f56f87e97612193c156c5225c746bbab1dcd467db383",
+        "size": 1667,
+        "last_modified": "2025-11-25T20:04:52.118426"
+      },
+      {
+        "path": "specs\\data\\error-detail.schema.json",
+        "hash": "ee2f26af981f732052c9e10f98db8a6375ef434ccfad83fc8e1bce10d6ad87e7",
+        "size": 938,
+        "last_modified": "2025-11-25T20:26:48.112201"
+      },
+      {
+        "path": "specs\\data\\error-response.schema.json",
+        "hash": "3d4827a4d178d5a42a767c7de5bc124a7b8e4e8f81013ff26b55a3712c4fcbb4",
+        "size": 1334,
+        "last_modified": "2025-11-25T19:15:57.390827"
+      },
+      {
+        "path": "specs\\data\\explain-request.schema.json",
+        "hash": "6b1dfe3d2353b7d56d299162c1907050b1168df7b12641843465d1a655f4137a",
+        "size": 1137,
+        "last_modified": "2025-11-25T20:26:16.567178"
+      },
+      {
+        "path": "specs\\data\\explain-response.schema.json",
+        "hash": "244c187d7acf0ca33cbd93a3325ecd1f0f269bef7801b75385cd5062bf9cc60a",
+        "size": 1366,
+        "last_modified": "2025-11-25T20:26:18.931045"
+      },
+      {
+        "path": "specs\\data\\fsrs-card.schema.json",
+        "hash": "8aabc7ed9ab81d0f0a565700dca043312ad5fd0de6c78e962b83c3e401306523",
+        "size": 2356,
+        "last_modified": "2025-11-25T19:14:17.278270"
+      },
+      {
+        "path": "specs\\data\\graphiti-entity.schema.json",
+        "hash": "a81555956c7b787ffebc2854352b6175d23546842242a14f7763d047b270bea6",
+        "size": 2079,
+        "last_modified": "2025-11-25T19:15:24.927418"
+      },
+      {
+        "path": "specs\\data\\health-check-response.schema.json",
+        "hash": "9354939a8b29a8a492df945cebb09c62256a68872cbec920dc8d74d5d4713c51",
+        "size": 1464,
+        "last_modified": "2025-11-25T19:15:55.321292"
+      },
+      {
+        "path": "specs\\data\\langgraph-state.schema.json",
+        "hash": "b39ed9e04713ef8adab839deb604bf1f64520a209f942f2c468cded47173c62a",
+        "size": 3007,
+        "last_modified": "2025-11-25T19:15:23.869458"
+      },
+      {
+        "path": "specs\\data\\metrics-summary.schema.json",
+        "hash": "f31c904bc85e156f6e30c6f8159decdb6a173a85a8b7707939ecca978e45db6c",
+        "size": 4345,
+        "last_modified": "2025-11-25T19:15:53.326333"
+      },
+      {
+        "path": "specs\\data\\node-base.schema.json",
+        "hash": "0442dcf7410a157e6132433689de08b3e298a12658d5f1091ceba8cbf1f735b3",
+        "size": 2108,
+        "last_modified": "2025-11-25T20:04:15.353187"
+      },
+      {
+        "path": "specs\\data\\node-create.schema.json",
+        "hash": "1c3972b8014793e8db6eeb0974e151b4dea4f2ba77ef3134dfb96c2137767aaf",
+        "size": 2281,
+        "last_modified": "2025-11-25T20:04:16.661676"
+      },
+      {
+        "path": "specs\\data\\node-read.schema.json",
+        "hash": "e2bea0e9e45617517fbd4d8f998d6ea4fdd059e5490a232af530d668266d1788",
+        "size": 1870,
+        "last_modified": "2025-11-25T20:04:19.946108"
+      },
+      {
+        "path": "specs\\data\\node-score.schema.json",
+        "hash": "882526b98441f7f9e5d1a553d92cfb3d880a5f3e16d068effc7f167ba4332fc9",
+        "size": 2146,
+        "last_modified": "2025-11-25T19:14:54.322092"
+      },
+      {
+        "path": "specs\\data\\node-update.schema.json",
+        "hash": "d2034cb6b34fe5c7f55454778785faf0deaf0cfe7c8f60cb56cf53da3dce9e01",
+        "size": 1298,
+        "last_modified": "2025-11-25T20:04:18.388246"
+      },
+      {
+        "path": "specs\\data\\pagination-meta.schema.json",
+        "hash": "21aa7e78b06b9280db0c657cd3e26ad86229d174dd42e66a7add22601fd6c902",
+        "size": 1261,
+        "last_modified": "2025-11-25T20:28:02.076258"
+      },
+      {
+        "path": "specs\\data\\parallel-task.schema.json",
+        "hash": "8842e96727642a896efb83c77d9203f0b6e14ccbfc02b3dd3a46d698c5688479",
+        "size": 2961,
+        "last_modified": "2025-11-25T19:15:22.850355"
+      },
+      {
+        "path": "specs\\data\\review-concept.schema.json",
+        "hash": "3e55c88f851b5f708c6a947bc260d4b8fc18adf7f731103409338d17334e4f46",
+        "size": 2814,
+        "last_modified": "2025-11-25T19:14:18.317895"
+      },
+      {
+        "path": "specs\\data\\review-generate-request.schema.json",
+        "hash": "bc3be9e20f1bbe4242039ffa8190b636c70ad4fe1fd8bc95c20f0b57debdddd4",
+        "size": 1121,
+        "last_modified": "2025-11-25T20:27:41.437060"
+      },
+      {
+        "path": "specs\\data\\review-generate-response.schema.json",
+        "hash": "5ef762d93aaee47a99e1ea087403566d0bf46474f9a1bed46910385a82f9128e",
+        "size": 1375,
+        "last_modified": "2025-11-25T20:27:43.257934"
+      },
+      {
+        "path": "specs\\data\\review-item.schema.json",
+        "hash": "54e80aee5528adeef325192e782874fdc8fc1cf1e3862980369584c8bed5c7a1",
+        "size": 1556,
+        "last_modified": "2025-11-25T19:14:19.296312"
+      },
+      {
+        "path": "specs\\data\\review-progress-response.schema.json",
+        "hash": "bd4887010ac88ec8c21249f913fb018661e022b9dab4b7e9463e748ccf07b8fe",
+        "size": 1728,
+        "last_modified": "2025-11-25T20:27:46.131107"
+      },
+      {
+        "path": "specs\\data\\review-sync-request.schema.json",
+        "hash": "28fe071e76aa7893b02366a7cc8d1ca064d7fb6721cb2f4084d743240ce36d9a",
+        "size": 1002,
+        "last_modified": "2025-11-25T20:27:49.978151"
+      },
+      {
+        "path": "specs\\data\\review-sync-response.schema.json",
+        "hash": "b88c9915dfaa1e02e2574b020d2b98c78eb2bd3e0f4985dfc1f7b94fdc80622a",
+        "size": 1182,
+        "last_modified": "2025-11-25T20:27:54.446227"
+      },
+      {
+        "path": "specs\\data\\score-dimensions.schema.json",
+        "hash": "691c0d1676379d181760a90a3a3dd461d5afaa69e9edac78bfd0c59321267831",
+        "size": 1328,
+        "last_modified": "2025-11-25T20:26:11.370353"
+      },
+      {
+        "path": "specs\\data\\score-feedback.schema.json",
+        "hash": "4f21e592ceb1d0349704e91012d2150dfdd8fde7ac91f53aacbc500828d065b5",
+        "size": 935,
+        "last_modified": "2025-11-25T20:26:12.760039"
+      },
+      {
+        "path": "specs\\data\\score-request.schema.json",
+        "hash": "2dc805487e3337837321b7e1fc360eb0bbeedff1ba01f899aefc29cc86930caf",
+        "size": 970,
+        "last_modified": "2025-11-25T20:26:09.451033"
+      },
+      {
+        "path": "specs\\data\\score-response.schema.json",
+        "hash": "b39b03331870cb80856b8c912a8391f46524eff3f802327ef56baca6a7d139e4",
+        "size": 1872,
+        "last_modified": "2025-11-25T20:26:14.137603"
+      },
+      {
+        "path": "specs\\data\\scoring-response.schema.json",
+        "hash": "8f7839deb724721b2bc90ac649ba6480bd3726526ba0aad0267d80040085e91d",
+        "size": 11483,
+        "last_modified": "2025-11-25T19:14:52.060306"
+      },
+      {
+        "path": "specs\\data\\success-response.schema.json",
+        "hash": "04f28d0251cbe6c78f9e79de5f6513a300c61b7b70c24b68c29f179d3aa0d348",
+        "size": 998,
+        "last_modified": "2025-11-25T20:27:58.876452"
+      },
+      {
+        "path": "specs\\data\\temporal-event.schema.json",
+        "hash": "d79ecadb1ee898d3d9aba378676a513a25c11b656a9dae4ed4c365091bb4f76e",
+        "size": 2258,
+        "last_modified": "2025-11-25T19:15:26.954714"
+      },
+      {
+        "path": "specs\\data\\agent-meta.schema.json",
+        "hash": "92b31d441df450f7b8f7f9af99246093f778afc3e9c2e3b673300a399a1c8ae8",
+        "size": 1317,
+        "last_modified": "2025-11-25T20:26:45.168931"
+      },
+      {
+        "path": "specs\\data\\agent-recommendation.schema.json",
+        "hash": "6afc8ceb56525ef8820ef9870962156ef5e7d9f96ac49d90112a1c51d9619d9e",
+        "size": 1032,
+        "last_modified": "2025-11-25T20:26:46.582557"
+      },
+      {
+        "path": "specs\\data\\agent-response.schema.json",
+        "hash": "ab6ca93169c81463589b86cad22ec4b28f380646c2fa5cd101d8f2152a71476f",
+        "size": 5107,
+        "last_modified": "2025-11-25T19:14:48.077576"
+      },
+      {
+        "path": "specs\\data\\agent-type.schema.json",
+        "hash": "8ad2618d79876a7ad9f786a0cb801e4779df50aed5c7cd1b43515e0c09c202ba",
+        "size": 1363,
+        "last_modified": "2025-11-25T20:26:43.681040"
+      },
+      {
+        "path": "specs\\data\\alert.schema.json",
+        "hash": "4b83a47c2d77f91d6a8adc4bf1e09714c406055080defbddb06559800fe413c4",
+        "size": 2306,
+        "last_modified": "2025-11-25T19:15:54.355601"
+      },
+      {
+        "path": "specs\\data\\canvas-association.schema.json",
+        "hash": "b0cbb0b914640ca1de7b0635b1000a9869a3f3f27c4c85f97b07a2937fdb537c",
+        "size": 2012,
+        "last_modified": "2025-11-25T19:13:53.462523"
+      },
+      {
+        "path": "specs\\data\\canvas-data.schema.json",
+        "hash": "487a84a718e0bf9aaefe947acbcca62994213091c103ac8ad43395eb49a1470e",
+        "size": 1179,
+        "last_modified": "2025-11-25T20:04:53.469138"
+      },
+      {
+        "path": "specs\\data\\canvas-edge.schema.json",
+        "hash": "2831da2ba2cee6f3037269042082b8990bd5997910c9c2c9f6c1efff668f39c2",
+        "size": 2653,
+        "last_modified": "2025-11-25T19:13:50.509504"
+      },
+      {
+        "path": "specs\\data\\canvas-file.schema.json",
+        "hash": "01e3cbe4c565a94f74498f739a010121f1884c214aa133040863e9e8cc8c54fb",
+        "size": 5356,
+        "last_modified": "2025-11-25T19:13:51.574970"
+      },
+      {
+        "path": "specs\\data\\canvas-meta.schema.json",
+        "hash": "5f9785b177c8ec9c8be3cc8a62ab012760c7ce8d9423560909856b3f15f5460c",
+        "size": 1794,
+        "last_modified": "2025-11-25T20:04:54.827463"
+      },
+      {
+        "path": "specs\\data\\canvas-node.schema.json",
+        "hash": "d0a4f6de7969cd1f917145f441ceda82bdf4a241d6d615ae9c731acef9039dc6",
+        "size": 3776,
+        "last_modified": "2025-11-25T19:13:49.326339"
+      },
+      {
+        "path": "specs\\data\\canvas-response.schema.json",
+        "hash": "76eb2e513db4d30cc45c48ab5839b11ba2e34e2846c4be8ca09d7f7f6eb580c2",
+        "size": 830,
+        "last_modified": "2025-11-25T20:04:56.398065"
+      },
+      {
+        "path": "specs\\data\\decompose-request.schema.json",
+        "hash": "d624a9655c12a4ed66e0a3ee6d383e4091105b9f51812615d69d62ac1bd58860",
+        "size": 1200,
+        "last_modified": "2025-11-25T19:14:49.086363"
+      },
+      {
+        "path": "specs\\data\\decompose-response.schema.json",
+        "hash": "704705b96f1b9a9bf05a5c9265b2e0916c4527f8df59bbb903deef410e5bab6d",
+        "size": 1250,
+        "last_modified": "2025-11-25T19:14:50.084683"
+      },
+      {
+        "path": "specs\\data\\edge-base.schema.json",
+        "hash": "0b7a8b719cb21fe3791881b19d03e29d6a7389534229166f9f4c2a462800e8ba",
+        "size": 2052,
+        "last_modified": "2025-11-25T20:04:22.333499"
+      },
+      {
+        "path": "specs\\data\\edge-create.schema.json",
+        "hash": "e154556adaaaf896bb541ef509898e8e75580f3f438fc0f3bd42c314fd45f676",
+        "size": 1211,
+        "last_modified": "2025-11-25T20:04:26.443198"
+      },
+      {
+        "path": "specs\\data\\edge-read.schema.json",
+        "hash": "6abca1a5a7233c470101f56f87e97612193c156c5225c746bbab1dcd467db383",
+        "size": 1667,
+        "last_modified": "2025-11-25T20:04:52.118426"
+      },
+      {
+        "path": "specs\\data\\error-detail.schema.json",
+        "hash": "ee2f26af981f732052c9e10f98db8a6375ef434ccfad83fc8e1bce10d6ad87e7",
+        "size": 938,
+        "last_modified": "2025-11-25T20:26:48.112201"
+      },
+      {
+        "path": "specs\\data\\error-response.schema.json",
+        "hash": "3d4827a4d178d5a42a767c7de5bc124a7b8e4e8f81013ff26b55a3712c4fcbb4",
+        "size": 1334,
+        "last_modified": "2025-11-25T19:15:57.390827"
+      },
+      {
+        "path": "specs\\data\\explain-request.schema.json",
+        "hash": "6b1dfe3d2353b7d56d299162c1907050b1168df7b12641843465d1a655f4137a",
+        "size": 1137,
+        "last_modified": "2025-11-25T20:26:16.567178"
+      },
+      {
+        "path": "specs\\data\\explain-response.schema.json",
+        "hash": "244c187d7acf0ca33cbd93a3325ecd1f0f269bef7801b75385cd5062bf9cc60a",
+        "size": 1366,
+        "last_modified": "2025-11-25T20:26:18.931045"
+      },
+      {
+        "path": "specs\\data\\fsrs-card.schema.json",
+        "hash": "8aabc7ed9ab81d0f0a565700dca043312ad5fd0de6c78e962b83c3e401306523",
+        "size": 2356,
+        "last_modified": "2025-11-25T19:14:17.278270"
+      },
+      {
+        "path": "specs\\data\\graphiti-entity.schema.json",
+        "hash": "a81555956c7b787ffebc2854352b6175d23546842242a14f7763d047b270bea6",
+        "size": 2079,
+        "last_modified": "2025-11-25T19:15:24.927418"
+      },
+      {
+        "path": "specs\\data\\health-check-response.schema.json",
+        "hash": "9354939a8b29a8a492df945cebb09c62256a68872cbec920dc8d74d5d4713c51",
+        "size": 1464,
+        "last_modified": "2025-11-25T19:15:55.321292"
+      },
+      {
+        "path": "specs\\data\\langgraph-state.schema.json",
+        "hash": "b39ed9e04713ef8adab839deb604bf1f64520a209f942f2c468cded47173c62a",
+        "size": 3007,
+        "last_modified": "2025-11-25T19:15:23.869458"
+      },
+      {
+        "path": "specs\\data\\metrics-summary.schema.json",
+        "hash": "f31c904bc85e156f6e30c6f8159decdb6a173a85a8b7707939ecca978e45db6c",
+        "size": 4345,
+        "last_modified": "2025-11-25T19:15:53.326333"
+      },
+      {
+        "path": "specs\\data\\node-base.schema.json",
+        "hash": "0442dcf7410a157e6132433689de08b3e298a12658d5f1091ceba8cbf1f735b3",
+        "size": 2108,
+        "last_modified": "2025-11-25T20:04:15.353187"
+      },
+      {
+        "path": "specs\\data\\node-create.schema.json",
+        "hash": "1c3972b8014793e8db6eeb0974e151b4dea4f2ba77ef3134dfb96c2137767aaf",
+        "size": 2281,
+        "last_modified": "2025-11-25T20:04:16.661676"
+      },
+      {
+        "path": "specs\\data\\node-read.schema.json",
+        "hash": "e2bea0e9e45617517fbd4d8f998d6ea4fdd059e5490a232af530d668266d1788",
+        "size": 1870,
+        "last_modified": "2025-11-25T20:04:19.946108"
+      },
+      {
+        "path": "specs\\data\\node-score.schema.json",
+        "hash": "882526b98441f7f9e5d1a553d92cfb3d880a5f3e16d068effc7f167ba4332fc9",
+        "size": 2146,
+        "last_modified": "2025-11-25T19:14:54.322092"
+      },
+      {
+        "path": "specs\\data\\node-update.schema.json",
+        "hash": "d2034cb6b34fe5c7f55454778785faf0deaf0cfe7c8f60cb56cf53da3dce9e01",
+        "size": 1298,
+        "last_modified": "2025-11-25T20:04:18.388246"
+      },
+      {
+        "path": "specs\\data\\pagination-meta.schema.json",
+        "hash": "21aa7e78b06b9280db0c657cd3e26ad86229d174dd42e66a7add22601fd6c902",
+        "size": 1261,
+        "last_modified": "2025-11-25T20:28:02.076258"
+      },
+      {
+        "path": "specs\\data\\parallel-task.schema.json",
+        "hash": "8842e96727642a896efb83c77d9203f0b6e14ccbfc02b3dd3a46d698c5688479",
+        "size": 2961,
+        "last_modified": "2025-11-25T19:15:22.850355"
+      },
+      {
+        "path": "specs\\data\\review-concept.schema.json",
+        "hash": "3e55c88f851b5f708c6a947bc260d4b8fc18adf7f731103409338d17334e4f46",
+        "size": 2814,
+        "last_modified": "2025-11-25T19:14:18.317895"
+      },
+      {
+        "path": "specs\\data\\review-generate-request.schema.json",
+        "hash": "bc3be9e20f1bbe4242039ffa8190b636c70ad4fe1fd8bc95c20f0b57debdddd4",
+        "size": 1121,
+        "last_modified": "2025-11-25T20:27:41.437060"
+      },
+      {
+        "path": "specs\\data\\review-generate-response.schema.json",
+        "hash": "5ef762d93aaee47a99e1ea087403566d0bf46474f9a1bed46910385a82f9128e",
+        "size": 1375,
+        "last_modified": "2025-11-25T20:27:43.257934"
+      },
+      {
+        "path": "specs\\data\\review-item.schema.json",
+        "hash": "54e80aee5528adeef325192e782874fdc8fc1cf1e3862980369584c8bed5c7a1",
+        "size": 1556,
+        "last_modified": "2025-11-25T19:14:19.296312"
+      },
+      {
+        "path": "specs\\data\\review-progress-response.schema.json",
+        "hash": "bd4887010ac88ec8c21249f913fb018661e022b9dab4b7e9463e748ccf07b8fe",
+        "size": 1728,
+        "last_modified": "2025-11-25T20:27:46.131107"
+      },
+      {
+        "path": "specs\\data\\review-sync-request.schema.json",
+        "hash": "28fe071e76aa7893b02366a7cc8d1ca064d7fb6721cb2f4084d743240ce36d9a",
+        "size": 1002,
+        "last_modified": "2025-11-25T20:27:49.978151"
+      },
+      {
+        "path": "specs\\data\\review-sync-response.schema.json",
+        "hash": "b88c9915dfaa1e02e2574b020d2b98c78eb2bd3e0f4985dfc1f7b94fdc80622a",
+        "size": 1182,
+        "last_modified": "2025-11-25T20:27:54.446227"
+      },
+      {
+        "path": "specs\\data\\score-dimensions.schema.json",
+        "hash": "691c0d1676379d181760a90a3a3dd461d5afaa69e9edac78bfd0c59321267831",
+        "size": 1328,
+        "last_modified": "2025-11-25T20:26:11.370353"
+      },
+      {
+        "path": "specs\\data\\score-feedback.schema.json",
+        "hash": "4f21e592ceb1d0349704e91012d2150dfdd8fde7ac91f53aacbc500828d065b5",
+        "size": 935,
+        "last_modified": "2025-11-25T20:26:12.760039"
+      },
+      {
+        "path": "specs\\data\\score-request.schema.json",
+        "hash": "2dc805487e3337837321b7e1fc360eb0bbeedff1ba01f899aefc29cc86930caf",
+        "size": 970,
+        "last_modified": "2025-11-25T20:26:09.451033"
+      },
+      {
+        "path": "specs\\data\\score-response.schema.json",
+        "hash": "b39b03331870cb80856b8c912a8391f46524eff3f802327ef56baca6a7d139e4",
+        "size": 1872,
+        "last_modified": "2025-11-25T20:26:14.137603"
+      },
+      {
+        "path": "specs\\data\\scoring-response.schema.json",
+        "hash": "8f7839deb724721b2bc90ac649ba6480bd3726526ba0aad0267d80040085e91d",
+        "size": 11483,
+        "last_modified": "2025-11-25T19:14:52.060306"
+      },
+      {
+        "path": "specs\\data\\success-response.schema.json",
+        "hash": "04f28d0251cbe6c78f9e79de5f6513a300c61b7b70c24b68c29f179d3aa0d348",
+        "size": 998,
+        "last_modified": "2025-11-25T20:27:58.876452"
+      },
+      {
+        "path": "specs\\data\\temporal-event.schema.json",
+        "hash": "d79ecadb1ee898d3d9aba378676a513a25c11b656a9dae4ed4c365091bb4f76e",
+        "size": 2258,
+        "last_modified": "2025-11-25T19:15:26.954714"
+      }
+    ],
+    "behavior_specs": [
+      {
+        "path": "specs\\behavior\\agent-invocation.feature",
+        "hash": "ff67738e4b756e9fac20b9d5de87ca381b59f420ff66c7cfaf64a5d9710f6504",
+        "size": 7316,
+        "last_modified": "2025-11-18T00:29:17.798883"
+      },
+      {
+        "path": "specs\\behavior\\canvas-operations.feature",
+        "hash": "36ba749528cedf2122a9e39139de9c31643611186f32c6de647a0a5fd5c64da2",
+        "size": 7209,
+        "last_modified": "2025-11-18T00:29:59.894188"
+      },
+      {
+        "path": "specs\\behavior\\cross-canvas-association.feature",
+        "hash": "9e124ce67284f3206e2fae526d2c860ccce203a983c11c31980d7cd1ba0bf1b9",
+        "size": 14267,
+        "last_modified": "2025-11-25T21:24:58.548614"
+      },
+      {
+        "path": "specs\\behavior\\ebbinghaus-review.feature",
+        "hash": "68156727232c92be8940dd2729c51a2db52174772e8194d8aa417ad4cf192627",
+        "size": 21379,
+        "last_modified": "2025-11-25T20:49:51.246831"
+      },
+      {
+        "path": "specs\\behavior\\intelligent-parallel-processing.feature",
+        "hash": "bd711f0d87386c199b369113daf884d10a40184e32af65dc70644cfa0e87af1e",
+        "size": 14060,
+        "last_modified": "2025-11-25T21:19:31.025642"
+      },
+      {
+        "path": "specs\\behavior\\langgraph-supervisor.feature",
+        "hash": "5c6afbf8870ba069af4b361a7c6555d7318e9fee2d592a98e526525d76be13ca",
+        "size": 16886,
+        "last_modified": "2025-11-25T21:25:00.041700"
+      },
+      {
+        "path": "specs\\behavior\\obsidian-plugin-ui.feature",
+        "hash": "5346d30a34062b30ff8b13148234601862c59b28948b26fd365ebbae668e2775",
+        "size": 17421,
+        "last_modified": "2025-11-25T21:25:03.002241"
+      },
+      {
+        "path": "specs\\behavior\\rollback-recovery.feature",
+        "hash": "29f98554c567d2d646fac6b1ee6cdb96d81a2683ae9d03415ed309455a92bfae",
+        "size": 15762,
+        "last_modified": "2025-11-25T21:25:01.536021"
+      },
+      {
+        "path": "specs\\behavior\\scoring-agent.feature",
+        "hash": "ef0c7f0b4def81c39773d58d3232f2cc551d200e0c6e69f061caa8148512e4b1",
+        "size": 5610,
+        "last_modified": "2025-11-18T00:28:36.842597"
+      },
+      {
+        "path": "specs\\behavior\\three-layer-memory-agentic-rag.feature",
+        "hash": "a50eb633abfe968d8d1ed822ccaf65c61d315a0b8c3e5b125d7779f8a31c0e13",
+        "size": 17736,
+        "last_modified": "2025-11-23T15:59:02.821153"
+      },
+      {
+        "path": "specs\\behavior\\verification-canvas.feature",
+        "hash": "56c2ec302e7d98c640766da084218251734ea8492c54d21e8d095f788265c996",
+        "size": 7503,
+        "last_modified": "2025-11-25T20:43:02.471213"
+      }
+    ]
+  },
+  "statistics": {
+    "total_files": 179,
+    "prd_count": 22,
+    "architecture_count": 38,
+    "epic_count": 9,
+    "api_spec_count": 5,
+    "data_schema_count": 94,
+    "behavior_spec_count": 11
+  }
+}

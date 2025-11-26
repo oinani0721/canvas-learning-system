@@ -233,8 +233,12 @@ def load_snapshot(iteration_num: int) -> Optional[Dict]:
     with open(path, 'r', encoding='utf-8') as f:
         return json.load(f)
 
-def save_snapshot(snapshot: Dict, iteration_num: int):
-    """保存snapshot到文件"""
+def save_snapshot(snapshot: Dict, iteration_num: int) -> Path:
+    """保存snapshot到文件
+
+    Returns:
+        Path: 保存的文件路径
+    """
     path = get_iteration_snapshot_path(iteration_num)
     path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -242,6 +246,7 @@ def save_snapshot(snapshot: Dict, iteration_num: int):
         json.dump(snapshot, f, indent=2, ensure_ascii=False)
 
     print(f"✅ Snapshot saved: {path}")
+    return path  # Bug fix: 返回保存路径
 
 # ========================================
 # 版本比较
