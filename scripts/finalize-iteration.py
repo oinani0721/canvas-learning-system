@@ -28,6 +28,158 @@ from planning_utils import (
     write_file
 )
 import subprocess
+import json
+
+
+def run_coverage_gates(skip_context7_verify: bool = False) -> tuple[bool, dict]:
+    """
+    Run SDD/ADR coverage verification gates.
+
+    Returns:
+        tuple: (passed, results_dict)
+    """
+    results = {
+        'sdd_coverage': {'passed': False, 'coverage': 0, 'threshold': 80},
+        'adr_coverage': {'passed': False, 'coverage': 0, 'threshold': 80},
+        'source_citations': {'passed': False, 'valid': 0, 'total': 0},
+        'content_consistency': {'passed': False, 'issues': 0}
+    }
+    all_passed = True
+    scripts_dir = Path(__file__).parent
+
+    # 1. SDD Coverage Verification
+    print_status("Running SDD coverage verification...", "progress")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(scripts_dir / "verify-sdd-coverage.py"), "--threshold", "80"],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if result.returncode == 0:
+            results['sdd_coverage']['passed'] = True
+            # Try to parse coverage from output
+            for line in result.stdout.split('\n'):
+                if 'coverage' in line.lower() and '%' in line:
+                    import re
+                    match = re.search(r'(\d+(?:\.\d+)?)\s*%', line)
+                    if match:
+                        results['sdd_coverage']['coverage'] = float(match.group(1))
+            print_status(f"SDD coverage: {results['sdd_coverage']['coverage']:.1f}% (threshold: 80%)", "success")
+        else:
+            all_passed = False
+            print_status(f"SDD coverage check failed", "error")
+            if result.stderr:
+                print(result.stderr[:500])
+    except Exception as e:
+        print_status(f"SDD coverage error: {e}", "error")
+        all_passed = False
+
+    # 2. ADR Coverage Verification
+    print_status("Running ADR coverage verification...", "progress")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(scripts_dir / "verify-adr-coverage.py"), "--threshold", "80"],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if result.returncode == 0:
+            results['adr_coverage']['passed'] = True
+            for line in result.stdout.split('\n'):
+                if 'coverage' in line.lower() and '%' in line:
+                    import re
+                    match = re.search(r'(\d+(?:\.\d+)?)\s*%', line)
+                    if match:
+                        results['adr_coverage']['coverage'] = float(match.group(1))
+            print_status(f"ADR coverage: {results['adr_coverage']['coverage']:.1f}% (threshold: 80%)", "success")
+        else:
+            all_passed = False
+            print_status(f"ADR coverage check failed", "error")
+            if result.stderr:
+                print(result.stderr[:500])
+    except Exception as e:
+        print_status(f"ADR coverage error: {e}", "error")
+        all_passed = False
+
+    # 3. Source Citation Validation (with optional Context7 real-time verification)
+    print_status("Running source citation validation...", "progress")
+    try:
+        cmd = [sys.executable, str(scripts_dir / "validate-source-citations.py")]
+        if not skip_context7_verify:
+            cmd.append("--verify-context7")
+
+        result = subprocess.run(
+            cmd,
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if result.returncode == 0:
+            results['source_citations']['passed'] = True
+            print_status("Source citations valid", "success")
+        else:
+            all_passed = False
+            print_status("Source citation validation failed", "error")
+            if result.stderr:
+                print(result.stderr[:500])
+    except Exception as e:
+        print_status(f"Source citation error: {e}", "error")
+        all_passed = False
+
+    # 4. Content Consistency Validation
+    print_status("Running content consistency validation...", "progress")
+    try:
+        result = subprocess.run(
+            [sys.executable, str(scripts_dir / "validate-content-consistency.py")],
+            cwd=get_project_root(),
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+
+        if result.returncode == 0:
+            results['content_consistency']['passed'] = True
+            print_status("Content consistency valid", "success")
+        else:
+            all_passed = False
+            print_status("Content consistency validation failed", "error")
+            if result.stderr:
+                print(result.stderr[:500])
+    except Exception as e:
+        print_status(f"Content consistency error: {e}", "error")
+        all_passed = False
+
+    return all_passed, results
+
+
+def print_coverage_summary(results: dict):
+    """Print a summary of coverage gate results."""
+    print("\n" + "-"*50)
+    print("📊 Coverage Gate Summary")
+    print("-"*50)
+
+    status_icon = lambda passed: "✅" if passed else "❌"
+
+    print(f"{status_icon(results['sdd_coverage']['passed'])} SDD Coverage: "
+          f"{results['sdd_coverage']['coverage']:.1f}% (threshold: {results['sdd_coverage']['threshold']}%)")
+    print(f"{status_icon(results['adr_coverage']['passed'])} ADR Coverage: "
+          f"{results['adr_coverage']['coverage']:.1f}% (threshold: {results['adr_coverage']['threshold']}%)")
+    print(f"{status_icon(results['source_citations']['passed'])} Source Citations: "
+          f"{'Valid' if results['source_citations']['passed'] else 'Invalid'}")
+    print(f"{status_icon(results['content_consistency']['passed'])} Content Consistency: "
+          f"{'Valid' if results['content_consistency']['passed'] else 'Issues Found'}")
+    print("-"*50)
 
 
 def git_commit_changes(iteration_num: int, goal: str = None) -> bool:
@@ -201,6 +353,21 @@ def main():
         action='store_true',
         help='Auto-confirm all prompts (non-interactive mode)'
     )
+    parser.add_argument(
+        '--skip-coverage-gates',
+        action='store_true',
+        help='Skip SDD/ADR coverage gate verification'
+    )
+    parser.add_argument(
+        '--skip-context7-verify',
+        action='store_true',
+        help='Skip Context7 real-time verification (format check only)'
+    )
+    parser.add_argument(
+        '--force-coverage',
+        action='store_true',
+        help='Continue even if coverage gates fail (not recommended)'
+    )
 
     args = parser.parse_args()
 
@@ -262,6 +429,27 @@ def main():
                     return 1
             validation_passed = False
 
+    # Run coverage gates (SDD/ADR coverage verification)
+    coverage_passed = True
+    coverage_results = None
+    if not args.skip_coverage_gates:
+        print_status("Running coverage gates...", "progress")
+        coverage_passed, coverage_results = run_coverage_gates(
+            skip_context7_verify=args.skip_context7_verify
+        )
+        print_coverage_summary(coverage_results)
+
+        if not coverage_passed:
+            if args.force_coverage:
+                print_status("Coverage gates failed but --force-coverage specified. Continuing...", "warning")
+            else:
+                print_status("Coverage gates failed! Fix issues and retry.", "error")
+                print_status("Use --force-coverage to continue anyway (not recommended)", "info")
+                print_status("Use --skip-coverage-gates to skip this check entirely", "info")
+                return 1
+    else:
+        print_status("Skipping coverage gates (--skip-coverage-gates specified)", "info")
+
     # 更新iteration log
     print_status("Updating iteration log...", "progress")
     update_iteration_log(iteration_num, snapshot, validation_passed)
@@ -299,6 +487,10 @@ def main():
     print(f"**Snapshot**: iteration-{iteration_num:03d}.json")
     print(f"**Git Commit**: {snapshot['git_commit'][:8]}...")
     print(f"**Validation**: {"✅ Passed" if validation_passed else "⚠️ Warnings"}")
+    print(f"**Coverage Gates**: {"✅ Passed" if coverage_passed else "⚠️ Warnings" if args.force_coverage else "Skipped"}")
+    if coverage_results:
+        print(f"  - SDD Coverage: {coverage_results['sdd_coverage']['coverage']:.1f}%")
+        print(f"  - ADR Coverage: {coverage_results['adr_coverage']['coverage']:.1f}%")
     print(f"**Auto-Committed**: {"✅ Yes" if (not args.no_commit and commit_success) else "❌ No"}")
 
     print(f"\n**Next Steps**:")

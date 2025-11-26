@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-file.schema.json",
   "title": "Canvas File",
-  "description": "Obsidian Canvas文件完整数据定义 - 包含所有节点和边",
+  "description": "Obsidian Canvas文件完整数据定义 - 包含所有节点和边. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "required": ["nodes", "edges"],
   "properties": {

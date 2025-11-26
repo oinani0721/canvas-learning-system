@@ -58,14 +58,23 @@ To identify the next logical story based on project progress and epic definition
 
 **目标**: 读取specs/目录下的SDD规范，确保Story基于API契约和数据Schema编写。
 
+🔴 **Anti-Hallucination Protocol - SDD读取**:
+- **必须**使用Glob工具先列出实际存在的spec文件: `Glob("specs/**/*.yml")`, `Glob("specs/**/*.json")`
+- **必须**使用Read工具实际读取spec文件内容
+- **禁止**假设spec文件存在或其内容
+
 **操作步骤**:
 
-1. **读取OpenAPI规范**:
+1. **扫描并读取OpenAPI规范**:
+   - 🔴 先使用Glob: `Glob("specs/api/*.openapi.yml")`
+   - 🔴 然后使用Read工具读取相关文件
    - 主API规范: `specs/api/canvas-api.openapi.yml`
    - Agent API规范: `specs/api/agent-api.openapi.yml`
    - 提取与当前Story相关的端点定义、请求/响应Schema
 
-2. **读取JSON Schema**:
+2. **扫描并读取JSON Schema**:
+   - 🔴 先使用Glob: `Glob("specs/data/*.schema.json")`
+   - 🔴 然后使用Read工具读取相关文件
    - `specs/data/canvas-node.schema.json` - Canvas节点结构
    - `specs/data/canvas-edge.schema.json` - Canvas边结构
    - `specs/data/agent-response.schema.json` - Agent响应格式
@@ -105,16 +114,22 @@ To identify the next logical story based on project progress and epic definition
    - 示例: LanceDB, LangGraph, Neo4j, FastAPI
 
 2. **扫描ADR目录**:
-   - 读取`docs/architecture/decisions/`目录
+   - 🔴 **强制使用Glob工具**: `Glob("docs/architecture/decisions/*.md")`
+   - 列出所有可用的ADR文件
    - 查找与技术栈组件相关的ADR
 
 3. **读取相关ADR并提取关键信息**:
 
-   对于每个相关ADR，提取:
-   - **决策标题**: 例如"Vector Database Selection"
-   - **选择的方案**: 例如"LanceDB"
-   - **关键理由**: 为什么选择这个方案
-   - **对Story的影响**: 实现时需要遵循的约束
+   🔴 **Anti-Hallucination Protocol - ADR读取**:
+   - **必须**使用Read工具实际读取每个相关ADR文件
+   - **禁止**基于文件名或记忆假设ADR内容
+   - 示例: `Read("docs/architecture/decisions/ADR-008-TESTING-FRAMEWORK-PYTEST-ECOSYSTEM.md")`
+
+   对于每个相关ADR，从**实际文件内容**中提取:
+   - **决策标题**: 从ADR文件的标题部分获取（不要猜测！）
+   - **选择的方案**: 从"Decision"或"选择"部分获取
+   - **关键理由**: 从"Context"或"Rationale"部分获取
+   - **对Story的影响**: 从"Consequences"部分获取实现约束
 
 4. **创建ADR关联清单**:
 
@@ -128,9 +143,19 @@ To identify the next logical story based on project progress and epic definition
    | ADR-003 | Agentic RAG架构 | 采用Router-Fusion-Reranking模式 |
    ```
 
-**关键提醒**:
-- 🔴 如果Story涉及的技术选型没有对应ADR → 警告用户，建议在Phase 3补充ADR
-- 🔴 ADR中的"Consequences"部分对Dev Agent至关重要，必须在Dev Notes中体现
+5. **记录缺失的ADR**:
+
+   如果Story涉及的技术/架构决策没有对应ADR，在Story中明确记录：
+   ```markdown
+   **⚠️ 注意**: 以下架构决策记录在架构文档中，但无独立ADR:
+   - {决策描述} → `docs/architecture/{相关文档}.md#{章节}`
+   ```
+
+**🔴 Anti-Hallucination Quality Gate (ADR)**:
+- ⚠️ 在Story中引用的每个ADR编号必须对应实际读取过的文件
+- ⚠️ ADR标题必须与文件内容一致，禁止编造
+- ⚠️ 如果没有找到相关ADR → 明确告知用户并记录在架构文档中的位置
+- ⚠️ ADR中的"Consequences"部分对Dev Agent至关重要，必须在Dev Notes中体现
 
 #### 3.5 Extract Story-Specific Technical Details
 
@@ -394,6 +419,64 @@ ALWAYS cite source documents: `[Source: architecture/{filename}.md#{section}]` o
 - 🔴 Dev Agent开发时必须严格遵循此技术验证报告中的API和参数
 - 🔴 任何偏离都必须先重新执行Step 3.5验证流程
 - 🔴 代码标注必须使用此报告中的文档来源
+
+#### 3.6.8 SoT冲突检测与处理 (Source of Truth Conflict Handling)
+
+**目标**: 在Story创建过程中检测PRD、Architecture、Schema、OpenAPI之间的冲突，并使用Phase-Aware SoT协议处理。
+
+**触发条件**: 当Step 3.3-3.5中读取的文档之间存在不一致时
+
+**操作步骤**:
+
+1. **检测当前Phase**:
+   - 检查 `src/` 目录:
+     - 空或无.py/.ts文件 → Phase 2 (PRD优先)
+     - 有实现代码 → Phase 4 (Specs优先)
+   - 参考: `.bmad-core/decisions/phase-aware-sot.yaml`
+
+2. **扫描冲突**:
+   在填写Story Dev Notes前，检查以下冲突类型:
+   - PRD vs Architecture: 功能要求 vs 技术设计
+   - PRD vs Schema: 业务规则 vs 数据结构
+   - PRD vs OpenAPI: 需求 vs API契约
+   - Architecture vs Schema: 设计 vs 数据模型
+   - Schema vs OpenAPI: 数据定义 vs API定义
+
+3. **发现冲突时处理**:
+   使用 `AskUserQuestion` 工具:
+   ```
+   Question: "创建Story时检测到SoT冲突:
+
+   - [文档A] ([Level X]): [具体内容]
+   - [文档B] ([Level Y]): [具体内容]
+
+   当前Phase: [Phase 2/4]
+   Phase-Aware建议: [文档A/B] 应为权威 (Phase X规则)
+
+   如何处理此冲突?"
+
+   Options:
+   A: "接受Phase建议" - 以[推荐文档]为准，在Story中标注
+   B: "使用另一文档" - 需要说明理由
+   C: "暂不决定" - 在Story中标记为待确认
+   ```
+
+4. **记录处理结果**:
+   在Story的Dev Notes中添加:
+   ```markdown
+   ### SoT冲突处理记录 (Step 3.6.8)
+   | 冲突 | Phase | 决策 | 依据 |
+   |------|-------|------|------|
+   | PRD vs Schema: email必填 | Phase 2 | 以PRD为准 | PRD优先 |
+   ```
+
+5. **质量门禁**:
+   - ⚠️ 未解决的冲突必须在Story中明确标记
+   - ⚠️ Dev Agent实现时会看到这些标记并相应处理
+
+**参考文档**:
+- `docs/architecture/sot-hierarchy.md` (Section 11: Phase-Aware SoT)
+- `.bmad-core/decisions/phase-aware-sot.yaml`
 
 ---
 

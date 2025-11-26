@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/agent-response.json",
   "title": "Agent Response Schema",
-  "description": "通用Agent响应的JSON Schema，定义所有Agents返回结果的基础结构",
+  "description": "通用Agent响应的JSON Schema，定义所有Agents返回结果的基础结构. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "required": ["agent_name", "status", "timestamp"],
   "properties": {

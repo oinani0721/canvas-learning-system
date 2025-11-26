@@ -87,11 +87,11 @@ if ($transcriptPath -and (Test-Path $transcriptPath)) {
 
         Write-Output "INFO: Parsed $($allMessages.Count) messages from transcript"
 
-        # Extract last 20 conversation turns (user + assistant pairs)
+        # Extract last 20 conversation turns WITH TEXT CONTENT (skip tool_use only messages)
         $turnCount = 0
         $maxTurns = 20
 
-        # Reverse iterate to get recent messages
+        # Reverse iterate to get recent messages with actual text content
         for ($i = $allMessages.Count - 1; $i -ge 0 -and $turnCount -lt $maxTurns; $i--) {
             $msg = $allMessages[$i]
 
@@ -103,11 +103,24 @@ if ($transcriptPath -and (Test-Path $transcriptPath)) {
                 $content = ""
 
                 # Extract content (handle both string and array formats)
+                # ✅ FIX: Use GetType().Name instead of -is [array] (PowerShell JSON arrays are Object[])
                 if ($msg.message.content -is [string]) {
                     $content = $msg.message.content
-                } elseif ($msg.message.content -is [array]) {
-                    # Join all text content blocks (skip "thinking" blocks)
-                    $content = ($msg.message.content | Where-Object { $_.type -eq "text" } | ForEach-Object { $_.text }) -join "`n"
+                } else {
+                    # Handle Object[] (PowerShell doesn't recognize -is [array] for JSON arrays)
+                    # Join all text content blocks (skip "thinking" and "tool_use" blocks)
+                    $textBlocks = @()
+                    foreach ($block in $msg.message.content) {
+                        if ($block.type -eq "text" -and $block.text) {
+                            $textBlocks += $block.text
+                        }
+                    }
+                    $content = $textBlocks -join "`n"
+                }
+
+                # ✅ SKIP messages with no text content (tool_use only)
+                if (-not $content -or $content.Trim() -eq "") {
+                    continue
                 }
 
                 # Truncate very long messages
@@ -115,25 +128,24 @@ if ($transcriptPath -and (Test-Path $transcriptPath)) {
                     $content = $content.Substring(0, 2000) + "... [truncated]"
                 }
 
-                # Store conversation turn
-                if ($role -eq "user" -or $role -eq "assistant") {
-                    $conversationTurns = @(@{
-                        Role = $role
-                        Content = $content
-                    }) + $conversationTurns  # Prepend to maintain chronological order
+                # Store conversation turn (only if has content)
+                $conversationTurns = @(@{
+                    Role = $role
+                    Content = $content
+                }) + $conversationTurns  # Prepend to maintain chronological order
 
-                    $turnCount++
+                $turnCount++
 
-                    # Save last user/assistant messages for summary
-                    if ($role -eq "user") {
-                        $lastUserMessage = $content
-                    } elseif ($role -eq "assistant") {
-                        $lastAssistantMessage = $content
-                    }
+                # Save last user/assistant messages for summary
+                if ($role -eq "user") {
+                    $lastUserMessage = $content
+                } elseif ($role -eq "assistant") {
+                    $lastAssistantMessage = $content
                 }
 
                 # ✅ FIX: Extract file paths from tool_use in content array
-                if ($msg.message.content -is [array]) {
+                # Use -isnot [string] instead of -is [array] (PowerShell JSON arrays are Object[])
+                if ($msg.message.content -isnot [string]) {
                     foreach ($block in $msg.message.content) {
                         if ($block.type -eq "tool_use" -and $block.input) {
                             if ($block.input.file_path) {

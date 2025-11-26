@@ -4,8 +4,8 @@
 **Link**: https://github.com/anthropics/claude-code/issues/4017
 **Status**: Open (未修复) - **Single Layer Solution Verified** ✅
 **Date**: 2025-11-16
-**Last Updated**: 2025-11-17 02:45:00
-**Version**: v3.1 (SessionStart additionalContext - Verified via A/B Testing)
+**Last Updated**: 2025-11-24 04:52:00
+**Version**: v3.2 (PowerShell Array Detection Bug Fix)
 
 ---
 
@@ -465,6 +465,7 @@ SessionStart (source="compact")
 | **Test 4** | 20251116 194702 | 0 | 0 | ❌ | 添加 SNAPSHOT_FILL_INSTRUCTION，发现 timing 问题 |
 | **Test 5** | 20251116 210307 | **0** ❌ | **0** ❌ | ❌ | 实现 transcript_path 读取，但 JSONL parsing bug |
 | **Test 6** | 20251116 212636 | **20** ✅ | **1** ✅ | **✅** | **修复 bug，真实解决方案 100% 可用** |
+| **Test 7** | 20251124 045143 | **11** ✅ | **0** | **✅** | **修复 PowerShell 数组检测 bug，snapshot 包含真实对话** |
 
 ### 关键里程碑
 
@@ -757,6 +758,51 @@ if ($msg.message.content -is [array]) {
 }
 ```
 
+#### Bug #4: PowerShell 数组类型检测错误 (2025-11-24 发现)
+
+**问题描述**:
+- PowerShell 将 JSON 数组解析为 `Object[]` 类型
+- `-is [array]` 无法识别 `Object[]`
+- 导致所有数组内容提取失败，snapshot turns 内容为空
+
+**错误代码**:
+```powershell
+} elseif ($msg.message.content -is [array]) {  # ❌ 永远不匹配 Object[]
+    $content = ($msg.message.content | Where-Object { $_.type -eq "text" } | ForEach-Object { $_.text }) -join "`n"
+}
+```
+
+**修复**:
+```powershell
+} else {  # ✅ 用 else 处理所有非 string 情况
+    # Handle Object[] (PowerShell doesn't recognize -is [array] for JSON arrays)
+    $textBlocks = @()
+    foreach ($block in $msg.message.content) {
+        if ($block.type -eq "text" -and $block.text) {
+            $textBlocks += $block.text
+        }
+    }
+    $content = $textBlocks -join "`n"
+}
+
+# 同样修复文件路径提取
+if ($msg.message.content -isnot [string]) {  # ✅ 用 -isnot [string] 替代 -is [array]
+    foreach ($block in $msg.message.content) {
+        # ...
+    }
+}
+```
+
+**额外修复**: 跳过无文本内容的消息
+```powershell
+# 跳过只有 tool_use 没有文本的消息
+if (-not $content -or $content.Trim() -eq "") {
+    continue
+}
+```
+
+**验证结果**: 从 445 条消息中成功提取 20 条有文本内容的对话 turns
+
 ---
 
 ## 遗留的辅助机制
@@ -1036,10 +1082,25 @@ cat .claude/compact-snapshot-YYYYMMDDHHMMSS.md
 - 文件大小：575 行 → 386 行
 - ✅ **单层解决方案验证完成**
 
+### Test 7 (20251124 045143) - PowerShell 数组检测 Bug 修复
+**问题发现**：
+- 之前的 snapshot（20251124030829）所有 turns 内容为空
+- 原因：PowerShell `-is [array]` 无法识别 JSON 数组（Object[]）
+
+**修复内容**：
+1. 用 `else` 替代 `-is [array]` 处理数组内容
+2. 用 `-isnot [string]` 替代 `-is [array]` 检测文件路径
+3. 添加跳过无文本内容消息的逻辑
+
+**验证结果**：
+- 从 81 条消息中提取 11 个有文本内容的对话 turns
+- Snapshot 包含真实对话历史（之前为空）
+- ✅ **Bug 修复验证成功**
+
 ---
 
-**版本**: v3.1 (Single Layer Solution - A/B Test Verified)
+**版本**: v3.2 (PowerShell Array Detection Bug Fix)
 **创建日期**: 2025-11-16
-**最后更新**: 2025-11-17 02:57:00
-**作者**: Claude (基于用户需求、官方文档研究、6 次测试验证和 A/B Testing)
-**状态**: ✅ **Production Ready - Simplified Architecture**
+**最后更新**: 2025-11-24 04:52:00
+**作者**: Claude (基于用户需求、官方文档研究、7 次测试验证和 A/B Testing)
+**状态**: ✅ **Production Ready - All Known Bugs Fixed**

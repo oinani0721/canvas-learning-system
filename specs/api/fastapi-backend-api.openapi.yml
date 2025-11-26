@@ -1,0 +1,932 @@
+# FastAPI Backend API Specification
+# ✅ Verified from Context7:/oai/openapi-specification
+# Generated: 2025-11-24
+# All 19 endpoints for Canvas Learning System FastAPI Backend
+
+openapi: 3.0.3
+info:
+  title: Canvas Learning System - FastAPI Backend API
+  description: |
+    Canvas Learning System后端API规范，提供Canvas操作、Agent调用和复习系统功能。
+
+    ## 验证来源
+    - OpenAPI格式: Context7 /oai/openapi-specification (3.0.0 - 3.1.1)
+    - 业务需求: PRD Epic 15
+    - 架构设计: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md
+  version: 1.0.0
+  contact:
+    name: Canvas Learning System
+    url: https://github.com/canvas-learning-system
+
+servers:
+  - url: http://localhost:8000
+    description: Local development server
+
+tags:
+  - name: System
+    description: 系统健康检查
+  - name: Canvas
+    description: Canvas文件和节点操作
+  - name: Agents
+    description: AI Agent调用接口
+  - name: Review
+    description: 艾宾浩斯复习系统
+
+paths:
+  # ══════════════════════════════════════════════════════════════════
+  # System Endpoints (1)
+  # ══════════════════════════════════════════════════════════════════
+  /api/v1/health:
+    get:
+      summary: 健康检查
+      description: 返回应用状态、名称、版本和时间戳
+      operationId: health_check
+      tags:
+        - System
+      responses:
+        '200':
+          description: 应用健康
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthCheckResponse'
+              example:
+                status: "healthy"
+                app_name: "Canvas Learning System"
+                version: "1.0.0"
+                timestamp: "2025-11-24T10:30:00Z"
+        '500':
+          description: 应用异常
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ══════════════════════════════════════════════════════════════════
+  # Canvas Endpoints (6)
+  # ══════════════════════════════════════════════════════════════════
+  /api/v1/canvas/{canvas_name}:
+    get:
+      summary: 读取Canvas文件
+      operationId: read_canvas
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Canvas文件名(不含.canvas后缀)
+      responses:
+        '200':
+          description: Canvas数据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasResponse'
+        '404':
+          description: Canvas文件不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/canvas/{canvas_name}/nodes:
+    post:
+      summary: 创建节点
+      operationId: create_node
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeCreate'
+      responses:
+        '201':
+          description: 节点已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeRead'
+        '400':
+          description: 验证错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Canvas不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/canvas/{canvas_name}/nodes/{node_id}:
+    put:
+      summary: 更新节点
+      operationId: update_node
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NodeUpdate'
+      responses:
+        '200':
+          description: 节点已更新
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NodeRead'
+        '404':
+          description: Canvas或节点不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: 删除节点
+      operationId: delete_node
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: node_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 节点已删除
+        '404':
+          description: Canvas或节点不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/canvas/{canvas_name}/edges:
+    post:
+      summary: 创建边
+      operationId: create_edge
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EdgeCreate'
+      responses:
+        '201':
+          description: 边已创建
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EdgeRead'
+        '400':
+          description: 验证错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/canvas/{canvas_name}/edges/{edge_id}:
+    delete:
+      summary: 删除边
+      operationId: delete_edge
+      tags:
+        - Canvas
+      parameters:
+        - name: canvas_name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: edge_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: 边已删除
+        '404':
+          description: Canvas或边不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # ══════════════════════════════════════════════════════════════════
+  # Agent Endpoints (9)
+  # ══════════════════════════════════════════════════════════════════
+  /api/v1/agents/decompose/basic:
+    post:
+      summary: 基础概念拆解
+      operationId: decompose_basic
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecomposeRequest'
+      responses:
+        '200':
+          description: 拆解结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecomposeResponse'
+        '400':
+          description: 验证错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/agents/decompose/deep:
+    post:
+      summary: 深度概念拆解
+      operationId: decompose_deep
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecomposeRequest'
+      responses:
+        '200':
+          description: 深度拆解结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecomposeResponse'
+
+  /api/v1/agents/score:
+    post:
+      summary: 评分用户理解
+      operationId: score_understanding
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScoreRequest'
+      responses:
+        '200':
+          description: 评分结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScoreResponse'
+
+  /api/v1/agents/explain/oral:
+    post:
+      summary: 口语化解释
+      operationId: explain_oral
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 口语化解释结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /api/v1/agents/explain/clarification:
+    post:
+      summary: 澄清路径生成
+      operationId: explain_clarification
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 澄清路径结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /api/v1/agents/explain/comparison:
+    post:
+      summary: 对比表格生成
+      operationId: explain_comparison
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 对比表格结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /api/v1/agents/explain/memory:
+    post:
+      summary: 记忆锚点生成
+      operationId: explain_memory
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 记忆锚点结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /api/v1/agents/explain/four-level:
+    post:
+      summary: 四层次解释
+      operationId: explain_four_level
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 四层次解释结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  /api/v1/agents/explain/example:
+    post:
+      summary: 例题教学
+      operationId: explain_example
+      tags:
+        - Agents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExplainRequest'
+      responses:
+        '200':
+          description: 例题教学结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExplainResponse'
+
+  # ══════════════════════════════════════════════════════════════════
+  # Review Endpoints (3)
+  # ══════════════════════════════════════════════════════════════════
+  /api/v1/review/schedule:
+    get:
+      summary: 获取复习计划
+      description: 基于艾宾浩斯遗忘曲线返回待复习项目
+      operationId: get_review_schedule
+      tags:
+        - Review
+      parameters:
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+          description: 查询未来N天的复习计划
+      responses:
+        '200':
+          description: 复习计划列表
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewScheduleResponse'
+
+  /api/v1/review/generate:
+    post:
+      summary: 生成检验白板
+      description: 为指定Canvas生成检验白板用于复习
+      operationId: generate_verification_canvas
+      tags:
+        - Review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateReviewRequest'
+      responses:
+        '201':
+          description: 检验白板已生成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateReviewResponse'
+        '404':
+          description: 源Canvas不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/review/record:
+    put:
+      summary: 记录复习结果
+      description: 记录用户复习完成情况，更新下次复习时间
+      operationId: record_review_result
+      tags:
+        - Review
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordReviewRequest'
+      responses:
+        '200':
+          description: 复习结果已记录
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecordReviewResponse'
+
+# ══════════════════════════════════════════════════════════════════
+# Components
+# ══════════════════════════════════════════════════════════════════
+components:
+  schemas:
+    # ─────────────────────────────────────────────────────────────────
+    # Common Schemas
+    # ─────────────────────────────────────────────────────────────────
+    HealthCheckResponse:
+      type: object
+      required:
+        - status
+        - app_name
+        - version
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: ["healthy", "unhealthy"]
+          description: 应用健康状态
+        app_name:
+          type: string
+          description: 应用名称
+        version:
+          type: string
+          description: 应用版本
+        timestamp:
+          type: string
+          format: date-time
+          description: 检查时间戳
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          format: int32
+          description: 错误码
+        message:
+          type: string
+          description: 错误信息
+        details:
+          type: object
+          description: 额外错误详情
+
+    # ─────────────────────────────────────────────────────────────────
+    # Canvas Schemas
+    # ─────────────────────────────────────────────────────────────────
+    CanvasResponse:
+      type: object
+      required:
+        - name
+        - nodes
+        - edges
+      properties:
+        name:
+          type: string
+          description: Canvas文件名
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeRead'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/EdgeRead'
+
+    NodeCreate:
+      type: object
+      required:
+        - type
+        - x
+        - y
+      properties:
+        type:
+          type: string
+          enum: ["text", "file", "group", "link"]
+        text:
+          type: string
+          description: 文本内容(type=text时必填)
+        file:
+          type: string
+          description: 文件路径(type=file时必填)
+        url:
+          type: string
+          format: uri
+          description: 链接URL(type=link时必填)
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+          default: 250
+        height:
+          type: integer
+          default: 60
+        color:
+          type: string
+          enum: ["1", "2", "3", "4", "5", "6"]
+          description: "颜色代码: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫"
+
+    NodeUpdate:
+      type: object
+      properties:
+        text:
+          type: string
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        color:
+          type: string
+          enum: ["1", "2", "3", "4", "5", "6"]
+
+    NodeRead:
+      type: object
+      required:
+        - id
+        - type
+        - x
+        - y
+      properties:
+        id:
+          type: string
+          pattern: "^[a-f0-9]+$"
+        type:
+          type: string
+          enum: ["text", "file", "group", "link"]
+        text:
+          type: string
+        file:
+          type: string
+        url:
+          type: string
+          format: uri
+        x:
+          type: integer
+        y:
+          type: integer
+        width:
+          type: integer
+        height:
+          type: integer
+        color:
+          type: string
+          enum: ["1", "2", "3", "4", "5", "6"]
+
+    EdgeCreate:
+      type: object
+      required:
+        - fromNode
+        - toNode
+      properties:
+        fromNode:
+          type: string
+          description: 源节点ID
+        toNode:
+          type: string
+          description: 目标节点ID
+        fromSide:
+          type: string
+          enum: ["top", "bottom", "left", "right"]
+        toSide:
+          type: string
+          enum: ["top", "bottom", "left", "right"]
+        label:
+          type: string
+          description: 边标签
+
+    EdgeRead:
+      type: object
+      required:
+        - id
+        - fromNode
+        - toNode
+      properties:
+        id:
+          type: string
+        fromNode:
+          type: string
+        toNode:
+          type: string
+        fromSide:
+          type: string
+        toSide:
+          type: string
+        label:
+          type: string
+
+    # ─────────────────────────────────────────────────────────────────
+    # Agent Schemas
+    # ─────────────────────────────────────────────────────────────────
+    DecomposeRequest:
+      type: object
+      required:
+        - canvas_name
+        - node_id
+      properties:
+        canvas_name:
+          type: string
+          description: Canvas文件名
+        node_id:
+          type: string
+          description: 目标节点ID
+
+    DecomposeResponse:
+      type: object
+      required:
+        - questions
+        - created_nodes
+      properties:
+        questions:
+          type: array
+          items:
+            type: string
+          description: 生成的引导问题
+        created_nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeRead'
+          description: 创建的新节点
+
+    ScoreRequest:
+      type: object
+      required:
+        - canvas_name
+        - node_ids
+      properties:
+        canvas_name:
+          type: string
+        node_ids:
+          type: array
+          items:
+            type: string
+          description: 要评分的节点ID列表
+
+    ScoreResponse:
+      type: object
+      required:
+        - scores
+      properties:
+        scores:
+          type: array
+          items:
+            $ref: '#/components/schemas/NodeScore'
+
+    NodeScore:
+      type: object
+      required:
+        - node_id
+        - accuracy
+        - imagery
+        - completeness
+        - originality
+        - total
+        - new_color
+      properties:
+        node_id:
+          type: string
+        accuracy:
+          type: number
+          minimum: 0
+          maximum: 10
+          description: 准确性得分
+        imagery:
+          type: number
+          minimum: 0
+          maximum: 10
+          description: 形象性得分
+        completeness:
+          type: number
+          minimum: 0
+          maximum: 10
+          description: 完整性得分
+        originality:
+          type: number
+          minimum: 0
+          maximum: 10
+          description: 原创性得分
+        total:
+          type: number
+          minimum: 0
+          maximum: 40
+          description: 总分
+        new_color:
+          type: string
+          enum: ["2", "3", "4"]
+          description: "评分后节点颜色: 2=绿(>=32), 3=黄(24-31), 4=红(<24)"
+
+    ExplainRequest:
+      type: object
+      required:
+        - canvas_name
+        - node_id
+      properties:
+        canvas_name:
+          type: string
+        node_id:
+          type: string
+
+    ExplainResponse:
+      type: object
+      required:
+        - explanation
+        - created_node_id
+      properties:
+        explanation:
+          type: string
+          description: 生成的解释内容
+        created_node_id:
+          type: string
+          description: 创建的解释节点ID
+
+    # ─────────────────────────────────────────────────────────────────
+    # Review Schemas
+    # ─────────────────────────────────────────────────────────────────
+    ReviewScheduleResponse:
+      type: object
+      required:
+        - items
+        - total_count
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewItem'
+        total_count:
+          type: integer
+
+    ReviewItem:
+      type: object
+      required:
+        - canvas_name
+        - node_id
+        - concept
+        - due_date
+        - interval_days
+      properties:
+        canvas_name:
+          type: string
+        node_id:
+          type: string
+        concept:
+          type: string
+          description: 概念名称
+        due_date:
+          type: string
+          format: date
+        interval_days:
+          type: integer
+          description: 当前复习间隔(1/7/30天)
+
+    GenerateReviewRequest:
+      type: object
+      required:
+        - source_canvas
+      properties:
+        source_canvas:
+          type: string
+          description: 源Canvas文件名
+        node_ids:
+          type: array
+          items:
+            type: string
+          description: 指定节点ID(可选，默认全部绿色节点)
+
+    GenerateReviewResponse:
+      type: object
+      required:
+        - verification_canvas_name
+        - node_count
+      properties:
+        verification_canvas_name:
+          type: string
+          description: 生成的检验白板文件名
+        node_count:
+          type: integer
+          description: 包含的检验节点数量
+
+    RecordReviewRequest:
+      type: object
+      required:
+        - canvas_name
+        - node_id
+        - score
+      properties:
+        canvas_name:
+          type: string
+        node_id:
+          type: string
+        score:
+          type: number
+          minimum: 0
+          maximum: 40
+          description: 复习得分(0-40)
+
+    RecordReviewResponse:
+      type: object
+      required:
+        - next_review_date
+        - new_interval
+      properties:
+        next_review_date:
+          type: string
+          format: date
+          description: 下次复习日期
+        new_interval:
+          type: integer
+          description: 新的复习间隔天数

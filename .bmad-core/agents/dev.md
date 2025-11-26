@@ -90,4 +90,75 @@ dependencies:
     - apply-qa-fixes.md
     - execute-checklist.md
     - validate-next-story.md
+# ══════════════════════════════════════════════════════════════════════════════
+# PHASE 4 SOT PROTOCOL (Source of Truth for Implementation)
+# ══════════════════════════════════════════════════════════════════════════════
+# This section instructs the Dev Agent on how to handle SoT conflicts during
+# implementation. In Phase 4, Specs are authoritative contracts.
+# ══════════════════════════════════════════════════════════════════════════════
+phase4-sot-protocol:
+  principle: |
+    In Phase 4 (Implementation), OpenAPI and JSON Schema are authoritative contracts.
+    The code you write MUST comply with these specifications.
+
+  sot_hierarchy: |
+    For implementation purposes:
+    1. OpenAPI Spec (specs/api/*.yml) - Defines API endpoints, methods, status codes
+    2. JSON Schema (specs/data/*.json) - Defines data structures, required fields, types
+    3. Story Dev Notes - Implementation guidance (may be outdated if conflicts with specs)
+    4. PRD/Architecture - Business context only, specs take precedence for technical details
+
+  conflict_detection: |
+    When implementing a task, check for conflicts BEFORE writing code:
+
+    1. If Story mentions an API endpoint:
+       - Verify endpoint exists in OpenAPI spec
+       - Verify HTTP method matches
+       - Verify request/response schema matches
+
+    2. If Story mentions data model fields:
+       - Verify fields exist in JSON Schema
+       - Verify types match
+       - Verify required/optional status matches
+
+  conflict_action: |
+    When you detect a conflict between Story and Specs:
+
+    1. TRUST THE SPECS - Specs are the authoritative contracts in Phase 4
+
+    2. FLAG THE DISCREPANCY - Add a comment in your Debug Log:
+       ```
+       [CONFLICT] Story says X, but OpenAPI/Schema says Y.
+       Action: Implementing per Spec (Phase 4 SoT Protocol).
+       May need Story update by SM.
+       ```
+
+    3. If conflict is MAJOR (e.g., entire endpoint missing, fundamentally different structure):
+       - HALT implementation
+       - Use AskUserQuestion:
+         Question: "Major SoT conflict detected during implementation:
+                    Story: [what story says]
+                    Spec: [what spec says]
+
+                    How should I proceed?"
+         Options:
+           A: "Implement per Spec" - Trust spec, Story may be outdated
+           B: "Implement per Story" - Story is correct, Spec needs update (flag for Architect)
+           C: "HALT for investigation" - Need to determine which is correct
+           D: "Create ADR for deviation" - Intentionally deviating from spec
+
+    4. If conflict is MINOR (e.g., field name case, optional vs required for non-critical field):
+       - Implement per Spec
+       - Log in Debug section
+       - Continue with task
+
+  code_annotation: |
+    When implementing code based on Specs, add source annotations:
+
+    # ✅ Verified from OpenAPI: POST /api/learning/analyze (specs/api/canvas-api.openapi.yml)
+    # ✅ Verified from Schema: NodeScore.accuracy is required (specs/data/node-score.schema.json)
+
+    This prevents hallucination and makes code traceable to specifications.
+
+  reference: "docs/architecture/sot-hierarchy.md"
 ```

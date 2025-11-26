@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/metrics-summary.schema.json",
   "title": "性能指标摘要",
-  "description": "系统性能监控指标摘要 (Epic 17)",
+  "description": "系统性能监控指标摘要 (Epic 17). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "timestamp": {

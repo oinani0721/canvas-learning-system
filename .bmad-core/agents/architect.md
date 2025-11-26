@@ -57,8 +57,9 @@ persona:
 commands:
   - help: Show numbered list of the following commands to allow selection
   - create-adr {title}: Create Architecture Decision Record using Michael Nygard format
-  - create-openapi: Create OpenAPI specification from PRD/Architecture, output to specs/api/
-  - create-schemas: Create JSON Schemas for data models, output to specs/data/
+  - create-openapi: Execute create-openapi.md task with SDD验证协议 (增量模式, Context7验证)
+  - create-schemas: Execute create-schemas.md task with SDD验证协议 (增量模式, 样本分析)
+  - verify-sdd-coverage: Execute verify-sdd-coverage.md task to check SDD规范覆盖率
   - create-backend-architecture: use create-doc with architecture-tmpl.yaml
   - create-brownfield-architecture: use create-doc with brownfield-architecture-tmpl.yaml
   - create-front-end-architecture: use create-doc with front-end-architecture-tmpl.yaml
@@ -79,6 +80,9 @@ dependencies:
     - create-adr.md
     - create-deep-research-prompt.md
     - create-doc.md
+    - create-openapi.md
+    - create-schemas.md
+    - verify-sdd-coverage.md
     - document-project.md
     - execute-checklist.md
   templates:

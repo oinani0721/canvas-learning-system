@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/review-item.schema.json",
+  "title": "Review Item",
+  "description": "复习项目数据结构(艾宾浩斯复习系统). Source: PRD Epic 15 - Review系统. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
+  "type": "object",
+  "required": ["canvas_name", "node_id", "concept", "due_date", "interval_days"],
+  "properties": {
+    "canvas_name": {
+      "type": "string",
+      "description": "Canvas文件名"
+    },
+    "node_id": {
+      "type": "string",
+      "description": "节点ID"
+    },
+    "concept": {
+      "type": "string",
+      "description": "概念名称"
+    },
+    "due_date": {
+      "type": "string",
+      "format": "date",
+      "description": "到期复习日期"
+    },
+    "interval_days": {
+      "type": "integer",
+      "enum": [1, 7, 30],
+      "description": "当前复习间隔天数(艾宾浩斯: 1天/7天/30天)"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "canvas_name": "离散数学",
+      "node_id": "b33c50660173e5d3",
+      "concept": "逆否命题",
+      "due_date": "2025-11-25",
+      "interval_days": 1
+    }
+  ]
+}

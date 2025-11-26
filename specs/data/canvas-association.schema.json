@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/canvas-association.schema.json",
   "title": "Canvas关联",
-  "description": "跨Canvas关联关系定义 (Epic 16)",
+  "description": "跨Canvas关联关系定义 (Epic 16). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "association_id": {

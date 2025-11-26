@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-edge.schema.json",
   "title": "Canvas Edge",
-  "description": "Obsidian Canvas边（连接）数据定义 - 定义节点间的连接关系",
+  "description": "Obsidian Canvas边（连接）数据定义 - 定义节点间的连接关系. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "required": ["id", "fromNode", "toNode"],
   "properties": {

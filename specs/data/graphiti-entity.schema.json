@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/graphiti-entity.schema.json",
   "title": "Graphiti知识图谱实体",
-  "description": "Graphiti知识图谱中的实体节点定义 (Epic 12)",
+  "description": "Graphiti知识图谱中的实体节点定义 (Epic 12). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "uuid": {

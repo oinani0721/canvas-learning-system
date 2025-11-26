@@ -112,6 +112,54 @@ Note: We don't need every file listed - just the important ones.]]
 - [ ] Success criteria are defined
 - [ ] Special testing considerations are noted (if applicable)
 
+## 6. SDD/ADR VERIFICATION (MANDATORY)
+
+[[LLM: SDD/ADR VERIFICATION INSTRUCTIONS
+
+This section is MANDATORY for all new stories created from Epic 15 onwards.
+Without SDD and ADR references, Dev agents lack critical technical contracts.
+
+For stories created BEFORE Epic 15 (Legacy stories):
+- This section may be marked as "LEGACY" and skipped
+- Epic 1-14 stories predate this enforcement requirement
+
+For all NEW stories (Epic 15+):
+- This section MUST PASS or the story cannot be marked READY
+- FAIL status blocks story from proceeding to development
+
+CRITICAL: SDD/ADR references must be verified against ACTUAL files using Glob/Read tools.
+Never assume file contents based on filename alone.]]
+
+### 6.1 SDD Specification References
+
+- [ ] Story has "SDD规范引用" section in Dev Notes
+- [ ] OpenAPI endpoints are referenced with `file:line` format (if Story involves APIs)
+- [ ] JSON Schema definitions are referenced (if Story involves data models)
+- [ ] All referenced file paths point to ACTUAL existing files (verified with Glob)
+- [ ] Line numbers cited are accurate (verified with Read)
+
+### 6.2 ADR References
+
+- [ ] Story has "ADR关联" section in Dev Notes
+- [ ] ADR table lists relevant architecture decisions with their impacts
+- [ ] OR section explicitly states "No ADRs apply" with justification
+- [ ] ADR titles match actual file contents (not assumed)
+- [ ] ADR impacts are specific to this Story's implementation
+
+### 6.3 Anti-Hallucination Verification
+
+- [ ] Every file path referenced in SDD/ADR sections EXISTS in the codebase
+- [ ] Every line number cited is ACCURATE (spot-check at least 2)
+- [ ] No invented libraries, APIs, or patterns not in source documents
+- [ ] Source citations use correct format: `[Source: specs/{path}]` or `[Source: ADR-{number}]`
+- [ ] Technical claims can be traced back to specification documents
+
+**SDD/ADR Validation Result**:
+- **PASS**: All references present and verified
+- **PARTIAL**: Some references present but incomplete (acceptable only for non-API/non-data stories)
+- **FAIL**: Missing mandatory sections for API/data stories - BLOCKS story
+- **LEGACY**: Story predates Epic 15 enforcement - Skip this section
+
 ## VALIDATION RESULT
 
 [[LLM: FINAL STORY VALIDATION REPORT
@@ -147,6 +195,7 @@ Be pragmatic - perfect documentation doesn't exist, but it must be enough to pro
 | 3. Reference Effectiveness           | _TBD_  |        |
 | 4. Self-Containment Assessment       | _TBD_  |        |
 | 5. Testing Guidance                  | _TBD_  |        |
+| 6. SDD/ADR Verification (MANDATORY)  | _TBD_  |        |
 
 **Final Assessment:**
 

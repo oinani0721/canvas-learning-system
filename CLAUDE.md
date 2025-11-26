@@ -1,9 +1,9 @@
 ---
 <!-- TEMP_COMPACT_SNAPSHOT_START -->
-# Context Snapshot [2025-11-24 00:43:15]
+# Context Snapshot [2025-11-25 18:05:58]
 
-**Snapshot File**: .claude/compact-snapshot-20251124004315.md
-**Snapshot Time**: 2025-11-24 00:43:15
+**Snapshot File**: .claude/compact-snapshot-20251125180558.md
+**Snapshot Time**: 2025-11-25 18:05:58
 **Valid For**: 2 hours (auto-cleanup after expiration)
 
 **Note**:
@@ -13,6 +13,34 @@
 - If starting new conversation, SessionStart hook will automatically clean up this reference
 
 <!-- TEMP_COMPACT_SNAPSHOT_END -->
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
 ---
 ---
 ---
@@ -642,6 +670,37 @@ User: "@architect 请为'使用LangGraph'决策创建ADR"
 - SDD artifacts通过**自然语言与Agent对话**创建
 - 没有专门的`*create-openapi`或`*create-schema`命令
 - Contract Testing已实现 (tests/contract/)
+
+---
+
+### 7a. Source of Truth (SoT) Hierarchy ⭐ NEW
+
+**Purpose**: Define authoritative source when documents conflict.
+
+**Hierarchy** (highest to lowest authority):
+```
+1. PRD (Level 1)           ← WHAT: Functional requirements
+2. Architecture (Level 2)  ← HOW: System design
+3. JSON Schema (Level 3)   ← Data structure contracts
+4. OpenAPI Spec (Level 4)  ← API behavior contracts
+5. Stories (Level 5)       ← Implementation details
+6. Code (Level 6)          ← Must comply with all above
+```
+
+**Conflict Resolution Protocol**:
+1. **HALT** - Stop validation/development
+2. **Detect** - Identify conflicting documents
+3. **Apply Hierarchy** - Higher level wins
+4. **Confirm** - User approves resolution
+5. **Update** - Fix lower-level document
+6. **Re-validate** - Run validation again
+
+**Validation Integration**:
+- **PO `*validate-story-draft`**: Steps 8a-8d check SoT consistency
+- **Contract Testing**: Schemathesis validates Code vs OpenAPI
+- **Pre-commit Hook**: Blocks commits violating specifications
+
+**Reference**: `docs/architecture/sot-hierarchy.md` for complete protocol
 
 ---
 

@@ -53,12 +53,41 @@ Proposed
 ### 迁移路径
 <!-- 如果是替换现有方案，描述迁移步骤 -->
 
+## Context7技术验证 (MANDATORY)
+
+**🔴 强制要求**: 每个ADR必须记录Context7技术验证结果，用于追踪技术决策的来源。
+
+**验证时间**: {YYYY-MM-DD}
+
+### 选中方案验证
+
+**{选中技术名称}**:
+- Context7 Library ID: `/{org}/{project}`
+- Code Snippets: {数量}
+- Benchmark Score: {分数}
+- Query Topics: "{查询主题1}", "{查询主题2}"
+
+### 备选方案验证
+
+**{备选技术1}**:
+- Context7 Library ID: `/{org}/{project}` (或 "N/A - 未在Context7中找到")
+- Code Snippets: {数量}
+- 未选择原因: {原因}
+
+**{备选技术2}**:
+- Context7 Library ID: `/{org}/{project}` (或 "N/A")
+- Code Snippets: {数量}
+- 未选择原因: {原因}
+
+---
+
 ## References
 
 - **PRD Section**:
 - **Related Epic**:
 - **Related Stories**:
 - **External Docs**:
+- **Context7 Verification**: /{org}/{project}
 
 ## Implementation Timeline
 

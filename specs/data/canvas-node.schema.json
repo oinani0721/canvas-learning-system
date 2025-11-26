@@ -2,15 +2,15 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-node.schema.json",
   "title": "Canvas Node",
-  "description": "Obsidian Canvas节点数据定义 - 支持text, file, group, link四种类型",
+  "description": "Obsidian Canvas节点数据定义 - 支持text, file, group, link四种类型. Verified from JSON Canvas Spec 1.0 (https://jsoncanvas.org/spec/1.0/)",
   "type": "object",
   "required": ["id", "type", "x", "y"],
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$",
-      "description": "节点唯一标识，UUID格式",
-      "examples": ["a1b2c3d4-e5f6-7890-abcd-ef1234567890"]
+      "pattern": "^[a-f0-9]+$",
+      "description": "节点唯一标识，十六进制字符串格式 (Verified from JSON Canvas Spec 1.0)",
+      "examples": ["b33c50660173e5d3", "node-test123"]
     },
     "type": {
       "type": "string",
@@ -59,9 +59,9 @@
     },
     "color": {
       "type": "string",
-      "enum": ["1", "2", "3", "5", "6"],
-      "description": "节点颜色，Obsidian颜色代码: 1=红色(未理解), 2=橙色(部分), 3=黄色(个人理解), 5=绿色(AI验证), 6=紫色(已深入)",
-      "examples": ["1"]
+      "enum": ["1", "2", "3", "4", "5", "6"],
+      "description": "节点颜色代码 (Verified from JSON Canvas Spec 1.0: https://jsoncanvas.org/spec/1.0/). 官方色值: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫. 项目语义映射: 4=不理解(红色语义), 3=似懂非懂(紫色语义), 2=已理解(绿色语义), 6=个人理解(黄色语义)",
+      "examples": ["1", "4", "6"]
     }
   },
   "allOf": [
@@ -104,17 +104,17 @@
   ],
   "examples": [
     {
-      "id": "abc123-def456-789012",
+      "id": "b33c50660173e5d3",
       "type": "text",
       "text": "这是一个概念节点",
       "x": 100,
       "y": 200,
       "width": 250,
       "height": 60,
-      "color": "1"
+      "color": "4"
     },
     {
-      "id": "xyz789-uvw456-123abc",
+      "id": "fdf724a5bce70b4f",
       "type": "file",
       "file": "笔记库/oral-explanation.md",
       "x": 500,

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/decompose-request.schema.json",
+  "title": "Decompose Request",
+  "description": "概念拆解请求数据结构. Source: PRD Epic 15 - Agent调用接口. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
+  "type": "object",
+  "required": ["canvas_name", "node_id"],
+  "properties": {
+    "canvas_name": {
+      "type": "string",
+      "description": "Canvas文件名(不含.canvas后缀)",
+      "examples": ["离散数学", "线性代数"]
+    },
+    "node_id": {
+      "type": "string",
+      "pattern": "^[a-f0-9]+$",
+      "description": "目标节点ID",
+      "examples": ["b33c50660173e5d3"]
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "canvas_name": "离散数学",
+      "node_id": "b33c50660173e5d3"
+    }
+  ]
+}

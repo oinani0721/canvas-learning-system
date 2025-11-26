@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/decompose-response.schema.json",
+  "title": "Decompose Response",
+  "description": "概念拆解响应数据结构. Source: PRD Epic 15 - Agent调用接口. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
+  "type": "object",
+  "required": ["questions", "created_nodes"],
+  "properties": {
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "生成的引导问题列表",
+      "examples": [
+        ["什么是逆否命题?", "逆否命题与原命题的关系是什么?", "如何判断两个命题互为逆否?"]
+      ]
+    },
+    "created_nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "canvas-node.schema.json"
+      },
+      "description": "创建的新节点列表"
+    }
+  },
+  "additionalProperties": false
+}

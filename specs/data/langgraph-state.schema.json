@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/langgraph-state.schema.json",
   "title": "LangGraph Canvas学习状态",
-  "description": "LangGraph StateGraph的状态定义 (Epic 12)",
+  "description": "LangGraph StateGraph的状态定义 (Epic 12). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "session_id": {

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/review-concept.schema.json",
   "title": "复习概念",
-  "description": "艾宾浩斯复习系统中的概念定义 (Epic 14)",
+  "description": "艾宾浩斯复习系统中的概念定义 (Epic 14). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "concept_id": {
