@@ -24,16 +24,6 @@ info:
     - PRD FR2.1: 智能并行处理UI
     - Story 11.6: 4个REST API + 1个WebSocket
     - Story 13.8: UI实现
-  x-source-verification:
-    verified_at: "2025-11-25T18:25:00Z"
-    format_source:
-      type: context7
-      library_id: "/oai/openapi-specification"
-      topic: "info object, paths, components, specification extensions"
-    business_source:
-      prd_version: "v1.1.9"
-      epic: "Epic 11, Epic 13"
-      story_refs: ["11.6", "13.8"]
 
   contact:
     name: Canvas Learning System

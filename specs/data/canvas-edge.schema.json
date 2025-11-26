@@ -1,6 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-edge.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:15:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "official_doc", "url": "https://jsoncanvas.org/spec/1.0/"},
+      {"type": "prd", "section": "FR1", "epic": "Epic 13"},
+      {"type": "sample_analysis", "files": ["离散数学.canvas", "线性代数.canvas"]}
+    ]
+  },
   "title": "Canvas Edge",
   "description": "Obsidian Canvas边（连接）数据定义 - 定义节点间的连接关系. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",

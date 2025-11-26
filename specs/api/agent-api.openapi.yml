@@ -34,6 +34,16 @@ info:
     **系统级Agents (2个)**:
     13. review-board-agent-selector - 智能Agent调度器
     14. graphiti-memory-agent - Graphiti知识图谱记忆服务
+  x-source-verification:
+    verified_at: "2025-11-25T18:25:00Z"
+    format_source:
+      type: context7
+      library_id: "/oai/openapi-specification"
+      topic: "info object, paths, components, specification extensions"
+    business_source:
+      prd_version: "v1.1.9"
+      epic: "Epic 11"
+      story_refs: ["11.6"]
 
   contact:
     name: Canvas Learning System

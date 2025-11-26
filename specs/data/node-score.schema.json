@@ -1,6 +1,13 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/node-score.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:15:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "prd", "section": "FR2", "epic": "Epic 11, Epic 15"}
+    ]
+  },
   "title": "Node Score",
   "description": "节点评分结果(4维度评分系统). Source: PRD Epic 15, Canvas Learning System评分标准. Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",

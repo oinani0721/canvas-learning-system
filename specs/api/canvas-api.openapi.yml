@@ -18,6 +18,16 @@ info:
     **版本**: 2.0.0
     **更新日期**: 2025-11-19
   version: 2.0.0
+  x-source-verification:
+    verified_at: "2025-11-25T18:25:00Z"
+    format_source:
+      type: context7
+      library_id: "/oai/openapi-specification"
+      topic: "info object, paths, components, specification extensions"
+    business_source:
+      prd_version: "v1.1.9"
+      epic: "Epic 11"
+      story_refs: ["11.1", "11.2", "11.3", "11.4", "11.5"]
   contact:
     name: Canvas Learning System Team
   license:

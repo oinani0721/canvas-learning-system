@@ -1,6 +1,15 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-node.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:15:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "official_doc", "url": "https://jsoncanvas.org/spec/1.0/"},
+      {"type": "prd", "section": "FR1", "epic": "Epic 13"},
+      {"type": "sample_analysis", "files": ["离散数学.canvas", "线性代数.canvas"]}
+    ]
+  },
   "title": "Canvas Node",
   "description": "Obsidian Canvas节点数据定义 - 支持text, file, group, link四种类型. Verified from JSON Canvas Spec 1.0 (https://jsoncanvas.org/spec/1.0/)",
   "type": "object",

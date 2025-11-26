@@ -1,6 +1,14 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/error-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:15:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "context7", "library_id": "/oai/openapi-specification", "topic": "error response patterns"},
+      {"type": "prd", "epic": "Epic 11"}
+    ]
+  },
   "title": "Error Response",
   "description": "API错误响应数据结构. Context7 Verified: /oai/openapi-specification, /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",

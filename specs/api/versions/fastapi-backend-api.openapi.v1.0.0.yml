@@ -14,16 +14,6 @@ info:
     - 业务需求: PRD Epic 15
     - 架构设计: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md
   version: 1.0.0
-  x-source-verification:
-    verified_at: "2025-11-25T18:25:00Z"
-    format_source:
-      type: context7
-      library_id: "/oai/openapi-specification"
-      topic: "info object, paths, components, specification extensions"
-    business_source:
-      prd_version: "v1.1.9"
-      epic: "Epic 15"
-      story_refs: ["15.1", "15.2", "15.3"]
   contact:
     name: Canvas Learning System
     url: https://github.com/canvas-learning-system
