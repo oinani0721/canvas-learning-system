@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/score-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T20:00:00Z",
+    "sources": [
+      {"type": "prd", "section": "API 15.2.3", "epic": "Epic 15"},
+      {"type": "prd", "section": "4-Dimension Scoring", "epic": "Epic 4"}
+    ]
+  },
+  "title": "ScoreResponse",
+  "description": "评分Agent响应 - 包含多节点评分结果",
+  "type": "object",
+  "properties": {
+    "scores": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "node_id": {"type": "string", "description": "节点ID"},
+          "dimensions": {"$ref": "score-dimensions.schema.json"},
+          "total_score": {"type": "integer", "minimum": 0, "maximum": 100, "description": "综合得分"},
+          "color_recommendation": {
+            "type": "string",
+            "enum": ["2", "3", "4"],
+            "description": "建议颜色: 2=绿(≥80), 3=紫(60-79), 4=红(<60)"
+          },
+          "feedbacks": {
+            "type": "array",
+            "items": {"$ref": "score-feedback.schema.json"},
+            "description": "各维度反馈"
+          }
+        },
+        "required": ["node_id", "dimensions", "total_score"]
+      },
+      "description": "各节点评分结果"
+    },
+    "summary": {
+      "type": "object",
+      "properties": {
+        "total_nodes": {"type": "integer", "description": "评分节点总数"},
+        "average_score": {"type": "number", "description": "平均分"},
+        "pass_count": {"type": "integer", "description": "通过数(≥80)"},
+        "fail_count": {"type": "integer", "description": "未通过数(<80)"}
+      },
+      "description": "评分汇总"
+    }
+  },
+  "required": ["scores"]
+}

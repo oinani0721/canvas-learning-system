@@ -1,6 +1,6 @@
 # SDD需求索引 (SDD Requirements Index)
 
-**生成时间**: 2025-11-24 10:54:30
+**生成时间**: 2025-11-25 20:29:02
 **生成脚本**: scripts/extract-sdd-requirements.py
 
 ---
@@ -10,8 +10,8 @@
 | 类别 | 总数 | 已覆盖 | 覆盖率 | 状态 |
 |------|------|--------|--------|------|
 | API端点 | 19 | 17 | 89.5% | ✅ |
-| 数据模型 | 31 | 4 | 12.9% | ❌ |
-| **总体** | 50 | 21 | 42.0% | ❌ |
+| 数据模型 | 31 | 31 | 100.0% | ✅ |
+| **总体** | 50 | 48 | 96.0% | ✅ |
 
 **质量门禁**: 覆盖率需达到 ≥80% 才能通过Planning Finalize
 
@@ -62,45 +62,45 @@
 
 ### Canvas模型
 
-| `NodeBase` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `NodeCreate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `NodeUpdate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `NodeRead` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `EdgeBase` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `EdgeCreate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `EdgeRead` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `CanvasData` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `CanvasMeta` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
-| `CanvasResponse` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ❌未定义 | 0% |
+| `NodeBase` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅node-base.schema.json | 100% |
+| `NodeCreate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅node-create.schema.json | 100% |
+| `NodeUpdate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅node-update.schema.json | 100% |
+| `NodeRead` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅node-read.schema.json | 100% |
+| `EdgeBase` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅edge-base.schema.json | 100% |
+| `EdgeCreate` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅edge-create.schema.json | 100% |
+| `EdgeRead` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅edge-read.schema.json | 100% |
+| `CanvasData` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅canvas-data.schema.json | 100% |
+| `CanvasMeta` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅canvas-meta.schema.json | 100% |
+| `CanvasResponse` | Canvas模型 | EPIC-15-FastAPI.md:L126 | ✅canvas-response.schema.json | 100% |
 
 ### Agent模型
 
 | `DecomposeRequest` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅decompose-request.schema.json | 100% |
 | `DecomposeResponse` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅decompose-response.schema.json | 100% |
-| `ScoreRequest` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ScoreResponse` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ScoreDimensions` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ScoreFeedback` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ExplainRequest` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ExplainResponse` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `AgentType` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `AgentMeta` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `AgentRecommendation` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
-| `ErrorDetail` | Agent模型 | EPIC-15-FastAPI.md:L128 | ❌未定义 | 0% |
+| `ScoreRequest` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅score-request.schema.json | 100% |
+| `ScoreResponse` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅score-response.schema.json | 100% |
+| `ScoreDimensions` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅score-dimensions.schema.json | 100% |
+| `ScoreFeedback` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅score-feedback.schema.json | 100% |
+| `ExplainRequest` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅explain-request.schema.json | 100% |
+| `ExplainResponse` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅explain-response.schema.json | 100% |
+| `AgentType` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅agent-type.schema.json | 100% |
+| `AgentMeta` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅agent-meta.schema.json | 100% |
+| `AgentRecommendation` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅agent-recommendation.schema.json | 100% |
+| `ErrorDetail` | Agent模型 | EPIC-15-FastAPI.md:L128 | ✅error-detail.schema.json | 100% |
 
 ### Review模型
 
-| `ReviewGenerateRequest` | Review模型 | EPIC-15-FastAPI.md:L130 | ❌未定义 | 0% |
-| `ReviewGenerateResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ❌未定义 | 0% |
-| `ReviewProgressResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ❌未定义 | 0% |
-| `ReviewSyncRequest` | Review模型 | EPIC-15-FastAPI.md:L130 | ❌未定义 | 0% |
-| `ReviewSyncResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ❌未定义 | 0% |
+| `ReviewGenerateRequest` | Review模型 | EPIC-15-FastAPI.md:L130 | ✅review-generate-request.schema.json | 100% |
+| `ReviewGenerateResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ✅review-generate-response.schema.json | 100% |
+| `ReviewProgressResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ✅review-progress-response.schema.json | 100% |
+| `ReviewSyncRequest` | Review模型 | EPIC-15-FastAPI.md:L130 | ✅review-sync-request.schema.json | 100% |
+| `ReviewSyncResponse` | Review模型 | EPIC-15-FastAPI.md:L130 | ✅review-sync-response.schema.json | 100% |
 
 ### Common模型
 
-| `SuccessResponse` | Common模型 | EPIC-15-FastAPI.md:L132 | ❌未定义 | 0% |
+| `SuccessResponse` | Common模型 | EPIC-15-FastAPI.md:L132 | ✅success-response.schema.json | 100% |
 | `ErrorResponse` | Common模型 | EPIC-15-FastAPI.md:L132 | ✅error-response.schema.json | 100% |
-| `PaginationMeta` | Common模型 | EPIC-15-FastAPI.md:L132 | ❌未定义 | 0% |
+| `PaginationMeta` | Common模型 | EPIC-15-FastAPI.md:L132 | ✅pagination-meta.schema.json | 100% |
 | `HealthCheckResponse` | Common模型 | EPIC-15-FastAPI.md:L132 | ✅health-check-response.schema.json | 100% |
 
 ---
@@ -128,33 +128,7 @@ _(追溯矩阵持续更新中...)_
 - [ ] `POST /api/v1/review/sync` - 同步检验结果 (❌未定义)
 
 ### 缺失的JSON Schema
-- [ ] `NodeBase` → `specs/data/node-base.schema.json`
-- [ ] `NodeCreate` → `specs/data/node-create.schema.json`
-- [ ] `NodeUpdate` → `specs/data/node-update.schema.json`
-- [ ] `NodeRead` → `specs/data/node-read.schema.json`
-- [ ] `EdgeBase` → `specs/data/edge-base.schema.json`
-- [ ] `EdgeCreate` → `specs/data/edge-create.schema.json`
-- [ ] `EdgeRead` → `specs/data/edge-read.schema.json`
-- [ ] `CanvasData` → `specs/data/canvas-data.schema.json`
-- [ ] `CanvasMeta` → `specs/data/canvas-meta.schema.json`
-- [ ] `CanvasResponse` → `specs/data/canvas-response.schema.json`
-- [ ] `ScoreRequest` → `specs/data/score-request.schema.json`
-- [ ] `ScoreResponse` → `specs/data/score-response.schema.json`
-- [ ] `ScoreDimensions` → `specs/data/score-dimensions.schema.json`
-- [ ] `ScoreFeedback` → `specs/data/score-feedback.schema.json`
-- [ ] `ExplainRequest` → `specs/data/explain-request.schema.json`
-- [ ] `ExplainResponse` → `specs/data/explain-response.schema.json`
-- [ ] `AgentType` → `specs/data/agent-type.schema.json`
-- [ ] `AgentMeta` → `specs/data/agent-meta.schema.json`
-- [ ] `AgentRecommendation` → `specs/data/agent-recommendation.schema.json`
-- [ ] `ErrorDetail` → `specs/data/error-detail.schema.json`
-- [ ] `ReviewGenerateRequest` → `specs/data/review-generate-request.schema.json`
-- [ ] `ReviewGenerateResponse` → `specs/data/review-generate-response.schema.json`
-- [ ] `ReviewProgressResponse` → `specs/data/review-progress-response.schema.json`
-- [ ] `ReviewSyncRequest` → `specs/data/review-sync-request.schema.json`
-- [ ] `ReviewSyncResponse` → `specs/data/review-sync-response.schema.json`
-- [ ] `SuccessResponse` → `specs/data/success-response.schema.json`
-- [ ] `PaginationMeta` → `specs/data/pagination-meta.schema.json`
+_✅ 所有数据模型已定义Schema_
 
 ---
 

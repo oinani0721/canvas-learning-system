@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/review-generate-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T20:05:00Z",
+    "sources": [
+      {"type": "prd", "section": "API 15.2.9", "epic": "Epic 15"},
+      {"type": "prd", "section": "Verification Canvas", "epic": "Epic 4"}
+    ]
+  },
+  "title": "ReviewGenerateResponse",
+  "description": "生成检验白板响应 - 返回新创建的检验Canvas信息",
+  "type": "object",
+  "properties": {
+    "review_canvas_name": {
+      "type": "string",
+      "description": "检验白板文件名 (格式: {原名}-检验白板-{日期}.canvas)"
+    },
+    "review_canvas_path": {
+      "type": "string",
+      "description": "检验白板完整路径"
+    },
+    "source_canvas_name": {
+      "type": "string",
+      "description": "原始Canvas名称"
+    },
+    "question_count": {
+      "type": "integer",
+      "description": "生成的问题节点数量"
+    },
+    "yellow_node_count": {
+      "type": "integer",
+      "description": "生成的黄色答题节点数量"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "生成时间"
+    }
+  },
+  "required": ["review_canvas_name", "source_canvas_name", "question_count"]
+}

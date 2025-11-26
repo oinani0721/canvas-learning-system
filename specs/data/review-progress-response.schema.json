@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/review-progress-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T20:05:00Z",
+    "sources": [
+      {"type": "prd", "section": "API 15.2.10", "epic": "Epic 15"},
+      {"type": "prd", "section": "Review Progress Tracking", "epic": "Epic 4"}
+    ]
+  },
+  "title": "ReviewProgressResponse",
+  "description": "检验进度响应 - 返回检验白板的完成进度",
+  "type": "object",
+  "properties": {
+    "canvas_name": {
+      "type": "string",
+      "description": "检验白板名称"
+    },
+    "total_questions": {
+      "type": "integer",
+      "description": "问题总数"
+    },
+    "answered_count": {
+      "type": "integer",
+      "description": "已作答数量 (黄色节点有内容)"
+    },
+    "scored_count": {
+      "type": "integer",
+      "description": "已评分数量"
+    },
+    "pass_count": {
+      "type": "integer",
+      "description": "通过数量 (绿色)"
+    },
+    "progress_percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "完成百分比"
+    },
+    "color_distribution": {
+      "type": "object",
+      "properties": {
+        "red": {"type": "integer"},
+        "purple": {"type": "integer"},
+        "green": {"type": "integer"},
+        "yellow": {"type": "integer"}
+      },
+      "description": "颜色分布统计"
+    },
+    "last_updated": {
+      "type": "string",
+      "format": "date-time",
+      "description": "最后更新时间"
+    }
+  },
+  "required": ["canvas_name", "total_questions", "progress_percentage"]
+}

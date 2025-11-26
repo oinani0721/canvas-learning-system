@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/edge-read.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:55:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/obsidianmd/jsoncanvas", "topic": "edge structure"},
+      {"type": "prd", "section": "API 15.2", "epic": "Epic 15"},
+      {"type": "sample_analysis", "files": ["test-basic.canvas", "test-review.canvas"]}
+    ]
+  },
+  "title": "EdgeRead",
+  "description": "读取Canvas边响应. 包含完整边信息",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "边唯一ID"
+    },
+    "fromNode": {
+      "type": "string",
+      "description": "起始节点ID"
+    },
+    "toNode": {
+      "type": "string",
+      "description": "目标节点ID"
+    },
+    "fromSide": {
+      "type": "string",
+      "enum": ["top", "right", "bottom", "left"],
+      "description": "起始节点连接方位"
+    },
+    "toSide": {
+      "type": "string",
+      "enum": ["top", "right", "bottom", "left"],
+      "description": "目标节点连接方位"
+    },
+    "fromEnd": {
+      "type": "string",
+      "enum": ["none", "arrow"],
+      "description": "起始端点形状"
+    },
+    "toEnd": {
+      "type": "string",
+      "enum": ["none", "arrow"],
+      "description": "目标端点形状"
+    },
+    "color": {
+      "type": "string",
+      "description": "边颜色"
+    },
+    "label": {
+      "type": "string",
+      "description": "边标签文本"
+    }
+  },
+  "required": ["id", "fromNode", "toNode"]
+}

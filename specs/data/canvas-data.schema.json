@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/canvas-data.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:55:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/obsidianmd/jsoncanvas", "topic": "top level structure"},
+      {"type": "official_doc", "url": "https://jsoncanvas.org/spec/1.0/"},
+      {"type": "sample_analysis", "files": ["test-basic.canvas", "颜色标记参考样例.canvas", "test-review.canvas"]}
+    ]
+  },
+  "title": "CanvasData",
+  "description": "Canvas文件数据结构 - JSON Canvas文档的根结构. Verified from JSON Canvas Spec 1.0",
+  "type": "object",
+  "properties": {
+    "nodes": {
+      "type": "array",
+      "items": {
+        "$ref": "node-read.schema.json"
+      },
+      "default": [],
+      "description": "节点列表 (Source: JSON Canvas Spec 1.0)"
+    },
+    "edges": {
+      "type": "array",
+      "items": {
+        "$ref": "edge-read.schema.json"
+      },
+      "default": [],
+      "description": "边列表 (Source: JSON Canvas Spec 1.0)"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/review-generate-request.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T20:05:00Z",
+    "sources": [
+      {"type": "prd", "section": "API 15.2.9", "epic": "Epic 15"},
+      {"type": "prd", "section": "Verification Canvas", "epic": "Epic 4"}
+    ]
+  },
+  "title": "ReviewGenerateRequest",
+  "description": "生成检验白板请求 - 基于原始Canvas生成无答案的检验版本",
+  "type": "object",
+  "properties": {
+    "canvas_name": {
+      "type": "string",
+      "description": "原始Canvas文件名"
+    },
+    "include_colors": {
+      "type": "array",
+      "items": {"type": "string", "enum": ["1", "2", "3", "4", "5", "6"]},
+      "default": ["3", "4"],
+      "description": "包含哪些颜色的节点生成问题 (默认: 紫色3和红色4)"
+    },
+    "question_count": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 50,
+      "description": "生成问题数量上限"
+    }
+  },
+  "required": ["canvas_name"]
+}

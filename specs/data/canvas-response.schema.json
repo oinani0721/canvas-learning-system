@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/canvas-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:55:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/obsidianmd/jsoncanvas", "topic": "top level structure"},
+      {"type": "prd", "section": "API 15.2", "epic": "Epic 15"}
+    ]
+  },
+  "title": "CanvasResponse",
+  "description": "Canvas API响应 - 包含元数据和Canvas数据",
+  "type": "object",
+  "properties": {
+    "meta": {
+      "$ref": "canvas-meta.schema.json",
+      "description": "Canvas文件元数据"
+    },
+    "data": {
+      "$ref": "canvas-data.schema.json",
+      "description": "Canvas文件内容(节点和边)"
+    }
+  },
+  "required": ["meta", "data"]
+}

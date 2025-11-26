@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/score-request.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T20:00:00Z",
+    "sources": [
+      {"type": "prd", "section": "API 15.2.3", "epic": "Epic 15"},
+      {"type": "prd", "section": "4-Dimension Scoring", "epic": "Epic 4"}
+    ]
+  },
+  "title": "ScoreRequest",
+  "description": "评分Agent请求体 - 对黄色节点进行4维度评分",
+  "type": "object",
+  "properties": {
+    "canvas_name": {
+      "type": "string",
+      "description": "Canvas文件名"
+    },
+    "node_ids": {
+      "type": "array",
+      "items": {"type": "string"},
+      "minItems": 1,
+      "description": "待评分节点ID列表"
+    },
+    "batch_mode": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否批量评分模式"
+    }
+  },
+  "required": ["canvas_name", "node_ids"]
+}

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/node-base.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:55:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/obsidianmd/jsoncanvas", "topic": "node structure"},
+      {"type": "official_doc", "url": "https://jsoncanvas.org/spec/1.0/"},
+      {"type": "sample_analysis", "files": ["test-basic.canvas", "颜色标记参考样例.canvas", "test-review.canvas"]}
+    ]
+  },
+  "title": "NodeBase",
+  "description": "Canvas节点基础属性 - 所有节点类型共享的属性. Verified from JSON Canvas Spec 1.0",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "节点唯一ID (Source: JSON Canvas Spec 1.0)"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["text", "file", "link", "group"],
+      "description": "节点类型 (Source: JSON Canvas Spec 1.0)"
+    },
+    "x": {
+      "type": "integer",
+      "description": "X坐标位置(像素) (Source: JSON Canvas Spec 1.0)"
+    },
+    "y": {
+      "type": "integer",
+      "description": "Y坐标位置(像素) (Source: JSON Canvas Spec 1.0)"
+    },
+    "width": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "节点宽度(像素) (Source: JSON Canvas Spec 1.0)"
+    },
+    "height": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "节点高度(像素) (Source: JSON Canvas Spec 1.0)"
+    },
+    "color": {
+      "$ref": "#/$defs/canvasColor"
+    }
+  },
+  "required": ["id", "type", "x", "y", "width", "height"],
+  "$defs": {
+    "canvasColor": {
+      "description": "Canvas颜色值 - 预设色号或十六进制. 预设色号: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫. 项目语义: 4=不理解, 3=似懂非懂, 2=已理解, 6=个人理解 (Source: JSON Canvas Spec 1.0)",
+      "oneOf": [
+        {"type": "string", "enum": ["1", "2", "3", "4", "5", "6"]},
+        {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"}
+      ]
+    }
+  }
+}

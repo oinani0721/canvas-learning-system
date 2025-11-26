@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/node-read.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-11-25T19:55:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/obsidianmd/jsoncanvas", "topic": "node structure"},
+      {"type": "prd", "section": "API 15.2", "epic": "Epic 15"},
+      {"type": "sample_analysis", "files": ["test-basic.canvas", "test-review.canvas"]}
+    ]
+  },
+  "title": "NodeRead",
+  "description": "读取Canvas节点响应. 包含完整节点信息",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "节点唯一ID"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["text", "file", "link", "group"],
+      "description": "节点类型"
+    },
+    "x": {
+      "type": "integer",
+      "description": "X坐标位置(像素)"
+    },
+    "y": {
+      "type": "integer",
+      "description": "Y坐标位置(像素)"
+    },
+    "width": {
+      "type": "integer",
+      "description": "节点宽度(像素)"
+    },
+    "height": {
+      "type": "integer",
+      "description": "节点高度(像素)"
+    },
+    "color": {
+      "type": "string",
+      "enum": ["1", "2", "3", "4", "5", "6"],
+      "description": "节点颜色代码"
+    },
+    "text": {
+      "type": "string",
+      "description": "文本内容 (text类型节点)"
+    },
+    "file": {
+      "type": "string",
+      "description": "文件路径 (file类型节点)"
+    },
+    "url": {
+      "type": "string",
+      "format": "uri",
+      "description": "链接URL (link类型节点)"
+    },
+    "label": {
+      "type": "string",
+      "description": "分组标签 (group类型节点)"
+    }
+  },
+  "required": ["id", "type", "x", "y", "width", "height"]
+}
