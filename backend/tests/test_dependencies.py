@@ -1,0 +1,519 @@
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing)
+"""
+Test suite for dependency injection system.
+
+Tests all dependency functions including:
+- get_settings() singleton behavior
+- get_canvas_service() with yield cleanup
+- get_agent_service() with yield cleanup
+- get_review_service() chained dependencies
+- dependency_overrides functionality
+
+[Source: docs/stories/15.3.story.md#Testing]
+"""
+import pytest
+from typing import AsyncGenerator
+from unittest.mock import AsyncMock, MagicMock, patch
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
+# Import the modules under test
+from app.config import Settings, get_settings
+from app.dependencies import (
+    get_canvas_service,
+    get_agent_service,
+    get_review_service,
+    SettingsDep,
+    CanvasServiceDep,
+    AgentServiceDep,
+    ReviewServiceDep,
+)
+from app.services.canvas_service import CanvasService
+from app.services.agent_service import AgentService
+from app.services.review_service import ReviewService
+from app.main import app
+
+
+# =============================================================================
+# Fixtures
+# =============================================================================
+
+@pytest.fixture
+def client():
+    """
+    Test client fixture.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing)
+    """
+    return TestClient(app)
+
+
+@pytest.fixture
+def mock_settings():
+    """Mock settings fixture."""
+    return Settings(
+        app_name="Test App",
+        version="0.0.1",
+        debug=True,
+        canvas_base_path="/test/path"
+    )
+
+
+@pytest.fixture
+def clean_overrides():
+    """Clean dependency overrides after each test."""
+    yield
+    app.dependency_overrides.clear()
+
+
+# =============================================================================
+# Test: get_settings() - Singleton Behavior
+# =============================================================================
+
+class TestGetSettings:
+    """Tests for get_settings() dependency."""
+
+    def test_get_settings_returns_settings_instance(self):
+        """
+        Test that get_settings() returns a Settings instance.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 2]
+        """
+        settings = get_settings()
+        assert isinstance(settings, Settings)
+
+    def test_get_settings_singleton_behavior(self):
+        """
+        Test that get_settings() returns the same instance (cached).
+
+        The @lru_cache decorator should ensure singleton behavior.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 2]
+        """
+        # Clear cache first to ensure clean state
+        get_settings.cache_clear()
+
+        settings1 = get_settings()
+        settings2 = get_settings()
+
+        # Should be the exact same object (not just equal)
+        assert settings1 is settings2
+
+    def test_get_settings_default_values(self):
+        """Test that settings have expected default values."""
+        get_settings.cache_clear()
+        settings = get_settings()
+
+        assert settings.app_name == "Canvas Learning System"
+        assert settings.version == "0.1.0"
+        assert settings.api_v1_prefix == "/api/v1"
+
+    def test_get_settings_in_endpoint(self, client, clean_overrides):
+        """
+        Test that settings are correctly injected into endpoints.
+
+        ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing)
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 9]
+        """
+        response = client.get("/api/v1/health")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "app_name" in data
+        assert "version" in data
+        assert data["status"] == "healthy"
+
+
+# =============================================================================
+# Test: get_canvas_service() - Yield Dependency
+# =============================================================================
+
+class TestGetCanvasService:
+    """Tests for get_canvas_service() dependency."""
+
+    @pytest.mark.asyncio
+    async def test_get_canvas_service_returns_correct_type(self, mock_settings):
+        """
+        Test that get_canvas_service() yields a CanvasService instance.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 3]
+        """
+        async def _test():
+            async for service in get_canvas_service(mock_settings):
+                assert isinstance(service, CanvasService)
+                return service
+
+        service = await _test()
+        assert service.canvas_base_path == "/test/path"
+
+    @pytest.mark.asyncio
+    async def test_get_canvas_service_uses_settings_path(self, mock_settings):
+        """
+        Test that CanvasService uses canvas_base_path from settings.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 7]
+        """
+        async for service in get_canvas_service(mock_settings):
+            assert service.canvas_base_path == mock_settings.canvas_base_path
+            break
+
+    @pytest.mark.asyncio
+    async def test_get_canvas_service_cleanup_called(self, mock_settings):
+        """
+        Test that cleanup is called when context exits.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 6]
+        """
+        cleanup_called = False
+        original_cleanup = CanvasService.cleanup
+
+        async def mock_cleanup(self):
+            nonlocal cleanup_called
+            cleanup_called = True
+            await original_cleanup(self)
+
+        with patch.object(CanvasService, 'cleanup', mock_cleanup):
+            async for service in get_canvas_service(mock_settings):
+                pass  # Exit the context
+
+        assert cleanup_called, "cleanup() should be called when context exits"
+
+
+# =============================================================================
+# Test: get_agent_service() - Yield Dependency
+# =============================================================================
+
+class TestGetAgentService:
+    """Tests for get_agent_service() dependency."""
+
+    @pytest.mark.asyncio
+    async def test_get_agent_service_returns_correct_type(self, mock_settings):
+        """
+        Test that get_agent_service() yields an AgentService instance.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 4]
+        """
+        async for service in get_agent_service(mock_settings):
+            assert isinstance(service, AgentService)
+            break
+
+    @pytest.mark.asyncio
+    async def test_get_agent_service_cleanup_called(self, mock_settings):
+        """
+        Test that cleanup is called when context exits.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 6]
+        """
+        cleanup_called = False
+        original_cleanup = AgentService.cleanup
+
+        async def mock_cleanup(self):
+            nonlocal cleanup_called
+            cleanup_called = True
+            await original_cleanup(self)
+
+        with patch.object(AgentService, 'cleanup', mock_cleanup):
+            async for service in get_agent_service(mock_settings):
+                pass
+
+        assert cleanup_called
+
+
+# =============================================================================
+# Test: get_review_service() - Chained Dependencies
+# =============================================================================
+
+class TestGetReviewService:
+    """Tests for get_review_service() chained dependency."""
+
+    @pytest.mark.asyncio
+    async def test_get_review_service_returns_correct_type(self, mock_settings):
+        """
+        Test that get_review_service() yields a ReviewService instance.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 5]
+        """
+        # First get canvas_service
+        async for canvas_service in get_canvas_service(mock_settings):
+            # Then get review_service with both dependencies
+            async for review_service in get_review_service(mock_settings, canvas_service):
+                assert isinstance(review_service, ReviewService)
+                break
+            break
+
+    @pytest.mark.asyncio
+    async def test_get_review_service_has_canvas_service(self, mock_settings):
+        """
+        Test that ReviewService receives CanvasService from chained dependency.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 7]
+        """
+        async for canvas_service in get_canvas_service(mock_settings):
+            async for review_service in get_review_service(mock_settings, canvas_service):
+                assert review_service.canvas_service is canvas_service
+                assert review_service.canvas_base_path == mock_settings.canvas_base_path
+                break
+            break
+
+    @pytest.mark.asyncio
+    async def test_get_review_service_cleanup_called(self, mock_settings):
+        """
+        Test that ReviewService cleanup is called.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 6]
+        """
+        cleanup_called = False
+        original_cleanup = ReviewService.cleanup
+
+        async def mock_cleanup(self):
+            nonlocal cleanup_called
+            cleanup_called = True
+            await original_cleanup(self)
+
+        with patch.object(ReviewService, 'cleanup', mock_cleanup):
+            async for canvas_service in get_canvas_service(mock_settings):
+                async for review_service in get_review_service(mock_settings, canvas_service):
+                    pass
+                break
+
+        assert cleanup_called
+
+
+# =============================================================================
+# Test: dependency_overrides - Testing Support
+# =============================================================================
+
+class TestDependencyOverrides:
+    """Tests for dependency_overrides functionality."""
+
+    def test_override_get_settings(self, client, clean_overrides):
+        """
+        Test that get_settings can be overridden for testing.
+
+        ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing)
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 8]
+        """
+        # Import the actual get_settings from config to override the right function
+        from app.config import get_settings as config_get_settings
+
+        # Clear the lru_cache to ensure fresh instance
+        config_get_settings.cache_clear()
+
+        # Create mock settings
+        mock_settings = Settings(
+            app_name="Overridden App",
+            version="9.9.9",
+            debug=True
+        )
+
+        def override_get_settings():
+            return mock_settings
+
+        # Apply override - override the imported function in dependencies module
+        # Since dependencies.py imports get_settings from config, we need to override
+        # the function that the dependency system actually calls
+        from app import dependencies
+        app.dependency_overrides[dependencies.get_settings] = override_get_settings
+
+        # Test that override is used
+        response = client.get("/api/v1/health")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert data["app_name"] == "Overridden App"
+        assert data["version"] == "9.9.9"
+
+    def test_override_canvas_service(self, client, clean_overrides):
+        """
+        Test that get_canvas_service can be overridden for testing.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 8]
+        """
+        # Create mock service
+        mock_service = MagicMock(spec=CanvasService)
+        mock_service.list_canvases = AsyncMock(return_value=["test-canvas-1", "test-canvas-2"])
+
+        async def override_canvas_service():
+            yield mock_service
+
+        # Apply override
+        app.dependency_overrides[get_canvas_service] = override_canvas_service
+
+        # Test that override is used
+        response = client.get("/api/v1/canvas/")
+        assert response.status_code == 200
+        assert response.json() == ["test-canvas-1", "test-canvas-2"]
+
+    def test_override_agent_service(self, client, clean_overrides):
+        """
+        Test that get_agent_service can be overridden for testing.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 8]
+        """
+        mock_service = MagicMock(spec=AgentService)
+        mock_service.decompose_basic = AsyncMock(return_value={
+            "node_id": "test-node",
+            "questions": ["Q1", "Q2"],
+            "status": "completed"
+        })
+
+        async def override_agent_service():
+            yield mock_service
+
+        app.dependency_overrides[get_agent_service] = override_agent_service
+
+        response = client.post("/api/v1/agents/decompose/basic", json={
+            "canvas_name": "test",
+            "node_id": "test-node",
+            "content": "Test content"
+        })
+        assert response.status_code == 200
+        assert response.json()["node_id"] == "test-node"
+
+    def test_override_review_service(self, client, clean_overrides):
+        """
+        Test that get_review_service can be overridden for testing.
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 8]
+        """
+        mock_service = MagicMock(spec=ReviewService)
+        mock_service.get_pending_reviews = AsyncMock(return_value=[])
+
+        async def override_review_service():
+            yield mock_service
+
+        app.dependency_overrides[get_review_service] = override_review_service
+
+        response = client.get("/api/v1/review/pending")
+        assert response.status_code == 200
+        assert response.json() == []
+
+
+# =============================================================================
+# Test: API Endpoint Integration
+# =============================================================================
+
+class TestAPIEndpointIntegration:
+    """Integration tests for dependency injection in API endpoints."""
+
+    def test_health_endpoint_uses_depends(self, client):
+        """
+        Test that health endpoint correctly uses Depends(get_settings).
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 9]
+        """
+        response = client.get("/api/v1/health")
+        assert response.status_code == 200
+
+        data = response.json()
+        assert "status" in data
+        assert "app_name" in data
+        assert "version" in data
+        assert "timestamp" in data
+
+    def test_canvas_endpoint_uses_depends(self, client, clean_overrides):
+        """
+        Test that canvas endpoint correctly uses Depends(get_canvas_service).
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 9]
+        """
+        # Create mock to verify dependency is called
+        mock_service = MagicMock(spec=CanvasService)
+        mock_service.read_canvas = AsyncMock(return_value={
+            "name": "test",
+            "nodes": [],
+            "edges": []
+        })
+
+        async def override():
+            yield mock_service
+
+        app.dependency_overrides[get_canvas_service] = override
+
+        response = client.get("/api/v1/canvas/test")
+        assert response.status_code == 200
+
+        # Verify the mock was called
+        mock_service.read_canvas.assert_called_once_with("test")
+
+    def test_agents_endpoint_uses_depends(self, client, clean_overrides):
+        """
+        Test that agents endpoint correctly uses Depends(get_agent_service).
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 9]
+        """
+        mock_service = MagicMock(spec=AgentService)
+        mock_service.score_node = AsyncMock(return_value={
+            "node_id": "test",
+            "scores": {"accuracy": 80.0, "imagery": 70.0, "completeness": 75.0, "originality": 65.0},
+            "overall_score": 72.5,
+            "color_recommendation": "purple"
+        })
+
+        async def override():
+            yield mock_service
+
+        app.dependency_overrides[get_agent_service] = override
+
+        response = client.post("/api/v1/agents/score", json={
+            "canvas_name": "test",
+            "node_id": "test",
+            "user_answer": "Test answer"
+        })
+        assert response.status_code == 200
+        assert response.json()["color_recommendation"] == "purple"
+
+    def test_review_endpoint_uses_depends(self, client, clean_overrides):
+        """
+        Test that review endpoint correctly uses Depends(get_review_service).
+
+        [Source: docs/stories/15.3.story.md#Testing - AC: 9]
+        """
+        mock_service = MagicMock(spec=ReviewService)
+        mock_service.generate_verification_canvas = AsyncMock(return_value={
+            "name": "test-检验白板-20251127",
+            "source_canvas": "test",
+            "status": "created"
+        })
+
+        async def override():
+            yield mock_service
+
+        app.dependency_overrides[get_review_service] = override
+
+        response = client.post("/api/v1/review/generate", json={
+            "source_canvas_name": "test"
+        })
+        assert response.status_code == 201
+        assert "检验白板" in response.json()["name"]
+
+
+# =============================================================================
+# Test: Type Alias Exports
+# =============================================================================
+
+class TestTypeAliasExports:
+    """Tests for Annotated type alias exports."""
+
+    def test_settings_dep_exported(self):
+        """Test that SettingsDep is properly exported."""
+        from app.dependencies import SettingsDep
+        assert SettingsDep is not None
+
+    def test_canvas_service_dep_exported(self):
+        """Test that CanvasServiceDep is properly exported."""
+        from app.dependencies import CanvasServiceDep
+        assert CanvasServiceDep is not None
+
+    def test_agent_service_dep_exported(self):
+        """Test that AgentServiceDep is properly exported."""
+        from app.dependencies import AgentServiceDep
+        assert AgentServiceDep is not None
+
+    def test_review_service_dep_exported(self):
+        """Test that ReviewServiceDep is properly exported."""
+        from app.dependencies import ReviewServiceDep
+        assert ReviewServiceDep is not None
