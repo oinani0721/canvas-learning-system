@@ -62,6 +62,15 @@ epics:
     description: 异步并行执行（8倍性能提升，12并发Agent）
     key_achievement: 100s → 12s for 10 nodes
 
+  epic-15:
+    name: FastAPI Backend Infrastructure
+    status: completed
+    completion_date: 2025-11-27
+    stories: [15.1, 15.2, 15.3, 15.4, 15.5, 15.6]
+    description: FastAPI后端基础架构（路由、依赖注入、中间件、异步操作、测试框架）
+    key_achievement: 通过*linear自动化流程完成全部6个Stories
+    verification_source: linear-progress.json
+
   epic-12:
     name: BMad Integration Correction
     status: in-progress
@@ -128,8 +137,8 @@ devload_always_files:
 
 # Statistics
 stats:
-  total_epics: 8
-  completed_epics: 7
+  total_epics: 9
+  completed_epics: 8
   in_progress_epics: 1
   total_agents: 14
   test_pass_rate: 99.2%  # 357/360

@@ -17,7 +17,12 @@ project:
   version: "1.2"
   description: "AI-powered learning system based on Feynman technique with 14 specialized agents"
   status: "Active Development"
-  epics_completed: [1, 2, 3, 4, 5, 10]
+  # Epic编号说明 (v1.1.9):
+  # - Epic 1-10: 原始Canvas Learning System (已完成)
+  # - Epic 11: 学习记忆监控系统 (v1.1.9重新分配, 已完成)
+  # - Epic 15: FastAPI后端基础架构 (v1.1.9重新分配, 开发中)
+  # - Epic 19: 检验白板进度追踪 (v1.1.9从原Epic 15移入, 待开发)
+  epics_completed: [1, 2, 3, 4, 5, 10, 11, 15]
 
 # ====================
 # BMad Core Configuration (Original)
