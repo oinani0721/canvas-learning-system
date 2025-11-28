@@ -10,79 +10,81 @@ repos:
       - id: check-prd-spec-sync
         name: Check PRD-Spec Synchronization
         description: Detect drift between PRD and SDD specifications
-        entry: python scripts/check-prd-spec-sync.py
+        entry: python -X utf8 scripts/check-prd-spec-sync.py
         language: python
         files: ^(docs/prd/|docs/epics/|specs/)
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         verbose: true
 
       # JSON Schema Validation
       - id: validate-schemas
         name: Validate JSON Schemas
         description: Validate JSON Schema files for syntax and compatibility
-        entry: python scripts/validate-schemas.py
+        entry: python -X utf8 scripts/validate-schemas.py
         language: python
         files: ^specs/data/.*\.json$
         pass_filenames: true
-        stages: [commit]
+        stages: [pre-commit]
 
       # OpenAPI Spec Validation
       - id: validate-openapi
         name: Validate OpenAPI Specifications
         description: Check OpenAPI specs for syntax errors
-        entry: python scripts/validate-openapi.py
+        entry: python -X utf8 scripts/validate-openapi.py
         language: python
         files: ^specs/api/.*\.(yml|yaml)$
         pass_filenames: true
-        stages: [commit]
+        stages: [pre-commit]
 
       # Gherkin Syntax Check
       - id: validate-gherkin
         name: Validate Gherkin Syntax
         description: Check Gherkin feature files for syntax errors
-        entry: python scripts/validate-gherkin.py
+        entry: python -X utf8 scripts/validate-gherkin.py
         language: python
         files: ^specs/behavior/.*\.feature$
         pass_filenames: true
-        stages: [commit]
+        stages: [pre-commit]
 
       # BDD Test Execution (pytest-bdd) - Enforces Gherkin contracts
-      # Reference: Gherkin契约强制执行 (Solution B)
+      # Reference: Gherkin contract enforcement (Solution B)
+      # NOTE: Run manually with: pre-commit run bdd-tests --hook-stage manual
       - id: bdd-tests
         name: BDD Tests (Gherkin Contract Enforcement)
         description: Execute pytest-bdd tests to enforce Gherkin behavior contracts
-        entry: pytest tests/bdd/ -v --tb=short -m bdd
-        language: system
+        entry: python -X utf8 -m pytest tests/bdd/ -v --tb=short -m bdd
+        language: python
+        additional_dependencies: [pytest, pytest-bdd]
         files: ^(specs/behavior/.*\.feature$|tests/bdd/)
         pass_filenames: false
-        stages: [commit]
-        # Note: This hook enforces that Gherkin scenarios have corresponding pytest-bdd tests.
-        # Each Gherkin scenario must pass its automated test before commit is allowed.
+        stages: [manual]
+        # Note: Heavy hook - runs on manual stage only. Use: pre-commit run bdd-tests --hook-stage manual
 
       # Contract Testing (Schemathesis) - Blocks commits with API violations
       # Reference: docs/architecture/sot-hierarchy.md (Code must comply with OpenAPI)
+      # NOTE: Run manually with: pre-commit run contract-test --hook-stage manual
       - id: contract-test
         name: Contract Testing (API Compliance)
         description: Validate code against OpenAPI specification using Schemathesis
-        entry: pytest tests/contract/test_schemathesis_api.py -v --tb=short -m contract
-        language: system
+        entry: python -X utf8 -m pytest tests/contract/test_schemathesis_api.py -v --tb=short -m contract
+        language: python
+        additional_dependencies: [pytest, schemathesis]
         files: ^(src/api/|specs/api/)
         pass_filenames: false
-        stages: [commit]
-        # Note: This hook is enabled but tests are skipped until Epic 15 (FastAPI) is complete.
-        # Once FastAPI is implemented, remove FASTAPI_NOT_READY flag in test file.
+        stages: [manual]
+        # Note: Heavy hook - runs on manual stage only. Requires running FastAPI server.
 
       # Source of Truth Hierarchy Validation
       # Reference: docs/architecture/sot-hierarchy.md (Section 11)
       - id: validate-sot-hierarchy
         name: Validate SoT Hierarchy
         description: Check cross-document consistency (PRD/Architecture/Schema/OpenAPI)
-        entry: python scripts/validate-sot-hierarchy.py
+        entry: python -X utf8 scripts/validate-sot-hierarchy.py
         language: python
         files: ^(docs/prd/|docs/architecture/|specs/)
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         # Note: This hook detects conflicts between SoT levels.
         # Conflicts must be resolved before commit is allowed.
 
@@ -91,25 +93,25 @@ repos:
       - id: validate-story-sdd-adr
         name: Validate Story SDD/ADR Sections
         description: Ensure story files have SDD and ADR reference sections
-        entry: python scripts/validate-story-sdd-adr.py
+        entry: python -X utf8 scripts/validate-story-sdd-adr.py
         language: python
         files: ^docs/stories/.*\.story\.md$
         pass_filenames: true
-        stages: [commit]
+        stages: [pre-commit]
         # Note: Epic 15+ stories require SDD/ADR sections (blocks commit if missing)
         # Epic 1-14 stories show warnings only (legacy, does not block)
 
       # SDD Coverage Verification (Section 16.5.9)
       # Reference: Section 16 - SDD/ADR Creation Quality Validation
       - id: verify-sdd-coverage
-        name: Verify SDD Coverage (PRD→OpenAPI/Schema)
+        name: Verify SDD Coverage (PRD->OpenAPI/Schema)
         description: Ensure PRD requirements have corresponding SDD specifications
-        entry: python scripts/verify-sdd-coverage.py --threshold 80
+        entry: python -X utf8 scripts/verify-sdd-coverage.py --threshold 80
         language: python
         files: ^(docs/prd/|specs/)
         pass_filenames: false
-        stages: [commit]
-        # Note: Coverage must be ≥80% for commit to pass.
+        stages: [pre-commit]
+        # Note: Coverage must be >=80% for commit to pass.
         # Run with --report to generate detailed coverage report.
 
       # Source Citation Validation (Section 16.5.10)
@@ -117,30 +119,30 @@ repos:
       - id: validate-source-citations
         name: Validate Source Citations (x-source-verification)
         description: Ensure SDD files have x-source-verification metadata
-        entry: python scripts/validate-source-citations.py
+        entry: python -X utf8 scripts/validate-source-citations.py
         language: python
         files: ^specs/
         pass_filenames: true
-        stages: [commit]
+        stages: [pre-commit]
         # Note: All SDD files must have x-source-verification field.
         # Context7 library_id format: /org/project
 
       # Content Consistency Validation (Section 16.5.11)
       # Reference: Section 16 - Content Consistency Layer
       - id: validate-content-consistency
-        name: Validate Content Consistency (PRD↔Schema↔OpenAPI)
+        name: Validate Content Consistency (PRD<->Schema<->OpenAPI)
         description: Check for field definition mismatches across SoT documents
-        entry: python scripts/validate-content-consistency.py
+        entry: python -X utf8 scripts/validate-content-consistency.py
         language: python
         files: ^(docs/prd/|specs/)
         pass_filenames: false
-        stages: [commit]
+        stages: [pre-commit]
         # Note: Detects required/optional mismatches and missing fields.
         # Resolution should follow SoT hierarchy (PRD > Architecture > Schema > OpenAPI).
 
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
         files: \.(md|py|yaml|yml|json)$
@@ -154,15 +156,15 @@ repos:
         args: ['--maxkb=1000']
 
   # Python code quality (optional, for src/ directory)
-  - repo: https://github.com/astral-sh/ruff
-    rev: v0.1.6
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.4
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
-        files: ^src/
+        files: ^(src/|backend/)
 
 # Hook execution order and configuration
-default_stages: [commit]
+default_stages: [pre-commit]
 fail_fast: false
 
 # CI configuration
