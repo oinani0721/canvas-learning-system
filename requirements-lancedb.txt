@@ -1,0 +1,16 @@
+# LanceDB POC Requirements - Story 12.2
+# ✅ Verified from LanceDB Documentation
+
+# Core dependencies
+lancedb>=0.15.0          # LanceDB Python客户端
+openai>=1.0.0            # OpenAI API (已安装)
+torch>=2.0.0             # PyTorch (已安装)
+
+# Performance and testing
+numpy>=1.24.0            # 数值计算
+pandas>=2.0.0            # 数据处理
+pytest>=7.0.0            # 测试框架
+psutil>=5.9.0            # 系统资源监控
+
+# Optional: 多模态支持 (需要CUDA)
+# imagebind-torch>=0.1.0  # ImageBind (仅在CUDA可用时安装)

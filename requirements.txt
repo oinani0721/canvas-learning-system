@@ -29,6 +29,13 @@ neo4j>=5.18.0               # Neo4j Python驱动 (官方包名是neo4j而不是n
 python-dotenv>=1.0.0        # 环境变量管理
 
 # ===========================
+# Story 12.2: LanceDB向量数据库依赖
+# ===========================
+lancedb>=0.25.0             # LanceDB向量数据库 (Trust Score: 8.5/10)
+                            # 用于高性能向量检索和多模态支持
+                            # 替代ChromaDB作为Layer 2向量存储
+
+# ===========================
 # EPIC-Neo4j-GDS-Integration: Neo4j GDS图算法库 (Story GDS.1)
 # ===========================
 graphdatascience>=1.9.0    # Neo4j Graph Data Science Python客户端 (Trust Score: 9.0/10)
