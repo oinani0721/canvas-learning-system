@@ -37,6 +37,13 @@ graphdatascience>=1.9.0    # Neo4j Graph Data Science Python客户端 (Trust Sco
                             # 支持艾宾浩斯触发点4薄弱点聚类功能
 
 # ===========================
+# Story 12.4: Temporal Memory依赖 (Epic 12)
+# ===========================
+fsrs>=4.1.0                 # FSRS-4.5算法 - 间隔重复学习调度器 (Trust Score: 8.5/10)
+                            # ✅ Verified from PyPI: fsrs (Free Spaced Repetition Scheduler)
+                            # 用于TemporalMemory类的学习行为追踪和FSRS遗忘曲线
+
+# ===========================
 # Canvas Learning System v2.0 - Enterprise Error Monitoring
 # ===========================
 loguru>=0.7.0               # 企业级日志记录 (Trust Score: 8.0/10)
