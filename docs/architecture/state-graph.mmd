@@ -1,0 +1,37 @@
+---
+title: Canvas Agentic RAG - StateGraph Architecture
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+    START([START])
+    retrieve_graphiti[retrieve_graphiti<br/>Graphiti Knowledge Graph Retrieval]
+    retrieve_lancedb[retrieve_lancedb<br/>LanceDB Vector Retrieval]
+    fuse_results[fuse_results<br/>Fusion Algorithm<br/>RRF/Weighted/Cascade]
+    rerank_results[rerank_results<br/>Reranking Strategy<br/>Local/Cohere/Hybrid Auto]
+    check_quality[check_quality<br/>Quality Evaluation<br/>High/Medium/Low]
+    rewrite_query[rewrite_query<br/>Query Rewrite with LLM]
+    END([END])
+
+    START -->|fan_out_retrieval| retrieve_graphiti
+    START -->|fan_out_retrieval| retrieve_lancedb
+    retrieve_graphiti -->|converge| fuse_results
+    retrieve_lancedb -->|converge| fuse_results
+    fuse_results --> rerank_results
+    rerank_results --> check_quality
+    check_quality -->|quality=high OR<br/>rewrite_count>=2| END
+    check_quality -->|quality=low AND<br/>rewrite_count<2| rewrite_query
+    rewrite_query -->|loop back| retrieve_graphiti
+    rewrite_query -->|loop back| retrieve_lancedb
+
+    classDef default fill:#f2f0ff,line-height:1.2
+    classDef parallel fill:#e6f3ff,stroke:#0066cc,stroke-width:2px
+    classDef processing fill:#fff4e6,stroke:#ff9900,stroke-width:2px
+    classDef decision fill:#ffe6e6,stroke:#cc0000,stroke-width:2px
+    classDef terminal fill:#e6ffe6,stroke:#009900,stroke-width:2px
+
+    class retrieve_graphiti,retrieve_lancedb parallel
+    class fuse_results,rerank_results processing
+    class check_quality,rewrite_query decision
+    class START,END terminal

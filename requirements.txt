@@ -51,6 +51,15 @@ fsrs>=4.1.0                 # FSRS-4.5算法 - 间隔重复学习调度器 (Trus
                             # 用于TemporalMemory类的学习行为追踪和FSRS遗忘曲线
 
 # ===========================
+# Story 12.5: LangGraph StateGraph依赖 (Epic 12)
+# ===========================
+langgraph>=0.3.10           # LangGraph - Stateful, multi-actor LLM applications (Trust Score: 9.0/10)
+                            # ✅ Verified from @langgraph skill
+                            # 用于StateGraph构建、并行检索、质量控制循环
+langgraph-runtime>=0.1.0    # LangGraph Runtime - Runtime configuration and execution (Trust Score: 9.0/10)
+                            # 用于Runtime[CanvasRAGConfig]和context_schema
+
+# ===========================
 # Canvas Learning System v2.0 - Enterprise Error Monitoring
 # ===========================
 loguru>=0.7.0               # 企业级日志记录 (Trust Score: 8.0/10)
