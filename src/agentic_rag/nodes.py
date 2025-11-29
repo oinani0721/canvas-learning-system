@@ -1,35 +1,86 @@
 """
 Agentic RAG 核心节点实现
 
-实现5个核心节点:
-1. retrieve_graphiti: Graphiti知识图谱检索
-2. retrieve_lancedb: LanceDB向量检索
-3. fuse_results: 融合算法
-4. rerank_results: Reranking
-5. check_quality: 质量评估
+实现7个核心节点:
+1. retrieve_graphiti: Graphiti知识图谱检索 (Story 12.1)
+2. retrieve_lancedb: LanceDB向量检索 (Story 12.2)
+3. fuse_results: 融合算法 (Story 12.7)
+4. rerank_results: Reranking (Story 12.8)
+5. check_quality: 质量评估 (Story 12.9)
+6. retrieve_weak_concepts: Temporal Memory薄弱概念检索 (Story 12.4)
+7. update_learning_behavior: 更新学习行为 (Story 12.4)
 
 ✅ Verified from LangGraph Skill:
 - Nodes are async functions: async def node(state: State) -> dict
 - Return dict with state updates
 - Access runtime config via runtime parameter
 
-Story 12.5 AC 5.3:
-- ✅ 5个核心节点实现
+Story 12.1-12.4 Update:
+- ✅ 使用真实 GraphitiClient (Story 12.1)
+- ✅ 使用真实 LanceDBClient (Story 12.2)
+- ✅ 使用真实 TemporalClient (Story 12.4)
+- ✅ 移除 placeholder mock 数据
 
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 1.2.0
 Created: 2025-11-29
+Updated: 2025-11-29
 """
 
-import asyncio
 import time
-from typing import Dict, List, Any, Optional
-from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 from langgraph.runtime import Runtime
 
-from agentic_rag.state import CanvasRAGState, SearchResult
+# ✅ Story 12.1-12.4: 使用真实客户端
+from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient
 from agentic_rag.config import CanvasRAGConfig
+from agentic_rag.state import CanvasRAGState, SearchResult
+
+# 全局客户端实例 (懒加载)
+_graphiti_client: Optional[GraphitiClient] = None
+_lancedb_client: Optional[LanceDBClient] = None
+_temporal_client: Optional[TemporalClient] = None
+
+
+async def _get_graphiti_client() -> GraphitiClient:
+    """获取Graphiti客户端单例"""
+    global _graphiti_client
+    if _graphiti_client is None:
+        _graphiti_client = GraphitiClient(
+            timeout_ms=200,  # Story 12.1 AC 1.3: 200ms超时
+            batch_size=10,
+            enable_fallback=True
+        )
+        await _graphiti_client.initialize()
+    return _graphiti_client
+
+
+async def _get_lancedb_client() -> LanceDBClient:
+    """获取LanceDB客户端单例"""
+    global _lancedb_client
+    if _lancedb_client is None:
+        _lancedb_client = LanceDBClient(
+            db_path="~/.lancedb",
+            timeout_ms=400,  # Story 12.2 AC 2.3: P95 < 400ms
+            batch_size=10,
+            enable_fallback=True
+        )
+        await _lancedb_client.initialize()
+    return _lancedb_client
+
+
+async def _get_temporal_client() -> TemporalClient:
+    """获取Temporal Memory客户端单例"""
+    global _temporal_client
+    if _temporal_client is None:
+        _temporal_client = TemporalClient(
+            db_path="learning_behavior.db",
+            timeout_ms=50,  # Story 12.4 AC 4.5: < 50ms
+            enable_fallback=True
+        )
+        await _temporal_client.initialize()
+    return _temporal_client
 
 
 # ========================================
@@ -47,6 +98,12 @@ async def retrieve_graphiti(
     - Node signature: async def node(state: State, runtime: Runtime) -> dict
     - Return dict with state updates
 
+    ✅ Story 12.1: 使用真实GraphitiClient
+    - AC 1.1: 初始化Graphiti MCP客户端
+    - AC 1.2: search_nodes()接口
+    - AC 1.3: 200ms超时自动取消
+    - AC 1.4: 结果转换为SearchResult
+
     Args:
         state: 当前状态 (包含messages, canvas_file等)
         runtime: 运行时配置
@@ -54,7 +111,7 @@ async def retrieve_graphiti(
     Returns:
         State更新字典:
         - graphiti_results: List[SearchResult]
-        - retrieval_latency_ms: Dict[str, float]
+        - graphiti_latency_ms: float
     """
     start_time = time.perf_counter()
 
@@ -68,22 +125,19 @@ async def retrieve_graphiti(
 
     # 获取配置
     batch_size = runtime.context.get("graphiti_batch_size") or runtime.context.get("retrieval_batch_size", 10)
+    canvas_file = state.get("canvas_file")
 
-    # TODO: Story 12.1 完成后，调用实际Graphiti client
-    # ✅ Placeholder: 返回mock结果
-    graphiti_results: List[SearchResult] = [
-        {
-            "doc_id": f"graphiti_{i}",
-            "content": f"Graphiti result {i} for query: {query}",
-            "score": 0.9 - i * 0.05,
-            "metadata": {
-                "source": "graphiti",
-                "timestamp": datetime.now().isoformat(),
-                "canvas_file": state.get("canvas_file"),
-            }
-        }
-        for i in range(batch_size)
-    ]
+    # ✅ Story 12.1: 使用真实Graphiti客户端
+    try:
+        client = await _get_graphiti_client()
+        graphiti_results = await client.search_nodes(
+            query=query,
+            canvas_file=canvas_file,
+            num_results=batch_size
+        )
+    except Exception:
+        # Fallback: 返回空结果
+        graphiti_results = []
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
@@ -107,6 +161,12 @@ async def retrieve_lancedb(
     ✅ Verified from LangGraph Skill:
     - Async node pattern
 
+    ✅ Story 12.2: 使用真实LanceDBClient
+    - AC 2.1: LanceDB连接测试
+    - AC 2.2: 向量检索接口
+    - AC 2.3: P95 < 400ms
+    - AC 2.4: 结果转换为SearchResult
+
     Args:
         state: 当前状态
         runtime: 运行时配置
@@ -114,7 +174,7 @@ async def retrieve_lancedb(
     Returns:
         State更新字典:
         - lancedb_results: List[SearchResult]
-        - retrieval_latency_ms: Dict[str, float]
+        - lancedb_latency_ms: float
     """
     start_time = time.perf_counter()
 
@@ -128,22 +188,25 @@ async def retrieve_lancedb(
 
     # 获取配置
     batch_size = runtime.context.get("lancedb_batch_size") or runtime.context.get("retrieval_batch_size", 10)
+    canvas_file = state.get("canvas_file")
 
-    # TODO: Story 12.3 完成后，调用实际LanceDB client
-    # ✅ Placeholder: 返回mock结果
-    lancedb_results: List[SearchResult] = [
-        {
-            "doc_id": f"lancedb_{i}",
-            "content": f"LanceDB result {i} for query: {query}",
-            "score": 0.85 - i * 0.05,
-            "metadata": {
-                "source": "lancedb",
-                "timestamp": datetime.now().isoformat(),
-                "canvas_file": state.get("canvas_file"),
-            }
-        }
-        for i in range(batch_size)
-    ]
+    # ✅ Story 12.2: 使用真实LanceDB客户端
+    try:
+        client = await _get_lancedb_client()
+
+        # 搜索多个表并合并结果
+        lancedb_results = await client.search_multiple_tables(
+            query=query,
+            canvas_file=canvas_file,
+            num_results_per_table=batch_size // 2 + 1  # 每个表返回一半结果
+        )
+
+        # 限制总结果数
+        lancedb_results = lancedb_results[:batch_size]
+
+    except Exception:
+        # Fallback: 返回空结果
+        lancedb_results = []
 
     latency_ms = (time.perf_counter() - start_time) * 1000
 
@@ -395,3 +458,104 @@ async def check_quality(
         quality_grade = "low"
 
     return {"quality_grade": quality_grade}
+
+
+# ========================================
+# Node 6: Temporal Memory 薄弱概念检索
+# ========================================
+
+async def retrieve_weak_concepts(
+    state: CanvasRAGState,
+    runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
+    """
+    Temporal Memory 薄弱概念检索节点
+
+    ✅ Story 12.4: Temporal Memory实现
+    - AC 4.3: get_weak_concepts() 返回低稳定性概念
+    - AC 4.5: 延迟 < 50ms
+
+    用于检验白板生成时，获取需要重点复习的薄弱概念。
+
+    Args:
+        state: 当前状态 (包含canvas_file)
+        runtime: 运行时配置
+
+    Returns:
+        State更新字典:
+        - weak_concepts: List[Dict] 薄弱概念列表
+        - temporal_latency_ms: float 延迟时间
+    """
+    start_time = time.perf_counter()
+
+    canvas_file = state.get("canvas_file", "")
+    limit = runtime.context.get("weak_concepts_limit", 10)
+
+    try:
+        client = await _get_temporal_client()
+        weak_concepts = await client.get_weak_concepts(
+            canvas_file=canvas_file,
+            limit=limit
+        )
+    except Exception:
+        # Fallback: 返回空结果
+        weak_concepts = []
+
+    latency_ms = (time.perf_counter() - start_time) * 1000
+
+    return {
+        "weak_concepts": weak_concepts,
+        "temporal_latency_ms": latency_ms
+    }
+
+
+async def update_learning_behavior(
+    state: CanvasRAGState,
+    runtime: Runtime[CanvasRAGConfig]
+) -> Dict[str, Any]:
+    """
+    更新学习行为节点
+
+    ✅ Story 12.4: Temporal Memory实现
+    - AC 4.2: 学习行为时序追踪
+    - AC 4.4: update_behavior() 更新FSRS卡片
+
+    在用户完成学习活动后更新FSRS卡片。
+
+    Args:
+        state: 当前状态 (包含concept, rating, canvas_file)
+        runtime: 运行时配置
+
+    Returns:
+        State更新字典:
+        - behavior_updated: bool 是否更新成功
+        - updated_card: Dict FSRS卡片状态
+    """
+    concept = state.get("current_concept", "")
+    rating = state.get("rating", 3)  # 默认Good
+    canvas_file = state.get("canvas_file", "")
+    session_id = state.get("session_id")
+
+    if not concept or not canvas_file:
+        return {
+            "behavior_updated": False,
+            "updated_card": {}
+        }
+
+    try:
+        client = await _get_temporal_client()
+        updated_card = await client.update_behavior(
+            concept=concept,
+            rating=rating,
+            canvas_file=canvas_file,
+            session_id=session_id
+        )
+        return {
+            "behavior_updated": True,
+            "updated_card": updated_card
+        }
+    except Exception:
+        return {
+            "behavior_updated": False,
+            "updated_card": {}
+        }
