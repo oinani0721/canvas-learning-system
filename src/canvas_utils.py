@@ -119,6 +119,17 @@ except ImportError as e:
     LEARNING_TRACKING_ENABLED = False
     print(f"警告: 学习进度追踪依赖未安装 - {e}")
 
+# Story 12.4: Temporal Memory相关导入 (Epic 12)
+try:
+    from temporal_memory import TemporalMemory
+    TEMPORAL_MEMORY_ENABLED = True
+    if LOGURU_ENABLED:
+        logger.info("Temporal Memory module loaded successfully")
+except ImportError as e:
+    TEMPORAL_MEMORY_ENABLED = False
+    if LOGURU_ENABLED:
+        logger.warning(f"Temporal Memory module not available: {e}")
+
 # Ebbinghaus Review System相关导入 (基于Py-FSRS, Trust Score: 9.4/10)
 try:
     from fsrs import Scheduler, Card, Rating, ReviewLog, State
@@ -132,6 +143,19 @@ except ImportError as e:
         logger.warning(f"Ebbinghaus复习系统依赖未安装 - {e}")
     print(f"警告: Ebbinghaus复习系统需要安装Py-FSRS - pip install fsrs")
     print("运行 'pip install -r requirements.txt' 来安装依赖")
+
+# Story 12.4: Temporal Memory System导入 (Epic 12 - 3层记忆系统)
+# ✅ Verified from Story 12.4 (src/temporal_memory.py)
+try:
+    from temporal_memory import TemporalMemory
+    TEMPORAL_MEMORY_ENABLED = True
+    if LOGURU_ENABLED:
+        logger.info("Temporal Memory System (Story 12.4) loaded successfully")
+except ImportError as e:
+    TEMPORAL_MEMORY_ENABLED = False
+    if LOGURU_ENABLED:
+        logger.warning(f"Temporal Memory System未启用 - {e}")
+    print(f"警告: Temporal Memory System需要temporal_memory.py模块")
 
 # Story 8.11: Canvas专用错误日志系统集成
 try:
@@ -12928,6 +12952,52 @@ class CanvasOrchestrator:
                         "feedback": scoring_result.get("feedback", "")
                     })
 
+                # Story 12.4: 记录学习行为到Temporal Memory (AC 4.2)
+                # ✅ Verified from Story 12.4 (lines 1262-1316 in EPIC-12-STORY-MAP.md)
+                if self.temporal_memory is not None:
+                    try:
+                        concept = question_node.get("text", "")[:100]  # 限制概念长度
+
+                        # 记录评分行为
+                        self.temporal_memory.record_behavior(
+                            canvas_file=self.canvas_path,
+                            concept=concept,
+                            action_type="scoring",
+                            session_id=str(uuid.uuid4()),
+                            metadata=json.dumps({
+                                "score": total_score,
+                                "agent": "scoring-agent",
+                                "question_node_id": question_node_id,
+                                "yellow_node_id": yellow_id
+                            })
+                        )
+
+                        # 根据分数映射到FSRS Rating并更新FSRS卡片 (AC 4.4)
+                        if total_score < 60:
+                            rating = Rating.Again  # 完全忘记
+                        elif total_score < 75:
+                            rating = Rating.Hard  # 困难
+                        elif total_score < 90:
+                            rating = Rating.Good  # 良好
+                        else:
+                            rating = Rating.Easy  # 简单
+
+                        self.temporal_memory.update_behavior(
+                            concept=concept,
+                            rating=rating,
+                            canvas_file=self.canvas_path,
+                            session_id=None
+                        )
+
+                        if LOGURU_ENABLED:
+                            logger.debug(
+                                f"Temporal Memory recorded: concept='{concept[:30]}...', "
+                                f"score={total_score}, rating={rating.value}"
+                            )
+                    except Exception as e:
+                        if LOGURU_ENABLED:
+                            logger.error(f"Failed to record to Temporal Memory: {e}")
+
         except KeyboardInterrupt:
             # 7. 用户中断时，保存已完成的结果
             if show_progress:
@@ -13625,6 +13695,24 @@ class CanvasOrchestrator:
             "execution_history": [],  # 执行历史
             "progress_callbacks": {}  # 进度回调函数
         }
+
+        # Story 12.4: 初始化Temporal Memory System (Epic 12)
+        # ✅ Verified from Story 12.4 (AC 4.1-4.5)
+        if TEMPORAL_MEMORY_ENABLED:
+            # 使用Canvas文件名作为数据库前缀，每个Canvas独立数据库
+            canvas_name = Path(canvas_path).stem
+            db_path = f"data/temporal_memory_{canvas_name}.db"
+
+            # 确保data目录存在
+            os.makedirs("data", exist_ok=True)
+
+            self.temporal_memory = TemporalMemory(db_path=db_path)
+            if LOGURU_ENABLED:
+                logger.info(f"Temporal Memory initialized for canvas: {canvas_name}")
+        else:
+            self.temporal_memory = None
+            if LOGURU_ENABLED:
+                logger.warning("Temporal Memory System disabled (temporal_memory module not found)")
 
     def register_progress_callback(
         self,
