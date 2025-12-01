@@ -1,0 +1,290 @@
+/**
+ * Canvas Review System - Plugin Styles
+ *
+ * ✅ Verified from Story 13.1 Dev Notes: canvas-progress-tracker/docs/obsidian-plugin-prd.md#基础UI组件
+ *
+ * These styles follow Obsidian's native design patterns for consistency.
+ *
+ * @version 1.0.0
+ */
+
+/* ========== Base Variables ========== */
+.canvas-review-system {
+    --canvas-review-primary: var(--interactive-accent);
+    --canvas-review-secondary: var(--text-muted);
+    --canvas-review-success: #4caf50;
+    --canvas-review-warning: #ff9800;
+    --canvas-review-error: #f44336;
+    --canvas-review-border-radius: 8px;
+    --canvas-review-transition: all 0.2s ease;
+}
+
+/* ========== Dashboard Container ========== */
+.canvas-review-dashboard {
+    padding: var(--size-4-4);
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.canvas-review-dashboard h1 {
+    margin-bottom: var(--size-4-4);
+    color: var(--text-normal);
+}
+
+/* ========== Card Components ========== */
+.canvas-review-card {
+    background: var(--background-secondary);
+    border-radius: var(--canvas-review-border-radius);
+    padding: var(--size-4-4);
+    margin-bottom: var(--size-4-3);
+    border: 1px solid var(--background-modifier-border);
+    transition: var(--canvas-review-transition);
+}
+
+.canvas-review-card:hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.canvas-review-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--size-4-2);
+}
+
+.canvas-review-card-title {
+    font-size: var(--font-ui-medium);
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0;
+}
+
+.canvas-review-card-content {
+    color: var(--text-muted);
+}
+
+/* ========== Statistics Grid ========== */
+.canvas-review-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--size-4-3);
+    margin-bottom: var(--size-4-4);
+}
+
+.canvas-review-stat-item {
+    background: var(--background-primary);
+    border-radius: var(--canvas-review-border-radius);
+    padding: var(--size-4-3);
+    text-align: center;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-review-stat-value {
+    font-size: var(--font-ui-larger);
+    font-weight: 700;
+    color: var(--interactive-accent);
+    display: block;
+}
+
+.canvas-review-stat-label {
+    font-size: var(--font-ui-small);
+    color: var(--text-muted);
+    margin-top: var(--size-4-1);
+}
+
+/* ========== Progress Indicators ========== */
+.canvas-review-progress {
+    height: 8px;
+    background: var(--background-modifier-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: var(--size-4-2) 0;
+}
+
+.canvas-review-progress-bar {
+    height: 100%;
+    background: var(--interactive-accent);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.canvas-review-progress-bar.success {
+    background: var(--canvas-review-success);
+}
+
+.canvas-review-progress-bar.warning {
+    background: var(--canvas-review-warning);
+}
+
+.canvas-review-progress-bar.error {
+    background: var(--canvas-review-error);
+}
+
+/* ========== Color Indicators (Canvas Node Colors) ========== */
+.canvas-review-color-indicator {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: var(--size-4-1);
+}
+
+.canvas-review-color-indicator.red {
+    background: #ff6b6b;
+}
+
+.canvas-review-color-indicator.green {
+    background: #51cf66;
+}
+
+.canvas-review-color-indicator.purple {
+    background: #be4bdb;
+}
+
+.canvas-review-color-indicator.yellow {
+    background: #fcc419;
+}
+
+/* ========== List Styles ========== */
+.canvas-review-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.canvas-review-list-item {
+    display: flex;
+    align-items: center;
+    padding: var(--size-4-2) 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.canvas-review-list-item:last-child {
+    border-bottom: none;
+}
+
+.canvas-review-list-item-icon {
+    margin-right: var(--size-4-2);
+    color: var(--text-muted);
+}
+
+.canvas-review-list-item-content {
+    flex: 1;
+}
+
+.canvas-review-list-item-action {
+    opacity: 0;
+    transition: var(--canvas-review-transition);
+}
+
+.canvas-review-list-item:hover .canvas-review-list-item-action {
+    opacity: 1;
+}
+
+/* ========== Button Styles ========== */
+.canvas-review-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--size-4-2) var(--size-4-3);
+    border-radius: var(--canvas-review-border-radius);
+    border: none;
+    cursor: pointer;
+    font-size: var(--font-ui-small);
+    font-weight: 500;
+    transition: var(--canvas-review-transition);
+}
+
+.canvas-review-button-primary {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.canvas-review-button-primary:hover {
+    background: var(--interactive-accent-hover);
+}
+
+.canvas-review-button-secondary {
+    background: var(--background-modifier-border);
+    color: var(--text-normal);
+}
+
+.canvas-review-button-secondary:hover {
+    background: var(--background-modifier-border-hover);
+}
+
+/* ========== Modal Styles ========== */
+.canvas-review-modal {
+    padding: var(--size-4-4);
+}
+
+.canvas-review-modal-header {
+    margin-bottom: var(--size-4-3);
+}
+
+.canvas-review-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--size-4-2);
+    margin-top: var(--size-4-4);
+}
+
+/* ========== Loading States ========== */
+.canvas-review-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--size-4-4);
+    color: var(--text-muted);
+}
+
+.canvas-review-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: canvas-review-spin 1s linear infinite;
+    margin-right: var(--size-4-2);
+}
+
+@keyframes canvas-review-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ========== Empty States ========== */
+.canvas-review-empty {
+    text-align: center;
+    padding: var(--size-4-6);
+    color: var(--text-muted);
+}
+
+.canvas-review-empty-icon {
+    font-size: 48px;
+    margin-bottom: var(--size-4-2);
+    opacity: 0.5;
+}
+
+.canvas-review-empty-text {
+    font-size: var(--font-ui-medium);
+}
+
+/* ========== Responsive Adjustments ========== */
+@media (max-width: 768px) {
+    .canvas-review-stats-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .canvas-review-card {
+        padding: var(--size-4-3);
+    }
+}
+
+@media (max-width: 480px) {
+    .canvas-review-stats-grid {
+        grid-template-columns: 1fr;
+    }
+}

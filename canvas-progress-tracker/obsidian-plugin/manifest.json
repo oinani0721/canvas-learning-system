@@ -1,0 +1,11 @@
+{
+	"id": "canvas-review-system",
+	"name": "Canvas Review System",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Intelligent Canvas review management plugin based on Ebbinghaus algorithm for spaced repetition learning",
+	"author": "Canvas Learning System",
+	"authorUrl": "https://github.com/canvas-learning-system",
+	"fundingUrl": "https://github.com/canvas-learning-system",
+	"isDesktopOnly": false
+}
