@@ -1,290 +1,352 @@
 /**
- * Canvas Review System - Plugin Styles
+ * Canvas Review System - Error Handling Styles
  *
- * ✅ Verified from Story 13.1 Dev Notes: canvas-progress-tracker/docs/obsidian-plugin-prd.md#基础UI组件
- *
- * These styles follow Obsidian's native design patterns for consistency.
- *
- * @version 1.0.0
+ * Styles for error notifications, modals, and recovery UI.
  */
 
-/* ========== Base Variables ========== */
-.canvas-review-system {
-    --canvas-review-primary: var(--interactive-accent);
-    --canvas-review-secondary: var(--text-muted);
-    --canvas-review-success: #4caf50;
-    --canvas-review-warning: #ff9800;
-    --canvas-review-error: #f44336;
-    --canvas-review-border-radius: 8px;
-    --canvas-review-transition: all 0.2s ease;
+/* ========== Recovery Modal ========== */
+.canvas-review-recovery-modal {
+    max-width: 500px;
+    padding: 20px;
 }
 
-/* ========== Dashboard Container ========== */
-.canvas-review-dashboard {
-    padding: var(--size-4-4);
-    max-width: 1200px;
-    margin: 0 auto;
+.recovery-modal-header {
+    margin-bottom: 16px;
 }
 
-.canvas-review-dashboard h1 {
-    margin-bottom: var(--size-4-4);
-    color: var(--text-normal);
+.recovery-modal-title {
+    margin: 0;
+    color: var(--text-error);
 }
 
-/* ========== Card Components ========== */
-.canvas-review-card {
+.recovery-modal-operation {
+    margin-bottom: 12px;
+    padding: 8px;
     background: var(--background-secondary);
-    border-radius: var(--canvas-review-border-radius);
-    padding: var(--size-4-4);
-    margin-bottom: var(--size-4-3);
-    border: 1px solid var(--background-modifier-border);
-    transition: var(--canvas-review-transition);
-}
-
-.canvas-review-card:hover {
-    border-color: var(--interactive-accent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.canvas-review-card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: var(--size-4-2);
-}
-
-.canvas-review-card-title {
-    font-size: var(--font-ui-medium);
-    font-weight: 600;
-    color: var(--text-normal);
-    margin: 0;
-}
-
-.canvas-review-card-content {
-    color: var(--text-muted);
-}
-
-/* ========== Statistics Grid ========== */
-.canvas-review-stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: var(--size-4-3);
-    margin-bottom: var(--size-4-4);
-}
-
-.canvas-review-stat-item {
-    background: var(--background-primary);
-    border-radius: var(--canvas-review-border-radius);
-    padding: var(--size-4-3);
-    text-align: center;
-    border: 1px solid var(--background-modifier-border);
-}
-
-.canvas-review-stat-value {
-    font-size: var(--font-ui-larger);
-    font-weight: 700;
-    color: var(--interactive-accent);
-    display: block;
-}
-
-.canvas-review-stat-label {
-    font-size: var(--font-ui-small);
-    color: var(--text-muted);
-    margin-top: var(--size-4-1);
-}
-
-/* ========== Progress Indicators ========== */
-.canvas-review-progress {
-    height: 8px;
-    background: var(--background-modifier-border);
     border-radius: 4px;
-    overflow: hidden;
-    margin: var(--size-4-2) 0;
 }
 
-.canvas-review-progress-bar {
-    height: 100%;
-    background: var(--interactive-accent);
-    border-radius: 4px;
-    transition: width 0.3s ease;
+.recovery-modal-error {
+    margin-bottom: 16px;
 }
 
-.canvas-review-progress-bar.success {
-    background: var(--canvas-review-success);
+.recovery-modal-message {
+    font-size: 1em;
+    margin-bottom: 8px;
 }
 
-.canvas-review-progress-bar.warning {
-    background: var(--canvas-review-warning);
-}
-
-.canvas-review-progress-bar.error {
-    background: var(--canvas-review-error);
-}
-
-/* ========== Color Indicators (Canvas Node Colors) ========== */
-.canvas-review-color-indicator {
+.recovery-modal-badge {
     display: inline-block;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    margin-right: var(--size-4-1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
 }
 
-.canvas-review-color-indicator.red {
-    background: #ff6b6b;
+.recovery-modal-badge.severity-critical {
+    background: var(--color-red);
+    color: white;
 }
 
-.canvas-review-color-indicator.green {
-    background: #51cf66;
+.recovery-modal-badge.severity-warning {
+    background: var(--color-orange);
+    color: white;
 }
 
-.canvas-review-color-indicator.purple {
-    background: #be4bdb;
+.recovery-modal-badge.severity-info {
+    background: var(--color-blue);
+    color: white;
 }
 
-.canvas-review-color-indicator.yellow {
-    background: #fcc419;
+.recovery-modal-details {
+    margin-bottom: 16px;
 }
 
-/* ========== List Styles ========== */
-.canvas-review-list {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.canvas-review-list-item {
-    display: flex;
-    align-items: center;
-    padding: var(--size-4-2) 0;
-    border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.canvas-review-list-item:last-child {
-    border-bottom: none;
-}
-
-.canvas-review-list-item-icon {
-    margin-right: var(--size-4-2);
+.recovery-modal-details summary {
+    cursor: pointer;
     color: var(--text-muted);
 }
 
-.canvas-review-list-item-content {
-    flex: 1;
+.recovery-modal-context {
+    margin-top: 8px;
+    padding: 8px;
+    background: var(--background-primary);
+    border-radius: 4px;
+    font-size: 0.85em;
+    overflow-x: auto;
 }
 
-.canvas-review-list-item-action {
-    opacity: 0;
-    transition: var(--canvas-review-transition);
+.recovery-modal-options h3 {
+    margin-bottom: 12px;
 }
 
-.canvas-review-list-item:hover .canvas-review-list-item-action {
-    opacity: 1;
+.recovery-modal-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
 }
 
-/* ========== Button Styles ========== */
-.canvas-review-button {
-    display: inline-flex;
+.recovery-modal-button {
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.recovery-modal-help {
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--background-modifier-border);
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.recovery-modal-help p {
+    margin: 0;
+}
+
+/* ========== Error Log Modal ========== */
+.canvas-review-error-log-modal {
+    max-width: 700px;
+    max-height: 80vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.error-log-modal-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    padding: var(--size-4-2) var(--size-4-3);
-    border-radius: var(--canvas-review-border-radius);
+    margin-bottom: 16px;
+}
+
+.error-log-modal-title {
+    margin: 0;
+}
+
+.error-log-modal-count {
+    color: var(--text-muted);
+}
+
+.error-log-modal-stats {
+    margin-bottom: 16px;
+    padding: 12px;
+    background: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.error-log-severity-stats {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+
+.stat-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+}
+
+.stat-badge.severity-critical {
+    background: rgba(255, 0, 0, 0.1);
+    color: var(--color-red);
+}
+
+.stat-badge.severity-warning {
+    background: rgba(255, 165, 0, 0.1);
+    color: var(--color-orange);
+}
+
+.stat-badge.severity-info {
+    background: rgba(0, 0, 255, 0.1);
+    color: var(--color-blue);
+}
+
+.error-log-time-stats {
+    display: flex;
+    gap: 16px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.error-log-modal-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 12px;
+}
+
+.error-log-tab {
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: var(--background-secondary);
     border: none;
     cursor: pointer;
-    font-size: var(--font-ui-small);
-    font-weight: 500;
-    transition: var(--canvas-review-transition);
 }
 
-.canvas-review-button-primary {
+.error-log-tab.active {
     background: var(--interactive-accent);
-    color: var(--text-on-accent);
+    color: white;
 }
 
-.canvas-review-button-primary:hover {
-    background: var(--interactive-accent-hover);
-}
-
-.canvas-review-button-secondary {
-    background: var(--background-modifier-border);
-    color: var(--text-normal);
-}
-
-.canvas-review-button-secondary:hover {
-    background: var(--background-modifier-border-hover);
-}
-
-/* ========== Modal Styles ========== */
-.canvas-review-modal {
-    padding: var(--size-4-4);
-}
-
-.canvas-review-modal-header {
-    margin-bottom: var(--size-4-3);
-}
-
-.canvas-review-modal-footer {
+.error-log-modal-search {
+    margin-bottom: 12px;
     display: flex;
-    justify-content: flex-end;
-    gap: var(--size-4-2);
-    margin-top: var(--size-4-4);
+    gap: 8px;
 }
 
-/* ========== Loading States ========== */
-.canvas-review-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--size-4-4);
+.error-log-search-input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+}
+
+.error-log-search-clear {
+    padding: 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
     color: var(--text-muted);
 }
 
-.canvas-review-spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid var(--background-modifier-border);
-    border-top-color: var(--interactive-accent);
-    border-radius: 50%;
-    animation: canvas-review-spin 1s linear infinite;
-    margin-right: var(--size-4-2);
+.error-log-modal-list {
+    flex: 1;
+    overflow-y: auto;
+    margin-bottom: 16px;
+    max-height: 400px;
 }
 
-@keyframes canvas-review-spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-/* ========== Empty States ========== */
-.canvas-review-empty {
+.error-log-empty {
+    padding: 20px;
     text-align: center;
-    padding: var(--size-4-6);
     color: var(--text-muted);
 }
 
-.canvas-review-empty-icon {
-    font-size: 48px;
-    margin-bottom: var(--size-4-2);
-    opacity: 0.5;
+.error-log-entry {
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 4px;
+    border-left: 4px solid;
 }
 
-.canvas-review-empty-text {
-    font-size: var(--font-ui-medium);
+.error-log-entry.severity-critical {
+    background: rgba(255, 0, 0, 0.05);
+    border-left-color: var(--color-red);
 }
 
-/* ========== Responsive Adjustments ========== */
-@media (max-width: 768px) {
-    .canvas-review-stats-grid {
-        grid-template-columns: repeat(2, 1fr);
-    }
-
-    .canvas-review-card {
-        padding: var(--size-4-3);
-    }
+.error-log-entry.severity-warning {
+    background: rgba(255, 165, 0, 0.05);
+    border-left-color: var(--color-orange);
 }
 
-@media (max-width: 480px) {
-    .canvas-review-stats-grid {
-        grid-template-columns: 1fr;
-    }
+.error-log-entry.severity-info {
+    background: rgba(0, 0, 255, 0.05);
+    border-left-color: var(--color-blue);
+}
+
+.error-log-entry-header {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.error-log-entry-icon {
+    font-size: 1.2em;
+}
+
+.error-log-entry-type {
+    font-weight: 500;
+}
+
+.error-log-entry-time {
+    margin-left: auto;
+    font-size: 0.8em;
+    color: var(--text-muted);
+}
+
+.error-log-entry-message {
+    margin-bottom: 8px;
+}
+
+.error-log-entry-action {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.error-log-entry-details {
+    margin-top: 8px;
+}
+
+.error-log-entry-details summary {
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: 0.85em;
+}
+
+.error-log-entry-context,
+.error-log-entry-stack {
+    margin-top: 8px;
+}
+
+.error-log-entry-context pre,
+.error-log-entry-stack pre {
+    margin: 4px 0 0 0;
+    padding: 8px;
+    background: var(--background-primary);
+    border-radius: 4px;
+    font-size: 0.8em;
+    overflow-x: auto;
+}
+
+.error-log-entry-version {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+    font-size: 0.75em;
+    color: var(--text-faint);
+}
+
+.error-log-modal-footer {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.error-log-export-buttons {
+    display: flex;
+    gap: 8px;
+}
+
+.error-log-export-btn {
+    padding: 6px 12px;
+    border-radius: 4px;
+    background: var(--background-secondary);
+    border: none;
+    cursor: pointer;
+}
+
+.error-log-close-btn {
+    padding: 6px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+/* ========== Notice Styles ========== */
+/* Custom notice styles for severity-based coloring */
+.notice.canvas-notice-critical {
+    background: var(--color-red);
+    color: white;
+}
+
+.notice.canvas-notice-warning {
+    background: var(--color-orange);
+    color: white;
+}
+
+.notice.canvas-notice-info {
+    background: var(--interactive-accent);
+    color: white;
 }
