@@ -3,12 +3,13 @@
  *
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (Plugin Class, PluginSettingTab, Setting)
  * ✅ Verified from Story 13.1 Dev Notes: canvas-progress-tracker/docs/obsidian-plugin-architecture.md#插件核心类
+ * ✅ Story 13.5: Added ContextMenuManager, BackupProtectionManager, HotkeyManager
  *
  * This plugin provides Ebbinghaus-based intelligent Canvas review management
  * integrated with the Canvas Learning System.
  *
  * @module main
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import {
@@ -20,6 +21,11 @@ import {
     MarkdownView
 } from 'obsidian';
 import { PluginSettings, DEFAULT_SETTINGS, validateSettings } from './src/types/settings';
+
+// Story 13.5 Imports
+import { ContextMenuManager } from './src/managers/ContextMenuManager';
+import { BackupProtectionManager } from './src/managers/BackupProtectionManager';
+import { HotkeyManager, formatHotkey } from './src/managers/HotkeyManager';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -38,6 +44,19 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Auto-sync interval ID for cleanup */
     private autoSyncIntervalId: number | null = null;
+
+    // ============================================================================
+    // Story 13.5: Context Menu and Hotkey Managers
+    // ============================================================================
+
+    /** Backup protection manager - manages SCP-003 backup protection */
+    backupProtectionManager!: BackupProtectionManager;
+
+    /** Context menu manager - handles right-click menus */
+    contextMenuManager!: ContextMenuManager;
+
+    /** Hotkey manager - handles command registration */
+    hotkeyManager!: HotkeyManager;
 
     /**
      * Plugin load lifecycle method
@@ -117,36 +136,145 @@ export default class CanvasReviewPlugin extends Plugin {
     /**
      * Initialize manager instances
      *
-     * Placeholder method for future stories (Story 13.2+)
-     * Will initialize:
-     * - DataManager
-     * - CommandWrapper
-     * - UIManager
-     * - SyncManager
+     * Initializes all plugin managers:
+     * - BackupProtectionManager (Story 13.5)
+     * - ContextMenuManager (Story 13.5)
+     * - HotkeyManager (Story 13.5)
+     * - DataManager (Story 13.2+)
+     * - CommandWrapper (Story 13.3+)
+     * - UIManager (Story 13.4+)
      */
     private initializeManagers(): void {
         if (this.settings.debugMode) {
-            console.log('Canvas Review System: Initializing managers (placeholder)');
+            console.log('Canvas Review System: Initializing managers');
         }
+
+        // ====================================================================
+        // Story 13.5: Initialize Context Menu and Hotkey Managers
+        // ====================================================================
+
+        // Initialize BackupProtectionManager first (required by ContextMenuManager)
+        // ✅ Verified from Story 13.5 Dev Notes - BackupProtectionManager
+        this.backupProtectionManager = new BackupProtectionManager(this.app.vault);
+        this.backupProtectionManager.initialize().catch(error => {
+            console.error('Canvas Review System: Failed to initialize BackupProtectionManager:', error);
+        });
+
+        // Initialize ContextMenuManager
+        // ✅ Verified from Story 13.5 Dev Notes - ContextMenuManager
+        this.contextMenuManager = new ContextMenuManager(
+            this.app,
+            this.backupProtectionManager,
+            this.settings.contextMenu
+        );
+        this.contextMenuManager.setDebugMode(this.settings.debugMode);
+        this.contextMenuManager.initialize(this);
+
+        // Initialize HotkeyManager
+        // ✅ Verified from Story 13.5 Dev Notes - HotkeyManager
+        this.hotkeyManager = new HotkeyManager(
+            this.app,
+            this,
+            this.settings.hotkeys
+        );
+        this.hotkeyManager.setDebugMode(this.settings.debugMode);
+        this.hotkeyManager.initialize();
+
+        // Setup action registry to connect context menus to commands
+        this.setupMenuActionRegistry();
+
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Managers initialized successfully');
+        }
+
         // TODO: Story 13.2+ - Initialize DataManager
         // TODO: Story 13.3+ - Initialize CommandWrapper
         // TODO: Story 13.4+ - Initialize UIManager
-        // TODO: Story 13.5+ - Initialize SyncManager
+    }
+
+    /**
+     * Setup menu action registry
+     * Connects context menu items to command handlers
+     *
+     * Story 13.5: AC 1, 2 - Menu to command integration
+     */
+    private setupMenuActionRegistry(): void {
+        this.contextMenuManager.setActionRegistry({
+            executeDecomposition: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Execute decomposition', context);
+                }
+                new Notice('拆解功能将在后续Story中实现');
+            },
+            executeScoring: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Execute scoring', context);
+                }
+                new Notice('评分功能将在后续Story中实现');
+            },
+            executeOralExplanation: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Execute oral explanation', context);
+                }
+                new Notice('口语化解释功能将在后续Story中实现');
+            },
+            executeFourLevelExplanation: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Execute four-level explanation', context);
+                }
+                new Notice('四层次解答功能将在后续Story中实现');
+            },
+            openReviewDashboard: async (context) => {
+                this.showReviewDashboard();
+            },
+            generateVerificationCanvas: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Generate verification canvas', context);
+                }
+                new Notice('检验白板生成功能将在后续Story中实现');
+            },
+            viewNodeHistory: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: View node history', context);
+                }
+                new Notice('节点历史功能将在后续Story中实现');
+            },
+            addToReviewPlan: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Add to review plan', context);
+                }
+                new Notice('复习计划功能将在后续Story中实现');
+            },
+            generateComparisonTable: async (context) => {
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Generate comparison table', context);
+                }
+                new Notice('对比表生成功能将在后续Story中实现');
+            },
+        });
     }
 
     /**
      * Cleanup manager instances
      *
-     * Placeholder method for future stories
+     * Cleans up all initialized managers
      */
     private cleanupManagers(): void {
         if (this.settings.debugMode) {
-            console.log('Canvas Review System: Cleaning up managers (placeholder)');
+            console.log('Canvas Review System: Cleaning up managers');
         }
+
+        // Story 13.5: Cleanup context menu and hotkey managers
+        if (this.contextMenuManager) {
+            this.contextMenuManager.cleanup();
+        }
+        if (this.hotkeyManager) {
+            this.hotkeyManager.cleanup();
+        }
+
         // TODO: Story 13.2+ - Cleanup DataManager
         // TODO: Story 13.3+ - Cleanup CommandWrapper
         // TODO: Story 13.4+ - Cleanup UIManager
-        // TODO: Story 13.5+ - Cleanup SyncManager
     }
 
     /**

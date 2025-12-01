@@ -3,10 +3,21 @@
  *
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (Plugin Settings Interface)
  * ✅ Verified from Story 13.1 Dev Notes: canvas-progress-tracker/docs/obsidian-plugin-prd.md#技术栈
+ * ✅ Story 13.5: Added context menu and hotkey settings
  *
  * @module types/settings
- * @version 1.0.0
+ * @version 1.1.0
  */
+
+import type {
+    ContextMenuSettings,
+    HotkeySettings,
+    HotkeyPreset,
+} from './menu';
+import {
+    DEFAULT_CONTEXT_MENU_SETTINGS,
+    DEFAULT_HOTKEY_SETTINGS,
+} from './menu';
 
 /**
  * Plugin settings interface
@@ -70,6 +81,38 @@ export interface PluginSettings {
      * @default 5
      */
     maxConcurrentOps: number;
+
+    // ============================================================================
+    // Story 13.5: Context Menu and Hotkey Settings
+    // ============================================================================
+
+    /**
+     * Context menu settings
+     * Controls the behavior of right-click context menus
+     * @default DEFAULT_CONTEXT_MENU_SETTINGS
+     */
+    contextMenu: ContextMenuSettings;
+
+    /**
+     * Hotkey settings
+     * Controls hotkey presets and custom bindings
+     * @default DEFAULT_HOTKEY_SETTINGS
+     */
+    hotkeys: HotkeySettings;
+
+    /**
+     * Maximum backups to keep per canvas file
+     * Older backups are automatically cleaned up
+     * @default 10
+     */
+    maxBackupsPerFile: number;
+
+    /**
+     * Auto-backup before modifications
+     * Creates a backup before any canvas operation
+     * @default true
+     */
+    autoBackup: boolean;
 }
 
 /**
@@ -86,7 +129,12 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     commandTimeout: 30000,
     theme: 'auto',
     debugMode: false,
-    maxConcurrentOps: 5
+    maxConcurrentOps: 5,
+    // Story 13.5: Context Menu and Hotkey Settings
+    contextMenu: DEFAULT_CONTEXT_MENU_SETTINGS,
+    hotkeys: DEFAULT_HOTKEY_SETTINGS,
+    maxBackupsPerFile: 10,
+    autoBackup: true,
 };
 
 /**
