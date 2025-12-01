@@ -178,6 +178,125 @@ export class Plugin {
   registerEvent(event: any): void {}
 }
 
+// Mock Menu class
+// ✅ Verified from @obsidian-canvas Skill (Context Menus)
+export class Menu {
+  private items: MenuItem[] = [];
+  private separators: number[] = [];
+
+  addItem(callback: (item: MenuItem) => void): this {
+    const item = new MenuItem();
+    callback(item);
+    this.items.push(item);
+    return this;
+  }
+
+  addSeparator(): this {
+    this.separators.push(this.items.length);
+    return this;
+  }
+
+  // Test helpers
+  _getItems(): MenuItem[] {
+    return this.items;
+  }
+
+  _getSeparatorCount(): number {
+    return this.separators.length;
+  }
+}
+
+// Mock MenuItem class
+export class MenuItem {
+  private _title: string = '';
+  private _icon: string | null = null;
+  private _clickCallback: (() => void) | null = null;
+  private _disabled: boolean = false;
+
+  setTitle(title: string): this {
+    this._title = title;
+    return this;
+  }
+
+  setIcon(icon: string): this {
+    this._icon = icon;
+    return this;
+  }
+
+  onClick(callback: () => void): this {
+    this._clickCallback = callback;
+    return this;
+  }
+
+  setDisabled(disabled: boolean): this {
+    this._disabled = disabled;
+    return this;
+  }
+
+  // Test helpers
+  _getTitle(): string {
+    return this._title;
+  }
+
+  _getIcon(): string | null {
+    return this._icon;
+  }
+
+  _click(): void {
+    if (this._clickCallback) {
+      this._clickCallback();
+    }
+  }
+}
+
+// Mock Editor class
+export class Editor {
+  private _selection: string = '';
+  private _content: string = '';
+
+  getSelection(): string {
+    return this._selection;
+  }
+
+  replaceSelection(replacement: string): void {
+    this._selection = replacement;
+  }
+
+  getValue(): string {
+    return this._content;
+  }
+
+  setValue(content: string): void {
+    this._content = content;
+  }
+
+  // Test helpers
+  _setSelection(selection: string): void {
+    this._selection = selection;
+  }
+
+  _setContent(content: string): void {
+    this._content = content;
+  }
+}
+
+// Mock MarkdownView class
+export class MarkdownView {
+  file: TFile | null;
+  editor: Editor;
+
+  constructor(file: TFile | null = null) {
+    this.file = file;
+    this.editor = new Editor();
+  }
+}
+
+// Mock EventRef type
+export interface EventRef {
+  event: string;
+  callback: Function;
+}
+
 // Export App interface mock
 export interface App {
   vault: Vault;

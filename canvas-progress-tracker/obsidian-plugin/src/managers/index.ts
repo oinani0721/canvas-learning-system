@@ -1,16 +1,29 @@
 /**
  * Canvas Review System - Manager Index
  *
- * Placeholder exports for manager classes.
- * These will be implemented in subsequent stories:
- * - Story 13.2: DataManager
+ * Exports for manager classes:
+ * - Story 13.2: DataManager (placeholder), CanvasFileManager, CanvasBackupManager
  * - Story 13.3: CommandWrapper
  * - Story 13.4: UIManager
- * - Story 13.5: SyncManager
+ * - Story 13.5: ContextMenuManager, BackupProtectionManager, HotkeyManager
  *
  * @module managers
- * @version 1.0.0
+ * @version 1.1.0
  */
+
+// Story 13.2 Managers
+export { CanvasFileManager } from './CanvasFileManager';
+export { CanvasBackupManager } from './CanvasBackupManager';
+
+// Story 13.4 Managers
+export { CommandWrapper, createCommandWrapper, createMockCommandWrapper } from './CommandWrapper';
+
+// Story 13.5 Managers
+export { ContextMenuManager } from './ContextMenuManager';
+export type { MenuActionRegistry, MenuActionCallback } from './ContextMenuManager';
+export { BackupProtectionManager } from './BackupProtectionManager';
+export { HotkeyManager, RECOMMENDED_HOTKEYS, formatHotkey } from './HotkeyManager';
+export type { CommandCallback, EditorCheckCallback } from './HotkeyManager';
 
 // Placeholder interfaces for future implementations
 
