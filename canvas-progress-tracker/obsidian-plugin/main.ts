@@ -3,30 +3,35 @@
  *
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (Plugin Class, PluginSettingTab, Setting)
  * ✅ Verified from Story 13.1 Dev Notes: canvas-progress-tracker/docs/obsidian-plugin-architecture.md#插件核心类
+ * ✅ Verified from Story 13.6: Settings Panel implementation
  *
  * This plugin provides Ebbinghaus-based intelligent Canvas review management
  * integrated with the Canvas Learning System.
  *
  * @module main
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import {
     App,
     Plugin,
-    PluginSettingTab,
-    Setting,
     Notice,
     MarkdownView
 } from 'obsidian';
-import { PluginSettings, DEFAULT_SETTINGS, validateSettings } from './src/types/settings';
+import {
+    PluginSettings,
+    DEFAULT_SETTINGS,
+    validateSettings,
+    migrateSettings
+} from './src/types/settings';
+import { CanvasReviewSettingsTab } from './src/settings/PluginSettingsTab';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
  *
  * Implements the core plugin functionality including:
  * - Plugin lifecycle management (onload/onunload)
- * - Settings management
+ * - Settings management with migration support
  * - Command registration
  * - Manager initialization placeholders
  *
@@ -43,7 +48,7 @@ export default class CanvasReviewPlugin extends Plugin {
      * Plugin load lifecycle method
      *
      * Called when the plugin is loaded. Sets up all plugin components:
-     * - Loads saved settings
+     * - Loads saved settings (with migration support)
      * - Initializes managers (placeholders for future stories)
      * - Registers commands
      * - Adds settings tab
@@ -54,7 +59,7 @@ export default class CanvasReviewPlugin extends Plugin {
         console.log('Canvas Review System: Loading plugin...');
 
         try {
-            // Load settings from data.json
+            // Load settings from data.json (with migration support)
             await this.loadSettings();
 
             // Initialize managers (placeholder for future stories)
@@ -63,12 +68,15 @@ export default class CanvasReviewPlugin extends Plugin {
             // Register commands
             this.registerCommands();
 
-            // Add settings tab
+            // Add comprehensive settings tab (Story 13.6)
             // ✅ Verified from Context7: /obsidianmd/obsidian-api (addSettingTab)
             this.addSettingTab(new CanvasReviewSettingsTab(this.app, this));
 
             // Setup auto-sync if enabled
             this.setupAutoSync();
+
+            // Apply custom CSS if configured
+            this.applyCustomCss();
 
             // Log successful load
             console.log('Canvas Review System: Plugin loaded successfully');
@@ -90,6 +98,7 @@ export default class CanvasReviewPlugin extends Plugin {
      * Called when the plugin is disabled. Cleans up all resources:
      * - Stops auto-sync
      * - Cleans up managers
+     * - Removes custom CSS
      * - Saves final state
      *
      * ✅ Verified from Context7: /obsidianmd/obsidian-api (Plugin.onunload)
@@ -103,6 +112,9 @@ export default class CanvasReviewPlugin extends Plugin {
                 window.clearInterval(this.autoSyncIntervalId);
                 this.autoSyncIntervalId = null;
             }
+
+            // Remove custom CSS
+            this.removeCustomCss();
 
             // Cleanup managers (placeholder for future stories)
             this.cleanupManagers();
@@ -188,6 +200,27 @@ export default class CanvasReviewPlugin extends Plugin {
             }
         });
 
+        // Register "Create Backup" command
+        this.addCommand({
+            id: 'create-backup',
+            name: 'Create Canvas Data Backup',
+            callback: async () => {
+                new Notice('Canvas Review System: Creating backup...');
+                // TODO: Implement actual backup in Story 13.2+
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                new Notice('Canvas Review System: Backup created (placeholder)');
+            }
+        });
+
+        // Register "Run Diagnostics" command
+        this.addCommand({
+            id: 'run-diagnostics',
+            name: 'Run Canvas Review Diagnostics',
+            callback: () => {
+                this.runDiagnostics();
+            }
+        });
+
         if (this.settings.debugMode) {
             console.log('Canvas Review System: Commands registered');
         }
@@ -246,6 +279,12 @@ export default class CanvasReviewPlugin extends Plugin {
      * ✅ Verified from Context7: /obsidianmd/obsidian-api (registerInterval)
      */
     private setupAutoSync(): void {
+        // Clear existing interval if any
+        if (this.autoSyncIntervalId !== null) {
+            window.clearInterval(this.autoSyncIntervalId);
+            this.autoSyncIntervalId = null;
+        }
+
         if (this.settings.autoSyncInterval > 0) {
             const intervalMs = this.settings.autoSyncInterval * 60 * 1000;
 
@@ -267,14 +306,102 @@ export default class CanvasReviewPlugin extends Plugin {
     }
 
     /**
-     * Load settings from storage
+     * Apply custom CSS from settings
+     */
+    private applyCustomCss(): void {
+        if (this.settings.customCss) {
+            const styleEl = document.createElement('style');
+            styleEl.id = 'canvas-review-custom-css';
+            styleEl.textContent = this.settings.customCss;
+            document.head.appendChild(styleEl);
+
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: Custom CSS applied');
+            }
+        }
+    }
+
+    /**
+     * Remove custom CSS
+     */
+    private removeCustomCss(): void {
+        const styleEl = document.getElementById('canvas-review-custom-css');
+        if (styleEl) {
+            styleEl.remove();
+        }
+    }
+
+    /**
+     * Run diagnostics and show results
+     */
+    private runDiagnostics(): void {
+        const validation = validateSettings(this.settings);
+        let message = 'Canvas Review System Diagnostics:\n\n';
+
+        // Settings validation
+        if (validation.isValid) {
+            message += '✅ Settings: Valid\n';
+        } else {
+            message += '❌ Settings: Invalid\n';
+            validation.errors.forEach(err => {
+                message += `   - ${err}\n`;
+            });
+        }
+
+        // Warnings
+        if (validation.warnings.length > 0) {
+            message += '\n⚠️ Warnings:\n';
+            validation.warnings.forEach(warn => {
+                message += `   - ${warn}\n`;
+            });
+        }
+
+        // Connection info
+        message += `\n📡 Connection:\n`;
+        message += `   URL: ${this.settings.claudeCodeUrl || 'Not configured'}\n`;
+        message += `   Cache: ${this.settings.enableCache ? 'Enabled' : 'Disabled'}\n`;
+        message += `   Timeout: ${this.settings.commandTimeout / 1000}s\n`;
+
+        // Storage info
+        message += `\n💾 Storage:\n`;
+        message += `   Path: ${this.settings.dataPath || 'Not configured'}\n`;
+        message += `   Auto-backup: ${this.settings.autoBackup ? 'Enabled' : 'Disabled'}\n`;
+        message += `   Auto-sync: ${this.settings.autoSyncInterval > 0 ? `${this.settings.autoSyncInterval}min` : 'Disabled'}\n`;
+
+        // Debug info
+        message += `\n🔧 Debug:\n`;
+        message += `   Debug mode: ${this.settings.debugMode ? 'On' : 'Off'}\n`;
+        message += `   Performance monitoring: ${this.settings.enablePerformanceMonitoring ? 'On' : 'Off'}\n`;
+        message += `   Experimental features: ${this.settings.enableExperimentalFeatures ? 'On' : 'Off'}\n`;
+
+        console.log(message);
+        new Notice('Diagnostics complete. Check console for details.');
+    }
+
+    /**
+     * Load settings from storage with migration support
      *
-     * Loads saved settings and merges with defaults.
+     * Loads saved settings, merges with defaults, and migrates if needed.
      *
      * ✅ Verified from Context7: /obsidianmd/obsidian-api (loadSettings pattern)
      */
     async loadSettings(): Promise<void> {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+        const savedData = await this.loadData();
+
+        // Migrate settings if needed (handles version upgrades)
+        if (savedData) {
+            this.settings = migrateSettings(savedData);
+
+            // Save migrated settings if version changed
+            if (savedData.settingsVersion !== this.settings.settingsVersion) {
+                await this.saveSettings();
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Settings migrated to version', this.settings.settingsVersion);
+                }
+            }
+        } else {
+            this.settings = { ...DEFAULT_SETTINGS };
+        }
     }
 
     /**
@@ -289,179 +416,16 @@ export default class CanvasReviewPlugin extends Plugin {
         if (!validation.isValid) {
             console.warn('Canvas Review System: Invalid settings:', validation.errors);
         }
+        if (validation.warnings.length > 0) {
+            console.warn('Canvas Review System: Settings warnings:', validation.warnings);
+        }
         await this.saveData(this.settings);
-    }
-}
 
-/**
- * Plugin Settings Tab
- *
- * Implements the settings interface shown in Obsidian's settings panel.
- * Provides controls for all configurable plugin options.
- *
- * ✅ Verified from Context7: /obsidianmd/obsidian-api (PluginSettingTab, Setting)
- */
-class CanvasReviewSettingsTab extends PluginSettingTab {
-    plugin: CanvasReviewPlugin;
+        // Re-apply custom CSS when settings are saved
+        this.removeCustomCss();
+        this.applyCustomCss();
 
-    constructor(app: App, plugin: CanvasReviewPlugin) {
-        super(app, plugin);
-        this.plugin = plugin;
-    }
-
-    /**
-     * Display the settings interface
-     *
-     * Renders all setting controls in the settings panel.
-     *
-     * ✅ Verified from Context7: /obsidianmd/obsidian-api (PluginSettingTab.display)
-     */
-    display(): void {
-        const { containerEl } = this;
-        containerEl.empty();
-
-        // Header
-        containerEl.createEl('h2', { text: 'Canvas Review System Settings' });
-
-        // Connection Settings Section
-        containerEl.createEl('h3', { text: 'Connection Settings' });
-
-        // Claude Code URL setting
-        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addText)
-        new Setting(containerEl)
-            .setName('Claude Code Service URL')
-            .setDesc('Base URL for the Claude Code API service')
-            .addText(text => text
-                .setPlaceholder('http://localhost:3005')
-                .setValue(this.plugin.settings.claudeCodeUrl)
-                .onChange(async (value) => {
-                    this.plugin.settings.claudeCodeUrl = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Data path setting
-        new Setting(containerEl)
-            .setName('Data Storage Path')
-            .setDesc('Path where Canvas learning system data is stored')
-            .addText(text => text
-                .setPlaceholder('C:/Users/YourName/CanvasData')
-                .setValue(this.plugin.settings.dataPath)
-                .onChange(async (value) => {
-                    this.plugin.settings.dataPath = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Sync Settings Section
-        containerEl.createEl('h3', { text: 'Sync Settings' });
-
-        // Auto-sync interval
-        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addSlider)
-        new Setting(containerEl)
-            .setName('Auto-sync Interval')
-            .setDesc('Interval in minutes for automatic sync (0 to disable)')
-            .addSlider(slider => slider
-                .setLimits(0, 60, 1)
-                .setValue(this.plugin.settings.autoSyncInterval)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.autoSyncInterval = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Command timeout
-        new Setting(containerEl)
-            .setName('Command Timeout')
-            .setDesc('Maximum time to wait for commands (in seconds)')
-            .addSlider(slider => slider
-                .setLimits(5, 300, 5)
-                .setValue(this.plugin.settings.commandTimeout / 1000)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.commandTimeout = value * 1000;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Performance Settings Section
-        containerEl.createEl('h3', { text: 'Performance Settings' });
-
-        // Enable cache
-        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addToggle)
-        new Setting(containerEl)
-            .setName('Enable Cache')
-            .setDesc('Cache Canvas data locally for faster access')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableCache)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableCache = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Max concurrent operations
-        new Setting(containerEl)
-            .setName('Max Concurrent Operations')
-            .setDesc('Maximum number of parallel operations')
-            .addSlider(slider => slider
-                .setLimits(1, 20, 1)
-                .setValue(this.plugin.settings.maxConcurrentOps)
-                .setDynamicTooltip()
-                .onChange(async (value) => {
-                    this.plugin.settings.maxConcurrentOps = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Appearance Settings Section
-        containerEl.createEl('h3', { text: 'Appearance' });
-
-        // Theme setting
-        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addDropdown)
-        new Setting(containerEl)
-            .setName('Theme')
-            .setDesc('Plugin UI theme')
-            .addDropdown(dropdown => dropdown
-                .addOption('auto', 'Auto (Follow Obsidian)')
-                .addOption('light', 'Light')
-                .addOption('dark', 'Dark')
-                .setValue(this.plugin.settings.theme)
-                .onChange(async (value) => {
-                    // Type assertion since we control the dropdown options
-                    this.plugin.settings.theme = value as 'light' | 'dark' | 'auto';
-                    await this.plugin.saveSettings();
-                }));
-
-        // Debug Settings Section
-        containerEl.createEl('h3', { text: 'Debug' });
-
-        // Debug mode
-        new Setting(containerEl)
-            .setName('Debug Mode')
-            .setDesc('Enable detailed logging to console')
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.debugMode)
-                .onChange(async (value) => {
-                    this.plugin.settings.debugMode = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Reset Settings Button
-        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addButton)
-        new Setting(containerEl)
-            .setName('Reset Settings')
-            .setDesc('Reset all settings to default values')
-            .addButton(button => button
-                .setButtonText('Reset')
-                .setWarning()
-                .onClick(async () => {
-                    this.plugin.settings = Object.assign({}, DEFAULT_SETTINGS);
-                    await this.plugin.saveSettings();
-                    this.display(); // Refresh the settings tab
-                    new Notice('Canvas Review System: Settings reset to defaults');
-                }));
-
-        // Footer with version info
-        containerEl.createEl('hr');
-        containerEl.createEl('p', {
-            text: 'Canvas Review System v1.0.0',
-            cls: 'setting-item-description'
-        });
+        // Restart auto-sync with new interval
+        this.setupAutoSync();
     }
 }

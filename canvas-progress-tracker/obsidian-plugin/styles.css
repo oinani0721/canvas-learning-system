@@ -1,8 +1,294 @@
 /**
- * Canvas Review System - Error Handling Styles
+ * Canvas Review System - Plugin Styles
  *
- * Styles for error notifications, modals, and recovery UI.
+ * Styles for:
+ * - Settings panel and navigation
+ * - Error notifications, modals, and recovery UI
+ *
+ * ✅ Verified from Story 13.6 Dev Notes: Settings panel styling
  */
+
+/* ========== Settings Panel ========== */
+.canvas-review-settings {
+    max-width: 100%;
+}
+
+/* Settings Header */
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 0 0 16px 0;
+    margin-bottom: 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.settings-title-container h2 {
+    margin: 0 0 4px 0;
+    font-size: 1.5em;
+}
+
+.settings-subtitle {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+.settings-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+/* Main Container - Side Navigation Layout */
+.settings-main-container {
+    display: flex;
+    gap: 24px;
+    min-height: 400px;
+}
+
+/* Navigation Sidebar */
+.settings-nav-container {
+    flex-shrink: 0;
+    width: 220px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    padding: 8px;
+}
+
+.settings-nav-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.settings-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.settings-nav-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.settings-nav-item.active {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.settings-nav-item .nav-icon {
+    font-size: 1.2em;
+    flex-shrink: 0;
+}
+
+.settings-nav-item .nav-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.settings-nav-item .nav-name {
+    font-weight: 500;
+    font-size: 0.95em;
+}
+
+.settings-nav-item .nav-desc {
+    font-size: 0.75em;
+    opacity: 0.7;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.settings-nav-item.active .nav-desc {
+    opacity: 0.85;
+}
+
+/* Content Area */
+.settings-content-container {
+    flex: 1;
+    min-width: 0;
+    padding-right: 8px;
+}
+
+/* Section Header */
+.section-header {
+    margin-bottom: 20px;
+}
+
+.section-header h3 {
+    margin: 0 0 4px 0;
+    font-size: 1.2em;
+}
+
+.section-header .section-desc {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 0.9em;
+}
+
+/* Setting Groups */
+.setting-group {
+    margin: 24px 0 8px 0;
+}
+
+.setting-group:first-of-type {
+    margin-top: 0;
+}
+
+.setting-group-title {
+    margin: 0 0 12px 0;
+    padding-bottom: 8px;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--text-normal);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* Path Info Display */
+.path-info {
+    margin: 8px 0 16px 0;
+    padding: 12px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    font-size: 0.85em;
+}
+
+.path-info-item {
+    color: var(--text-muted);
+    margin: 4px 0;
+}
+
+/* Reminder Days Info */
+.reminder-days-info {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background-color: var(--background-secondary);
+    border-radius: 4px;
+}
+
+.reminder-days-info p {
+    margin: 0;
+}
+
+/* System Info */
+.system-info {
+    padding: 12px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.system-info p {
+    margin: 4px 0;
+}
+
+/* Custom Setting Styles */
+.canvas-review-settings .setting-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--background-modifier-border-hover);
+}
+
+.canvas-review-settings .setting-item:last-child {
+    border-bottom: none;
+}
+
+/* TextArea in Settings */
+.canvas-review-settings textarea {
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+    resize: vertical;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .settings-header {
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .settings-actions {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .settings-main-container {
+        flex-direction: column;
+    }
+
+    .settings-nav-container {
+        width: 100%;
+        order: -1;
+    }
+
+    .settings-nav-list {
+        flex-direction: row;
+        flex-wrap: wrap;
+    }
+
+    .settings-nav-item {
+        flex: 1 1 auto;
+        min-width: 120px;
+        justify-content: center;
+        text-align: center;
+    }
+
+    .settings-nav-item .nav-text {
+        display: none;
+    }
+
+    .settings-nav-item .nav-icon {
+        font-size: 1.5em;
+    }
+}
+
+/* Connection Test Status */
+.connection-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.connection-status.success {
+    background-color: rgba(0, 200, 83, 0.1);
+    color: var(--text-success);
+}
+
+.connection-status.error {
+    background-color: rgba(255, 0, 0, 0.1);
+    color: var(--text-error);
+}
+
+.connection-status.testing {
+    background-color: rgba(255, 200, 0, 0.1);
+    color: var(--text-warning);
+}
+
+/* Animation for Settings Panel */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.settings-content-container > * {
+    animation: fadeIn 0.2s ease-out;
+}
 
 /* ========== Recovery Modal ========== */
 .canvas-review-recovery-modal {
