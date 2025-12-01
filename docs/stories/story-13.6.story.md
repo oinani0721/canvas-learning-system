@@ -1,4 +1,4 @@
-# Story Obsidian-Plugin-1.6: 基础UI组件 - 设置面板
+# Story 13.6: 设置面板
 
 ## Status
 Pending

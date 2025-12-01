@@ -1,4 +1,4 @@
-# Story Obsidian-Plugin-1.1: Obsidian插件核心框架搭建
+# Story 13.1: Plugin项目初始化
 
 ## Status
 Pending

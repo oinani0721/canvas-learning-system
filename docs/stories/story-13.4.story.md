@@ -1,4 +1,4 @@
-# Story Obsidian-Plugin-1.2: 命令包装器实现
+# Story 13.4: 核心命令 (拆解、评分、解释)
 
 ## Status
 Pending
