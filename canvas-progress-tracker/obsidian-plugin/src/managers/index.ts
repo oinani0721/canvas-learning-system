@@ -74,18 +74,7 @@ export class DataManager implements IDataManager {
     }
 }
 
-export class CommandWrapper implements ICommandWrapper {
-    async initialize(): Promise<void> {
-        console.log('CommandWrapper: Placeholder initialized');
-    }
-    cleanup(): void {
-        console.log('CommandWrapper: Placeholder cleanup');
-    }
-    async executeCommand(command: string, args?: Record<string, unknown>): Promise<unknown> {
-        console.log(`CommandWrapper: Placeholder execute ${command}`);
-        return null;
-    }
-}
+// Note: CommandWrapper exported from ./CommandWrapper (Story 13.4 - real impl)
 
 export class UIManager implements IUIManager {
     async initialize(): Promise<void> {
