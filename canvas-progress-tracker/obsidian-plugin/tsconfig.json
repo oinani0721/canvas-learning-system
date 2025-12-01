@@ -1,38 +1,37 @@
 {
-	"compilerOptions": {
-		"baseUrl": ".",
-		"inlineSourceMap": true,
-		"inlineSources": true,
-		"module": "ESNext",
-		"target": "ES6",
-		"allowJs": true,
-		"noImplicitAny": true,
-		"strict": true,
-		"moduleResolution": "node",
-		"importHelpers": true,
-		"isolatedModules": true,
-		"strictNullChecks": true,
-		"esModuleInterop": true,
-		"lib": [
-			"DOM",
-			"ES5",
-			"ES6",
-			"ES7"
-		],
-		"outDir": "./dist",
-		"rootDir": ".",
-		"paths": {
-			"@types/*": ["src/types/*"],
-			"@managers/*": ["src/managers/*"],
-			"@components/*": ["src/components/*"],
-			"@utils/*": ["src/utils/*"]
-		}
-	},
-	"include": [
-		"**/*.ts"
-	],
-	"exclude": [
-		"node_modules",
-		"dist"
-	]
+  "compilerOptions": {
+    "baseUrl": ".",
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "lib": ["ES2020", "DOM"],
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictNullChecks": true,
+    "isolatedModules": true,
+    "importHelpers": true,
+    "declaration": true,
+    "declarationMap": true,
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "resolveJsonModule": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@types/*": ["src/types/*"],
+      "@managers/*": ["src/managers/*"],
+      "@components/*": ["src/components/*"],
+      "@utils/*": ["src/utils/*"],
+      "@api/*": ["src/api/*"]
+    }
+  },
+  "include": ["**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
