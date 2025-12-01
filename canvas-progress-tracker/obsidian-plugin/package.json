@@ -1,0 +1,40 @@
+{
+  "name": "canvas-review-plugin",
+  "version": "1.0.0",
+  "description": "Canvas Learning System - Obsidian Plugin for AI-assisted learning with Feynman Method",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix"
+  },
+  "keywords": [
+    "obsidian",
+    "canvas",
+    "learning",
+    "feynman-method",
+    "ai-assisted"
+  ],
+  "author": "Canvas Learning System Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "^0.19.0",
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0",
+    "obsidian": "^1.4.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "obsidian": "^1.4.0"
+  }
+}
