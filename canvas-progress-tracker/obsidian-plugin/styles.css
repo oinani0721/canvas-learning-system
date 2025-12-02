@@ -4,9 +4,17 @@
  * Styles for:
  * - Settings panel and navigation
  * - Error notifications, modals, and recovery UI
+ * - Review dashboard UI (Story 14.2)
+ * - Task card components (Story 14.3)
  *
  * ✅ Verified from Story 13.6 Dev Notes: Settings panel styling
+ * ✅ Verified from Story 14.2: Review dashboard styling
+ * ✅ Verified from Story 14.3: Task card styling
  */
+
+/* Import Review Dashboard and Task Card styles */
+@import url('./src/styles/review-dashboard.css');
+@import url('./src/styles/task-card.css');
 
 /* ========== Settings Panel ========== */
 .canvas-review-settings {

@@ -1,0 +1,639 @@
+/**
+ * Review Dashboard Styles - Canvas Learning System
+ *
+ * Styles for the review dashboard view.
+ * Implements Story 14.2: 复习仪表板UI
+ *
+ * ✅ Uses Obsidian CSS variables for theme compatibility
+ */
+
+/* ============================================================================
+   Container & Layout
+   ============================================================================ */
+
+.review-dashboard-container {
+    height: 100%;
+    overflow: hidden;
+}
+
+.review-dashboard {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-family: var(--font-text);
+}
+
+/* ============================================================================
+   Header
+   ============================================================================ */
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+    flex-shrink: 0;
+}
+
+.dashboard-title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.dashboard-title {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.dashboard-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.header-stats {
+    display: flex;
+    gap: 1.5rem;
+}
+
+.header-stats .stat-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--background-primary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.header-stats .stat-icon {
+    color: var(--text-muted);
+}
+
+.header-stats .stat-value {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.header-stats .stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.header-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background-color: var(--background-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.header-button:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.header-button.spinning svg {
+    animation: spin 1s linear infinite;
+}
+
+/* ============================================================================
+   Main Content
+   ============================================================================ */
+
+.dashboard-content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   Task List
+   ============================================================================ */
+
+.task-list-container {
+    flex: 1;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.task-list-controls {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.control-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.control-select {
+    padding: 0.375rem 0.75rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.control-select:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.task-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+/* ============================================================================
+   Task Card
+   ============================================================================ */
+
+.task-card {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.task-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.task-card.priority-critical {
+    border-left: 4px solid #ef4444;
+}
+
+.task-card.priority-high {
+    border-left: 4px solid #f97316;
+}
+
+.task-card.priority-medium {
+    border-left: 4px solid #eab308;
+}
+
+.task-card.priority-low {
+    border-left: 4px solid #22c55e;
+}
+
+.task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.task-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.priority-badge {
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.priority-badge.critical {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.priority-badge.high {
+    background-color: rgba(249, 115, 22, 0.15);
+    color: #f97316;
+}
+
+.priority-badge.medium {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+}
+
+.priority-badge.low {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+}
+
+.task-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.task-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.task-info.overdue {
+    color: #ef4444;
+}
+
+.info-icon {
+    display: flex;
+    align-items: center;
+    color: var(--text-faint);
+}
+
+.task-card-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.task-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.task-action-btn:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.task-action-btn.complete:hover {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
+.task-action-btn.postpone:hover {
+    background-color: rgba(234, 179, 8, 0.1);
+    border-color: #eab308;
+    color: #eab308;
+}
+
+/* ============================================================================
+   Sidebar
+   ============================================================================ */
+
+.dashboard-sidebar {
+    width: 320px;
+    padding: 1rem;
+    border-left: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary-alt);
+    overflow-y: auto;
+    flex-shrink: 0;
+}
+
+/* ============================================================================
+   Stat Cards
+   ============================================================================ */
+
+.stat-card {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.stat-card h3 {
+    margin: 0 0 0.75rem 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+/* Metrics */
+.stat-metrics {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 1rem;
+}
+
+.metric {
+    text-align: center;
+}
+
+.metric .value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-normal);
+    line-height: 1;
+}
+
+.metric .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Progress bar */
+.progress-bar {
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    transition: width 0.3s ease;
+}
+
+/* Stat list */
+.stat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.stat-list-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.stat-list-item:last-child {
+    border-bottom: none;
+}
+
+.stat-list-item .label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+.stat-list-item .value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+/* Mastery chart */
+.mastery-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.mastery-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.mastery-bar {
+    height: 8px;
+    border-radius: 4px;
+    min-width: 20px;
+    transition: width 0.3s ease;
+}
+
+.mastery-label {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.mastery-count {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+/* ============================================================================
+   Quick Actions
+   ============================================================================ */
+
+.quick-actions-card {
+    position: sticky;
+    bottom: 1rem;
+}
+
+.quick-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+}
+
+.action-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.action-button:hover:not(:disabled) {
+    background-color: var(--background-modifier-hover);
+    border-color: var(--interactive-accent);
+}
+
+.action-button.primary {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+    grid-column: span 2;
+}
+
+.action-button.primary:hover:not(:disabled) {
+    background-color: var(--interactive-accent-hover);
+}
+
+.action-button.secondary {
+    background-color: var(--interactive-normal);
+    color: var(--text-normal);
+}
+
+.action-button.ghost {
+    background-color: transparent;
+    grid-column: span 2;
+}
+
+.action-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.button-icon {
+    display: flex;
+    align-items: center;
+}
+
+/* ============================================================================
+   Loading, Error & Empty States
+   ============================================================================ */
+
+.loading-state,
+.error-state,
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+.error-state {
+    color: var(--text-error);
+}
+
+.error-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+}
+
+.error-message {
+    margin-bottom: 1rem;
+}
+
+.retry-button {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--text-error);
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--text-error);
+    cursor: pointer;
+}
+
+.retry-button:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+.empty-state .empty-icon {
+    font-size: 3rem;
+    color: var(--interactive-accent);
+    margin-bottom: 0.5rem;
+}
+
+.empty-state h4 {
+    margin: 0 0 0.25rem 0;
+    font-size: 1.25rem;
+    color: var(--text-normal);
+}
+
+.empty-state p {
+    margin: 0;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .dashboard-header {
+        flex-direction: column;
+        gap: 1rem;
+        padding: 1rem;
+    }
+
+    .header-stats {
+        width: 100%;
+        justify-content: space-between;
+    }
+
+    .header-stats .stat-item {
+        padding: 0.375rem 0.5rem;
+    }
+
+    .dashboard-content {
+        flex-direction: column;
+    }
+
+    .dashboard-sidebar {
+        width: 100%;
+        border-left: none;
+        border-top: 1px solid var(--background-modifier-border);
+    }
+
+    .task-list-controls {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .quick-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .action-button.primary {
+        grid-column: span 1;
+    }
+}

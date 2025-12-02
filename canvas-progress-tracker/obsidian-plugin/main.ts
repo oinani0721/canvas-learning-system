@@ -25,6 +25,8 @@ import {
     migrateSettings
 } from './src/types/settings';
 import { CanvasReviewSettingsTab } from './src/settings/PluginSettingsTab';
+import { DataManager } from './src/database/DataManager';
+import { ReviewDashboardView, VIEW_TYPE_REVIEW_DASHBOARD } from './src/views/ReviewDashboardView';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -44,6 +46,9 @@ export default class CanvasReviewPlugin extends Plugin {
     /** Auto-sync interval ID for cleanup */
     private autoSyncIntervalId: number | null = null;
 
+    /** Data Manager - Handles all database operations (Story 14.1) */
+    private dataManager: DataManager | null = null;
+
     /**
      * Plugin load lifecycle method
      *
@@ -62,8 +67,11 @@ export default class CanvasReviewPlugin extends Plugin {
             // Load settings from data.json (with migration support)
             await this.loadSettings();
 
-            // Initialize managers (placeholder for future stories)
-            this.initializeManagers();
+            // Initialize managers (Story 14.1 - DataManager)
+            await this.initializeManagers();
+
+            // Register views (Story 14.2 - Dashboard)
+            this.registerViews();
 
             // Register commands
             this.registerCommands();
@@ -129,18 +137,48 @@ export default class CanvasReviewPlugin extends Plugin {
     /**
      * Initialize manager instances
      *
-     * Placeholder method for future stories (Story 13.2+)
-     * Will initialize:
-     * - DataManager
-     * - CommandWrapper
-     * - UIManager
-     * - SyncManager
+     * Initializes all plugin managers:
+     * - DataManager (Story 14.1)
+     * - CommandWrapper (Story 13.3+)
+     * - UIManager (Story 13.4+)
+     * - SyncManager (Story 13.5+)
      */
-    private initializeManagers(): void {
+    private async initializeManagers(): Promise<void> {
         if (this.settings.debugMode) {
-            console.log('Canvas Review System: Initializing managers (placeholder)');
+            console.log('Canvas Review System: Initializing managers...');
         }
-        // TODO: Story 13.2+ - Initialize DataManager
+
+        // Initialize DataManager (Story 14.1)
+        try {
+            this.dataManager = new DataManager(this.app, {
+                database: {
+                    path: this.settings.dataPath || 'canvas-review.db',
+                    maxConnections: 5,
+                    connectionTimeout: 30000,
+                    busyTimeout: 5000,
+                    enableForeignKeys: true,
+                    enableWAL: true,
+                },
+                backup: {
+                    databasePath: this.settings.dataPath || 'canvas-review.db',
+                    backupDirectory: 'canvas-review-backups',
+                    autoBackup: this.settings.autoBackup,
+                    backupIntervalHours: 24,
+                    retentionDays: this.settings.backupRetentionDays,
+                    compressBackups: false,
+                },
+            });
+
+            await this.dataManager.initialize();
+
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: DataManager initialized');
+            }
+        } catch (error) {
+            console.error('Canvas Review System: Failed to initialize DataManager:', error);
+            new Notice('Canvas Review System: Database initialization failed. Check console.');
+        }
+
         // TODO: Story 13.3+ - Initialize CommandWrapper
         // TODO: Story 13.4+ - Initialize UIManager
         // TODO: Story 13.5+ - Initialize SyncManager
@@ -149,16 +187,59 @@ export default class CanvasReviewPlugin extends Plugin {
     /**
      * Cleanup manager instances
      *
-     * Placeholder method for future stories
+     * Shuts down all managers properly:
+     * - DataManager (Story 14.1)
+     * - CommandWrapper (Story 13.3+)
+     * - UIManager (Story 13.4+)
+     * - SyncManager (Story 13.5+)
      */
-    private cleanupManagers(): void {
+    private async cleanupManagers(): Promise<void> {
         if (this.settings.debugMode) {
-            console.log('Canvas Review System: Cleaning up managers (placeholder)');
+            console.log('Canvas Review System: Cleaning up managers...');
         }
-        // TODO: Story 13.2+ - Cleanup DataManager
+
+        // Cleanup DataManager (Story 14.1)
+        if (this.dataManager) {
+            try {
+                await this.dataManager.shutdown();
+                this.dataManager = null;
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: DataManager shutdown complete');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Error shutting down DataManager:', error);
+            }
+        }
+
         // TODO: Story 13.3+ - Cleanup CommandWrapper
         // TODO: Story 13.4+ - Cleanup UIManager
         // TODO: Story 13.5+ - Cleanup SyncManager
+    }
+
+    /**
+     * Get DataManager instance
+     *
+     * Returns the DataManager for external access (e.g., from UI components)
+     */
+    getDataManager(): DataManager | null {
+        return this.dataManager;
+    }
+
+    /**
+     * Register custom views (Story 14.2)
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (registerView)
+     */
+    private registerViews(): void {
+        // Register Review Dashboard View
+        this.registerView(
+            VIEW_TYPE_REVIEW_DASHBOARD,
+            (leaf) => new ReviewDashboardView(leaf, this)
+        );
+
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Views registered');
+        }
     }
 
     /**
@@ -170,13 +251,13 @@ export default class CanvasReviewPlugin extends Plugin {
      * ✅ Verified from Context7: /obsidianmd/obsidian-api (Plugin.addCommand)
      */
     private registerCommands(): void {
-        // Register "Show Review Dashboard" command (AC 6)
+        // Register "Show Review Dashboard" command (Story 14.2)
         // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with callback)
         this.addCommand({
             id: 'show-review-dashboard',
             name: 'Show Review Dashboard',
-            callback: () => {
-                this.showReviewDashboard();
+            callback: async () => {
+                await this.showReviewDashboard();
             }
         });
 
@@ -200,15 +281,29 @@ export default class CanvasReviewPlugin extends Plugin {
             }
         });
 
-        // Register "Create Backup" command
+        // Register "Create Backup" command (Story 14.1)
         this.addCommand({
             id: 'create-backup',
             name: 'Create Canvas Data Backup',
             callback: async () => {
+                if (!this.dataManager) {
+                    new Notice('Canvas Review System: Database not initialized');
+                    return;
+                }
+
                 new Notice('Canvas Review System: Creating backup...');
-                // TODO: Implement actual backup in Story 13.2+
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                new Notice('Canvas Review System: Backup created (placeholder)');
+
+                try {
+                    const result = await this.dataManager.createBackup('Manual backup via command');
+                    if (result.success) {
+                        new Notice(`Canvas Review System: Backup created at ${result.path}`);
+                    } else {
+                        new Notice(`Canvas Review System: Backup failed - ${result.error}`);
+                    }
+                } catch (error) {
+                    console.error('Canvas Review System: Backup error:', error);
+                    new Notice('Canvas Review System: Backup failed. Check console.');
+                }
             }
         });
 
@@ -216,8 +311,8 @@ export default class CanvasReviewPlugin extends Plugin {
         this.addCommand({
             id: 'run-diagnostics',
             name: 'Run Canvas Review Diagnostics',
-            callback: () => {
-                this.runDiagnostics();
+            callback: async () => {
+                await this.runDiagnostics();
             }
         });
 
@@ -227,24 +322,36 @@ export default class CanvasReviewPlugin extends Plugin {
     }
 
     /**
-     * Show the review dashboard
+     * Show the review dashboard (Story 14.2)
      *
-     * Placeholder implementation for AC 6.
-     * Will be fully implemented in Story 13.4+
+     * Opens the Review Dashboard view in a new leaf.
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (getLeaf, setViewState)
      */
-    private showReviewDashboard(): void {
-        // Placeholder implementation
-        new Notice('Canvas Review Dashboard: Coming soon in Story 13.4+');
-
+    private async showReviewDashboard(): Promise<void> {
         if (this.settings.debugMode) {
             console.log('Canvas Review System: showReviewDashboard called');
         }
 
-        // TODO: Story 13.4+ - Implement full dashboard UI
-        // - Open a new leaf with custom view
-        // - Show Canvas progress statistics
-        // - Display review schedule
-        // - Provide quick actions
+        const { workspace } = this.app;
+
+        // Check if dashboard is already open
+        const existingLeaves = workspace.getLeavesOfType(VIEW_TYPE_REVIEW_DASHBOARD);
+        if (existingLeaves.length > 0) {
+            // Reveal existing dashboard
+            workspace.revealLeaf(existingLeaves[0]);
+            return;
+        }
+
+        // Open new dashboard in right split
+        const leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({
+                type: VIEW_TYPE_REVIEW_DASHBOARD,
+                active: true,
+            });
+            workspace.revealLeaf(leaf);
+        }
     }
 
     /**
@@ -334,7 +441,7 @@ export default class CanvasReviewPlugin extends Plugin {
     /**
      * Run diagnostics and show results
      */
-    private runDiagnostics(): void {
+    private async runDiagnostics(): Promise<void> {
         const validation = validateSettings(this.settings);
         let message = 'Canvas Review System Diagnostics:\n\n';
 
@@ -354,6 +461,26 @@ export default class CanvasReviewPlugin extends Plugin {
             validation.warnings.forEach(warn => {
                 message += `   - ${warn}\n`;
             });
+        }
+
+        // Database health (Story 14.1)
+        message += `\n🗄️ Database:\n`;
+        if (this.dataManager) {
+            try {
+                const health = await this.dataManager.getHealthStatus();
+                message += `   Status: ${health.initialized ? '✅ Connected' : '❌ Disconnected'}\n`;
+                message += `   Version: ${health.databaseVersion}\n`;
+                message += `   Pending Migrations: ${health.hasPendingMigrations ? 'Yes' : 'No'}\n`;
+                message += `   Review Records: ${health.reviewCount}\n`;
+                message += `   Sessions: ${health.sessionCount}\n`;
+                message += `   Last Backup: ${health.lastBackup ? health.lastBackup.toLocaleString() : 'Never'}\n`;
+                message += `   Auto-backup: ${health.autoBackupEnabled ? 'Enabled' : 'Disabled'}\n`;
+            } catch (error) {
+                message += `   Status: ❌ Error\n`;
+                message += `   Error: ${(error as Error).message}\n`;
+            }
+        } else {
+            message += `   Status: ❌ Not initialized\n`;
         }
 
         // Connection info

@@ -1,0 +1,826 @@
+/**
+ * Task Card Styles - Canvas Learning System
+ *
+ * Enhanced styles for the task card components.
+ * Implements Story 14.3: 任务卡片UI
+ *
+ * Uses Obsidian CSS variables for theme compatibility
+ */
+
+/* ============================================================================
+   Task Card Base
+   ============================================================================ */
+
+.task-card {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+    overflow: hidden;
+    animation: fadeIn 0.3s ease;
+}
+
+.task-card:hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+}
+
+.task-card:active {
+    transform: scale(0.99);
+}
+
+.task-card:focus-visible {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 2px;
+}
+
+.task-card.loading {
+    pointer-events: none;
+    opacity: 0.7;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Priority border indicators */
+.task-card.priority-critical {
+    border-left: 4px solid #ef4444;
+}
+
+.task-card.priority-high {
+    border-left: 4px solid #f97316;
+}
+
+.task-card.priority-medium {
+    border-left: 4px solid #eab308;
+}
+
+.task-card.priority-low {
+    border-left: 4px solid #22c55e;
+}
+
+/* Status indicators */
+.task-card.overdue {
+    border-left-color: var(--text-error);
+    background-color: rgba(239, 68, 68, 0.02);
+}
+
+.task-card.due-today {
+    border-left-color: var(--text-warning);
+    background-color: rgba(234, 179, 8, 0.02);
+}
+
+.task-card.status-completed {
+    opacity: 0.7;
+    background-color: rgba(34, 197, 94, 0.02);
+}
+
+.task-card.status-in-progress {
+    border-left-color: var(--interactive-accent);
+    background-color: rgba(var(--interactive-accent-rgb), 0.02);
+}
+
+/* ============================================================================
+   Card Header
+   ============================================================================ */
+
+.task-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.75rem;
+}
+
+.header-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.task-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0 0 0.25rem 0;
+    line-height: 1.3;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.canvas-info {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+}
+
+.canvas-info svg {
+    width: 12px;
+    height: 12px;
+}
+
+.canvas-title {
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ============================================================================
+   Badges
+   ============================================================================ */
+
+.header-badges {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    align-items: flex-end;
+    flex-shrink: 0;
+    margin-left: 0.5rem;
+}
+
+.priority-badge,
+.difficulty-badge,
+.time-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.priority-badge {
+    background-color: var(--tag-background);
+    color: var(--tag-color);
+    border: 1px solid var(--tag-border);
+}
+
+.priority-badge.critical {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.priority-badge.high {
+    background-color: rgba(249, 115, 22, 0.15);
+    color: #f97316;
+    border-color: rgba(249, 115, 22, 0.3);
+}
+
+.priority-badge.medium {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+    border-color: rgba(234, 179, 8, 0.3);
+}
+
+.priority-badge.low {
+    background-color: rgba(34, 197, 94, 0.15);
+    color: #22c55e;
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.time-badge {
+    font-weight: 600;
+}
+
+.time-badge.overdue {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.time-badge.due-today {
+    background-color: rgba(234, 179, 8, 0.15);
+    color: #eab308;
+}
+
+.time-badge svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* ============================================================================
+   Memory Metrics Section
+   ============================================================================ */
+
+.task-metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+}
+
+/* Memory Strength */
+.memory-strength {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.strength-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.strength-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.strength-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+}
+
+.strength-value.high {
+    color: #22c55e;
+}
+
+.strength-value.medium {
+    color: #eab308;
+}
+
+.strength-value.low {
+    color: #ef4444;
+}
+
+.strength-bar-container {
+    position: relative;
+}
+
+.strength-bar {
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.strength-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease, background-color 0.3s ease;
+}
+
+.strength-fill.high {
+    background-color: #22c55e;
+}
+
+.strength-fill.medium {
+    background-color: #eab308;
+}
+
+.strength-fill.low {
+    background-color: #ef4444;
+}
+
+.strength-icon {
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 14px;
+}
+
+/* Forgetting Curve */
+.forgetting-curve {
+    display: flex;
+    flex-direction: column;
+    gap: 0.375rem;
+}
+
+.curve-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.curve-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.urgency-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.urgency-indicator.urgent {
+    color: #ef4444;
+}
+
+.urgency-indicator.due {
+    color: #eab308;
+}
+
+.urgency-indicator.soon {
+    color: var(--text-normal);
+}
+
+.urgency-indicator.future {
+    color: #22c55e;
+}
+
+.urgency-bar {
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.urgency-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.curve-info {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.curve-info .next-review {
+    color: var(--text-normal);
+    font-weight: 500;
+}
+
+/* ============================================================================
+   Task Details Section
+   ============================================================================ */
+
+.task-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    margin-bottom: 0.75rem;
+    border-top: 1px solid var(--background-modifier-border);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    flex: 1;
+}
+
+.detail-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-bottom: 0.125rem;
+}
+
+.detail-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.detail-value.overdue {
+    color: #ef4444;
+}
+
+/* ============================================================================
+   Card Actions
+   ============================================================================ */
+
+.task-card-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.primary-actions {
+    display: flex;
+    gap: 0.5rem;
+    flex: 1;
+}
+
+.secondary-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.task-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.task-action-btn:hover:not(:disabled) {
+    background-color: var(--background-modifier-hover);
+    border-color: var(--interactive-accent);
+}
+
+.task-action-btn:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.task-action-btn:focus-visible {
+    outline: 2px solid var(--interactive-accent);
+    outline-offset: 1px;
+}
+
+.task-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.task-action-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* Primary action buttons */
+.task-action-btn.primary {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border-color: var(--interactive-accent);
+    flex: 1;
+}
+
+.task-action-btn.primary:hover:not(:disabled) {
+    background-color: var(--interactive-accent-hover);
+}
+
+/* Secondary action buttons */
+.task-action-btn.secondary {
+    padding: 0.5rem;
+    background-color: var(--background-secondary);
+}
+
+/* Complete button specific */
+.task-action-btn.complete:hover:not(:disabled) {
+    background-color: rgba(34, 197, 94, 0.1);
+    border-color: #22c55e;
+    color: #22c55e;
+}
+
+/* Postpone button specific */
+.task-action-btn.postpone:hover:not(:disabled) {
+    background-color: rgba(234, 179, 8, 0.1);
+    border-color: #eab308;
+    color: #eab308;
+}
+
+/* Start button specific */
+.task-action-btn.start:hover:not(:disabled) {
+    background-color: rgba(var(--interactive-accent-rgb), 0.1);
+}
+
+/* ============================================================================
+   Status Indicator
+   ============================================================================ */
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-left: auto;
+    padding-left: 0.5rem;
+}
+
+.status-indicator svg {
+    width: 12px;
+    height: 12px;
+}
+
+.status-indicator.in-progress svg {
+    animation: spin 1s linear infinite;
+}
+
+.status-indicator.completed {
+    color: #22c55e;
+}
+
+.status-indicator.postponed {
+    color: #eab308;
+}
+
+/* ============================================================================
+   Loading Overlay
+   ============================================================================ */
+
+.card-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(var(--background-primary-rgb), 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(2px);
+    z-index: 10;
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+.loading-spinner.small {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+}
+
+/* ============================================================================
+   Dialogs
+   ============================================================================ */
+
+.task-dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    animation: fadeIn 0.2s ease;
+}
+
+.task-dialog {
+    background-color: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    min-width: 300px;
+    max-width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    animation: slideUp 0.2s ease;
+}
+
+.dialog-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.dialog-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0;
+}
+
+.dialog-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0.25rem;
+    border-radius: 4px;
+}
+
+.dialog-close:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.dialog-body {
+    margin-bottom: 1.5rem;
+}
+
+.dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* Score selector for complete dialog */
+.score-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.score-btn {
+    flex: 1;
+    padding: 0.75rem;
+    border: 2px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background-color: var(--background-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.score-btn:hover {
+    border-color: var(--interactive-accent);
+}
+
+.score-btn.selected {
+    border-color: var(--interactive-accent);
+    background-color: rgba(var(--interactive-accent-rgb), 0.1);
+}
+
+.score-btn .score-value {
+    display: block;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.score-btn .score-label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+/* Postpone options */
+.postpone-options {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.postpone-btn {
+    padding: 0.75rem;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background-color: var(--background-primary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+
+.postpone-btn:hover {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-modifier-hover);
+}
+
+.postpone-btn .days {
+    display: block;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.postpone-btn .label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   Animations
+   ============================================================================ */
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Responsive Design
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    .task-card {
+        padding: 0.75rem;
+    }
+
+    .task-card-header {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: stretch;
+    }
+
+    .header-badges {
+        flex-direction: row;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: 0;
+    }
+
+    .task-metrics {
+        grid-template-columns: 1fr;
+        gap: 0.75rem;
+    }
+
+    .task-details {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+
+    .detail-item {
+        min-width: 60px;
+    }
+
+    .task-card-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+
+    .primary-actions {
+        width: 100%;
+    }
+
+    .task-action-btn.primary {
+        flex: 1;
+        justify-content: center;
+    }
+
+    .secondary-actions {
+        justify-content: center;
+        width: 100%;
+    }
+
+    .status-indicator {
+        justify-content: center;
+        width: 100%;
+        padding-left: 0;
+        margin-left: 0;
+    }
+}
+
+/* ============================================================================
+   Dark Mode Adjustments
+   ============================================================================ */
+
+.theme-dark .task-card:hover {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.theme-dark .card-loading-overlay {
+    background-color: rgba(0, 0, 0, 0.7);
+}
+
+.theme-dark .task-dialog {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
