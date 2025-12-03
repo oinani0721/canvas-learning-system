@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2025-12-02
+
+### Epic 16: 跨Canvas关联学习系统
+
+这个版本引入了跨Canvas关联学习功能，支持不同Canvas之间的概念关联和教材引用。
+
+#### Added
+
+**关联管理UI (Stories 16.1, 16.4)**
+- Canvas关联管理Modal界面
+- 支持创建、编辑、删除关联
+- Toolbar按钮快速访问
+- 关联模式Toggle控制 (Ctrl+Shift+L)
+- 模式状态持久化存储
+
+**配置管理 (Story 16.2)**
+- `.canvas-links.json`配置文件自动生成
+- 支持手动和自动关联
+- 配置文件热加载和验证
+
+**Graphiti知识图谱集成 (Story 16.3)**
+- 跨Canvas关系存储到Neo4j
+- 2秒超时优雅降级
+- 30秒缓存机制
+- 双写模式（本地 + Graphiti）
+
+**教材引用系统 (Stories 16.5, 16.6)**
+- Agent自动引用关联教材上下文
+- 节点教材引用指示器
+- 悬浮提示显示引用详情
+- 前置知识自动检测
+
+**关联状态指示器 (Story 16.7)**
+- 状态栏显示关联数量
+- 同步状态实时更新
+- 右键菜单支持刷新/清理
+- 脉冲动画提示变化
+
+#### Technical Details
+
+**新增文件** (11个TypeScript文件):
+- `AssociationModal.ts` - 关联管理对话框
+- `AssociationConfigService.ts` - 配置管理服务
+- `GraphitiAssociationService.ts` - Graphiti集成
+- `AssociationModeManager.ts` - 模式管理
+- `TextbookContextService.ts` - 教材上下文
+- `PrerequisiteDetector.ts` - 前置知识检测
+- `TextbookReferenceView.ts` - 引用显示组件
+- `StatusBarIndicator.ts` - 状态栏指示器
+- `AssociationTypes.ts` - 类型定义
+
+**API验证**:
+- 所有Obsidian API调用均有@obsidian-canvas Skill验证标注
+- 所有Graphiti调用均有@graphiti Skill验证标注
+
+---
+
 ## [2.0.0] - 2025-11-29
 
 ### Epic 12: 三层记忆系统 + Agentic RAG
