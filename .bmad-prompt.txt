@@ -19,7 +19,7 @@ This session uses UltraThink extended thinking mode for maximum quality:
 
 
 ===============================================================================
-MISSION: Create Story 17.1 from Epic 17
+MISSION: Create Story 17.2 from Epic 17
 ===============================================================================
 
 **Your Role**: Bob (Scrum Master) - Create complete, self-contained Story draft
@@ -60,13 +60,13 @@ Step 9: Verify Section 6 (SDD/ADR) passes:
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 10: Write Story file to: docs/stories/17.1.story.md
+Step 10: Write Story file to: docs/stories/17.2.story.md
 Step 11: Write .sm-result.json:
 {
-  "story_id": "17.1",
+  "story_id": "17.2",
   "epic_id": "17",
   "outcome": "SUCCESS|VALIDATION_FAILED|ERROR",
-  "story_file": "docs/stories/17.1.story.md",
+  "story_file": "docs/stories/17.2.story.md",
   "title": "[Story Title]",
   "sdd_references": ["specs/api/...", "specs/data/..."],
   "adr_references": ["docs/architecture/decisions/..."],
