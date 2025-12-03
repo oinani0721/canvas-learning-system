@@ -1,58 +1,109 @@
 {
-  "story_id": "16.2",
+  "story_id": "16.1",
   "epic_id": "16",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/16.2.story.md",
-  "title": ".canvas-links.json配置管理",
-  "description": "实现Canvas关联配置文件的管理系统，支持CRUD操作、原子写入、缓存机制和Graphiti同步",
+  "story_file": "docs/stories/16.1.story.md",
+  "title": "Canvas关联UI (工具栏按钮 + 模态框)",
+  "description": "实现Canvas关联管理的用户界面，包括工具栏按钮和模态框，支持查看、创建、编辑、删除Canvas关联",
   "sdd_references": [
     "specs/api/canvas-api.openapi.yml:454-489",
-    "specs/api/canvas-api.openapi.yml:491-499",
-    "specs/data/canvas-association.schema.json",
-    "specs/data/canvas-links-config.schema.json (待创建)"
+    "specs/api/canvas-api.openapi.yml:491-515",
+    "specs/api/canvas-api.openapi.yml:538-552",
+    "specs/data/canvas-association.schema.json"
   ],
   "adr_references": [
+    "docs/architecture/decisions/0001-use-obsidian-canvas.md",
     "docs/architecture/decisions/0003-graphiti-memory.md",
     "docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md",
     "docs/architecture/decisions/ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md"
   ],
   "architecture_references": [
+    "docs/architecture/ui-component-architecture.md",
+    "docs/architecture/obsidian-plugin-architecture.md",
     "docs/architecture/cross-canvas-association-architecture.md"
   ],
+  "acceptance_criteria_count": 10,
+  "task_count": 9,
   "checklist_passed": true,
   "checklist_results": {
     "section_1_story_basics": {
       "passed": true,
-      "items": ["status_valid", "story_format_valid", "description_clear"]
+      "items": {
+        "1.1_status_field": true,
+        "1.2_story_format": true,
+        "1.3_clear_description": true
+      }
     },
     "section_2_acceptance_criteria": {
       "passed": true,
-      "items": ["ac_list_exists", "ac_verifiable", "ac_coverage"]
+      "items": {
+        "2.1_ac_list_exists": true,
+        "2.2_ac_verifiable": true,
+        "2.3_ac_covers_core": true
+      }
     },
     "section_3_tasks": {
       "passed": true,
-      "items": ["tasks_exist", "tasks_linked_to_ac", "tasks_granularity"]
+      "items": {
+        "3.1_tasks_exist": true,
+        "3.2_tasks_link_ac": true,
+        "3.3_task_granularity": true
+      }
     },
     "section_4_dev_notes": {
       "passed": true,
-      "items": ["dev_notes_exist", "tech_verification_report", "code_examples"]
+      "items": {
+        "4.1_dev_notes_exist": true,
+        "4.2_tech_verification": true,
+        "4.3_code_examples": true
+      }
     },
     "section_5_testing": {
       "passed": true,
-      "items": ["testing_section_exists", "test_standards_defined", "test_examples"]
+      "items": {
+        "5.1_testing_section": true,
+        "5.2_test_standards": true,
+        "5.3_test_examples": true
+      }
     },
     "section_6_sdd_adr": {
       "passed": true,
-      "items": ["sdd_references_exist", "adr_references_exist", "anti_hallucination_verified"]
+      "items": {
+        "6.1_sdd_references": true,
+        "6.2_adr_references": true,
+        "6.3_anti_hallucination": true
+      }
     }
   },
   "dependencies": {
-    "upstream": ["16.1"],
-    "downstream": ["16.3"]
+    "upstream": [
+      "Epic 11: FastAPI后端基础架构",
+      "Epic 13: Obsidian Plugin核心功能"
+    ],
+    "downstream": [
+      "Story 16.2: .canvas-links.json配置管理",
+      "Story 16.3: Graphiti跨Canvas关系存储",
+      "Story 16.7: 关联状态指示器"
+    ]
   },
-  "acceptance_criteria_count": 9,
-  "tasks_count": 8,
-  "timestamp": "2025-12-02T15:30:00Z",
-  "sm_agent": "Bob",
-  "model": "claude-opus-4-5-20251101"
+  "tech_stack": [
+    {
+      "name": "Obsidian Plugin API",
+      "source": "Local Skill @obsidian-canvas",
+      "verification_status": "pending"
+    },
+    {
+      "name": "TypeScript",
+      "source": "Context7 /typescript-cheatsheets/react",
+      "verification_status": "pending"
+    },
+    {
+      "name": "FastAPI Backend",
+      "source": "Context7 /websites/fastapi_tiangolo",
+      "verification_status": "pending"
+    }
+  ],
+  "timestamp": "2025-12-02T12:30:00Z",
+  "agent": "SM Agent (Bob)",
+  "notes": "Story 16.1 created successfully with comprehensive Dev Notes including SDD references, ADR correlations, and anti-hallucination verification markers. All code examples include pending verification tags for Dev Agent to complete during implementation."
 }
