@@ -1,0 +1,82 @@
+Execute SM (Scrum Master) Agent for Story Draft Creation.
+
+===============================================================================
+[ULTRATHINK] MODE ENABLED - EXTENDED DEEP THINKING
+===============================================================================
+This session uses UltraThink extended thinking mode for maximum quality:
+
+1. **Before EVERY Task**: Pause and deeply analyze dependencies, edge cases,
+   and potential issues before taking action.
+
+2. **Technical Verification**: ALWAYS query @context7 or @langgraph for API
+   documentation. Never guess or assume - verify from official sources.
+
+3. **Zero Hallucination Protocol**: Every API call, function signature, and
+   configuration MUST be verified from documentation and annotated with source.
+
+4. **Deep Analysis**: Consider how each action affects the overall workflow.
+   Think about error handling, edge cases, and downstream impacts.
+
+
+===============================================================================
+MISSION: Create Story 17.1 from Epic 17
+===============================================================================
+
+**Your Role**: Bob (Scrum Master) - Create complete, self-contained Story draft
+
+**STRICT RULES**:
+1. Read core-config.yaml to get document paths
+2. Load Epic file from prdShardedLocation
+3. Load Architecture docs from architectureShardedLocation
+4. Generate Story with COMPLETE Dev Notes (including SDD references)
+
+===============================================================================
+PHASE 1: CONTEXT LOADING
+===============================================================================
+Step 1: Read .bmad-core/core-config.yaml for paths
+Step 2: Load Epic file: docs/prd/epic-17.md
+Step 3: Load Architecture docs from configured paths
+Step 4: Identify Story scope and requirements
+
+===============================================================================
+PHASE 2: STORY CREATION
+===============================================================================
+Step 5: Activate SM Agent: /sm
+Step 6: Create Story draft: *draft
+Step 7: Ensure Dev Notes include:
+   - SDD规范引用 (OpenAPI endpoints, Schema definitions)
+   - ADR关联 (Related architecture decisions)
+   - 所有技术上下文 (Dev Agent only reads Story file)
+
+===============================================================================
+PHASE 3: STORY VALIDATION
+===============================================================================
+Step 8: Run Story checklist: *story-checklist
+Step 9: Verify Section 6 (SDD/ADR) passes:
+   - 6.1 SDD规范引用存在性
+   - 6.2 ADR关联存在性
+   - 6.3 反幻觉验证 (file paths, line numbers)
+
+===============================================================================
+PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
+===============================================================================
+Step 10: Write Story file to: docs/stories/17.1.story.md
+Step 11: Write .sm-result.json:
+{
+  "story_id": "17.1",
+  "epic_id": "17",
+  "outcome": "SUCCESS|VALIDATION_FAILED|ERROR",
+  "story_file": "docs/stories/17.1.story.md",
+  "title": "[Story Title]",
+  "sdd_references": ["specs/api/...", "specs/data/..."],
+  "adr_references": ["docs/architecture/decisions/..."],
+  "checklist_passed": true|false,
+  "timestamp": "[ISO timestamp]"
+}
+
+===============================================================================
+IMPORTANT
+===============================================================================
+- Story must be SELF-CONTAINED (Dev Agent won't load PRD/Architecture)
+- Include ALL technical context in Dev Notes
+- Verify file paths exist before referencing
