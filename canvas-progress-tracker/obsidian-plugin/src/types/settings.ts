@@ -188,6 +188,34 @@ export interface PluginSettings {
      */
     difficultyWeight: number;
 
+    // ========== Notification Settings (Story 14.7) ==========
+    /**
+     * Enable daily review notifications
+     * @default true
+     */
+    enableNotifications: boolean;
+
+    /**
+     * Quiet hours start (0-23)
+     * Notifications will not be shown during quiet hours
+     * @default 23
+     */
+    quietHoursStart: number;
+
+    /**
+     * Quiet hours end (0-23)
+     * Notifications will resume after this hour
+     * @default 7
+     */
+    quietHoursEnd: number;
+
+    /**
+     * Minimum interval between notifications in hours
+     * Prevents notification spam
+     * @default 12
+     */
+    minNotificationInterval: number;
+
     // ========== Advanced Settings ==========
     /**
      * Enable debug logging
@@ -232,6 +260,14 @@ export interface PluginSettings {
      * @default 2
      */
     settingsVersion: number;
+
+    // ========== Association Mode Settings (Story 16.4) ==========
+    /**
+     * Enable cross-Canvas association mode
+     * When enabled, Canvas nodes display association indicators and support cross-Canvas linking
+     * @default false
+     */
+    associationModeEnabled: boolean;
 }
 
 /**
@@ -275,6 +311,12 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     enableSpacedRepetition: true,
     difficultyWeight: 1.0,
 
+    // Notification Settings (Story 14.7)
+    enableNotifications: true,
+    quietHoursStart: 23,
+    quietHoursEnd: 7,
+    minNotificationInterval: 12,
+
     // Advanced Settings
     debugMode: false,
     enablePerformanceMonitoring: false,
@@ -282,7 +324,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     enableTelemetry: false,
     enableExperimentalFeatures: false,
     customCss: '',
-    settingsVersion: 2
+    settingsVersion: 2,
+
+    // Association Mode Settings (Story 16.4)
+    associationModeEnabled: false
 };
 
 /**
@@ -446,6 +491,27 @@ export function validateSettings(settings: Partial<PluginSettings>): SettingsVal
         }
     }
 
+    // Validate quietHoursStart (Story 14.7)
+    if (settings.quietHoursStart !== undefined) {
+        if (settings.quietHoursStart < 0 || settings.quietHoursStart > 23) {
+            errors.push('Quiet hours start must be between 0 and 23');
+        }
+    }
+
+    // Validate quietHoursEnd (Story 14.7)
+    if (settings.quietHoursEnd !== undefined) {
+        if (settings.quietHoursEnd < 0 || settings.quietHoursEnd > 23) {
+            errors.push('Quiet hours end must be between 0 and 23');
+        }
+    }
+
+    // Validate minNotificationInterval (Story 14.7)
+    if (settings.minNotificationInterval !== undefined) {
+        if (settings.minNotificationInterval < 1 || settings.minNotificationInterval > 48) {
+            errors.push('Minimum notification interval must be between 1 and 48 hours');
+        }
+    }
+
     return {
         isValid: errors.length === 0,
         errors,
@@ -487,6 +553,11 @@ export function migrateSettings(settings: Partial<PluginSettings>): PluginSettin
         migrated.enableTelemetry = settings.enableTelemetry ?? false;
         migrated.enableExperimentalFeatures = settings.enableExperimentalFeatures ?? false;
         migrated.customCss = settings.customCss ?? '';
+        // Notification Settings (Story 14.7)
+        migrated.enableNotifications = settings.enableNotifications ?? true;
+        migrated.quietHoursStart = settings.quietHoursStart ?? 23;
+        migrated.quietHoursEnd = settings.quietHoursEnd ?? 7;
+        migrated.minNotificationInterval = settings.minNotificationInterval ?? 12;
         migrated.settingsVersion = 2;
     }
 
