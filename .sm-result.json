@@ -5,49 +5,41 @@
   "story_file": "docs/stories/17.1.story.md",
   "title": "基础监控 - FastAPI性能中间件和Prometheus指标端点",
   "sdd_references": [
-    "specs/api/canvas-api.openapi.yml:605-628",
-    "specs/api/canvas-api.openapi.yml:630-642",
-    "specs/api/canvas-api.openapi.yml:987-1060"
+    "specs/api/canvas-api.openapi.yml:605-628 (/metrics endpoint)",
+    "specs/api/canvas-api.openapi.yml:630-642 (/metrics/summary endpoint)",
+    "specs/api/canvas-api.openapi.yml:987-1011 (MetricsSummary schema)"
   ],
   "adr_references": [
     "docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md",
     "docs/architecture/decisions/ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md"
   ],
+  "architecture_references": [
+    "docs/architecture/performance-monitoring-architecture.md:87-124 (Architecture diagram)",
+    "docs/architecture/performance-monitoring-architecture.md:140-198 (FastAPI middleware implementation)",
+    "docs/architecture/performance-monitoring-architecture.md:49-84 (KPIs definition)"
+  ],
   "checklist_passed": true,
   "validation_result": {
-    "goal_context_clarity": "PASS",
-    "technical_implementation_guidance": "PASS",
-    "reference_effectiveness": "PASS",
-    "self_containment_assessment": "PASS",
-    "testing_guidance": "PASS",
-    "sdd_adr_verification": "PASS"
+    "1_goal_context_clarity": "PASS",
+    "2_technical_implementation_guidance": "PASS",
+    "3_reference_effectiveness": "PASS",
+    "4_self_containment_assessment": "PASS",
+    "5_testing_guidance": "PASS",
+    "6_sdd_adr_verification": "PASS"
   },
   "validation_notes": {
-    "sdd_verification": {
-      "openapi_endpoints_verified": true,
-      "line_numbers_spot_checked": true,
-      "files_exist": true
-    },
-    "adr_verification": {
-      "adr_009_relevant": true,
-      "adr_010_relevant": true,
-      "impacts_documented": true
-    },
-    "anti_hallucination": {
-      "file_paths_verified": true,
-      "line_numbers_accurate": true,
-      "source_citations_correct": true
-    }
+    "sdd_verification": "All file paths and line numbers verified - OpenAPI spec lines 605-628, 630-642, 987-1011 match exactly",
+    "adr_verification": "ADR-009 (Error Handling) and ADR-010 (Logging/structlog) exist and are relevant",
+    "anti_hallucination": "Spot-checked 4 line number references - all accurate"
   },
+  "story_status": "Draft",
+  "story_points": 3,
+  "estimated_time": "1-2 days",
   "dependencies": {
-    "prerequisites": [],
-    "blocking_for": [
-      "Story 17.2",
-      "Story 17.3",
-      "Story 17.4",
-      "Story 17.5"
-    ]
+    "previous_stories": [],
+    "blocking": ["Story 17.2", "Story 17.3", "Story 17.4", "Story 17.5"]
   },
-  "timestamp": "2025-12-03T12:45:00+08:00",
-  "created_by": "SM Agent (Bob)"
+  "timestamp": "2025-12-03T00:00:00Z",
+  "agent": "SM Agent (Bob)",
+  "validation_method": "story-draft-checklist.md"
 }
