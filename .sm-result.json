@@ -1,0 +1,58 @@
+{
+  "story_id": "16.2",
+  "epic_id": "16",
+  "outcome": "SUCCESS",
+  "story_file": "docs/stories/16.2.story.md",
+  "title": ".canvas-links.json配置管理",
+  "description": "实现Canvas关联配置文件的管理系统，支持CRUD操作、原子写入、缓存机制和Graphiti同步",
+  "sdd_references": [
+    "specs/api/canvas-api.openapi.yml:454-489",
+    "specs/api/canvas-api.openapi.yml:491-499",
+    "specs/data/canvas-association.schema.json",
+    "specs/data/canvas-links-config.schema.json (待创建)"
+  ],
+  "adr_references": [
+    "docs/architecture/decisions/0003-graphiti-memory.md",
+    "docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md",
+    "docs/architecture/decisions/ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md"
+  ],
+  "architecture_references": [
+    "docs/architecture/cross-canvas-association-architecture.md"
+  ],
+  "checklist_passed": true,
+  "checklist_results": {
+    "section_1_story_basics": {
+      "passed": true,
+      "items": ["status_valid", "story_format_valid", "description_clear"]
+    },
+    "section_2_acceptance_criteria": {
+      "passed": true,
+      "items": ["ac_list_exists", "ac_verifiable", "ac_coverage"]
+    },
+    "section_3_tasks": {
+      "passed": true,
+      "items": ["tasks_exist", "tasks_linked_to_ac", "tasks_granularity"]
+    },
+    "section_4_dev_notes": {
+      "passed": true,
+      "items": ["dev_notes_exist", "tech_verification_report", "code_examples"]
+    },
+    "section_5_testing": {
+      "passed": true,
+      "items": ["testing_section_exists", "test_standards_defined", "test_examples"]
+    },
+    "section_6_sdd_adr": {
+      "passed": true,
+      "items": ["sdd_references_exist", "adr_references_exist", "anti_hallucination_verified"]
+    }
+  },
+  "dependencies": {
+    "upstream": ["16.1"],
+    "downstream": ["16.3"]
+  },
+  "acceptance_criteria_count": 9,
+  "tasks_count": 8,
+  "timestamp": "2025-12-02T15:30:00Z",
+  "sm_agent": "Bob",
+  "model": "claude-opus-4-5-20251101"
+}
