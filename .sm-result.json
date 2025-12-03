@@ -4,42 +4,205 @@
   "outcome": "SUCCESS",
   "story_file": "docs/stories/17.1.story.md",
   "title": "基础监控 - FastAPI性能中间件和Prometheus指标端点",
+  "description": "实现FastAPI请求追踪中间件和Prometheus格式指标端点，包括请求计数、延迟、并发请求指标，为后续监控系统奠定基础",
+  "status": "Draft",
+  "story_points": 3,
+  "estimated_days": "1-2",
+  "complexity": "低-中",
   "sdd_references": [
-    "specs/api/canvas-api.openapi.yml:605-628 (/metrics endpoint)",
-    "specs/api/canvas-api.openapi.yml:630-642 (/metrics/summary endpoint)",
-    "specs/api/canvas-api.openapi.yml:987-1011 (MetricsSummary schema)"
+    "specs/api/canvas-api.openapi.yml:605-628 (GET /metrics)",
+    "specs/api/canvas-api.openapi.yml:630-642 (GET /metrics/summary)",
+    "specs/api/canvas-api.openapi.yml:987-1060 (MetricsSummary Schema)"
   ],
   "adr_references": [
-    "docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md",
-    "docs/architecture/decisions/ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md"
+    "docs/architecture/decisions/ADR-0009 (Error Handling & Retry)",
+    "docs/architecture/decisions/ADR-0010 (Logging Aggregation - structlog)"
   ],
   "architecture_references": [
-    "docs/architecture/performance-monitoring-architecture.md:87-124 (Architecture diagram)",
-    "docs/architecture/performance-monitoring-architecture.md:140-198 (FastAPI middleware implementation)",
-    "docs/architecture/performance-monitoring-architecture.md:49-84 (KPIs definition)"
+    "docs/architecture/performance-monitoring-architecture.md:87-124 (监控架构图)",
+    "docs/architecture/performance-monitoring-architecture.md:140-198 (FastAPI中间件实现)",
+    "docs/architecture/performance-monitoring-architecture.md:49-84 (指标体系定义)",
+    "docs/architecture/performance-monitoring-architecture.md:490-494 (实施计划Phase 1)"
   ],
-  "checklist_passed": true,
-  "validation_result": {
-    "1_goal_context_clarity": "PASS",
-    "2_technical_implementation_guidance": "PASS",
-    "3_reference_effectiveness": "PASS",
-    "4_self_containment_assessment": "PASS",
-    "5_testing_guidance": "PASS",
-    "6_sdd_adr_verification": "PASS"
+  "acceptance_criteria": [
+    "FastAPI性能中间件：每个API请求自动记录方法、端点、状态码和响应时间",
+    "请求计数指标：canvas_api_requests_total Counter指标按method/endpoint/status分组",
+    "延迟指标：canvas_api_request_latency_seconds Histogram指标按method/endpoint分组",
+    "并发请求指标：canvas_api_concurrent_requests Gauge指标实时反映并发请求数",
+    "/metrics端点：返回Prometheus格式文本，可被Prometheus服务器抓取",
+    "/metrics/summary端点：返回JSON格式MetricsSummary，包含api字段统计",
+    "日志集成：中间件与structlog日志协同记录请求追踪信息（遵循ADR-010）",
+    "所有代码包含文档来源标注(Context7/Skill/ADR验证)"
+  ],
+  "tasks": [
+    {
+      "id": "Task 1",
+      "title": "性能中间件实现",
+      "acceptance_criteria": [1, 2, 3, 4],
+      "files": [
+        "backend/app/middleware/metrics.py (新增)",
+        "backend/app/main.py (修改)"
+      ]
+    },
+    {
+      "id": "Task 2",
+      "title": "Prometheus指标端点实现",
+      "acceptance_criteria": [5],
+      "files": [
+        "backend/app/api/v1/endpoints/health.py (修改)"
+      ]
+    },
+    {
+      "id": "Task 3",
+      "title": "MetricsSummary端点实现",
+      "acceptance_criteria": [6],
+      "files": [
+        "backend/app/services/metrics_collector.py (新增)",
+        "backend/app/api/v1/endpoints/health.py (修改)",
+        "backend/app/models/metrics.py (新增)"
+      ]
+    },
+    {
+      "id": "Task 4",
+      "title": "日志集成",
+      "acceptance_criteria": [7],
+      "files": [
+        "backend/app/middleware/metrics.py (修改)"
+      ]
+    },
+    {
+      "id": "Task 5",
+      "title": "测试和验证",
+      "acceptance_criteria": [8],
+      "files": [
+        "tests/unit/test_metrics_middleware.py (新增)",
+        "tests/integration/test_metrics_endpoints.py (新增)"
+      ]
+    }
+  ],
+  "technical_verification": {
+    "status": "Pending",
+    "tech_stack": [
+      {
+        "name": "prometheus_client",
+        "source": "Context7",
+        "library_id": "/prometheus/client_python",
+        "verified": false,
+        "apis_to_verify": [
+          "Counter",
+          "Histogram",
+          "Gauge",
+          "generate_latest()",
+          "REGISTRY",
+          "CONTENT_TYPE_LATEST"
+        ]
+      },
+      {
+        "name": "FastAPI Middleware",
+        "source": "Context7",
+        "library_id": "/fastapi/fastapi",
+        "verified": false,
+        "apis_to_verify": [
+          "app.middleware('http')",
+          "Request",
+          "Response with media_type",
+          "PlainTextResponse"
+        ]
+      },
+      {
+        "name": "structlog",
+        "source": "Local ADR",
+        "document": "ADR-010-LOGGING-AGGREGATION-STRUCTLOG.md",
+        "verified": true,
+        "apis_verified": [
+          "get_logger()",
+          "bind()",
+          "contextvars.bind_contextvars()"
+        ]
+      },
+      {
+        "name": "time.perf_counter",
+        "source": "Python stdlib",
+        "verified": true
+      }
+    ]
   },
-  "validation_notes": {
-    "sdd_verification": "All file paths and line numbers verified - OpenAPI spec lines 605-628, 630-642, 987-1011 match exactly",
-    "adr_verification": "ADR-009 (Error Handling) and ADR-010 (Logging/structlog) exist and are relevant",
-    "anti_hallucination": "Spot-checked 4 line number references - all accurate"
-  },
-  "story_status": "Draft",
-  "story_points": 3,
-  "estimated_time": "1-2 days",
   "dependencies": {
-    "previous_stories": [],
-    "blocking": ["Story 17.2", "Story 17.3", "Story 17.4", "Story 17.5"]
+    "python_packages": [
+      {
+        "name": "prometheus-client",
+        "version": ">=0.17.0",
+        "purpose": "Prometheus指标库"
+      }
+    ],
+    "prerequisite_stories": [],
+    "dependent_stories": [
+      "17.2: 深度监控 - Agent和记忆系统性能追踪",
+      "17.3: 告警和Dashboard",
+      "17.4: 性能优化策略实施",
+      "17.5: E2E测试"
+    ]
+  },
+  "risks": [
+    {
+      "risk": "prometheus_client与FastAPI集成问题",
+      "probability": "低",
+      "impact": "中",
+      "mitigation": "Context7验证API，参考官方示例"
+    },
+    {
+      "risk": "中间件性能开销",
+      "probability": "低",
+      "impact": "低",
+      "mitigation": "使用time.perf_counter()，避免阻塞"
+    },
+    {
+      "risk": "指标基数过高",
+      "probability": "中",
+      "impact": "低",
+      "mitigation": "限制endpoint label到路由模式而非完整路径"
+    },
+    {
+      "risk": "P95延迟计算复杂",
+      "probability": "中",
+      "impact": "低",
+      "mitigation": "初始版本简化，后续Story优化"
+    }
+  ],
+  "quality_gates": {
+    "checklist_passed": true,
+    "section_6_validation": {
+      "sdd_references_exist": true,
+      "adr_associations_exist": true,
+      "anti_hallucination_verified": true,
+      "file_paths_verified": false,
+      "note": "文件路径待开发时验证，当前路径基于架构设计规范"
+    },
+    "definition_of_done": [
+      "所有AC通过验收测试",
+      "metrics_middleware已注册到FastAPI应用",
+      "/metrics端点返回正确的Prometheus格式",
+      "/metrics/summary端点返回符合Schema的JSON",
+      "中间件与structlog日志协同工作",
+      "单元测试覆盖率≥90%",
+      "集成测试通过",
+      "代码Review通过",
+      "所有代码有文档来源标注"
+    ]
+  },
+  "dev_notes_summary": {
+    "technical_verification_report": "Complete with tech stack checklist and API verification TODO",
+    "sdd_specifications": "3 OpenAPI endpoints and schemas referenced with line numbers",
+    "adr_decisions": "2 ADRs (Error Handling, Logging) with specific constraints",
+    "architecture_references": "4 architecture document references with line numbers",
+    "code_examples": "5 complete code examples with source annotations",
+    "file_paths": "7 new files, 3 modified files, 4 existing reference files",
+    "self_contained": true,
+    "note": "Dev Agent只需读取此Story文件，无需加载PRD/Architecture"
   },
   "timestamp": "2025-12-03T00:00:00Z",
-  "agent": "SM Agent (Bob)",
-  "validation_method": "story-draft-checklist.md"
+  "created_by": "SM Agent (Bob)",
+  "document_version": "v1.0.0",
+  "bmad_phase": "Phase 4 - Implementation",
+  "workflow_status": "Ready for Development"
 }
