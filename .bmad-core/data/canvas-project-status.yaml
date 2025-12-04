@@ -3,7 +3,7 @@ project:
   version: v1.3
   current_phase: implementation
   bmad_integration_status: aligned
-  last_updated: '2025-12-02'
+  last_updated: '2025-12-03'
 epics:
   epic-1:
     name: Basic Learning System
@@ -242,6 +242,66 @@ epics:
       '16.5': ✅
       '16.6': ✅
       '16.7': ✅
+  epic-17:
+    name: 性能优化和监控
+    status: completed
+    completion_date: 2025-12-04
+    started_date: 2025-12-03
+    stories:
+    - 17.1
+    - 17.2
+    - 17.3
+    - 17.4
+    - 17.5
+    - 17.6
+    description: 性能监控、指标采集、告警和优化策略（Prometheus、结构化日志、Agent追踪、Dashboard）
+    prd_source: docs/prd/epics/EPIC-17-PERFORMANCE-MONITORING.md
+    architecture_source: docs/architecture/performance-monitoring-architecture.md
+    key_achievement: 完整的性能监控系统（143+测试，~7,500 LOC，8个运维文档）
+    verification_source: 'Tests: 17.1(20), 17.2(45), 17.3(39), 17.4(33), 17.5(71)'
+    substories:
+      17.1: Prometheus指标集成 ✅ QA-PASS (8/8 AC, 20测试)
+      17.2: 深度监控 ✅ QA-PASS (8/8 AC, 45测试)
+      17.3: 告警系统和Dashboard ✅ QA-PASS (39/39测试)
+      17.4: 性能优化策略 ✅ QA-PASS (33/33测试)
+      17.5: E2E集成测试 ✅ QA-PASS (71/71测试)
+      17.6: 文档和生产就绪 ✅ QA-PASS (8/8文档)
+      '17.1': ✅
+      '17.2': ✅
+      '17.3': ✅
+      '17.4': ✅
+      '17.5': ✅
+      '17.6': ✅
+  epic-18:
+    name: 数据迁移和回滚
+    status: completed
+    started_date: 2025-12-04
+    completion_date: 2025-12-04
+    stories:
+    - 18.1
+    - 18.2
+    - 18.3
+    - 18.4
+    - 18.5
+    description: Canvas操作追踪、快照管理、回滚功能、Graphiti同步、REST API配置
+    architecture_source: docs/architecture/rollback-recovery-architecture.md
+    story_points: 28
+    estimated_days: 9-11
+    key_achievement: 完整回滚系统（92测试，5个REST端点，Graphiti同步）
+    verification_source: 'Git commit: 7ae53cf6'
+    substories:
+      18.1: Operation Tracker - Canvas操作历史系统 (5 SP)
+      18.2: Snapshot Manager - Canvas状态快照 (5 SP)
+      18.3: Rollback Engine - Canvas状态恢复 (8 SP)
+      18.4: Graph Sync Service - Graphiti知识图谱同步 (5 SP)
+      18.5: Rollback API和配置 - 完整REST API和配置 (5 SP)
+      '18.1': ✅
+      '18.2': ✅
+      '18.3': ✅
+      '18.4': ✅
+      '18.5': ✅
+    dependency_graph: '18.1 → 18.2 → [18.3 || 18.4] → 18.5'
+    parallel_opportunity: 'Story 18.3和18.4可并行开发'
 scp_006:
   name: 多模态文件关联
   status: planning_complete
@@ -271,12 +331,12 @@ scp_006:
   note: 决策：放弃ImageBind (GPU依赖)，采用Gemini 2.0 Flash (云API)
 next_actions:
 - ✅ Epic 12 已完成 (16个Stories, 32+模块)
-- ✅ SCP-006 实施计划已创建 (9个Stories, 24天)
-- 🔄 开始 Epic 13: Obsidian Plugin核心功能
-- 🔄 开始 Epic 14: 艾宾浩斯复习系统迁移
-- ⏳ SCP-006: 多模态支持 (Epic 13/14后实施)
-- ⏳ Epic 0: 技术文档验证基础设施 (可选)
-- ⏳ Epic 16-18: 跨Canvas关联/性能优化/数据迁移
+- ✅ Epic 13 已完成 (8个Stories, ~760测试)
+- ✅ Epic 14 已完成 (7个Stories, ~72,013行测试)
+- ✅ Epic 16 已完成 (7个Stories, 跨Canvas关联)
+- ✅ Epic 17 已完成 (6个Stories, 143+测试, ~7,500 LOC)
+- ✅ Epic 18 已完成 (5个Stories, 92测试, 完整回滚系统)
+- ⏳ SCP-006: 多模态支持 (可选)
 blocked_items: []
 technical_debt:
 - item: CLAUDE.md已优化（27KB → 12.2KB）
@@ -301,10 +361,10 @@ devload_always_files:
 - docs/architecture/canvas-layer-architecture.md
 - CANVAS_ERROR_LOG.md
 stats:
-  total_epics: 12
-  completed_epics: 11
-  in_progress_epics: 1
-  pending_epics: 8
+  total_epics: 14
+  completed_epics: 13
+  in_progress_epics: 0
+  pending_epics: 5
   total_agents: 14
   test_pass_rate: 99.2%
   documentation_coverage: 100%
@@ -322,9 +382,9 @@ parallel_development:
     blocked: Blocked by dependency or issue
     deferred: Moved to next sprint/batch
   current_sprint:
-    sprint_id: epic-16
+    sprint_id: epic-17
     phase: cleanup
-    total_stories: 6
+    total_stories: 4
     active_worktrees: []
     qa_groups: []
     started_at: null
@@ -372,6 +432,36 @@ parallel_development:
     '16.7':
       status: pending
       branch: develop-16.7
+    '17.1':
+      status: completed
+      branch: develop-17.1
+      qa_date: 2025-12-03
+      qa_result: PASS (8/8 AC, 20 tests, metrics_middleware.py 305行)
+    '17.2':
+      status: completed
+      branch: develop-17.2
+      qa_date: 2025-12-03
+      qa_result: PASS (8/8 AC, 60 tests, agent_metrics.py + memory_metrics.py + resource_monitor.py)
+    '17.3':
+      status: completed
+      branch: develop-17.3
+      qa_date: 2025-12-03
+      qa_result: PASS (39/39 tests, alert_manager.py + notification_channels.py)
+    '17.4':
+      status: completed
+      branch: develop-17.4
+      qa_date: 2025-12-03
+      qa_result: PASS (33/33 tests, canvas_cache.py + batch_writer.py + resource_aware_scheduler.py)
+    '17.5':
+      status: completed
+      branch: develop-17.5
+      qa_date: 2025-12-03
+      qa_result: PASS (71/71 tests, E2E + Performance + Load tests)
+    '17.6':
+      status: completed
+      branch: develop-17.6
+      qa_date: 2025-12-04
+      qa_result: PASS (8/8 docs, monitoring-operations-guide.md + alert-runbook.md + dashboard-user-guide.md + ...)
   conflicts_detected: []
 notes:
 - Epic 12 is critical - Correcting BMad integration misalignment
