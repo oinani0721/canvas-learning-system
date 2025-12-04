@@ -1,0 +1,665 @@
+/**
+ * Progress Tracker View Styles - Canvas Learning System
+ *
+ * Story 19.3: 进度追踪UI组件 + 检验模式标签与趋势可视化
+ *
+ * ✅ Uses Obsidian CSS variables for theme compatibility
+ * ✅ Verified from PRD FR4 (Lines 2829-2890) - Progress tracking UI
+ */
+
+/* ============================================================================
+   Container & Layout
+   ============================================================================ */
+
+.progress-tracker-container {
+    height: 100%;
+    overflow: hidden;
+}
+
+.progress-tracker-view {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    font-family: var(--font-text);
+}
+
+/* ============================================================================
+   Header Section
+   ============================================================================ */
+
+.progress-tracker-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+    flex-shrink: 0;
+}
+
+.progress-tracker-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.refresh-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    background-color: var(--interactive-normal);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.15s ease;
+}
+
+.refresh-button:hover {
+    background-color: var(--interactive-hover);
+    color: var(--text-normal);
+}
+
+/* ============================================================================
+   Tab Navigation (AC 3)
+   ============================================================================ */
+
+.tab-navigation {
+    display: flex;
+    gap: 0;
+    padding: 0 1rem;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+    flex-shrink: 0;
+}
+
+.tab-button {
+    padding: 0.75rem 1.25rem;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    transition: all 0.15s ease;
+}
+
+.tab-button:hover {
+    color: var(--text-normal);
+    background-color: var(--background-modifier-hover);
+}
+
+.tab-button.active {
+    color: var(--interactive-accent);
+    border-bottom-color: var(--interactive-accent);
+}
+
+/* ============================================================================
+   Content Area
+   ============================================================================ */
+
+.tab-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1.5rem;
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+}
+
+/* ============================================================================
+   Current Progress Tab (AC 1, AC 2)
+   ============================================================================ */
+
+.current-progress-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Circular Progress Indicator */
+.progress-circle-section {
+    display: flex;
+    justify-content: center;
+    padding: 1rem 0;
+}
+
+.progress-circle-wrapper {
+    position: relative;
+    width: 160px;
+    height: 160px;
+}
+
+.progress-circle {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.progress-circle-bg {
+    fill: none;
+    stroke: var(--background-modifier-border);
+    stroke-width: 12;
+}
+
+.progress-circle-fill {
+    fill: none;
+    stroke: var(--interactive-accent);
+    stroke-width: 12;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.5s ease;
+}
+
+.progress-circle-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+}
+
+.progress-percentage {
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-normal);
+    display: block;
+}
+
+.progress-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+/* Node Statistics (AC 2) */
+.node-stats-section {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.node-stats-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0;
+}
+
+.node-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+}
+
+.node-stat-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.node-stat-icon {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-bottom: 0.5rem;
+}
+
+.node-stat-icon.red {
+    background-color: #e74c3c;
+}
+
+.node-stat-icon.purple {
+    background-color: #9b59b6;
+}
+
+.node-stat-icon.green {
+    background-color: #27ae60;
+}
+
+.node-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-normal);
+}
+
+.node-stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Detailed Stats */
+.detailed-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.875rem;
+}
+
+.stat-row .label {
+    color: var(--text-muted);
+}
+
+.stat-row .value {
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+/* Review Mode Badge (AC 6) */
+.review-mode-section {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    border-left: 3px solid var(--interactive-accent);
+}
+
+.review-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 16px;
+}
+
+.review-mode-badge.fresh {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #27ae60;
+}
+
+.review-mode-badge.targeted {
+    background-color: rgba(52, 152, 219, 0.15);
+    color: #3498db;
+}
+
+.review-mode-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   History Tab (AC 4)
+   ============================================================================ */
+
+.history-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.history-chart-section {
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.history-chart-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0 0 1rem 0;
+}
+
+.history-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-around;
+    height: 150px;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.history-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bar-fill {
+    width: 36px;
+    background-color: var(--interactive-accent);
+    border-radius: 4px 4px 0 0;
+    transition: height 0.3s ease;
+    min-height: 4px;
+}
+
+.bar-label {
+    font-size: 0.625rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.bar-value {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+/* Trend Indicator */
+.trend-indicator-section {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 20px;
+}
+
+.trend-badge.improving {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #27ae60;
+}
+
+.trend-badge.stable {
+    background-color: rgba(241, 196, 15, 0.15);
+    color: #f39c12;
+}
+
+.trend-badge.declining {
+    background-color: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+
+.trend-badge.insufficient_data {
+    background-color: rgba(149, 165, 166, 0.15);
+    color: #95a5a6;
+}
+
+.trend-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+}
+
+/* History List */
+.history-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    transition: background-color 0.15s ease;
+}
+
+.history-item:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.history-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.history-item-name {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.history-item-date {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.history-item-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.progress-bar-mini {
+    width: 80px;
+    height: 6px;
+    background-color: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.progress-bar-mini .fill {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.progress-value {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    min-width: 50px;
+    text-align: right;
+}
+
+/* ============================================================================
+   Trends Tab (AC 5)
+   ============================================================================ */
+
+.trends-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.concept-trend-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.concept-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.concept-text {
+    flex: 1;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    color: var(--text-normal);
+    line-height: 1.4;
+}
+
+.concept-attempts {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    white-space: nowrap;
+    margin-left: 1rem;
+}
+
+.concept-history {
+    display: flex;
+    gap: 0.375rem;
+    flex-wrap: wrap;
+}
+
+.history-dot {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+}
+
+.history-dot.pass {
+    background-color: rgba(46, 204, 113, 0.15);
+    color: #27ae60;
+}
+
+.history-dot.fail {
+    background-color: rgba(231, 76, 60, 0.15);
+    color: #e74c3c;
+}
+
+.first-pass-info {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.first-pass-info .highlight {
+    color: var(--interactive-accent);
+    font-weight: 600;
+}
+
+/* ============================================================================
+   Loading & Error States
+   ============================================================================ */
+
+.loading-state,
+.error-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+    color: var(--text-muted);
+}
+
+.loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 1rem;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.error-message {
+    color: var(--text-error);
+    margin-bottom: 1rem;
+}
+
+.retry-button {
+    padding: 0.5rem 1rem;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: opacity 0.15s ease;
+}
+
+.retry-button:hover {
+    opacity: 0.9;
+}
+
+/* ============================================================================
+   Empty State
+   ============================================================================ */
+
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    text-align: center;
+}
+
+.empty-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    margin: 0 0 0.5rem 0;
+}
+
+.empty-description {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    max-width: 300px;
+}
+
+/* ============================================================================
+   Responsive Adjustments
+   ============================================================================ */
+
+@media (max-width: 400px) {
+    .node-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .progress-tracker-header {
+        flex-direction: column;
+        gap: 0.75rem;
+        align-items: flex-start;
+    }
+
+    .tab-button {
+        padding: 0.625rem 1rem;
+        font-size: 0.8125rem;
+    }
+}
