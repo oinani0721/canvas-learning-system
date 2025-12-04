@@ -1,6 +1,3 @@
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependency injection Depends)
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings lru_cache)
 """
 Dependency Injection System for Canvas Learning System.
 
@@ -19,15 +16,24 @@ Dependency Graph:
 [Source: docs/stories/15.3.story.md#Dev-Notes]
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入架构]
 """
-from functools import lru_cache
-from typing import Annotated, AsyncGenerator
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependency injection Depends)
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings lru_cache)
+from __future__ import annotations
+
 import logging
+from functools import lru_cache
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator
+
+if TYPE_CHECKING:
+    from .services.rollback_service import RollbackService
 
 from fastapi import Depends
 
 from .config import Settings
-from .services.canvas_service import CanvasService
 from .services.agent_service import AgentService
+from .services.background_task_manager import BackgroundTaskManager
+from .services.canvas_service import CanvasService
 from .services.review_service import ReviewService
 
 logger = logging.getLogger(__name__)
@@ -170,18 +176,40 @@ AgentServiceDep = Annotated[AgentService, Depends(get_agent_service)]
 
 
 # =============================================================================
+# BackgroundTaskManager Dependency (Singleton)
+# =============================================================================
+
+def get_task_manager() -> BackgroundTaskManager:
+    """
+    Get BackgroundTaskManager singleton instance.
+
+    The BackgroundTaskManager uses a singleton pattern internally,
+    so this always returns the same instance.
+
+    Returns:
+        BackgroundTaskManager: Singleton task manager instance
+    """
+    logger.debug("Getting BackgroundTaskManager instance")
+    return BackgroundTaskManager.get_instance()
+
+
+# Type alias for BackgroundTaskManager dependency
+TaskManagerDep = Annotated[BackgroundTaskManager, Depends(get_task_manager)]
+
+
+# =============================================================================
 # ReviewService Dependency (Chained: depends on Settings AND CanvasService)
 # =============================================================================
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_review_service(
-    settings: SettingsDep,
-    canvas_service: CanvasServiceDep
+    canvas_service: CanvasServiceDep,
+    task_manager: TaskManagerDep
 ) -> AsyncGenerator[ReviewService, None]:
     """
     Get ReviewService instance with automatic resource cleanup.
 
-    This is a chained dependency - it depends on both Settings and CanvasService.
+    This is a chained dependency - it depends on CanvasService and TaskManager.
     FastAPI will resolve the dependency chain automatically.
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
@@ -189,11 +217,12 @@ async def get_review_service(
     Dependency Chain:
         get_settings() → settings
         get_canvas_service(settings) → canvas_service
-        get_review_service(settings, canvas_service) → review_service
+        get_task_manager() → task_manager
+        get_review_service(canvas_service, task_manager) → review_service
 
     Args:
-        settings: Application settings (injected via Depends)
         canvas_service: CanvasService instance (injected via Depends)
+        task_manager: BackgroundTaskManager instance (injected via Depends)
 
     Yields:
         ReviewService: Review and verification canvas service instance
@@ -213,8 +242,8 @@ async def get_review_service(
     """
     logger.debug("Creating ReviewService instance (chained dependency)")
     service = ReviewService(
-        canvas_base_path=settings.canvas_base_path,
-        canvas_service=canvas_service
+        canvas_service=canvas_service,
+        task_manager=task_manager
     )
     try:
         yield service
@@ -228,6 +257,70 @@ ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
 # =============================================================================
+# RollbackService Dependency (Story 18.5)
+# [Source: docs/architecture/rollback-recovery-architecture.md]
+# =============================================================================
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
+async def get_rollback_service(
+    settings: SettingsDep
+) -> AsyncGenerator["RollbackService", None]:
+    """
+    Get RollbackService instance with automatic resource cleanup.
+
+    Uses yield syntax to support resource cleanup after request completion.
+    Configures the service using application settings.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
+
+    Args:
+        settings: Application settings (injected via Depends)
+
+    Yields:
+        RollbackService: Rollback operations service instance
+
+    Example:
+        ```python
+        @router.post("/rollback")
+        async def execute_rollback(
+            request: RollbackRequest,
+            service: RollbackService = Depends(get_rollback_service)
+        ):
+            return await service.rollback(request)
+        ```
+
+    [Source: docs/stories/18.5.story.md#Dev-Notes]
+    [Source: docs/architecture/rollback-recovery-architecture.md]
+    """
+    # Lazy import to avoid circular dependencies
+    from .services.rollback_service import RollbackService
+
+    logger.debug("Creating RollbackService instance")
+    service = RollbackService(
+        storage_path=settings.rollback_storage_path,
+        history_limit=settings.rollback_history_limit,
+        snapshot_interval=settings.rollback_snapshot_interval,
+        max_snapshots=settings.rollback_max_snapshots,
+        graphiti_timeout_ms=settings.rollback_graphiti_timeout_ms,
+        enable_graphiti_sync=settings.rollback_enable_graphiti_sync,
+        enable_auto_backup=settings.rollback_enable_auto_backup,
+    )
+    try:
+        yield service
+    finally:
+        await service.cleanup()
+        logger.debug("RollbackService cleanup completed")
+
+
+# Lazy type alias for RollbackService dependency (forward reference)
+# Note: RollbackService is imported lazily in get_rollback_service
+def _get_rollback_service_dep():
+    """Helper to create RollbackServiceDep with lazy import."""
+    from .services.rollback_service import RollbackService
+    return Annotated[RollbackService, Depends(get_rollback_service)]
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -236,10 +329,13 @@ __all__ = [
     "get_settings",
     "get_canvas_service",
     "get_agent_service",
+    "get_task_manager",
     "get_review_service",
+    "get_rollback_service",
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
     "AgentServiceDep",
+    "TaskManagerDep",
     "ReviewServiceDep",
 ]

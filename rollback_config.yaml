@@ -1,0 +1,102 @@
+# Canvas Learning System - Rollback Configuration
+# [Source: docs/architecture/rollback-recovery-architecture.md:100-150]
+# [Source: docs/stories/18.5.story.md - AC 3]
+#
+# This configuration file defines all rollback system settings.
+# Values can be overridden via environment variables with ROLLBACK_ prefix.
+#
+# Example: ROLLBACK_HISTORY_LIMIT=200 overrides history_limit: 100
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Operation History Settings (Story 18.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Maximum operation history records per Canvas
+# Higher values provide more undo history but use more disk space
+# Default: 100 (approximately 500KB per Canvas at max)
+history_limit: 100
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Snapshot Settings (Story 18.2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Auto snapshot interval in seconds
+# Set to 0 to disable auto snapshots
+# Default: 300 (5 minutes)
+snapshot_interval: 300
+
+# Maximum snapshots per Canvas before auto-cleanup
+# Oldest snapshots are removed when limit is exceeded
+# Default: 50
+max_snapshots: 50
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Storage Settings
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Base path for rollback data storage
+# Relative to project root or absolute path
+# Structure:
+#   {storage_path}/
+#     history/{canvas_name}/     - Operation history files
+#     snapshots/{canvas_name}/   - Snapshot files
+# Default: .canvas-learning
+storage_path: ".canvas-learning"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Graphiti Integration Settings (Story 18.4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Enable Graphiti knowledge graph synchronization
+# When enabled, rollback operations sync Canvas state to Graphiti
+# Default: true
+enable_graphiti_sync: true
+
+# Graphiti sync timeout in milliseconds
+# Prevents blocking on slow Graphiti responses
+# If exceeded, sync is skipped with graceful degradation
+# Default: 200
+graphiti_timeout_ms: 200
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Rollback Behavior Settings (Story 18.3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Create backup snapshot before rollback operations
+# Provides safety net if rollback needs to be undone
+# Default: true
+enable_auto_backup: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Advanced Settings (Optional)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Compression settings for snapshots (future feature)
+# compression:
+#   enabled: false
+#   algorithm: "gzip"  # gzip, lz4, zstd
+#   level: 6           # 1-9 for gzip
+
+# Cleanup settings (future feature)
+# cleanup:
+#   auto_cleanup_enabled: true
+#   cleanup_interval_hours: 24
+#   max_age_days: 30
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Environment Variable Mapping
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# All settings can be overridden via environment variables:
+#
+# | Config Key           | Environment Variable              |
+# |---------------------|-----------------------------------|
+# | history_limit       | ROLLBACK_HISTORY_LIMIT            |
+# | snapshot_interval   | ROLLBACK_SNAPSHOT_INTERVAL        |
+# | max_snapshots       | ROLLBACK_MAX_SNAPSHOTS            |
+# | storage_path        | ROLLBACK_STORAGE_PATH             |
+# | enable_graphiti_sync| ROLLBACK_ENABLE_GRAPHITI_SYNC     |
+# | graphiti_timeout_ms | ROLLBACK_GRAPHITI_TIMEOUT_MS      |
+# | enable_auto_backup  | ROLLBACK_ENABLE_AUTO_BACKUP       |
+#
+# ═══════════════════════════════════════════════════════════════════════════════
