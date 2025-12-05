@@ -21,7 +21,6 @@ Updated: 2025-10-19
 """
 
 import asyncio
-from datetime import datetime, timedelta
 import glob
 import json
 import math
@@ -31,10 +30,12 @@ import shutil
 import sys
 import time
 import uuid
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+
 # timedelta already imported above
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
-from dataclasses import dataclass, field
 
 # 导入模型兼容性适配器
 try:
@@ -96,8 +97,11 @@ except ImportError as e:
 # 导入Agent实例池模块 (Epic 10)
 try:
     from agent_instance_pool import (
-        get_instance_pool, start_instance_pool, stop_instance_pool,
-        AgentTask, GLMInstancePool
+        AgentTask,
+        GLMInstancePool,
+        get_instance_pool,
+        start_instance_pool,
+        stop_instance_pool,
     )
     AGENT_POOL_ENABLED = True
     logger.info("Agent Instance Pool module loaded successfully")
@@ -107,9 +111,9 @@ except ImportError as e:
 
 # Story 6.3: 学习进度追踪相关导入
 try:
-    import pandas as pd
-    import numpy as np
     import matplotlib.pyplot as plt
+    import numpy as np
+    import pandas as pd
     import seaborn as sns
     from scipy import stats
     from sklearn.cluster import KMeans
@@ -132,16 +136,17 @@ except ImportError as e:
 
 # Ebbinghaus Review System相关导入 (基于Py-FSRS, Trust Score: 9.4/10)
 try:
-    from fsrs import Scheduler, Card, Rating, ReviewLog, State
-    from datetime import datetime, timedelta, timezone
     import json
     import os
+    from datetime import datetime, timedelta, timezone
+
+    from fsrs import Card, Rating, ReviewLog, Scheduler, State
     EBBINGHAUS_REVIEW_ENABLED = True
 except ImportError as e:
     EBBINGHAUS_REVIEW_ENABLED = False
     if LOGURU_ENABLED:
         logger.warning(f"Ebbinghaus复习系统依赖未安装 - {e}")
-    print(f"警告: Ebbinghaus复习系统需要安装Py-FSRS - pip install fsrs")
+    print("警告: Ebbinghaus复习系统需要安装Py-FSRS - pip install fsrs")
     print("运行 'pip install -r requirements.txt' 来安装依赖")
 
 # Story 12.4: Temporal Memory System导入 (Epic 12 - 3层记忆系统)
@@ -159,7 +164,7 @@ except ImportError as e:
 
 # Story 8.11: Canvas专用错误日志系统集成
 try:
-    from canvas_error_logger import get_canvas_error_logger, log_canvas_operation, log_agent_call
+    from canvas_error_logger import get_canvas_error_logger, log_agent_call, log_canvas_operation
     from error_recovery_advisor import get_recovery_advice
     CANVAS_ERROR_LOGGER_ENABLED = True
     if LOGURU_ENABLED:
@@ -172,13 +177,14 @@ except ImportError as e:
 
 # Epic 6: 知识图谱相关导入
 try:
+    import asyncio
+    import logging
+
     from dotenv import load_dotenv
     from graphiti_core import Graphiti
     from graphiti_core.driver.neo4j_driver import Neo4jDriver
     from graphiti_core.nodes import EpisodeType
     from neo4j import GraphDatabase
-    import logging
-    import asyncio
 
     # 加载环境变量
     load_dotenv()
@@ -202,13 +208,14 @@ except ImportError as e:
 
 # Story 7.1: 并发Agent执行引擎相关导入
 try:
-    import aiomultiprocess
-    from concurrent.futures import ProcessPoolExecutor, as_completed
     import multiprocessing as mp
-    from typing import Callable, Awaitable
-    import threading
     import queue
+    import threading
     import weakref
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+    from typing import Awaitable, Callable
+
+    import aiomultiprocess
     CONCURRENT_AGENTS_ENABLED = True
 except ImportError as e:
     CONCURRENT_AGENTS_ENABLED = False
@@ -770,9 +777,10 @@ else:
 # ===========================
 
 try:
-    import pyperclip
-    import chardet
     import re
+
+    import chardet
+    import pyperclip
     SMART_CLIPBOARD_ENABLED = True
 except ImportError as e:
     SMART_CLIPBOARD_ENABLED = False
@@ -924,7 +932,7 @@ if SMART_CLIPBOARD_ENABLED:
                 segments.append({
                     "segment_id": len(segments) + 1,
                     "content": current_segment,
-                    "instruction": f"最后一段"
+                    "instruction": "最后一段"
                 })
 
             return segments
@@ -2576,8 +2584,8 @@ class ReviewBoardAgentSelector:
         Returns:
             Dict: 包含多个Agent推荐和执行策略
         """
-        import uuid
         import time
+        import uuid
 
         try:
             start_time = time.time()
@@ -2712,8 +2720,8 @@ class ReviewBoardAgentSelector:
         Returns:
             Dict: 并行执行结果
         """
-        import uuid
         import time
+        import uuid
         from datetime import datetime
 
         execution_id = f"exec-{uuid.uuid4().hex}"
@@ -3032,7 +3040,6 @@ class ReviewBoardAgentSelector:
         """
         import time
         import uuid
-        import asyncio
 
         if test_cases is None:
             # 默认测试用例
@@ -3811,8 +3818,8 @@ class ReviewBoardAgentSelector:
 
         strategy["focus_areas"] = [
             f"重点处理{color_analysis['distribution']['red']}个红色节点",
-            f"建立基础概念框架",
-            f"降低学习门槛"
+            "建立基础概念框架",
+            "降低学习门槛"
         ]
 
         return strategy
@@ -3837,8 +3844,8 @@ class ReviewBoardAgentSelector:
 
         strategy["focus_areas"] = [
             f"深度处理{color_analysis['distribution']['purple']}个紫色节点",
-            f"消除理解盲区",
-            f"建立知识关联"
+            "消除理解盲区",
+            "建立知识关联"
         ]
 
         return strategy
@@ -3870,8 +3877,8 @@ class ReviewBoardAgentSelector:
 
         strategy["focus_areas"] = [
             f"优化{len(yellow_nodes)}个个人理解表达",
-            f"提升应用能力",
-            f"建立创新思维"
+            "提升应用能力",
+            "建立创新思维"
         ]
 
         return strategy
@@ -3908,13 +3915,13 @@ class ReviewBoardAgentSelector:
             for i, action in enumerate(analysis['recommended_strategy']['actions'], 1):
                 report += f"{i}. {action}\n"
 
-            report += f"""
+            report += """
 ### 🎯 重点关注领域
 """
             for area in analysis['recommended_strategy']['focus_areas']:
                 report += f"- {area}\n"
 
-            report += f"""
+            report += """
 ### 🤖 推荐使用的Agent
 """
             for agent in analysis['recommended_strategy']['recommended_agents']:
@@ -3999,10 +4006,10 @@ ultrathink_canvas_integration = None
 
 if GRAPHITI_ENABLED:
     import asyncio
+
     from graphiti_core import Graphiti
-    from graphiti_core.nodes import EpisodeType, EntityNode
     from graphiti_core.edges import EntityEdge
-    from graphiti_core.search.search_filters import SearchFilters
+    from graphiti_core.nodes import EntityNode, EpisodeType
 
     class CanvasLearningMemory:
         """Canvas学习记忆系统 - 基于Graphiti的时间感知学习记忆"""
@@ -4524,10 +4531,11 @@ else:
 # ===========================
 
 try:
-    import aiomultiprocess as amp
+    import asyncio
     import multiprocessing as mp
     from concurrent.futures import ProcessPoolExecutor, as_completed
-    import asyncio
+
+    import aiomultiprocess as amp
     CONCURRENT_PROCESSING_ENABLED = True
 except ImportError as e:
     CONCURRENT_PROCESSING_ENABLED = False
@@ -4690,7 +4698,6 @@ if CONCURRENT_PROCESSING_ENABLED:
             """设置工作进程环境"""
             if loguru_enabled:
                 # 在工作进程中设置日志
-                import sys
                 import logging
                 logging.basicConfig(level=logging.INFO)
 
@@ -4825,8 +4832,8 @@ if CONCURRENT_PROCESSING_ENABLED:
             "anchor_type": "mnemonic",
             "techniques": [
                 f"生动类比：{concept}就像...",
-                f"记忆口诀：...",
-                f"故事记忆：..."
+                "记忆口诀：...",
+                "故事记忆：..."
             ]
         }
 
@@ -5262,8 +5269,9 @@ class LearningAnalyticsDashboard:
     async def _collect_system_performance_data(self) -> Dict[str, Any]:
         """收集系统性能数据"""
         try:
-            import psutil
             import os
+
+            import psutil
 
             # 系统资源使用情况
             cpu_percent = psutil.cpu_percent(interval=1)
@@ -5781,8 +5789,9 @@ class PerformanceOptimizer:
 
             # 资源使用情况
             try:
-                import psutil
                 import os
+
+                import psutil
 
                 health_status["resource_usage"] = {
                     "cpu_percent": psutil.cpu_percent(interval=1),
@@ -5836,7 +5845,7 @@ class PerformanceOptimizer:
             if old_cache_size > new_cache_size:
                 optimizations_applied.append({
                     "type": "cache_cleanup",
-                    "action": f"清理过期缓存项",
+                    "action": "清理过期缓存项",
                     "result": f"缓存大小从{old_cache_size}减少到{new_cache_size}"
                 })
 
@@ -5849,7 +5858,7 @@ class PerformanceOptimizer:
                 self.cache_config["max_cache_size"] = min(old_max_size * 1.5, 2000)
                 optimizations_applied.append({
                     "type": "cache_expansion",
-                    "action": f"增加缓存大小",
+                    "action": "增加缓存大小",
                     "result": f"缓存大小从{old_max_size}增加到{self.cache_config['max_cache_size']}"
                 })
 
@@ -5858,7 +5867,7 @@ class PerformanceOptimizer:
                 self.cache_config["max_cache_size"] = max(old_max_size * 0.8, 100)
                 optimizations_applied.append({
                     "type": "cache_contraction",
-                    "action": f"减少缓存大小节省内存",
+                    "action": "减少缓存大小节省内存",
                     "result": f"缓存大小从{old_max_size}减少到{self.cache_config['max_cache_size']}"
                 })
 
@@ -6716,7 +6725,7 @@ class CanvasJSONOperator:
         if os.path.exists(canvas_path):
             try:
                 create_backup(canvas_path)
-            except (OSError, IOError, PermissionError) as e:
+            except (OSError, IOError, PermissionError):
                 # 备份失败不应阻止写入，记录但继续
                 # 在生产环境中可以添加日志记录
                 # 捕获文件I/O相关的异常：权限错误、磁盘空间不足等
@@ -6728,7 +6737,7 @@ class CanvasJSONOperator:
         # 3. 清理旧备份
         try:
             cleanup_old_backups(canvas_path)
-        except (OSError, IOError, PermissionError) as e:
+        except (OSError, IOError, PermissionError):
             # 清理失败不应影响写入结果
             # 可能原因：权限问题、文件被占用等
             pass
@@ -7151,6 +7160,183 @@ class CanvasJSONOperator:
 
         # 5. 返回统计
         return (nodes_deleted, edges_deleted)
+
+    @staticmethod
+    @canvas_error_handler("attach_image")
+    def attach_image(
+        canvas_data: Dict[str, Any],
+        node_id: str,
+        image_path: str,
+        thumbnail_base64: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """为Canvas节点附加图片
+
+        将图片附加到指定节点，支持缩略图和元数据存储。
+
+        Verified from Story 6.1:
+        - AC 6.1.1: 支持PNG/JPG/GIF/SVG格式，10MB限制
+        - AC 6.1.2: 生成100x100缩略图
+        - AC 6.1.3: 存储图片元数据
+
+        Args:
+            canvas_data: Canvas JSON数据
+            node_id: 目标节点ID
+            image_path: 图片文件路径（相对于Canvas文件或绝对路径）
+            thumbnail_base64: 可选的base64编码缩略图
+            metadata: 可选的图片元数据（width, height, format等）
+
+        Returns:
+            Dict[str, Any]: 添加的附件信息
+
+        Raises:
+            KeyError: 如果节点ID不存在
+            ValueError: 如果图片格式不支持
+
+        Example:
+            >>> canvas_data = {
+            ...     "nodes": [{"id": "text-abc123", "type": "text",
+            ...                "x": 0, "y": 0, "text": "示例"}],
+            ...     "edges": []
+            ... }
+            >>> attachment = CanvasJSONOperator.attach_image(
+            ...     canvas_data,
+            ...     "text-abc123",
+            ...     "images/diagram.png",
+            ...     thumbnail_base64="iVBORw0KGgo...",
+            ...     metadata={"width": 200, "height": 150, "format": "png"}
+            ... )
+            >>> assert "attachments" in canvas_data["nodes"][0]
+        """
+        import uuid
+        from pathlib import Path as PathLib
+
+        # 1. 查找节点
+        node = None
+        for n in canvas_data["nodes"]:
+            if n["id"] == node_id:
+                node = n
+                break
+
+        if node is None:
+            raise KeyError(f"节点不存在: {node_id}")
+
+        # 2. 验证图片格式
+        supported_formats = {".png", ".jpg", ".jpeg", ".gif", ".svg"}
+        path_obj = PathLib(image_path)
+        ext = path_obj.suffix.lower()
+        if ext not in supported_formats:
+            raise ValueError(
+                f"不支持的图片格式: {ext}. 支持: {', '.join(supported_formats)}"
+            )
+
+        # 3. 构建附件信息
+        attachment_id = f"img-{uuid.uuid4().hex[:8]}"
+        attachment = {
+            "id": attachment_id,
+            "type": "image",
+            "path": image_path,
+            "format": ext.lstrip("."),
+            "created_at": __import__("datetime").datetime.now().isoformat()
+        }
+
+        # 4. 添加可选的缩略图
+        if thumbnail_base64:
+            attachment["thumbnail"] = thumbnail_base64
+
+        # 5. 添加可选的元数据
+        if metadata:
+            attachment["metadata"] = metadata
+
+        # 6. 初始化attachments数组并添加
+        if "attachments" not in node:
+            node["attachments"] = []
+        node["attachments"].append(attachment)
+
+        return attachment
+
+    @staticmethod
+    @canvas_error_handler("detach_image")
+    def detach_image(
+        canvas_data: Dict[str, Any],
+        node_id: str,
+        attachment_id: Optional[str] = None,
+        image_path: Optional[str] = None
+    ) -> int:
+        """从Canvas节点移除图片附件
+
+        根据attachment_id或image_path移除节点的图片附件。
+        如果两个参数都不提供，则移除所有附件。
+
+        Args:
+            canvas_data: Canvas JSON数据
+            node_id: 目标节点ID
+            attachment_id: 要移除的附件ID（可选）
+            image_path: 要移除的图片路径（可选）
+
+        Returns:
+            int: 移除的附件数量
+
+        Raises:
+            KeyError: 如果节点ID不存在
+
+        Example:
+            >>> canvas_data = {
+            ...     "nodes": [{
+            ...         "id": "text-abc123",
+            ...         "type": "text",
+            ...         "attachments": [
+            ...             {"id": "img-12345678", "path": "image.png"}
+            ...         ]
+            ...     }],
+            ...     "edges": []
+            ... }
+            >>> removed = CanvasJSONOperator.detach_image(
+            ...     canvas_data,
+            ...     "text-abc123",
+            ...     attachment_id="img-12345678"
+            ... )
+            >>> assert removed == 1
+            >>> assert len(canvas_data["nodes"][0].get("attachments", [])) == 0
+        """
+        # 1. 查找节点
+        node = None
+        for n in canvas_data["nodes"]:
+            if n["id"] == node_id:
+                node = n
+                break
+
+        if node is None:
+            raise KeyError(f"节点不存在: {node_id}")
+
+        # 2. 检查是否有附件
+        if "attachments" not in node or not node["attachments"]:
+            return 0
+
+        # 3. 移除附件
+        original_count = len(node["attachments"])
+
+        if attachment_id is None and image_path is None:
+            # 移除所有附件
+            node["attachments"] = []
+        elif attachment_id:
+            # 根据ID移除
+            node["attachments"] = [
+                att for att in node["attachments"]
+                if att.get("id") != attachment_id
+            ]
+        elif image_path:
+            # 根据路径移除
+            node["attachments"] = [
+                att for att in node["attachments"]
+                if att.get("path") != image_path
+            ]
+
+        # 4. 如果没有附件了，移除空数组
+        if not node["attachments"]:
+            del node["attachments"]
+
+        return original_count - len(node.get("attachments", []))
 
     @staticmethod
     def find_nodes_by_color(
@@ -11238,12 +11424,12 @@ class CanvasBusinessLogic:
         """
         # 导入聚类相关依赖
         try:
+            import jieba  # 中文分词
             import numpy as np
-            from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.cluster import KMeans
+            from sklearn.feature_extraction.text import TfidfVectorizer
             from sklearn.metrics import silhouette_score
             from sklearn.metrics.pairwise import cosine_similarity
-            import jieba  # 中文分词
         except ImportError as e:
             raise ImportError(
                 f"聚类功能缺少必要依赖: {e}\n"
@@ -11375,7 +11561,7 @@ class CanvasBusinessLogic:
 
             # 选择前3个高频词作为标签
             top_words = sorted(word_freq.items(), key=lambda x: x[1], reverse=True)[:3]
-            cluster_label = "、".join([word for word, freq in top_words]) + f"等概念"
+            cluster_label = "、".join([word for word, freq in top_words]) + "等概念"
 
             # 计算聚类置信度（基于节点内相似度）
             cluster_indices = [i for i, label in enumerate(cluster_labels) if label == cluster_id]
@@ -13001,7 +13187,7 @@ class CanvasOrchestrator:
         except KeyboardInterrupt:
             # 7. 用户中断时，保存已完成的结果
             if show_progress:
-                print(f"\n批量评分已中断")
+                print("\n批量评分已中断")
                 print(f"已完成 {idx-1}/{total} 个节点")
             # 保存已更新的Canvas
             self.operator.write_canvas(self.canvas_path, canvas_data)
@@ -13189,8 +13375,6 @@ class CanvasOrchestrator:
             - 批量处理所有节点(一次调用传递所有节点)
             - 目标响应时间<5秒
         """
-        import json
-        import time
 
         # 验证输入
         if not nodes_data:
@@ -14306,10 +14490,10 @@ def calculate_vertical_cascade_layout(
 ) -> List[Dict[str, Any]]:
     """
     计算垂直瀑布流布局（问题→黄色→问题→黄色...）
-    
+
     基于用户实例提取的标准布局算法。
     参考文档：docs/issues/canvas-layout-lessons-learned.md
-    
+
     布局模式：
     ```
     问题1 (红色 color="4")
@@ -14320,14 +14504,14 @@ def calculate_vertical_cascade_layout(
        ↓ 100px
     黄色理解2 (color="6", 空白)
     ```
-    
+
     Args:
         origin_yellow_node: 原始黄色理解节点（用户的错误理解）
             必需字段：{"x": int, "y": int, "height": int}
         questions: 问题文本列表
         group_boundary_indices: 分组边界的索引列表（在哪些问题后增加大间距）
             例如：[2] 表示在第3个问题后增加700px分组间隔
-    
+
     Returns:
         List[Dict]: 包含问题和黄色节点的布局信息列表
         每个元素格式：
@@ -14347,7 +14531,7 @@ def calculate_vertical_cascade_layout(
                 "text": ""
             }
         }
-    
+
     Example:
         >>> origin = {"x": 100, "y": -1840, "height": 239}
         >>> questions = ["问题1", "问题2", "问题3"]
@@ -14358,22 +14542,22 @@ def calculate_vertical_cascade_layout(
     """
     if group_boundary_indices is None:
         group_boundary_indices = []
-    
+
     # 计算起始Y坐标（在原黄色节点下方）
-    start_y = (origin_yellow_node['y'] + 
-               origin_yellow_node['height'] + 
+    start_y = (origin_yellow_node['y'] +
+               origin_yellow_node['height'] +
                VERTICAL_CASCADE_START_OFFSET)
-    
+
     current_y = start_y
     layout = []
-    
+
     for i, q_text in enumerate(questions):
         # 1. 估算问题节点高度（根据内容长度）
         q_height = _estimate_node_height(
-            q_text, 
+            q_text,
             VERTICAL_CASCADE_QUESTION_WIDTH
         )
-        
+
         # 2. 创建红色问题节点
         question_node = {
             "type": NODE_TYPE_TEXT,
@@ -14384,7 +14568,7 @@ def calculate_vertical_cascade_layout(
             "color": COLOR_CODE_RED,  # "4" - dis01A红色
             "text": q_text
         }
-        
+
         # 3. 创建黄色理解节点（在问题下方）
         yellow_y = current_y + q_height + VERTICAL_CASCADE_QUESTION_TO_YELLOW
         yellow_node = {
@@ -14396,47 +14580,47 @@ def calculate_vertical_cascade_layout(
             "color": COLOR_CODE_YELLOW,  # "6"
             "text": ""  # 空白供用户填写
         }
-        
+
         # 4. 计算下一个问题的Y坐标
-        current_y = (yellow_y + 
-                    VERTICAL_CASCADE_YELLOW_HEIGHT + 
+        current_y = (yellow_y +
+                    VERTICAL_CASCADE_YELLOW_HEIGHT +
                     VERTICAL_CASCADE_YELLOW_TO_QUESTION)
-        
+
         # 5. 如果是分组边界，增加大间距
         if i in group_boundary_indices:
             current_y += VERTICAL_CASCADE_GROUP_SEPARATOR
-        
+
         layout.append({
             "question": question_node,
             "yellow": yellow_node
         })
-    
+
     return layout
 
 
 def _estimate_node_height(text: str, width: int) -> int:
     """
     根据文本内容估算节点高度
-    
+
     简化算法：
     - 基础高度：150px
     - 每50个字符增加20px
     - 最小150px，最大300px
-    
+
     Args:
         text: 节点文本内容
         width: 节点宽度（用于更精确的计算，当前未使用）
-    
+
     Returns:
         int: 估算的节点高度
     """
     # 计算文本行数（粗略估计：每50个字符一行）
     char_count = len(text)
     lines = (char_count // 50) + 1
-    
+
     # 基础高度150px + 额外行数 * 20px
     estimated_height = 150 + (lines - 1) * 20
-    
+
     # 限制在150-300px之间
     return max(150, min(300, estimated_height))
 
@@ -14452,22 +14636,22 @@ def generate_decomposition_layout_compact(
 ) -> Tuple[List[Dict], List[Dict]]:
     """
     生成基础拆解问题的紧凑布局（确保每个问题都从原节点连线）
-    
+
     此函数确保：
     1. 所有问题节点X坐标对齐
     2. 问题节点与原节点同高度开始
     3. **每个问题都从原节点连线**（这是关键！）
     4. 每个问题都连到对应的黄色节点
     5. 使用紧凑的间距，避免布局分散
-    
+
     Args:
         origin_node: 原始节点（包含 id, x, y, width, height）
         questions: 问题文本列表
         base_id_prefix: 节点ID前缀，默认"decomp"
-    
+
     Returns:
         (nodes, edges): 节点列表和边列表
-        
+
     Example:
         origin = {
             'id': 'original-node-id',
@@ -14482,23 +14666,23 @@ def generate_decomposition_layout_compact(
             "问题3: ..."
         ]
         nodes, edges = generate_decomposition_layout_compact(origin, questions)
-        
+
     参考: docs/issues/canvas-pigeonhole-layout-error.md
     """
     # 计算基准X坐标（原节点右侧）
     base_x = origin['x'] + origin['width'] + DECOMPOSITION_COMPACT_BASE_X_OFFSET
-    
+
     # 起始Y坐标（与原节点同高度）
     start_y = origin['y'] + DECOMPOSITION_COMPACT_START_Y_OFFSET
-    
+
     current_y = start_y
     nodes = []
     edges = []
-    
+
     for i, q_text in enumerate(questions):
         q_id = f"{base_id_prefix}-q{i+1}"
         y_id = f"{base_id_prefix}-y{i+1}"
-        
+
         # 创建问题节点（红色）
         question_node = {
             'id': q_id,
@@ -14510,7 +14694,7 @@ def generate_decomposition_layout_compact(
             'height': DECOMPOSITION_COMPACT_QUESTION_HEIGHT,
             'color': COLOR_CODE_RED
         }
-        
+
         # 创建黄色理解节点
         yellow_y = current_y + DECOMPOSITION_COMPACT_QUESTION_HEIGHT + DECOMPOSITION_COMPACT_QUESTION_TO_YELLOW
         yellow_node = {
@@ -14523,9 +14707,9 @@ def generate_decomposition_layout_compact(
             'height': DECOMPOSITION_COMPACT_YELLOW_HEIGHT,
             'color': COLOR_CODE_YELLOW
         }
-        
+
         nodes.extend([question_node, yellow_node])
-        
+
         # ✓ 关键：为每个问题创建从原节点的连线
         edge_origin_to_q = {
             'id': f"edge-{origin['id']}-{q_id}",
@@ -14535,7 +14719,7 @@ def generate_decomposition_layout_compact(
             'toSide': 'left',
             'label': '基础拆解问题' if i == 0 else ''  # 只有第一个有标签
         }
-        
+
         # 问题→黄色连线
         edge_q_to_y = {
             'id': f"edge-{q_id}-{y_id}",
@@ -14545,12 +14729,12 @@ def generate_decomposition_layout_compact(
             'toSide': 'top',
             'label': '个人理解'
         }
-        
+
         edges.extend([edge_origin_to_q, edge_q_to_y])
-        
+
         # 计算下一个问题的Y坐标
         current_y = yellow_y + DECOMPOSITION_COMPACT_YELLOW_HEIGHT + DECOMPOSITION_COMPACT_YELLOW_TO_NEXT
-    
+
     return nodes, edges
 
 
@@ -14561,21 +14745,21 @@ def validate_decomposition_connections(
 ) -> Tuple[bool, List[str]]:
     """
     验证拆解问题的连线完整性
-    
+
     检查：
     1. 每个问题节点是否都有从原节点的连线
     2. 连线方向是否正确（origin → question）
-    
+
     Args:
         canvas_data: Canvas数据
         origin_node_id: 原始节点ID
         question_node_ids: 所有问题节点ID列表
-    
+
     Returns:
-        (is_valid, missing_connections): 
+        (is_valid, missing_connections):
         - is_valid: 是否所有连线都存在
         - missing_connections: 缺失的连线列表（格式："origin → questionX"）
-    
+
     Example:
         is_valid, missing = validate_decomposition_connections(
             canvas_data,
@@ -14587,18 +14771,18 @@ def validate_decomposition_connections(
     """
     edges = canvas_data.get('edges', [])
     missing_connections = []
-    
+
     for q_id in question_node_ids:
         # 查找从原节点到此问题的连线
         connection_exists = any(
-            edge.get('fromNode') == origin_node_id and 
+            edge.get('fromNode') == origin_node_id and
             edge.get('toNode') == q_id
             for edge in edges
         )
-        
+
         if not connection_exists:
             missing_connections.append(f"{origin_node_id} → {q_id}")
-    
+
     is_valid = len(missing_connections) == 0
     return is_valid, missing_connections
 
@@ -14611,7 +14795,7 @@ def log_layout_generation(
 ):
     """
     记录布局生成日志（用于调试和审计）
-    
+
     Args:
         operation: 操作类型（如"GENERATE", "VALIDATE"）
         origin_node_id: 原节点ID
@@ -14632,16 +14816,16 @@ def log_layout_generation(
 #         'width': 574,
 #         'height': 256
 #     }
-#     
+#
 #     questions = [
 #         "问题1: 基础概念是什么？",
 #         "问题2: 如何应用？",
 #         "问题3: 常见错误有哪些？"
 #     ]
-#     
+#
 #     # 生成布局
 #     nodes, edges = generate_decomposition_layout_compact(origin, questions, "test")
-#     
+#
 #     # 验证连线
 #     question_ids = [n['id'] for n in nodes if n['id'].startswith('test-q')]
 #     is_valid, missing = validate_decomposition_connections(
@@ -14649,7 +14833,7 @@ def log_layout_generation(
 #         origin['id'],
 #         question_ids
 #     )
-#     
+#
 #     print(f"生成节点数: {len(nodes)}")
 #     print(f"生成连线数: {len(edges)}")
 #     print(f"连线完整性: {is_valid}")
@@ -14669,12 +14853,12 @@ def create_ai_doc_connection(
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """
     创建AI文档节点及其与用户理解节点的标准连接
-    
+
     ⚠️ 重要规则：
     - AI文档必须连接到用户的黄色理解节点，而不是问题节点
     - 这体现了"用户先输出，AI后补充"的费曼学习法
     - 参考：docs/architecture/canvas-connection-rules.md
-    
+
     Args:
         user_yellow_node_id: 用户黄色理解节点的ID（必须是color="6"的节点）
         ai_doc_file_path: AI文档的相对路径（如 "CS70/XX.md"）
@@ -14682,13 +14866,13 @@ def create_ai_doc_connection(
         canvas_data: Canvas数据字典
         x_offset: AI文档节点相对于用户节点的X偏移（默认700px）
         y_offset: AI文档节点相对于用户节点的Y偏移（默认0px）
-    
+
     Returns:
         (ai_doc_node, edge): AI文档节点和连线的元组
-    
+
     Raises:
         AssertionError: 如果起点不是黄色节点或标签缺少(AI)标识
-        
+
     Example:
         # 正确用法
         node, edge = create_ai_doc_connection(
@@ -14699,7 +14883,7 @@ def create_ai_doc_connection(
         )
         canvas_data['nodes'].append(node)
         canvas_data['edges'].append(edge)
-        
+
     Error Log: docs/issues/canvas-ai-doc-connection-error.md
     """
     # 验证1: 起点必须是黄色节点
@@ -14708,11 +14892,11 @@ def create_ai_doc_connection(
         if node['id'] == user_yellow_node_id:
             source_node = node
             break
-    
+
     assert source_node is not None, (
         f"节点 {user_yellow_node_id} 不存在！"
     )
-    
+
     assert source_node.get('color') == '6', (
         f"❌ 错误：起点节点 {user_yellow_node_id} 不是黄色节点！\n"
         f"当前颜色: {source_node.get('color')}\n"
@@ -14721,13 +14905,13 @@ def create_ai_doc_connection(
         f"参考：docs/architecture/canvas-connection-rules.md\n"
         f"错误日志：docs/issues/canvas-ai-doc-connection-error.md"
     )
-    
+
     # 验证2: 标签必须包含 (AI)
     assert '(AI)' in label or '(ai)' in label, (
         f"❌ 错误：标签 '{label}' 必须包含 '(AI)' 标识！\n"
         f"这样用户能快速识别AI生成的内容。"
     )
-    
+
     # 创建AI文档节点
     ai_doc_node = {
         'id': f'file-ai-{str(uuid.uuid4())[:8]}',
@@ -14739,7 +14923,7 @@ def create_ai_doc_connection(
         'height': 400,
         'color': '5'  # ✅ 蓝色，表示AI内容
     }
-    
+
     # 创建连接
     edge = {
         'id': f'edge-{user_yellow_node_id}-{ai_doc_node["id"]}',
@@ -14750,26 +14934,26 @@ def create_ai_doc_connection(
         'color': '5',  # ✅ 蓝色连线
         'label': label
     }
-    
+
     return ai_doc_node, edge
 
 
 def validate_ai_doc_connections(canvas_data: dict) -> List[str]:
     """
     验证Canvas中所有AI文档的连接是否符合标准规则
-    
+
     规则：
     1. AI文档节点（蓝色，color="5"）的入边必须来自黄色节点（color="6"）
     2. 不允许从红色问题节点（color="4"）直接连接到AI文档
     3. 连线必须是蓝色（color="5"）
     4. 标签必须包含 "(AI)" 标识
-    
+
     Args:
         canvas_data: Canvas数据字典
-    
+
     Returns:
         错误列表（空列表表示全部正确）
-        
+
     Example:
         errors = validate_ai_doc_connections(canvas_data)
         if errors:
@@ -14780,22 +14964,22 @@ def validate_ai_doc_connections(canvas_data: dict) -> List[str]:
             print("✅ 所有AI文档连接正确")
     """
     errors = []
-    
+
     # 找出所有蓝色AI文档节点
     ai_docs = [n for n in canvas_data.get('nodes', [])
                if n.get('color') == '5' and n.get('type') == 'file']
-    
+
     for ai_doc in ai_docs:
         # 找出指向这个AI文档的连线
         incoming_edges = [e for e in canvas_data.get('edges', [])
                           if e.get('toNode') == ai_doc['id']]
-        
+
         if not incoming_edges:
             errors.append(
                 f"❌ AI文档 '{ai_doc.get('file', ai_doc['id'])}' 没有入边！"
             )
             continue
-        
+
         for edge in incoming_edges:
             # 找到源节点
             source_node = None
@@ -14803,13 +14987,13 @@ def validate_ai_doc_connections(canvas_data: dict) -> List[str]:
                 if node['id'] == edge['fromNode']:
                     source_node = node
                     break
-            
+
             if source_node is None:
                 errors.append(
                     f"❌ AI文档 '{ai_doc.get('file')}' 的源节点 {edge['fromNode']} 不存在！"
                 )
                 continue
-            
+
             # 规则1: 起点必须是黄色节点
             if source_node.get('color') != '6':
                 errors.append(
@@ -14817,14 +15001,14 @@ def validate_ai_doc_connections(canvas_data: dict) -> List[str]:
                     f"   当前起点: {edge['fromNode']} (颜色: {source_node.get('color')})\n"
                     f"   提示：AI文档应该连接到用户的黄色理解节点，而不是问题节点"
                 )
-            
+
             # 规则2: 连线必须是蓝色
             if edge.get('color') != '5':
                 errors.append(
                     f"❌ AI文档 '{ai_doc.get('file')}' 的连线不是蓝色！\n"
                     f"   当前颜色: {edge.get('color')}"
                 )
-            
+
             # 规则3: 标签必须包含 (AI)
             label = edge.get('label', '')
             if '(AI)' not in label and '(ai)' not in label:
@@ -14832,7 +15016,7 @@ def validate_ai_doc_connections(canvas_data: dict) -> List[str]:
                     f"❌ AI文档 '{ai_doc.get('file')}' 的标签缺少 '(AI)' 标识！\n"
                     f"   当前标签: '{label}'"
                 )
-    
+
     return errors
 
 
@@ -14844,7 +15028,7 @@ def log_layout_generation(
 ) -> None:
     """
     记录布局生成的日志信息
-    
+
     Args:
         operation: 操作名称（如 "基础拆解布局"）
         node_count: 生成的节点数量
@@ -17591,8 +17775,8 @@ class KnowledgeGraphLayer:
 
         try:
             # 查询Canvas中的所有节点颜色
-            query = f"""
-            MATCH (c:Canvas {{id: $canvas_id}})-[:CONTAINS]->(n:Node)
+            query = """
+            MATCH (c:Canvas {id: $canvas_id})-[:CONTAINS]->(n:Node)
             RETURN n.color as color, count(*) as count
             """
 
@@ -17720,9 +17904,9 @@ class KnowledgeGraphLayer:
             # 查询节点详细信息
             if self.neo4j_driver:
                 with self.neo4j_driver.session() as session:
-                    query = f"""
-                    MATCH (c:Canvas {{id: $canvas_id}})-[:CONTAINS]->(n:Node)
-                    OPTIONAL MATCH (n)<-[lr:LEARNED_PROGRESS]-(u:User {{id: $user_id}})
+                    query = """
+                    MATCH (c:Canvas {id: $canvas_id})-[:CONTAINS]->(n:Node)
+                    OPTIONAL MATCH (n)<-[lr:LEARNED_PROGRESS]-(u:User {id: $user_id})
                     RETURN n.id as node_id,
                            n.text as content,
                            n.color as current_color,
@@ -18537,8 +18721,8 @@ class CanvasJSONOperatorWithKG(CanvasJSONOperator):
 
         try:
             # 查询Canvas中的所有节点颜色
-            query = f"""
-            MATCH (c:Canvas {{id: $canvas_id}})-[:CONTAINS]->(n:Node)
+            query = """
+            MATCH (c:Canvas {id: $canvas_id})-[:CONTAINS]->(n:Node)
             RETURN n.color as color, count(*) as count
             """
 
@@ -18738,9 +18922,9 @@ class CanvasJSONOperatorWithKG(CanvasJSONOperator):
             # 查询节点详细信息
             if self.neo4j_driver:
                 with self.neo4j_driver.session() as session:
-                    query = f"""
-                    MATCH (c:Canvas {{id: $canvas_id}})-[:CONTAINS]->(n:Node)
-                    OPTIONAL MATCH (n)<-[lr:LEARNED_PROGRESS]-(u:User {{id: $user_id}})
+                    query = """
+                    MATCH (c:Canvas {id: $canvas_id})-[:CONTAINS]->(n:Node)
+                    OPTIONAL MATCH (n)<-[lr:LEARNED_PROGRESS]-(u:User {id: $user_id})
                     RETURN n.id as node_id,
                            n.text as content,
                            n.color as current_color,
@@ -22869,7 +23053,7 @@ class PersonalizedRecommendationEngine:
                     },
                     "score": 0.6 + (i * 0.05),
                     "similar_users": [f"user-{j}" for j in range(1, 4)],
-                    "reason": f"与您相似的用户也学习了这些内容"
+                    "reason": "与您相似的用户也学习了这些内容"
                 }
                 for i in range(min(limit, 5))
             ]
@@ -25649,7 +25833,7 @@ class RecommendationQualityEvaluator:
 
             return overall_score / total_weight if total_weight > 0 else 0.0
 
-        except Exception as e:
+        except Exception:
             return 0.5
 
     def _determine_quality_level(self, overall_score: float) -> str:
@@ -25722,7 +25906,7 @@ class RecommendationQualityEvaluator:
 
             return suggestions[:5]  # 最多返回5条建议
 
-        except Exception as e:
+        except Exception:
             return ["生成改进建议时出现错误"]
 
     async def _get_historical_accuracy(
@@ -27513,7 +27697,7 @@ class ConcurrentAgentExecutor:
                     fusion_result.fusion_metadata['information_completeness']
                 )
 
-        except Exception as e:
+        except Exception:
             # 计算失败时返回默认值
             pass
 
@@ -29285,7 +29469,7 @@ class CanvasIntelligentScheduler:
                 analysis_timestamp=learning_result.analysis_timestamp
             )
 
-        except (FileNotFoundError, ValueError) as e:
+        except (FileNotFoundError, ValueError):
             # 重新抛出已知的异常
             raise
         except Exception as e:
@@ -30262,8 +30446,8 @@ class CanvasClaudeOrchestratorBridge:
 
         return [
             f"关于'{content[:20]}...'的基本含义是什么？",
-            f"这个概念的核心要素有哪些？",
-            f"能否用一个简单的例子来说明？"
+            "这个概念的核心要素有哪些？",
+            "能否用一个简单的例子来说明？"
         ]
 
     def _mock_oral_explanation(self, content: str) -> str:
@@ -31341,7 +31525,7 @@ class ConfidenceBasedFusion:
                 if conflict.get('resolution_strategy'):
                     report_parts.append(f"   解决策略: {conflict['resolution_strategy']}")
 
-        report_parts.append(f"\n=== 融合质量指标 ===")
+        report_parts.append("\n=== 融合质量指标 ===")
         report_parts.append(f"平均置信度: {fused_result.get('average_confidence', 0):.2f}")
         report_parts.append(f"总权重: {fused_result.get('total_weight', 0):.2f}")
         report_parts.append(f"融合方法: {fused_result.get('fusion_method', 'Unknown')}")
@@ -31756,7 +31940,7 @@ class InformationIntegrityProtection:
             for i, insight in enumerate(lost_insights[:3], 1):  # 最多显示3个
                 report_parts.append(f"{i}. Agent {insight['agent_type']}: {insight['content'][:50]}...")
 
-        report_parts.append(f"\n=== 完整性评估 ===")
+        report_parts.append("\n=== 完整性评估 ===")
         if diversity_score > 0.8:
             report_parts.append("✅ 多样性保持良好")
         elif diversity_score > 0.6:
@@ -32304,7 +32488,7 @@ async def intelligent_result_fusion(args):
             summary_parts.append("=" * 50)
 
             # 基本统计
-            summary_parts.append(f"📊 **基本统计**:")
+            summary_parts.append("📊 **基本统计**:")
             summary_parts.append(f"   - 参与Agent数量: {len(agent_results)}")
             summary_parts.append(f"   - 检测到冲突: {fusion_result['conflicts_detected']}个")
             summary_parts.append(f"   - 解决冲突: {fusion_result['conflicts_resolved']}个")
@@ -32312,7 +32496,7 @@ async def intelligent_result_fusion(args):
 
             # 融合质量指标
             fused_result = fusion_result['fused_result']
-            summary_parts.append(f"\n🎯 **融合质量**:")
+            summary_parts.append("\n🎯 **融合质量**:")
             summary_parts.append(f"   - 平均置信度: {fused_result.get('average_confidence', 0):.2f}")
             summary_parts.append(f"   - Agent推荐数: {len(fused_result.get('agent_recommendations', []))}")
 
@@ -32327,7 +32511,7 @@ async def intelligent_result_fusion(args):
             # 主要推荐
             recommendations = fused_result.get('agent_recommendations', [])
             if recommendations:
-                summary_parts.append(f"\n💡 **主要Agent推荐** (前3个):")
+                summary_parts.append("\n💡 **主要Agent推荐** (前3个):")
                 for i, rec in enumerate(recommendations[:3], 1):
                     agent_type = rec.get('agent_type', '未知')
                     confidence = rec.get('confidence', 0)
@@ -32338,7 +32522,7 @@ async def intelligent_result_fusion(args):
             # 性能指标
             perf_metrics = fusion_result.get('performance_metrics', {})
             if perf_metrics:
-                summary_parts.append(f"\n📈 **引擎性能**:")
+                summary_parts.append("\n📈 **引擎性能**:")
                 summary_parts.append(f"   - 历史融合次数: {perf_metrics.get('total_fusions', 0)}")
                 summary_parts.append(f"   - 平均处理时间: {perf_metrics.get('average_processing_time', 0):.3f}秒")
                 summary_parts.append(f"   - 冲突解决率: {perf_metrics.get('conflict_resolution_rate', 0):.1%}")
@@ -32348,7 +32532,7 @@ async def intelligent_result_fusion(args):
             if explanation and fusion_options.get('detail_level') == 'detailed':
                 exec_summary = explanation.get('executive_summary', '')
                 if exec_summary:
-                    summary_parts.append(f"\n📋 **执行摘要**:")
+                    summary_parts.append("\n📋 **执行摘要**:")
                     summary_parts.append(f"```{exec_summary}```")
 
             summary_parts.append("\n" + "=" * 50)
@@ -33990,7 +34174,7 @@ class IntelligentParallelCommandHandler:
                 # 获取源节点ID
                 source_node_id = task_result.get('node_ids', [])[0] if task_result.get('node_ids') else None
                 if not source_node_id:
-                    self.logger.warning(f"任务结果缺少源节点ID，跳过集成")
+                    self.logger.warning("任务结果缺少源节点ID，跳过集成")
                     integration_summary["failed_integrations"] += 1
                     continue
 

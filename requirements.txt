@@ -36,6 +36,15 @@ lancedb>=0.25.0             # LanceDB向量数据库 (Trust Score: 8.5/10)
                             # 替代ChromaDB作为Layer 2向量存储
 
 # ===========================
+# Story 12.1-12.10: Agentic RAG依赖
+# ===========================
+openai>=1.0.0               # OpenAI API客户端 (Trust Score: 9.5/10)
+                            # 用于text-embedding-3-small向量生成
+                            # 和GPT-4 Reranking评分
+cohere>=5.0.0               # Cohere API客户端 (Trust Score: 8.8/10)
+                            # 用于高质量Reranking (可选)
+
+# ===========================
 # EPIC-Neo4j-GDS-Integration: Neo4j GDS图算法库 (Story GDS.1)
 # ===========================
 graphdatascience>=1.9.0    # Neo4j Graph Data Science Python客户端 (Trust Score: 9.0/10)
@@ -246,6 +255,21 @@ mypy>=1.5.0            # 类型检查
 # ===========================
 # ipython>=8.14.0      # 交互式开发
 # jupyter>=1.0.0       # Jupyter notebook支持
+
+# ===========================
+# Story 6.1: 多模态图片处理依赖 (SCP-006)
+# ===========================
+Pillow>=10.0.0               # Python Imaging Library (Trust Score: 9.5/10)
+                             # 用于图片格式验证、缩略图生成、尺寸调整
+                             # 支持: PNG, JPG, GIF, SVG (rasterized)
+
+# ===========================
+# Story 17.4: Performance Optimization依赖
+# ===========================
+orjson>=3.9.0                # 高性能JSON解析 (Trust Score: 9.2/10)
+                             # 用于Canvas文件读写优化，30% CPU性能提升
+structlog>=23.1.0            # 结构化日志 (Trust Score: 8.8/10)
+                             # 用于optimization模块的日志记录
 
 # ===========================
 # 安装说明
