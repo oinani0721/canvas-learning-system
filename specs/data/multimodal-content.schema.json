@@ -1,0 +1,102 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "multimodal-content.schema.json",
+  "x-source-verification": {
+    "verified_at": "2025-12-04T17:00:00Z",
+    "sources": [
+      {"type": "prd", "section": "SCP-006 Multimodal File Association", "epic": "Epic 6"},
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"}
+    ],
+    "verified_by": "Claude Code"
+  },
+  "title": "MultimodalContent",
+  "description": "Schema for multimodal content (images, PDFs, audio, video) associated with Canvas concepts",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Unique identifier for the multimodal content"
+    },
+    "media_type": {
+      "type": "string",
+      "enum": ["image", "pdf", "audio", "video"],
+      "description": "Type of media content"
+    },
+    "file_path": {
+      "type": "string",
+      "description": "Absolute path to the media file"
+    },
+    "thumbnail_path": {
+      "type": ["string", "null"],
+      "description": "Path to thumbnail image (for images/PDFs/videos)"
+    },
+    "extracted_text": {
+      "type": ["string", "null"],
+      "description": "OCR-extracted text content (for images/PDFs)"
+    },
+    "description": {
+      "type": ["string", "null"],
+      "description": "AI-generated description of the content"
+    },
+    "vector": {
+      "type": ["array", "null"],
+      "items": {
+        "type": "number"
+      },
+      "minItems": 768,
+      "maxItems": 768,
+      "description": "768-dimensional embedding vector for similarity search"
+    },
+    "related_concept_id": {
+      "type": "string",
+      "description": "ID of the related Canvas concept node"
+    },
+    "source_location": {
+      "type": ["string", "null"],
+      "description": "Page number (PDF) or timestamp (audio/video)"
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Creation timestamp"
+    },
+    "updated_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "Last update timestamp"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "Additional metadata (dimensions, duration, file size, etc.)",
+      "properties": {
+        "file_size": {
+          "type": "integer",
+          "description": "File size in bytes"
+        },
+        "width": {
+          "type": "integer",
+          "description": "Image/video width in pixels"
+        },
+        "height": {
+          "type": "integer",
+          "description": "Image/video height in pixels"
+        },
+        "duration": {
+          "type": "number",
+          "description": "Audio/video duration in seconds"
+        },
+        "page_count": {
+          "type": "integer",
+          "description": "Number of pages (PDF)"
+        },
+        "mime_type": {
+          "type": "string",
+          "description": "MIME type of the file"
+        }
+      }
+    }
+  },
+  "required": ["id", "media_type", "file_path", "related_concept_id", "created_at"],
+  "additionalProperties": false
+}
