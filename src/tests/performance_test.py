@@ -3,10 +3,10 @@
 性能测试 - 验证记忆记录系统的性能指标
 """
 
-import sys
-import os
-import time
 import asyncio
+import os
+import sys
+import time
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -65,7 +65,7 @@ async def performance_test():
 
     print(f"   平均延迟: {avg_latency:.2f} ms")
     print(f"   最大延迟: {max_latency:.2f} ms")
-    print(f"   验收标准: < 100ms")
+    print("   验收标准: < 100ms")
     print(f"   结果: {'✓ 通过' if avg_latency < 100 else '✗ 失败'}")
 
     # 测试2: 故障切换时间
@@ -88,7 +88,7 @@ async def performance_test():
 
     failover_time = (end_time - start_time) * 1000
     print(f"   故障切换时间: {failover_time:.2f} ms")
-    print(f"   验收标准: < 1000ms")
+    print("   验收标准: < 1000ms")
     print(f"   结果: {'✓ 通过' if failover_time < 1000 else '✗ 失败'}")
 
     # 测试3: 并发记录能力
@@ -117,7 +117,6 @@ async def performance_test():
 
     # 测试4: 存储空间增长
     print("\n4. 测试存储空间增长...")
-    import os
     import shutil
 
     # 记录100条记录
@@ -135,12 +134,12 @@ async def performance_test():
     log_size = sum(os.path.getsize(f) for f in log_files) / (1024 * 1024)  # MB
 
     total_size = db_size + log_size
-    print(f"   记录数: 100")
+    print("   记录数: 100")
     print(f"   数据库大小: {db_size:.2f} MB")
     print(f"   日志大小: {log_size:.2f} MB")
     print(f"   总大小: {total_size:.2f} MB")
     print(f"   每天预估: {total_size * 86400 / 100:.2f} MB")  # 假设100记录/天
-    print(f"   验收标准: < 50MB/天")
+    print("   验收标准: < 50MB/天")
     print(f"   结果: {'✓ 通过' if total_size * 86400 / 100 < 50 else '✗ 失败'}")
 
     # 总结

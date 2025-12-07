@@ -6,7 +6,7 @@
  * @module tests/CommandWrapper
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Jest globals are available (describe, it, expect, beforeEach, afterEach)
 import {
   CommandWrapper,
   createMockCommandWrapper,

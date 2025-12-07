@@ -13,7 +13,7 @@
 
 **Active Agent**: PM Agent
 **Executing Function**: Testing
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: none
 
 **Relevant Files**:

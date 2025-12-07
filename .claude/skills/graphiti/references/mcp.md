@@ -329,7 +329,7 @@ Set up your environment variables:
 Use `ZepUserStorage` for personal context and conversation history:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 User storage automatically routes data:
@@ -340,13 +340,13 @@ User storage automatically routes data:
 Use `ZepGraphStorage` for organizational knowledge that multiple agents can access:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 Equip your agents with Zep tools for dynamic knowledge management:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 * `query`: Natural language search query
@@ -361,7 +361,7 @@ Equip your agents with Zep tools for dynamic knowledge management:
 Define entity models for better knowledge organization:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 ### Multi-agent with mixed storage
@@ -369,7 +369,7 @@ Define entity models for better knowledge organization:
 Combine user and graph storage for comprehensive memory:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 ### Research and curation workflow
@@ -377,7 +377,7 @@ Combine user and graph storage for comprehensive memory:
 Agents can search existing knowledge and add new discoveries:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 ## Configuration options
@@ -403,13 +403,13 @@ Agents can search existing knowledge and add new discoveries:
 The integration automatically routes different data types to appropriate storage:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 Here's a complete example showing personal assistance with conversation memory:
 
 <CodeBlocks>
-  
+
 </CodeBlocks>
 
 ### Storage selection

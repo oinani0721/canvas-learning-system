@@ -8,26 +8,27 @@ Story 7.3 - Claude Code深度集成
 import asyncio
 import json
 import os
-import pytest
 import tempfile
 import unittest
 from datetime import datetime
-from pathlib import Path
+
+import pytest
 
 # 导入被测试的模块
 try:
+    from claude_canvas_tools import ClaudeCanvasToolsManager, canvas_intelligent_scheduler
+
     from canvas_utils import (
+        CLAUDE_CODE_ENABLED,
+        AgentRecommendation,
+        BatchProcessingResult,
         CanvasIntelligentScheduler,
         CanvasLearningAnalyzer,
-        ClaudeToolConfig,
-        AgentRecommendation,
-        NodeAnalysis,
-        LearningAnalysisResult,
         CanvasScheduleResult,
-        BatchProcessingResult,
-        CLAUDE_CODE_ENABLED
+        ClaudeToolConfig,
+        LearningAnalysisResult,
+        NodeAnalysis,
     )
-    from claude_canvas_tools import ClaudeCanvasToolsManager, canvas_intelligent_scheduler
 except ImportError as e:
     print(f"警告: 无法导入测试模块 - {e}")
     CLAUDE_CODE_ENABLED = False

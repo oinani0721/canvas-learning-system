@@ -89,3 +89,28 @@ integration:
   planning_orchestrator: true      # Coordinate with @planning-orchestrator
   correct_course: true             # Use *correct-course for conflicts
   yaml_status: true                # Update canvas-project-status.yaml
+
+# Daemon configuration (auto QA triggering)
+daemon:
+  enabled: true                    # Enable daemon mode
+  scan_interval: 30                # Seconds between worktree scans
+  max_concurrent_qa: 3             # Maximum parallel QA sessions
+  debounce_seconds: 2.0            # Prevent rapid re-triggers
+  log_file: ".daemon-log.txt"      # Daemon log file
+  state_file: ".daemon-state.json" # Daemon state persistence
+  auto_start: false                # Auto-start daemon with /parallel
+
+# Automation configuration (parallel-develop-auto.ps1)
+automation:
+  enabled: true
+  prompt_version: "2.0"            # Enhanced prompt with HALT points
+  qa_sequence:                     # Full QA command sequence
+    - "*trace"
+    - "*nfr-assess"
+    - "*review"
+    - "*gate"
+  auto_commit: true                # Auto git commit on QA PASS/WAIVED
+  max_fix_attempts: 1              # Max attempts to fix CONCERNS
+  result_file: ".worktree-result.json"  # Result output file
+  allowed_tools: "Bash,Read,Write,Edit,Grep,Glob,Task,TodoWrite"
+  max_turns: 200                   # Max agentic turns per session

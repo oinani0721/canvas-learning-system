@@ -13,19 +13,15 @@ Version: 1.0
 Created: 2025-01-27
 """
 
-import pytest
-import asyncio
 import json
 import os
 import tempfile
-from unittest.mock import AsyncMock, MagicMock, patch, mock_open
-from datetime import datetime
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from canvas_utils import (
     IntelligentParallelCommandHandler,
-    CanvasOrchestrator,
-    IntelligentParallelScheduler,
-    COLOR_YELLOW
 )
 
 

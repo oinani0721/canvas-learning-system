@@ -6,31 +6,24 @@ Story 10.1: ReviewBoardAgentSelector并行处理集成测试套件
 """
 
 import asyncio
-import pytest
+import os
+import sys
 import time
 import uuid
-from unittest.mock import Mock, patch, AsyncMock
 from datetime import datetime
-import sys
-import os
+from unittest.mock import patch
+
+import pytest
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
+    COLOR_YELLOW,
+    CanvasOrchestrator,
+    ConcurrentAgentProcessor,
     # 核心类
     ReviewBoardAgentSelector,
-    ConcurrentAgentProcessor,
-    CanvasOrchestrator,
-    CanvasJSONOperator,
-    CanvasBusinessLogic,
-
-    # 全局实例
-    ultrathink_canvas_integration,
-    concurrent_agent_processor,
-
-    # 颜色常量
-    COLOR_YELLOW
 )
 
 

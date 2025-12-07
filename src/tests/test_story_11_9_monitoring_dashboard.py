@@ -22,26 +22,17 @@ Version: 1.0
 Created: 2025-11-02
 """
 
+import tempfile
+import threading
+import time
+from unittest.mock import Mock
+
 import pytest
 import requests
-import time
-import threading
-from unittest.mock import Mock, MagicMock, patch
-from pathlib import Path
-import tempfile
-import os
+from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
 
 # Import components under test
-from canvas_progress_tracker.monitoring_dashboard import (
-    MonitoringDashboardServer,
-    DashboardRequestHandler,
-    VERSION
-)
-from canvas_progress_tracker.canvas_monitor_engine import (
-    CanvasMonitorEngine,
-    MonitorConfig
-)
-
+from canvas_progress_tracker.monitoring_dashboard import VERSION, MonitoringDashboardServer
 
 # ============================================================================
 # Fixtures
@@ -595,7 +586,6 @@ class TestIntegrationVerification:
 
 def test_count():
     """统计测试数量"""
-    import inspect
 
     test_classes = [
         TestServerLifecycle,

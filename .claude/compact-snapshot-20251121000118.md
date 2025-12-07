@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Fixing bugs
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11
 
 **Relevant Files**:

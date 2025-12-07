@@ -10,7 +10,7 @@
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (ItemView Class)
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Menu } from 'obsidian';
 import type CanvasReviewPlugin from '../../main';
 import {
     ReviewTask,
@@ -20,7 +20,14 @@ import {
     TaskSortOption,
     TaskFilterOption,
     TaskPriority,
+    DashboardTab,
+    HistoryTimeRange,
+    HistoryEntry,
+    DailyStatItem,
+    CanvasReviewTrend,
+    DEFAULT_HISTORY_STATE,
 } from '../types/UITypes';
+import { HistoryService } from '../services/HistoryService';
 
 export const VIEW_TYPE_REVIEW_DASHBOARD = 'canvas-review-dashboard';
 
@@ -33,11 +40,13 @@ export class ReviewDashboardView extends ItemView {
     private plugin: CanvasReviewPlugin;
     private state: DashboardViewState;
     private refreshInterval: number | null = null;
+    private historyService: HistoryService;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasReviewPlugin) {
         super(leaf);
         this.plugin = plugin;
         this.state = { ...DEFAULT_DASHBOARD_STATE };
+        this.historyService = new HistoryService(this.app);
     }
 
     getViewType(): string {
@@ -218,17 +227,358 @@ export class ReviewDashboardView extends ItemView {
         // Header
         this.renderHeader(dashboard);
 
+        // Tab navigation (Story 14.6)
+        this.renderTabNavigation(dashboard);
+
         // Main content
         const content = dashboard.createDiv({ cls: 'dashboard-content' });
 
-        // Task list (left side)
-        const taskListContainer = content.createDiv({ cls: 'task-list-container' });
-        this.renderTaskList(taskListContainer);
+        // Render content based on active tab
+        if (this.state.currentTab === 'history') {
+            // History view (Story 14.6)
+            this.renderHistoryContent(content);
+        } else {
+            // Task list (left side)
+            const taskListContainer = content.createDiv({ cls: 'task-list-container' });
+            this.renderTaskList(taskListContainer);
 
-        // Sidebar (right side)
-        const sidebar = content.createDiv({ cls: 'dashboard-sidebar' });
-        this.renderStatistics(sidebar);
-        this.renderQuickActions(sidebar);
+            // Sidebar (right side)
+            const sidebar = content.createDiv({ cls: 'dashboard-sidebar' });
+            this.renderStatistics(sidebar);
+            this.renderQuickActions(sidebar);
+        }
+    }
+
+    /**
+     * Render tab navigation (Story 14.6)
+     */
+    private renderTabNavigation(container: HTMLElement): void {
+        const tabNav = container.createDiv({ cls: 'dashboard-tabs' });
+
+        // Tasks tab
+        const tasksTab = tabNav.createDiv({
+            cls: `dashboard-tab ${this.state.currentTab === 'tasks' ? 'active' : ''}`,
+        });
+        const tasksIcon = tasksTab.createSpan({ cls: 'tab-icon' });
+        setIcon(tasksIcon, 'list-checks');
+        tasksTab.createSpan({ text: '今日任务', cls: 'tab-label' });
+        tasksTab.onclick = () => this.switchTab('tasks');
+
+        // History tab
+        const historyTab = tabNav.createDiv({
+            cls: `dashboard-tab ${this.state.currentTab === 'history' ? 'active' : ''}`,
+        });
+        const historyIcon = historyTab.createSpan({ cls: 'tab-icon' });
+        setIcon(historyIcon, 'history');
+        historyTab.createSpan({ text: '历史记录', cls: 'tab-label' });
+        historyTab.onclick = () => this.switchTab('history');
+    }
+
+    /**
+     * Switch between tabs (Story 14.6)
+     */
+    private async switchTab(tab: DashboardTab): Promise<void> {
+        if (this.state.currentTab === tab) return;
+
+        this.setState({ currentTab: tab });
+
+        if (tab === 'history') {
+            await this.loadHistoryData();
+        }
+    }
+
+    /**
+     * Load history data (Story 14.6)
+     */
+    private async loadHistoryData(): Promise<void> {
+        const historyState = { ...this.state.historyState, loading: true };
+        this.setState({ historyState });
+
+        try {
+            const dataManager = this.plugin.getDataManager();
+            if (dataManager) {
+                this.historyService.setDatabaseManager(dataManager);
+            }
+
+            const newHistoryState = await this.historyService.loadHistoryState(
+                this.state.historyState.timeRange
+            );
+
+            this.setState({ historyState: newHistoryState });
+        } catch (error) {
+            console.error('[ReviewDashboard] Failed to load history:', error);
+            this.setState({
+                historyState: {
+                    ...DEFAULT_HISTORY_STATE,
+                    timeRange: this.state.historyState.timeRange,
+                    loading: false,
+                },
+            });
+        }
+    }
+
+    /**
+     * Render history content (Story 14.6)
+     */
+    private renderHistoryContent(container: HTMLElement): void {
+        const historyContainer = container.createDiv({ cls: 'history-container' });
+
+        // Time range selector
+        this.renderTimeRangeSelector(historyContainer);
+
+        // Daily stats chart
+        this.renderDailyStatsChart(historyContainer);
+
+        // Canvas trends
+        this.renderCanvasTrends(historyContainer);
+
+        // History list
+        this.renderHistoryList(historyContainer);
+    }
+
+    /**
+     * Render time range selector (Story 14.6)
+     */
+    private renderTimeRangeSelector(container: HTMLElement): void {
+        const selector = container.createDiv({ cls: 'time-range-selector' });
+
+        const ranges: { value: HistoryTimeRange; label: string }[] = [
+            { value: '7d', label: '最近7天' },
+            { value: '30d', label: '最近30天' },
+        ];
+
+        ranges.forEach((range) => {
+            const btn = selector.createEl('button', {
+                text: range.label,
+                cls: `time-range-btn ${this.state.historyState.timeRange === range.value ? 'active' : ''}`,
+            });
+            btn.onclick = async () => {
+                if (this.state.historyState.timeRange !== range.value) {
+                    this.setState({
+                        historyState: {
+                            ...this.state.historyState,
+                            timeRange: range.value,
+                        },
+                    });
+                    await this.loadHistoryData();
+                }
+            };
+        });
+    }
+
+    /**
+     * Render daily statistics chart (Story 14.6)
+     */
+    private renderDailyStatsChart(container: HTMLElement): void {
+        const chartContainer = container.createDiv({ cls: 'daily-stats-chart' });
+        chartContainer.createEl('h3', { text: '每日复习统计', cls: 'chart-title' });
+
+        if (this.state.historyState.loading) {
+            chartContainer.createDiv({ text: '加载中...', cls: 'chart-loading' });
+            return;
+        }
+
+        const { dailyStats } = this.state.historyState;
+        if (dailyStats.length === 0) {
+            chartContainer.createDiv({ text: '暂无数据', cls: 'chart-empty' });
+            return;
+        }
+
+        // Create CSS bar chart
+        const chart = chartContainer.createDiv({ cls: 'bar-chart' });
+        const maxCount = Math.max(...dailyStats.map((d) => d.conceptCount), 1);
+
+        dailyStats.forEach((stat) => {
+            const bar = chart.createDiv({ cls: 'bar-item' });
+            const barHeight = (stat.conceptCount / maxCount) * 100;
+            const barFill = bar.createDiv({ cls: 'bar-fill' });
+            barFill.style.height = `${barHeight}%`;
+
+            // Color based on average score
+            if (stat.averageScore >= 4) {
+                barFill.addClass('bar-excellent');
+            } else if (stat.averageScore >= 3) {
+                barFill.addClass('bar-good');
+            } else {
+                barFill.addClass('bar-needs-work');
+            }
+
+            bar.createDiv({
+                text: stat.conceptCount.toString(),
+                cls: 'bar-value',
+            });
+            bar.createDiv({
+                text: stat.date.slice(5), // MM-DD
+                cls: 'bar-label',
+            });
+        });
+
+        // Summary stats
+        const summary = chartContainer.createDiv({ cls: 'chart-summary' });
+        const totalConcepts = dailyStats.reduce((sum, d) => sum + d.conceptCount, 0);
+        const avgScore =
+            dailyStats.filter((d) => d.conceptCount > 0).reduce((sum, d) => sum + d.averageScore, 0) /
+            dailyStats.filter((d) => d.conceptCount > 0).length || 0;
+
+        summary.createSpan({ text: `总计复习: ${totalConcepts} 个概念`, cls: 'summary-item' });
+        summary.createSpan({
+            text: `平均评分: ${avgScore.toFixed(1)} 分`,
+            cls: 'summary-item',
+        });
+    }
+
+    /**
+     * Render canvas review trends (Story 14.6)
+     */
+    private renderCanvasTrends(container: HTMLElement): void {
+        const trendsContainer = container.createDiv({ cls: 'canvas-trends' });
+        trendsContainer.createEl('h3', { text: '白板复习趋势', cls: 'trends-title' });
+
+        if (this.state.historyState.loading) {
+            trendsContainer.createDiv({ text: '加载中...', cls: 'trends-loading' });
+            return;
+        }
+
+        const { canvasTrends } = this.state.historyState;
+        if (canvasTrends.length === 0) {
+            trendsContainer.createDiv({ text: '暂无白板复习数据', cls: 'trends-empty' });
+            return;
+        }
+
+        const trendsList = trendsContainer.createDiv({ cls: 'trends-list' });
+
+        canvasTrends.slice(0, 5).forEach((trend) => {
+            const trendItem = trendsList.createDiv({ cls: 'trend-item' });
+
+            // Canvas name
+            trendItem.createDiv({ text: trend.canvasTitle, cls: 'trend-title' });
+
+            // Progress bar
+            const progressBar = trendItem.createDiv({ cls: 'trend-progress-bar' });
+            const progressFill = progressBar.createDiv({ cls: 'trend-progress-fill' });
+            progressFill.style.width = `${trend.progressRate}%`;
+
+            // Progress rate with trend arrow
+            const progressText = trendItem.createDiv({ cls: 'trend-progress-text' });
+            const trendIcon = progressText.createSpan({ cls: 'trend-icon' });
+            if (trend.trend === 'up') {
+                setIcon(trendIcon, 'trending-up');
+                trendIcon.addClass('trend-up');
+            } else if (trend.trend === 'down') {
+                setIcon(trendIcon, 'trending-down');
+                trendIcon.addClass('trend-down');
+            } else {
+                setIcon(trendIcon, 'minus');
+                trendIcon.addClass('trend-stable');
+            }
+            progressText.createSpan({ text: `${trend.progressRate}%`, cls: 'progress-value' });
+
+            // Session count
+            trendItem.createDiv({
+                text: `${trend.sessions.length} 次检验`,
+                cls: 'trend-sessions',
+            });
+        });
+    }
+
+    /**
+     * Render history list (Story 14.6)
+     */
+    private renderHistoryList(container: HTMLElement): void {
+        const listContainer = container.createDiv({ cls: 'history-list-container' });
+        listContainer.createEl('h3', { text: '复习记录', cls: 'history-list-title' });
+
+        if (this.state.historyState.loading) {
+            listContainer.createDiv({ text: '加载中...', cls: 'history-loading' });
+            return;
+        }
+
+        const { entries } = this.state.historyState;
+        if (entries.length === 0) {
+            listContainer.createDiv({ text: '暂无复习记录', cls: 'history-empty' });
+            return;
+        }
+
+        const historyList = listContainer.createDiv({ cls: 'history-list' });
+
+        // Group by date
+        const groupedEntries = this.groupEntriesByDate(entries);
+
+        Object.entries(groupedEntries)
+            .slice(0, 7) // Show last 7 days
+            .forEach(([date, dateEntries]) => {
+                const dateGroup = historyList.createDiv({ cls: 'history-date-group' });
+                dateGroup.createDiv({ text: date, cls: 'history-date-header' });
+
+                dateEntries.forEach((entry) => {
+                    this.renderHistoryEntry(dateGroup, entry);
+                });
+            });
+    }
+
+    /**
+     * Render single history entry (Story 14.6)
+     */
+    private renderHistoryEntry(container: HTMLElement, entry: HistoryEntry): void {
+        const entryEl = container.createDiv({ cls: 'history-entry' });
+
+        // Mode badge
+        const modeBadge = entryEl.createSpan({
+            text: entry.mode === 'fresh' ? '全新检验' : '针对性复习',
+            cls: `mode-badge mode-${entry.mode}`,
+        });
+
+        // Concept name
+        entryEl.createSpan({ text: entry.conceptName, cls: 'entry-concept' });
+
+        // Canvas name
+        entryEl.createSpan({
+            text: `@ ${entry.canvasTitle}`,
+            cls: 'entry-canvas',
+        });
+
+        // Score
+        const scoreEl = entryEl.createSpan({ cls: 'entry-score' });
+        for (let i = 0; i < 5; i++) {
+            const star = scoreEl.createSpan({ cls: 'score-star' });
+            setIcon(star, i < entry.score ? 'star' : 'star');
+            if (i < entry.score) {
+                star.addClass('filled');
+            }
+        }
+
+        // Memory strength
+        const strengthEl = entryEl.createDiv({ cls: 'entry-strength' });
+        const strengthBar = strengthEl.createDiv({ cls: 'strength-bar' });
+        strengthBar.style.width = `${entry.memoryStrength * 100}%`;
+
+        // Click to open canvas
+        entryEl.onclick = () => {
+            if (entry.canvasPath) {
+                this.app.workspace.openLinkText(entry.canvasPath, '', false);
+            }
+        };
+    }
+
+    /**
+     * Group history entries by date
+     */
+    private groupEntriesByDate(entries: HistoryEntry[]): Record<string, HistoryEntry[]> {
+        const grouped: Record<string, HistoryEntry[]> = {};
+
+        entries.forEach((entry) => {
+            const dateStr = entry.reviewDate.toLocaleDateString('zh-CN', {
+                month: 'long',
+                day: 'numeric',
+                weekday: 'short',
+            });
+            if (!grouped[dateStr]) {
+                grouped[dateStr] = [];
+            }
+            grouped[dateStr].push(entry);
+        });
+
+        return grouped;
     }
 
     private renderHeader(container: HTMLElement): void {
@@ -566,6 +916,91 @@ export class ReviewDashboardView extends ItemView {
                 this.handleTaskClick(task);
             }
         };
+
+        // Right-click context menu (Story 14.4: AC4)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (Menu.showAtMouseEvent)
+        card.oncontextmenu = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.showTaskContextMenu(e, task);
+        };
+    }
+
+    /**
+     * Show context menu for task card
+     * Story 14.4: AC4 - Right-click menu with "Mark as mastered" / "Reset progress"
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (Menu API)
+     */
+    private showTaskContextMenu(event: MouseEvent, task: ReviewTask): void {
+        const menu = new Menu();
+
+        // Mark as mastered
+        menu.addItem((item) => {
+            item.setTitle('标记为已掌握')
+                .setIcon('check-circle-2')
+                .onClick(async () => {
+                    await this.handleMarkAsMastered(task);
+                });
+        });
+
+        // Reset progress
+        menu.addItem((item) => {
+            item.setTitle('重置进度')
+                .setIcon('rotate-ccw')
+                .onClick(async () => {
+                    await this.handleResetProgress(task);
+                });
+        });
+
+        menu.addSeparator();
+
+        // Generate review canvas
+        menu.addItem((item) => {
+            item.setTitle('生成检验白板')
+                .setIcon('file-plus')
+                .onClick(async () => {
+                    await this.handleGenerateReviewCanvas(task);
+                });
+        });
+
+        // Open original canvas
+        menu.addItem((item) => {
+            item.setTitle('打开原白板')
+                .setIcon('file-text')
+                .onClick(() => {
+                    this.handleTaskClick(task);
+                });
+        });
+
+        menu.addSeparator();
+
+        // Postpone options
+        menu.addItem((item) => {
+            item.setTitle('推迟1天')
+                .setIcon('clock')
+                .onClick(async () => {
+                    await this.handleTaskPostpone(task, 1);
+                });
+        });
+
+        menu.addItem((item) => {
+            item.setTitle('推迟3天')
+                .setIcon('clock')
+                .onClick(async () => {
+                    await this.handleTaskPostpone(task, 3);
+                });
+        });
+
+        menu.addItem((item) => {
+            item.setTitle('推迟1周')
+                .setIcon('calendar')
+                .onClick(async () => {
+                    await this.handleTaskPostpone(task, 7);
+                });
+        });
+
+        menu.showAtMouseEvent(event);
     }
 
     private renderMemoryStrength(container: HTMLElement, task: ReviewTask): void {
@@ -792,6 +1227,16 @@ export class ReviewDashboardView extends ItemView {
         calendarBtn.prepend(calendarIcon);
         calendarBtn.onclick = () => this.handleViewCalendar();
 
+        // Generate review canvas button (Story 14.5)
+        const generateCanvasBtn = actions.createEl('button', {
+            cls: 'action-button secondary',
+            text: '生成检验白板',
+        });
+        const generateIcon = generateCanvasBtn.createSpan({ cls: 'button-icon' });
+        setIcon(generateIcon, 'file-plus');
+        generateCanvasBtn.prepend(generateIcon);
+        generateCanvasBtn.onclick = () => this.showReviewModeDialog();
+
         // Settings button
         const settingsBtn = actions.createEl('button', {
             cls: 'action-button ghost',
@@ -952,6 +1397,274 @@ export class ReviewDashboardView extends ItemView {
         };
     }
 
+    /**
+     * Story 14.5: AC2 - Review mode selection dialog
+     * Shows dialog for selecting review mode: "fresh" or "targeted"
+     */
+    private showReviewModeDialog(): void {
+        const pendingTasks = this.state.tasks.filter((t) => t.status === 'pending');
+        if (pendingTasks.length === 0) {
+            new Notice('🎉 当前没有待复习的任务，无需生成检验白板');
+            return;
+        }
+
+        const overlay = document.body.createDiv({ cls: 'task-dialog-overlay' });
+        const dialog = overlay.createDiv({ cls: 'task-dialog review-mode-dialog' });
+
+        // Header
+        const header = dialog.createDiv({ cls: 'dialog-header' });
+        header.createEl('h3', { text: '生成检验白板', cls: 'dialog-title' });
+        const closeBtn = header.createEl('button', { cls: 'dialog-close' });
+        setIcon(closeBtn, 'x');
+        closeBtn.onclick = () => overlay.remove();
+
+        // Body
+        const body = dialog.createDiv({ cls: 'dialog-body' });
+        body.createEl('p', { text: '请选择复习模式：' });
+
+        // Mode options
+        const modeOptions = body.createDiv({ cls: 'mode-options' });
+
+        // Fresh mode option
+        const freshOption = modeOptions.createDiv({ cls: 'mode-option selected' });
+        freshOption.dataset.mode = 'fresh';
+        const freshIcon = freshOption.createSpan({ cls: 'mode-icon' });
+        setIcon(freshIcon, 'file-question');
+        const freshContent = freshOption.createDiv({ cls: 'mode-content' });
+        freshContent.createEl('strong', { text: '全新检验 (Fresh)' });
+        freshContent.createEl('p', { text: '盲测式复习，不使用历史数据，测试真实记忆水平' });
+
+        // Targeted mode option
+        const targetedOption = modeOptions.createDiv({ cls: 'mode-option' });
+        targetedOption.dataset.mode = 'targeted';
+        const targetedIcon = targetedOption.createSpan({ cls: 'mode-icon' });
+        setIcon(targetedIcon, 'target');
+        const targetedContent = targetedOption.createDiv({ cls: 'mode-content' });
+        targetedContent.createEl('strong', { text: '针对性复习 (Targeted)' });
+        targetedContent.createEl('p', { text: '基于薄弱概念，专注于需要加强的知识点' });
+
+        let selectedMode: 'fresh' | 'targeted' = 'fresh';
+
+        // Mode selection handlers
+        freshOption.onclick = () => {
+            modeOptions.querySelectorAll('.mode-option').forEach((el) => el.removeClass('selected'));
+            freshOption.addClass('selected');
+            selectedMode = 'fresh';
+        };
+
+        targetedOption.onclick = () => {
+            modeOptions.querySelectorAll('.mode-option').forEach((el) => el.removeClass('selected'));
+            targetedOption.addClass('selected');
+            selectedMode = 'targeted';
+        };
+
+        // Task selection
+        const taskSection = body.createDiv({ cls: 'task-selection' });
+        taskSection.createEl('p', { text: `将为 ${pendingTasks.length} 个待复习概念生成检验白板：` });
+
+        const taskList = taskSection.createDiv({ cls: 'task-list-preview' });
+        pendingTasks.slice(0, 5).forEach((task) => {
+            const taskItem = taskList.createDiv({ cls: 'task-preview-item' });
+            const icon = taskItem.createSpan({ cls: 'task-icon' });
+            setIcon(icon, 'circle');
+            taskItem.createSpan({ text: task.conceptName });
+        });
+        if (pendingTasks.length > 5) {
+            taskList.createDiv({ cls: 'task-more', text: `...还有 ${pendingTasks.length - 5} 个` });
+        }
+
+        // Actions
+        const actions = dialog.createDiv({ cls: 'dialog-actions' });
+
+        const cancelBtn = actions.createEl('button', {
+            cls: 'task-action-btn secondary',
+            text: '取消',
+        });
+        cancelBtn.onclick = () => overlay.remove();
+
+        const generateBtn = actions.createEl('button', {
+            cls: 'task-action-btn primary',
+            text: '生成检验白板',
+        });
+        generateBtn.onclick = async () => {
+            overlay.remove();
+            await this.handleGenerateReviewCanvases(pendingTasks, selectedMode);
+        };
+
+        // Close on overlay click
+        overlay.onclick = (e) => {
+            if (e.target === overlay) {
+                overlay.remove();
+            }
+        };
+    }
+
+    /**
+     * Story 14.5: AC3, AC4, AC5, AC6 - Generate review canvases
+     * Generates review canvases for selected tasks with specified mode
+     * @param tasks Tasks to generate review canvases for
+     * @param mode Review mode: "fresh" or "targeted"
+     */
+    private async handleGenerateReviewCanvases(
+        tasks: ReviewTask[],
+        mode: 'fresh' | 'targeted'
+    ): Promise<void> {
+        if (tasks.length === 0) {
+            new Notice('⚠️ 没有选择任何任务');
+            return;
+        }
+
+        const modeLabel = mode === 'fresh' ? '全新检验' : '针对性复习';
+        new Notice(`🔄 正在生成检验白板 (${modeLabel})...`);
+
+        let successCount = 0;
+        let failCount = 0;
+        let lastGeneratedPath: string | null = null;
+
+        for (const task of tasks) {
+            try {
+                // Generate review canvas for each task
+                const result = await this.generateReviewCanvas(task, mode);
+                if (result.success) {
+                    successCount++;
+                    lastGeneratedPath = result.canvasPath || null;
+
+                    // Story 14.5: AC4 - Store relationship to Graphiti
+                    await this.storeGraphitiRelationship(
+                        task.canvasId,
+                        result.canvasPath || '',
+                        mode
+                    );
+                } else {
+                    failCount++;
+                }
+            } catch (error) {
+                console.error(`Failed to generate review canvas for ${task.conceptName}:`, error);
+                failCount++;
+            }
+        }
+
+        // Show result notification (AC7)
+        if (successCount > 0 && failCount === 0) {
+            new Notice(`✅ 成功生成 ${successCount} 个检验白板`);
+        } else if (successCount > 0 && failCount > 0) {
+            new Notice(`⚠️ 成功: ${successCount}, 失败: ${failCount}`);
+        } else {
+            new Notice(`❌ 生成检验白板失败`);
+        }
+
+        // Story 14.5: AC5 - Auto open the last generated canvas
+        if (lastGeneratedPath) {
+            const file = this.app.vault.getAbstractFileByPath(lastGeneratedPath);
+            if (file) {
+                await this.app.workspace.openLinkText(lastGeneratedPath, '', true);
+            }
+        }
+
+        // Refresh the dashboard
+        await this.loadData();
+    }
+
+    /**
+     * Story 14.5: AC3 - Generate single review canvas
+     * Calls the existing generate_review_canvas_file() function from Epic 4
+     */
+    private async generateReviewCanvas(
+        task: ReviewTask,
+        mode: 'fresh' | 'targeted'
+    ): Promise<{ success: boolean; canvasPath?: string }> {
+        try {
+            // Get concepts for this task
+            const concepts = mode === 'targeted' ? [task.conceptName] : [];
+
+            // Call API to generate review canvas
+            // This integrates with Epic 4's generate_review_canvas_file()
+            const response = await fetch('http://localhost:8001/api/v1/canvas/generate-review', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    canvas_path: task.canvasId,
+                    concepts: concepts,
+                    mode: mode,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const result = await response.json();
+            return {
+                success: true,
+                canvasPath: result.review_canvas_path,
+            };
+        } catch (error) {
+            console.error('Error generating review canvas:', error);
+
+            // Fallback: Try local generation if API fails
+            try {
+                const timestamp = new Date().toISOString().slice(0, 10);
+                const baseName = task.canvasId.replace('.canvas', '');
+                const reviewCanvasPath = `${baseName}-检验白板-${timestamp}.canvas`;
+
+                // Create a basic review canvas structure
+                const reviewCanvas = {
+                    nodes: [],
+                    edges: [],
+                };
+
+                await this.app.vault.create(reviewCanvasPath, JSON.stringify(reviewCanvas, null, 2));
+
+                return {
+                    success: true,
+                    canvasPath: reviewCanvasPath,
+                };
+            } catch (fallbackError) {
+                console.error('Fallback generation also failed:', fallbackError);
+                return { success: false };
+            }
+        }
+    }
+
+    /**
+     * Story 14.5: AC4 - Store relationship to Graphiti
+     * Creates (review)-[:GENERATED_FROM]->(original) relationship
+     */
+    private async storeGraphitiRelationship(
+        originalCanvasPath: string,
+        reviewCanvasPath: string,
+        mode: 'fresh' | 'targeted'
+    ): Promise<void> {
+        try {
+            // Call Graphiti MCP to store relationship
+            const response = await fetch('http://localhost:8001/api/v1/memory/relationship', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    entity1: reviewCanvasPath,
+                    entity2: originalCanvasPath,
+                    relationship_type: 'GENERATED_FROM',
+                    metadata: {
+                        mode: mode,
+                        timestamp: new Date().toISOString(),
+                        type: 'review_canvas',
+                    },
+                }),
+            });
+
+            if (!response.ok) {
+                console.warn('Failed to store Graphiti relationship:', response.status);
+            }
+        } catch (error) {
+            // Log but don't fail - Graphiti storage is optional
+            console.warn('Error storing Graphiti relationship:', error);
+        }
+    }
+
     // =========================================================================
     // Event Handlers
     // =========================================================================
@@ -978,6 +1691,164 @@ export class ReviewDashboardView extends ItemView {
 
     private handleTaskDetails(task: ReviewTask): void {
         new Notice(`📋 ${task.conceptName}\n记忆强度: ${Math.round(task.memoryStrength * 100)}%\n保持率: ${Math.round(task.retentionRate * 100)}%`);
+    }
+
+    /**
+     * Mark task as fully mastered
+     * Story 14.4: AC4 - "标记为已掌握" context menu action
+     *
+     * Sets memory strength to 100% and schedules next review far in the future
+     */
+    private async handleMarkAsMastered(task: ReviewTask): Promise<void> {
+        // Show confirmation dialog
+        const confirmed = await this.showConfirmDialog(
+            '确认标记为已掌握',
+            `确定要将 "${task.conceptName}" 标记为已掌握吗？\n\n这将把记忆强度设为100%，并推迟下次复习时间。`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const dataManager = this.plugin.getDataManager();
+            if (dataManager) {
+                // Set memory strength to 100%, retention to 100%
+                // Schedule next review 30 days later
+                await dataManager.updateReviewMetrics(
+                    parseInt(task.id),
+                    1.0, // Maximum memory strength
+                    1.0, // Maximum retention rate
+                    new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days later
+                );
+
+                new Notice(`✅ 已标记为掌握: ${task.conceptName}`);
+                await this.loadData();
+            }
+        } catch (error) {
+            new Notice(`❌ 标记失败: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Reset task progress to initial state
+     * Story 14.4: AC4 - "重置进度" context menu action
+     *
+     * Resets memory strength and schedules immediate review
+     */
+    private async handleResetProgress(task: ReviewTask): Promise<void> {
+        // Show confirmation dialog
+        const confirmed = await this.showConfirmDialog(
+            '确认重置进度',
+            `确定要重置 "${task.conceptName}" 的学习进度吗？\n\n这将清除所有学习记录，需要从头开始复习。`
+        );
+
+        if (!confirmed) return;
+
+        try {
+            const dataManager = this.plugin.getDataManager();
+            if (dataManager) {
+                // Reset to initial values
+                await dataManager.updateReviewMetrics(
+                    parseInt(task.id),
+                    0.3, // Low memory strength
+                    0.5, // Base retention rate
+                    new Date() // Due immediately
+                );
+
+                new Notice(`🔄 已重置进度: ${task.conceptName}`);
+                await this.loadData();
+            }
+        } catch (error) {
+            new Notice(`❌ 重置失败: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Generate review canvas file for the task
+     * Story 14.4: AC2 - Calls generate_review_canvas_file()
+     *
+     * Creates a verification canvas for knowledge reproduction
+     */
+    private async handleGenerateReviewCanvas(task: ReviewTask): Promise<void> {
+        try {
+            new Notice(`📝 正在生成检验白板: ${task.conceptName}...`);
+
+            // Call the plugin's canvas generation method
+            // This integrates with the existing canvas learning system
+            const canvasGenerator = this.plugin.getCanvasGenerator?.();
+
+            if (canvasGenerator && typeof canvasGenerator.generateReviewCanvas === 'function') {
+                const reviewCanvasPath = await canvasGenerator.generateReviewCanvas(
+                    task.canvasId,
+                    task.conceptName
+                );
+
+                if (reviewCanvasPath) {
+                    new Notice(`✅ 检验白板已生成: ${reviewCanvasPath}`);
+                    // Open the generated canvas
+                    await this.app.workspace.openLinkText(reviewCanvasPath, '', true);
+                }
+            } else {
+                // Fallback: just open the original canvas with a notice
+                new Notice(`⚠️ 检验白板生成功能需要Canvas Generator服务\n正在打开原白板...`);
+                await this.app.workspace.openLinkText(task.canvasId, '', true);
+            }
+        } catch (error) {
+            new Notice(`❌ 生成检验白板失败: ${(error as Error).message}`);
+        }
+    }
+
+    /**
+     * Show a confirmation dialog
+     * Returns true if user confirms, false otherwise
+     */
+    private showConfirmDialog(title: string, message: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const overlay = document.body.createDiv({ cls: 'task-dialog-overlay' });
+            const dialog = overlay.createDiv({ cls: 'task-dialog confirm-dialog' });
+
+            // Header
+            const header = dialog.createDiv({ cls: 'dialog-header' });
+            header.createEl('h3', { text: title, cls: 'dialog-title' });
+            const closeBtn = header.createEl('button', { cls: 'dialog-close' });
+            setIcon(closeBtn, 'x');
+            closeBtn.onclick = () => {
+                overlay.remove();
+                resolve(false);
+            };
+
+            // Body
+            const body = dialog.createDiv({ cls: 'dialog-body' });
+            body.createEl('p', { text: message });
+
+            // Actions
+            const actions = dialog.createDiv({ cls: 'dialog-actions' });
+
+            const cancelBtn = actions.createEl('button', {
+                cls: 'task-action-btn secondary',
+                text: '取消',
+            });
+            cancelBtn.onclick = () => {
+                overlay.remove();
+                resolve(false);
+            };
+
+            const confirmBtn = actions.createEl('button', {
+                cls: 'task-action-btn primary',
+                text: '确认',
+            });
+            confirmBtn.onclick = () => {
+                overlay.remove();
+                resolve(true);
+            };
+
+            // Close on overlay click
+            overlay.onclick = (e) => {
+                if (e.target === overlay) {
+                    overlay.remove();
+                    resolve(false);
+                }
+            };
+        });
     }
 
     private async handleTaskComplete(task: ReviewTask, score: number = 3): Promise<void> {

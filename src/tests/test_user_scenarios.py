@@ -9,25 +9,26 @@ Version: 1.0
 Created: 2025-01-23
 """
 
-import unittest
 import json
 import os
-import tempfile
 import shutil
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 
 # 导入待测试的模块
 import sys
+import tempfile
+import unittest
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import patch
+
 sys.path.append('..')
 
 try:
-    from learning_analyzer import LearningAnalyzer
-    from intelligent_review_generator import IntelligentReviewGenerator, ReviewPlanConfig
-    from review_canvas_builder import ReviewCanvasBuilder
-    from personalization_engine import PersonalizationEngine
     from intelligent_review_cli import IntelligentReviewCLI
+    from intelligent_review_generator import IntelligentReviewGenerator, ReviewPlanConfig
+    from learning_analyzer import LearningAnalyzer
+    from personalization_engine import PersonalizationEngine
+    from review_canvas_builder import ReviewCanvasBuilder
 except ImportError as e:
     print(f"Warning: 无法导入测试模块: {e}")
 

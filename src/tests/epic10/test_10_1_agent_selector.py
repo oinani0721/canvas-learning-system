@@ -3,15 +3,16 @@
 测试ReviewBoardAgentSelector的多Agent推荐和并行处理功能
 """
 
-import pytest
 import asyncio
-import time
-from unittest.mock import AsyncMock, patch, MagicMock
-from typing import Dict, Any
+import os
 
 # 导入测试目标
 import sys
-import os
+import time
+from typing import Any, Dict
+
+import pytest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 
 # Mock imports for testing
@@ -588,7 +589,6 @@ class TestStory10_1_Performance:
         agent_selector
     ):
         """测试并行执行效率 > 200%"""
-        import concurrent.futures
 
         # 创建5个Agent的任务
         agent_recommendations = {

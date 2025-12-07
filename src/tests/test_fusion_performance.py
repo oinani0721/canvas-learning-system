@@ -12,18 +12,22 @@ Version: 1.0
 Created: 2025-01-19
 """
 
-import pytest
 import asyncio
-import time
 import statistics
-from typing import List, Dict, Any
+import time
+
+import pytest
 
 from canvas_utils import (
-    IntelligentResultFusion, ConflictDetector, ConfidenceCalculator,
-    TaskResult, ConflictDetection,
-    CONFLICT_DETECTION_ACCURACY_TARGET, FUSION_PROCESSING_TIME_TARGET,
-    CONFIDENCE_ASSESSMENT_ACCURACY_TARGET, INFORMATION_COMPLETENESS_TARGET,
-    AGENT_BASE_CONFIDENCE
+    AGENT_BASE_CONFIDENCE,
+    CONFIDENCE_ASSESSMENT_ACCURACY_TARGET,
+    CONFLICT_DETECTION_ACCURACY_TARGET,
+    FUSION_PROCESSING_TIME_TARGET,
+    INFORMATION_COMPLETENESS_TARGET,
+    ConfidenceCalculator,
+    ConflictDetector,
+    IntelligentResultFusion,
+    TaskResult,
 )
 
 
@@ -360,7 +364,6 @@ class TestFusionPerformance:
             ))
 
         # 测试内存使用情况
-        import sys
         import tracemalloc
 
         tracemalloc.start()
@@ -374,7 +377,7 @@ class TestFusionPerformance:
 
         memory_usage_mb = peak / (1024 * 1024)
 
-        print(f"大规模测试 (20个结果):")
+        print("大规模测试 (20个结果):")
         print(f"  处理时间: {processing_time:.3f}s")
         print(f"  内存使用峰值: {memory_usage_mb:.2f} MB")
         print(f"  置信度: {fusion_result.confidence_score:.3f}")
@@ -418,10 +421,10 @@ class TestFusionPerformance:
     def test_performance_constants(self):
         """测试性能相关常量"""
         from canvas_utils import (
+            CONFIDENCE_ASSESSMENT_ACCURACY_TARGET,
             CONFLICT_DETECTION_ACCURACY_TARGET,
             FUSION_PROCESSING_TIME_TARGET,
-            CONFIDENCE_ASSESSMENT_ACCURACY_TARGET,
-            INFORMATION_COMPLETENESS_TARGET
+            INFORMATION_COMPLETENESS_TARGET,
         )
 
         assert CONFLICT_DETECTION_ACCURACY_TARGET == 0.90

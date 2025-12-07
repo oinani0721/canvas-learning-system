@@ -13,16 +13,15 @@ import gc
 import json
 import math
 import os
-import psutil
+import tempfile
 import time
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass, field
-import traceback
-import tempfile
-import shutil
+from typing import Any, Dict, List, Optional, Tuple
+
+import psutil
 
 try:
     import jinja2
@@ -33,8 +32,9 @@ except ImportError:
 
 # 导入现有的canvas系统
 import sys
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic, LayoutOptimizer
+from canvas_utils import CanvasJSONOperator, LayoutOptimizer
 
 
 @dataclass

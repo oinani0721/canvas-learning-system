@@ -174,7 +174,7 @@ Format the comments as:
   [diff_hunk from the API response]
   ```
   > quoted comment text
-  
+
   [any replies indented]
 
 If there are no comments, return "No comments found."

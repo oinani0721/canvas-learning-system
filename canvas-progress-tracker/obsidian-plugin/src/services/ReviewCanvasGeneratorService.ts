@@ -84,7 +84,7 @@ export interface GeneratorSettings {
  * Default settings
  */
 export const DEFAULT_GENERATOR_SETTINGS: GeneratorSettings = {
-    apiBaseUrl: 'http://localhost:8000/api/v1',
+    apiBaseUrl: 'http://localhost:8001/api/v1',
     timeout: 30000,
     autoOpenGenerated: true,
     storeToGraphiti: true,

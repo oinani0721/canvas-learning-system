@@ -4,31 +4,32 @@ Unit tests for session monitor
 
 import asyncio
 import json
+import os
+import sys
 import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
+
 import pytest
-import sys
-import os
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils.session_monitor import (
-    SessionMonitor,
-    MonitoredSession,
-    SessionHealth,
-    HealthCheckResult,
-    RecoveryResult,
-    Alert,
-    MonitoringStatus,
-    MemorySystemRecovery,
-    CanvasUpdateRecovery,
-    PathReferenceRecovery,
     AgentCallRecovery,
+    Alert,
+    CanvasUpdateRecovery,
+    HealthCheckResult,
     MCPServiceRecovery,
-    RecoveryStrategy
+    MemorySystemRecovery,
+    MonitoredSession,
+    MonitoringStatus,
+    PathReferenceRecovery,
+    RecoveryResult,
+    RecoveryStrategy,
+    SessionHealth,
+    SessionMonitor,
 )
 
 

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\__init__.py
+# hypothesis_version: 6.148.1
+
+['AgentResult', 'AgentService', 'AgentType', 'CanvasService', 'ReviewProgress', 'ReviewService', 'ReviewStatus', 'TaskInfo', 'TaskStatus']

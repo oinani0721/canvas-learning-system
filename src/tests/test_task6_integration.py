@@ -3,10 +3,11 @@ Task 6 集成测试 - 验证/learning命令的模式显示
 Story 10.11.3 AC4
 """
 
-import pytest
-from unittest.mock import patch, Mock
-from pathlib import Path
 import sys
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))

@@ -5,22 +5,21 @@ Canvas Learning System - Story 8.8
 测试完整的MCP语义记忆服务工作流和集成场景。
 """
 
-import pytest
-import tempfile
 import json
 import os
 import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
+from canvas_mcp_integration import CanvasMCPIntegration
+from creative_association_engine import CreativeAssociationEngine
+from mcp_commands import MCPCommandInterface
 
 # 导入测试目标
 from mcp_memory_client import MCPSemanticMemory
-from semantic_processor import SemanticProcessor
-from creative_association_engine import CreativeAssociationEngine
 from memory_compression import MemoryCompressor
-from canvas_mcp_integration import CanvasMCPIntegration
-from mcp_commands import MCPCommandInterface
+from semantic_processor import SemanticProcessor
 
 
 class TestMCPIntegrationE2E:
@@ -496,7 +495,6 @@ mcp_service:
     def test_concurrent_operations(self, temp_config_file, mock_dependencies):
         """测试并发操作"""
         import threading
-        import time
 
         memory_client = MCPSemanticMemory(temp_config_file)
         results = []

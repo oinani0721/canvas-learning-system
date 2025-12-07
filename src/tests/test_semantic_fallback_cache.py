@@ -5,14 +5,14 @@ Story 10.11.3 - Task 8
 测试semantic_fallback_cache.py的LocalSemanticCache类的所有功能。
 """
 
-import pytest
 import sqlite3
-import json
-from pathlib import Path
-from typing import Dict, Any
 
 # 导入被测试的类
 import sys
+from pathlib import Path
+
+import pytest
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 

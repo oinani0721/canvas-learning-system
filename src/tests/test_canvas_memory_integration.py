@@ -8,29 +8,26 @@ Version: 2.0
 Created: 2025-10-23
 """
 
-import pytest
 import json
-import tempfile
 import os
 import shutil
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
-import uuid
 import sys
+import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
 
 # 添加项目根目录到路径
 sys.path.append('..')
 sys.path.append('../memory_system')
 
 from canvas_memory_integration import (
+    BackwardCompatibleCanvas,
     CanvasMemoryIntegration,
     EnhancedCanvasOrchestrator,
-    BackwardCompatibleCanvas,
     create_canvas_memory_integration,
-    create_enhanced_canvas_orchestrator
+    create_enhanced_canvas_orchestrator,
 )
-
-from canvas_utils import CanvasOrchestrator
 
 
 class TestCanvasMemoryIntegration:

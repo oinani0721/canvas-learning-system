@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\agent_service.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.01, 0.1, 1000, 'Agent call timed out', 'What is this?', 'accuracy', 'agent_type', 'basic-decomposition', 'canvas-orchestrator', 'clarification', 'clarification-path', 'color_recommendation', 'comparison', 'comparison-table', 'completed', 'completeness', 'created_at', 'data', 'deep-decomposition', 'duration_ms', 'error', 'example', 'example-teaching', 'explanation', 'explanation_type', 'four-level', 'four_level', 'imagery', 'memory', 'memory-anchor', 'node_id', 'oral', 'oral-explanation', 'originality', 'overall_score', 'prompt', 'questions', 'red', 'response', 'result', 'scores', 'scoring', 'scoring-agent', 'status', 'success']

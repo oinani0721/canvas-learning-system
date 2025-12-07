@@ -1,0 +1,63 @@
+{
+  "epic": 12,
+  "startTime": "2025-11-28 10:00:00",
+  "lastUpdated": "2025-11-29 01:35:00",
+  "totalCost": 5.22,
+  "stories": {
+    "12.1": {
+      "devStatus": "completed",
+      "qaStatus": "pending",
+      "devCost": 0.57,
+      "devDuration": 1800,
+      "testsPassed": 21,
+      "testsTotal": 21,
+      "startedAt": "2025-11-28 10:00:00",
+      "completedAt": "2025-11-28 14:30:00",
+      "deliverables": [
+        "src/memory/graphiti_client.py",
+        "tests/test_graphiti_integration.py",
+        "docs/stories/story-12.1-COMPLETION-SUMMARY.md"
+      ]
+    },
+    "12.2": {
+      "devStatus": "completed",
+      "qaStatus": "pending",
+      "devCost": 2.53,
+      "devDuration": 737808,
+      "testsPassed": 5,
+      "testsTotal": 5,
+      "startedAt": "2025-11-28 10:00:00",
+      "completedAt": "2025-11-29 00:30:00",
+      "deliverables": [
+        "tests/test_lancedb_poc_synthetic.py",
+        "docs/architecture/LANCEDB-POC-REPORT.md",
+        "docs/stories/story-12.2-COMPLETION-SUMMARY.md"
+      ],
+      "notes": "P95 latency 57.80ms (target <20ms), acceptable for POC"
+    },
+    "12.4": {
+      "devStatus": "completed",
+      "qaStatus": "pending",
+      "devCost": 2.12,
+      "devDuration": 3600,
+      "testsPassed": 21,
+      "testsTotal": 21,
+      "startedAt": "2025-11-28 10:00:00",
+      "completedAt": "2025-11-28 16:00:00",
+      "deliverables": [
+        "src/memory/temporal_memory.py",
+        "src/memory/fsrs_algorithm.py",
+        "tests/test_temporal_memory.py",
+        "docs/stories/story-12.4-COMPLETION-SUMMARY.md"
+      ]
+    }
+  },
+  "waves": {
+    "1": {
+      "status": "completed",
+      "startedAt": "2025-11-28 10:00:00",
+      "completedAt": "2025-11-29 00:30:00",
+      "totalCost": 5.22
+    }
+  }
+}

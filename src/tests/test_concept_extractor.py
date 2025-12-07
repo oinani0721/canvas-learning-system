@@ -10,6 +10,7 @@ Created: 2025-01-22
 """
 
 import unittest
+
 from concept_extractor import ConceptExtractor
 
 

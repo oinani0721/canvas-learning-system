@@ -7,18 +7,19 @@ Provides endpoints for AI Agent invocation (decompose, score, explain).
 """
 
 import uuid
-from fastapi import APIRouter, HTTPException, status
+
+from fastapi import APIRouter
 
 from ..models import (
     DecomposeRequest,
     DecomposeResponse,
-    ScoreRequest,
-    ScoreResponse,
-    NodeScore,
+    ErrorResponse,
     ExplainRequest,
     ExplainResponse,
     NodeRead,
-    ErrorResponse,
+    NodeScore,
+    ScoreRequest,
+    ScoreResponse,
 )
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
@@ -91,8 +92,8 @@ async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     """
     questions = [
         f"深度问题1：为什么'{request.node_id}'是这样设计的？",
-        f"深度问题2：如果改变条件会发生什么？",
-        f"深度问题3：这个概念与其他相关概念有什么联系？"
+        "深度问题2：如果改变条件会发生什么？",
+        "深度问题3：这个概念与其他相关概念有什么联系？"
     ]
 
     created_nodes = [

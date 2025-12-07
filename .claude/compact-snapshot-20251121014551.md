@@ -13,7 +13,7 @@
 
 **Active Agent**: SM Agent
 **Executing Function**: Verifying results
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11, Story 12.1
 
 **Relevant Files**:
@@ -188,7 +188,7 @@ The user provided an extremely long context dump containing:
 8. Multiple delivery inventories and checklists
 9. Story counts (140 total, ~60 completed, ~80 pending)
 
-**User's explicit request**: 
+**User's explicit request**:
 "请你deep learning一下整理出一份交付物清单，并启用增量模式对有点模糊和不理解的内容向我提问，我们把文件的给整理明白了，因为这些是之前用correct-course所调整的文件，所以会有可能文件前后不一致的现象，请你深度调研理解我的项目所有文件都要deep learning，不懂的技术部分去context7和skill查询，0幻觉原则，然后整理出一份适合我现在BMad工作流的开发清单，我们这里是要整理出一份计划书"
 
 Key requests:

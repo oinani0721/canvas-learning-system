@@ -24,11 +24,9 @@ References:
 - Task 6 (BMad Integration Plan): 创建Contract Testing测试套件
 """
 
+
 import pytest
-import schemathesis
-from pathlib import Path
-from typing import Dict, Any
-from hypothesis import given, strategies as st
+from hypothesis import given
 
 # ============================================================================
 # Test Configuration

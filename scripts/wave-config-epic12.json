@@ -1,0 +1,119 @@
+{
+  "epic": 12,
+  "created": "2025-11-29",
+  "description": "三层记忆 + Agentic RAG Epic",
+  "waves": [
+    {
+      "id": 1,
+      "stories": ["12.1", "12.2", "12.4"],
+      "mode": "parallel",
+      "status": "completed",
+      "description": "Foundation Layer: Graphiti Client, LanceDB POC, Temporal Memory (FSRS-4.5)",
+      "completedAt": "2025-11-29"
+    },
+    {
+      "id": 2,
+      "stories": ["12.3", "12.5"],
+      "mode": "parallel",
+      "status": "pending",
+      "description": "Migration & StateGraph: ChromaDB→LanceDB数据迁移, LangGraph StateGraph基础架构",
+      "dependencies": {
+        "12.3": ["12.2"],
+        "12.5": ["12.1"]
+      }
+    },
+    {
+      "id": 3,
+      "stories": ["12.6"],
+      "mode": "sequential",
+      "status": "pending",
+      "description": "Parallel Retrieval: LangGraph Send模式并行检索实现",
+      "dependencies": {
+        "12.6": ["12.5"]
+      }
+    },
+    {
+      "id": 4,
+      "stories": ["12.7", "12.8"],
+      "mode": "parallel",
+      "status": "pending",
+      "description": "Fusion & Reranking: RRF/Weighted/Cascade融合算法 + 混合Reranking策略",
+      "dependencies": {
+        "12.7": ["12.6"],
+        "12.8": ["12.6", "12.4"]
+      }
+    },
+    {
+      "id": 5,
+      "stories": ["12.9"],
+      "mode": "sequential",
+      "status": "pending",
+      "description": "Quality Control: 质量控制循环 (Query重写, 结果验证)",
+      "dependencies": {
+        "12.9": ["12.7", "12.8"]
+      }
+    },
+    {
+      "id": 6,
+      "stories": ["12.10"],
+      "mode": "sequential",
+      "status": "pending",
+      "description": "Canvas Integration: 检验白板生成集成",
+      "dependencies": {
+        "12.10": ["12.9"]
+      }
+    }
+  ],
+  "storyDetails": {
+    "12.1": {
+      "title": "Graphiti Client Integration",
+      "estimates": "2d",
+      "key_files": ["src/memory/graphiti_client.py", "tests/test_graphiti_integration.py"]
+    },
+    "12.2": {
+      "title": "LanceDB POC",
+      "estimates": "1.5d",
+      "key_files": ["src/memory/lancedb_client.py", "tests/test_lancedb_poc.py"]
+    },
+    "12.3": {
+      "title": "ChromaDB → LanceDB Migration",
+      "estimates": "1.5d",
+      "key_files": ["src/memory/migration_tool.py", "scripts/migrate_vectors.py"]
+    },
+    "12.4": {
+      "title": "Temporal Memory (FSRS-4.5)",
+      "estimates": "2d",
+      "key_files": ["src/memory/temporal_memory.py", "src/memory/fsrs_algorithm.py"]
+    },
+    "12.5": {
+      "title": "LangGraph StateGraph Foundation",
+      "estimates": "2d",
+      "key_files": ["src/agentic_rag/state_graph.py", "src/agentic_rag/nodes/"]
+    },
+    "12.6": {
+      "title": "Parallel Retrieval (Send Mode)",
+      "estimates": "1.5d",
+      "key_files": ["src/agentic_rag/nodes/parallel_retrieval.py"]
+    },
+    "12.7": {
+      "title": "Fusion Algorithms (RRF, Weighted, Cascade)",
+      "estimates": "2d",
+      "key_files": ["src/agentic_rag/fusion/"]
+    },
+    "12.8": {
+      "title": "Hybrid Reranking Strategy",
+      "estimates": "2d",
+      "key_files": ["src/agentic_rag/reranking/"]
+    },
+    "12.9": {
+      "title": "Quality Control Loop",
+      "estimates": "1.5d",
+      "key_files": ["src/agentic_rag/quality_control.py"]
+    },
+    "12.10": {
+      "title": "Canvas Integration",
+      "estimates": "1d",
+      "key_files": ["src/canvas_rag_integration.py"]
+    }
+  }
+}

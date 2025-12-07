@@ -12,28 +12,28 @@ Version: 1.0
 Created: 2025-01-24
 """
 
-import pytest
-import pytest_asyncio
 import asyncio
-import uuid
-from datetime import datetime
-from typing import Dict, Any
+import os
 
 # 导入被测试的模块
 import sys
-import os
+from datetime import datetime
+
+import pytest
+import pytest_asyncio
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agent_instance_pool import (
-    GLMInstancePool,
     AgentInstance,
     AgentTask,
+    GLMInstancePool,
     InstanceStatus,
-    TaskPriority,
     ProcessWorker,
+    TaskPriority,
     get_instance_pool,
     start_instance_pool,
-    stop_instance_pool
+    stop_instance_pool,
 )
 
 
@@ -396,8 +396,8 @@ class TestPoolIntegration:
         # 由于CanvasOrchestrator需要canvas文件，这里只测试导入
         try:
             # 先添加当前目录到Python路径
-            import sys
             import os
+            import sys
             current_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             if current_dir not in sys.path:
                 sys.path.insert(0, current_dir)

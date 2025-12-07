@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\error_handler.py
+# hypothesis_version: 6.148.1
+
+[500, 'X-Request-ID', 'code', 'details', 'message', 'request_id', 'unhandled_exception', 'unknown']

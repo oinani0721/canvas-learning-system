@@ -1,0 +1,73 @@
+{
+  "version": "2.0",
+  "session_id": "linear-20251129-180135",
+  "daemon_pid": 182564,
+  "stories": [
+    "12.11",
+    "12.12",
+    "12.13",
+    "12.14",
+    "12.15"
+  ],
+  "current_index": 5,
+  "status": "completed",
+  "started_at": "2025-11-29T18:01:35.399976",
+  "last_updated": "2025-11-29T19:13:59.892910",
+  "completed_stories": [
+    {
+      "story_id": "12.11",
+      "outcome": "SUCCESS",
+      "commit_sha": "762f9f4e15b85bc5799ffde81c1c1ab29a9b66b1",
+      "duration_seconds": 589.0807,
+      "retry_count": 0,
+      "compact_restarts": 0,
+      "completed_at": "2025-11-29T18:11:24.483606"
+    },
+    {
+      "story_id": "12.12",
+      "outcome": "SUCCESS",
+      "commit_sha": "7840dd1",
+      "duration_seconds": 211.57975,
+      "retry_count": 0,
+      "compact_restarts": 1,
+      "completed_at": "2025-11-29T18:29:42.697652"
+    },
+    {
+      "story_id": "12.13",
+      "outcome": "SUCCESS",
+      "commit_sha": "52895619fe9ae10fa3c34fbf1aa347c786b36c72",
+      "duration_seconds": 998.516213,
+      "retry_count": 0,
+      "compact_restarts": 0,
+      "completed_at": "2025-11-29T18:46:23.218058"
+    },
+    {
+      "story_id": "12.14",
+      "outcome": "SUCCESS",
+      "commit_sha": "575ae5cd6c4658ab137efcfe59759905f22a2c39",
+      "duration_seconds": 841.752979,
+      "retry_count": 0,
+      "compact_restarts": 0,
+      "completed_at": "2025-11-29T19:00:26.987983"
+    },
+    {
+      "story_id": "12.15",
+      "outcome": "SUCCESS",
+      "commit_sha": "9c2eb4cf03f89084411a92921678d014f24fbc95",
+      "duration_seconds": 810.89985,
+      "retry_count": 0,
+      "compact_restarts": 0,
+      "completed_at": "2025-11-29T19:13:59.892910"
+    }
+  ],
+  "current_story": null,
+  "halted_at": null,
+  "halt_reason": null,
+  "statistics": {
+    "total_duration_seconds": 3451.829492,
+    "total_retries": 0,
+    "total_compact_restarts": 1,
+    "stories_succeeded": 5,
+    "stories_failed": 0
+  }
+}

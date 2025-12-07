@@ -8,21 +8,21 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import asyncio
-from typing import Dict, List
 
 # Import the optimizer
 import sys
+import time
 from pathlib import Path
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from agent_performance_optimizer import (
     AgentPerformanceOptimizer,
-    AgentTask,
+    execute_agents_parallel,
     get_agent_optimizer,
     submit_agent_task,
-    execute_agents_parallel
 )
 
 

@@ -12,7 +12,6 @@ import tempfile
 import time
 import unittest
 from datetime import datetime
-from pathlib import Path
 
 # 导入pytest
 try:
@@ -22,15 +21,16 @@ except ImportError:
 
 # 导入被测试的模块
 try:
+    from claude_canvas_tools import _format_batch_processing_report, canvas_batch_processor
+
     from canvas_utils import (
+        CLAUDE_CODE_ENABLED,
         BatchCanvasProcessor,
-        BatchProcessingTask,
-        BatchProgressMonitor,
         BatchErrorHandler,
         BatchProcessingResult,
-        CLAUDE_CODE_ENABLED
+        BatchProcessingTask,
+        BatchProgressMonitor,
     )
-    from claude_canvas_tools import canvas_batch_processor, _format_batch_processing_report
 except ImportError as e:
     print(f"警告: 无法导入测试模块 - {e}")
     CLAUDE_CODE_ENABLED = False

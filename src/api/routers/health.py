@@ -7,6 +7,7 @@ Provides health check endpoint for monitoring application status.
 """
 
 from datetime import datetime, timezone
+
 from fastapi import APIRouter
 
 from ..config import get_settings

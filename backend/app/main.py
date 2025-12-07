@@ -21,9 +21,14 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.v1.endpoints.monitoring import set_alert_manager
+from app.api.v1.router import router as api_v1_router
 from app.config import settings
 from app.core.logging import setup_logging
-from app.api.v1.router import router as api_v1_router
+from app.middleware.metrics import MetricsMiddleware
+from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
+from app.services.notification_channels import create_default_dispatcher
+from app.services.resource_monitor import get_default_monitor
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Logging Setup
@@ -64,10 +69,43 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info(f"CORS origins: {settings.cors_origins_list}")
     logger.info(f"API prefix: {settings.API_V1_PREFIX}")
 
+    # ✅ Verified from Story 17.2 AC-4: Start resource monitoring (≤5s interval)
+    # [Source: docs/architecture/performance-monitoring-architecture.md:281-320]
+    resource_monitor = get_default_monitor()
+    await resource_monitor.start_background_collection(interval_seconds=5.0)
+    logger.info("Resource monitoring started with 5s interval")
+
+    # ✅ Verified from Story 17.3: Start alert evaluation system
+    # [Source: docs/architecture/performance-monitoring-architecture.md:281-323]
+    # [Source: docs/stories/17.3.story.md - AC 1-5]
+    alert_rules = load_alert_rules_from_yaml("config/alerts.yaml")
+    notification_dispatcher = create_default_dispatcher()
+    alert_manager = AlertManager(
+        rules=alert_rules,
+        notification_dispatcher=notification_dispatcher,
+        evaluation_interval=30,  # 30-second evaluation cycle
+    )
+    await alert_manager.start()
+    logger.info(f"Alert manager started with {len(alert_rules)} rules (30s interval)")
+
+    # Store alert_manager in app state for dependency injection
+    app.state.alert_manager = alert_manager
+
+    # Set global alert manager for monitoring endpoint dependency injection
+    set_alert_manager(alert_manager)
+
     yield  # Application runs here
 
     # Shutdown
     logger.info(f"Shutting down {settings.PROJECT_NAME}...")
+
+    # ✅ Stop alert manager gracefully
+    await alert_manager.stop()
+    logger.info("Alert manager stopped")
+
+    # ✅ Stop resource monitoring gracefully
+    await resource_monitor.stop_background_collection()
+    logger.info("Resource monitoring stopped")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FastAPI Application
@@ -104,6 +142,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ✅ Verified from Context7:/prometheus/client_python (topic: Counter Histogram Gauge)
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: middleware http)
+# [Source: docs/stories/17.1.story.md - AC-1]
+# Pattern: MetricsMiddleware auto-records method/endpoint/status/response_time
+app.add_middleware(MetricsMiddleware)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Route Registration
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -133,4 +177,3 @@ async def root():
         "docs": "/docs" if settings.DEBUG else "disabled",
         "health": f"{settings.API_V1_PREFIX}/health"
     }
-

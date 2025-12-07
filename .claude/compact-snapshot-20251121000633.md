@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Fixing bugs
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11
 
 **Relevant Files**:
@@ -51,7 +51,7 @@ The conversation has been compressed 6+ times, with extensive context provided v
 
 2. **User's Clarification Answers** (from previous sessions):
    - GraphRAG: "归档删除" (Archive/delete)
-   - Development start: "Epic 11 (FastAPI)" 
+   - Development start: "Epic 11 (FastAPI)"
    - LanceDB migration: "尚未开始" (Not started)
    - Scope: "完整路线图" (Complete roadmap)
 

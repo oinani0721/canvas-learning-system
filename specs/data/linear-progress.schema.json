@@ -1,0 +1,245 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.local/schemas/linear-progress.schema.json",
+  "title": "Linear Progress",
+  "description": "Schema for linear development daemon progress tracking (linear-progress.json)",
+  "type": "object",
+  "required": ["version", "session_id", "stories", "current_index", "status"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version",
+      "const": "2.0"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Unique session identifier",
+      "pattern": "^linear-\\d{8}-\\d{6}$",
+      "examples": ["linear-20251127-143022"]
+    },
+    "daemon_pid": {
+      "type": ["integer", "null"],
+      "description": "Process ID of the running daemon",
+      "minimum": 1
+    },
+    "stories": {
+      "type": "array",
+      "description": "List of Story IDs to process sequentially",
+      "items": {
+        "type": "string",
+        "pattern": "^\\d+\\.\\d+$"
+      },
+      "minItems": 1,
+      "examples": [["15.1", "15.2", "15.3", "15.4", "15.5", "15.6"]]
+    },
+    "current_index": {
+      "type": "integer",
+      "description": "Index of the current Story being processed (0-based)",
+      "minimum": 0
+    },
+    "status": {
+      "type": "string",
+      "description": "Current daemon status",
+      "enum": ["idle", "in_progress", "halted", "completed"]
+    },
+    "started_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when session started"
+    },
+    "last_updated": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp of last progress update"
+    },
+    "completed_stories": {
+      "type": "array",
+      "description": "List of completed Story records",
+      "items": {
+        "$ref": "#/definitions/CompletedStory"
+      }
+    },
+    "current_story": {
+      "oneOf": [
+        { "$ref": "#/definitions/CurrentStory" },
+        { "type": "null" }
+      ],
+      "description": "State of the currently executing Story"
+    },
+    "halted_at": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when execution was halted"
+    },
+    "halt_reason": {
+      "type": ["string", "null"],
+      "description": "Human-readable reason for halt"
+    },
+    "statistics": {
+      "$ref": "#/definitions/Statistics",
+      "description": "Aggregate statistics for the session"
+    }
+  },
+  "definitions": {
+    "CompletedStory": {
+      "type": "object",
+      "description": "Record of a completed Story",
+      "required": ["story_id", "outcome"],
+      "properties": {
+        "story_id": {
+          "type": "string",
+          "description": "Story identifier",
+          "pattern": "^\\d+\\.\\d+$"
+        },
+        "outcome": {
+          "type": "string",
+          "description": "Final outcome of the Story",
+          "enum": ["SUCCESS", "DEV_BLOCKED", "QA_BLOCKED", "QA_CONCERNS_UNFIXED", "COMPACT", "CRASH", "TIMEOUT", "ERROR", "UNKNOWN"]
+        },
+        "commit_sha": {
+          "type": ["string", "null"],
+          "description": "Git commit SHA if successful",
+          "pattern": "^[a-f0-9]{7,40}$"
+        },
+        "duration_seconds": {
+          "type": "number",
+          "description": "Execution duration in seconds",
+          "minimum": 0
+        },
+        "retry_count": {
+          "type": "integer",
+          "description": "Number of retries attempted",
+          "minimum": 0
+        },
+        "compact_restarts": {
+          "type": "integer",
+          "description": "Number of compact restarts",
+          "minimum": 0
+        },
+        "completed_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when completed"
+        }
+      }
+    },
+    "CurrentStory": {
+      "type": "object",
+      "description": "State of the currently executing Story",
+      "required": ["story_id", "started_at"],
+      "properties": {
+        "story_id": {
+          "type": "string",
+          "description": "Story identifier",
+          "pattern": "^\\d+\\.\\d+$"
+        },
+        "started_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO-8601 timestamp when Story started"
+        },
+        "retry_count": {
+          "type": "integer",
+          "description": "Current retry count",
+          "minimum": 0,
+          "default": 0
+        },
+        "compact_restarts": {
+          "type": "integer",
+          "description": "Number of compact restarts for this Story",
+          "minimum": 0,
+          "default": 0
+        },
+        "claude_pid": {
+          "type": ["integer", "null"],
+          "description": "Process ID of the Claude CLI session",
+          "minimum": 1
+        }
+      }
+    },
+    "Statistics": {
+      "type": "object",
+      "description": "Aggregate statistics for the session",
+      "properties": {
+        "total_duration_seconds": {
+          "type": "number",
+          "description": "Total execution time in seconds",
+          "minimum": 0,
+          "default": 0
+        },
+        "total_retries": {
+          "type": "integer",
+          "description": "Total number of retries across all Stories",
+          "minimum": 0,
+          "default": 0
+        },
+        "total_compact_restarts": {
+          "type": "integer",
+          "description": "Total number of compact restarts",
+          "minimum": 0,
+          "default": 0
+        },
+        "stories_succeeded": {
+          "type": "integer",
+          "description": "Number of Stories completed successfully",
+          "minimum": 0,
+          "default": 0
+        },
+        "stories_failed": {
+          "type": "integer",
+          "description": "Number of Stories that failed",
+          "minimum": 0,
+          "default": 0
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "version": "2.0",
+      "session_id": "linear-20251127-143022",
+      "daemon_pid": 12345,
+      "stories": ["15.1", "15.2", "15.3", "15.4", "15.5", "15.6"],
+      "current_index": 2,
+      "status": "in_progress",
+      "started_at": "2025-11-27T14:30:22Z",
+      "last_updated": "2025-11-27T15:45:33Z",
+      "completed_stories": [
+        {
+          "story_id": "15.1",
+          "outcome": "SUCCESS",
+          "commit_sha": "abc1234",
+          "duration_seconds": 1800,
+          "retry_count": 0,
+          "compact_restarts": 0,
+          "completed_at": "2025-11-27T15:00:22Z"
+        },
+        {
+          "story_id": "15.2",
+          "outcome": "SUCCESS",
+          "commit_sha": "def5678",
+          "duration_seconds": 2100,
+          "retry_count": 0,
+          "compact_restarts": 1,
+          "completed_at": "2025-11-27T15:35:22Z"
+        }
+      ],
+      "current_story": {
+        "story_id": "15.3",
+        "started_at": "2025-11-27T15:35:30Z",
+        "retry_count": 0,
+        "compact_restarts": 0,
+        "claude_pid": 67890
+      },
+      "halted_at": null,
+      "halt_reason": null,
+      "statistics": {
+        "total_duration_seconds": 3900,
+        "total_retries": 0,
+        "total_compact_restarts": 1,
+        "stories_succeeded": 2,
+        "stories_failed": 0
+      }
+    }
+  ]
+}

@@ -13,14 +13,13 @@ Created: 2025-10-31
 Story: 10.11.2 - MCP Graphiti Server Health Check Integration
 """
 
-import asyncio
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
-from unittest.mock import patch, Mock, AsyncMock, MagicMock
-from pathlib import Path
+from memory_system.mcp_health_check import MCPServerUnavailableError
 
 # Import the components we're testing
 from command_handlers.learning_commands import LearningSessionManager
-from memory_system.mcp_health_check import MCPServerUnavailableError
 
 
 class TestLearningCommandsMCPHealthCheck:

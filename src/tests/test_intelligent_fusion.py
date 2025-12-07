@@ -14,36 +14,38 @@ Version: 1.0
 Created: 2025-01-19
 """
 
-import pytest
-import asyncio
-import time
-import uuid
-from datetime import datetime
-from typing import Dict, List, Any
+import os
 
 # 导入被测试的模块
 import sys
-import os
+import time
+
+import pytest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
-    # 数据模型
-    TaskResult, FusionTask, FusionResult, ConflictDetection, ConflictResolution,
-    AgentConfidence, FusionTraceability,
-
-    # 核心融合类
-    ConflictDetector, ConflictResolver, IntelligentResultFusion,
-    ConfidenceCalculator, FusionStrategyEngine, TraceabilityRecorder,
-
+    CONFLICT_TYPE_FACTUAL,
+    # 常量
+    CONFLICT_TYPE_SEMANTIC,
+    CONFLICT_TYPE_STRUCTURAL,
+    FUSION_CONFIDENCE_THRESHOLD,
+    FUSION_STRATEGY_HIERARCHICAL,
+    FUSION_STRATEGY_SUPPLEMENTARY,
     # 并发执行引擎
     ConcurrentAgentExecutor,
-
-    # 常量
-    CONFLICT_TYPE_SEMANTIC, CONFLICT_TYPE_FACTUAL, CONFLICT_TYPE_STRUCTURAL,
-    CONFLICT_SEVERITY_HIGH_THRESHOLD, CONFLICT_SEVERITY_MEDIUM_THRESHOLD,
-    FUSION_STRATEGY_SUPPLEMENTARY, FUSION_STRATEGY_COMPETIMENTARY,
-    FUSION_STRATEGY_HIERARCHICAL, FUSION_STRATEGY_WEIGHTED_VOTING,
-    AGENT_BASE_CONFIDENCE, FUSION_CONFIDENCE_THRESHOLD
+    ConfidenceCalculator,
+    ConflictDetection,
+    # 核心融合类
+    ConflictDetector,
+    ConflictResolver,
+    FusionResult,
+    FusionStrategyEngine,
+    FusionTraceability,
+    IntelligentResultFusion,
+    # 数据模型
+    TaskResult,
+    TraceabilityRecorder,
 )
 
 

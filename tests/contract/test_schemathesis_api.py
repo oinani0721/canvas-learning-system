@@ -27,7 +27,7 @@ OPENAPI_SPEC_PATH = Path(__file__).parent.parent.parent / "specs" / "api" / "can
 
 # Skip all tests if FastAPI is not available (Epic 15 not yet implemented)
 # Remove this skip when Epic 15 is complete
-FASTAPI_NOT_READY = True
+FASTAPI_NOT_READY = False
 SKIP_REASON = "FastAPI backend not yet implemented (Epic 15). Enable tests after Epic 15 completion."
 
 

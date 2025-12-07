@@ -25,21 +25,20 @@ Created: 2025-01-24
 
 import json
 import os
+import sqlite3
+import statistics
 import tempfile
 import time
 import unittest
-import threading
-import sqlite3
-import statistics
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import Dict, List
 
 import pytest
 
 try:
-    import psutil
     import numpy as np
+    import psutil
     PERF_LIBS_AVAILABLE = True
 except ImportError:
     PERF_LIBS_AVAILABLE = False
@@ -47,11 +46,10 @@ except ImportError:
 
 # Import canvas monitoring components
 try:
-    from canvas_progress_tracker.canvas_monitor_engine import (
-        CanvasMonitorEngine, MonitorConfig
-    )
-    from canvas_progress_tracker.data_stores import HotDataStore, ColdDataStore
+    from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
+    from canvas_progress_tracker.data_stores import ColdDataStore, HotDataStore
     from canvas_progress_tracker.report_generator import LearningReportGenerator
+
     from canvas_utils import CanvasJSONOperator
     MODULES_AVAILABLE = True
 except ImportError as e:

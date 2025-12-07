@@ -1,0 +1,132 @@
+[
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "03accc6f-ceae-45ea-9705-cd0d7d099285",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:38.674910+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "67d87477-aaf9-439f-a995-87b6b600be60",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:38.653774+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "fefbe229-4e77-4309-b8e7-6fd635b85665",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:19.930140+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "e580570e-8163-4add-8767-4667e7e103c7",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:19.884938+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "5860ec96-defa-4da8-adfc-65200e011c64",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:54.545136+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "cd64a4a8-3d67-4238-b7b1-5f280f2de813",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:54.518260+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "d180879e-1df7-4497-923c-6dd55abda3a4",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:35.900466+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "ba30da47-48c1-4556-8124-8310b90d6f95",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:35.873553+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "f0a64cf8-1247-45d7-abc2-ced38c916b5b",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:07.120593+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "caa30de9-9a32-47ed-88ff-2d94be4929ba",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:07.086247+00:00",
+    "type": "manual"
+  }
+]

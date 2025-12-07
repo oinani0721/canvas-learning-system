@@ -12,25 +12,23 @@ Story 7.2: 智能结果融合引擎测试套件
 - Task 5: 性能优化和集成测试
 """
 
-import unittest
 import asyncio
-import tempfile
-import json
-import time
-from datetime import datetime
+import os
 
 # 导入Story 7.2的所有类
 import sys
-import os
+import time
+import unittest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
-    ConflictDetectionEngine,
     ConfidenceBasedFusion,
-    InformationIntegrityProtection,
+    ConflictDetectionEngine,
     FusionProcessTransparency,
+    InformationIntegrityProtection,
     IntelligentResultFusionEngine,
-    intelligent_result_fusion
+    intelligent_result_fusion,
 )
 
 

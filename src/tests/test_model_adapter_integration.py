@@ -14,7 +14,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))

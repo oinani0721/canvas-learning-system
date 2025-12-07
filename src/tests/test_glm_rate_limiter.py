@@ -9,19 +9,22 @@ Created: 2025-01-24
 """
 
 import asyncio
-import pytest
 import json
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-import tempfile
 import shutil
-from unittest.mock import Mock, patch, AsyncMock
-from freezegun import freeze_time
+import tempfile
+from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
+import pytest
+from freezegun import freeze_time
 from glm_rate_limiter import (
-    GLMRateLimiter, RateLimitConfig, PlanType,
-    UsageMetrics, UsageAlert, TokenBucket,
-    create_rate_limiter, get_global_rate_limiter
+    GLMRateLimiter,
+    PlanType,
+    RateLimitConfig,
+    TokenBucket,
+    create_rate_limiter,
+    get_global_rate_limiter,
 )
 
 
@@ -470,7 +473,7 @@ class TestEdgeCases:
 @pytest.mark.asyncio
 async def test_integration_with_agent_pool():
     """测试与Agent实例池的集成"""
-    from agent_instance_pool import GLMInstancePool, AgentTask, TaskPriority
+    from agent_instance_pool import AgentTask, GLMInstancePool, TaskPriority
 
     # 创建速率限制器
     limiter = create_rate_limiter("pro")

@@ -14,6 +14,11 @@ that can be mounted on the main FastAPI application.
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import health
+from app.api.v1.endpoints.agents import agents_router
+from app.api.v1.endpoints.canvas import canvas_router
+from app.api.v1.endpoints.monitoring import monitoring_router
+from app.api.v1.endpoints.review import review_router
+from app.api.v1.endpoints.rollback import rollback_router
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
 # Pattern: Create main router and include sub-routers with prefixes/tags
@@ -33,28 +38,63 @@ router.include_router(
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Future Routes (Story 15.2+)
+# Canvas Routes (Story 15.2)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Canvas operations (Story 15.2)
-# router.include_router(
-#     canvas.router,
-#     prefix="/canvas",
-#     tags=["Canvas"],
-#     responses={404: {"description": "Canvas not found"}}
-# )
+router.include_router(
+    canvas_router,
+    prefix="/canvas",
+    tags=["Canvas"],
+    responses={404: {"description": "Canvas not found"}}
+)
 
-# Agent operations (Story 15.3)
-# router.include_router(
-#     agent.router,
-#     prefix="/agents",
-#     tags=["Agents"],
-#     responses={500: {"description": "Agent call failed"}}
-# )
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agent Routes (Story 15.2)
+# ═══════════════════════════════════════════════════════════════════════════════
 
-# Review operations (Story 15.4)
-# router.include_router(
-#     review.router,
-#     prefix="/review",
-#     tags=["Review"]
-# )
+router.include_router(
+    agents_router,
+    prefix="/agents",
+    tags=["Agents"],
+    responses={500: {"description": "Agent call failed"}}
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Review Routes (Story 15.2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    review_router,
+    prefix="/review",
+    tags=["Review"]
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Monitoring Routes (Story 17.3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 17.3 - Alert System & Dashboard
+# [Source: docs/stories/17.3.story.md - AC 3-4]
+router.include_router(
+    monitoring_router,
+    prefix="/metrics",
+    tags=["Monitoring"],
+    responses={500: {"description": "Monitoring service error"}}
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Rollback Routes (Story 18.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 18.1 - Operation Tracker
+# [Source: docs/stories/18.1.story.md - AC 6]
+# [Source: docs/architecture/rollback-recovery-architecture.md:296-310]
+router.include_router(
+    rollback_router,
+    prefix="/rollback",
+    tags=["Rollback"],
+    responses={
+        404: {"description": "Operation/snapshot not found"},
+        500: {"description": "Rollback service error"}
+    }
+)

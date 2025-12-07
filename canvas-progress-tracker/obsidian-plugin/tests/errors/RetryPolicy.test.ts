@@ -166,23 +166,24 @@ describe('RetryPolicy', () => {
         });
 
         it('should throw after max retries exhausted', async () => {
+            // Use real timers for this specific test to avoid timing issues
+            jest.useRealTimers();
+
             const policy = new RetryPolicy({
                 maxRetries: 2,
-                initialDelay: 100,
+                initialDelay: 10,  // Very short delays for real timer test
                 jitter: false
             });
 
             const error = new NetworkError('Connection failed');
             const operation = jest.fn().mockRejectedValue(error);
 
-            const resultPromise = policy.executeWithRetry(operation);
-
-            // Advance through all retries
-            await jest.advanceTimersByTimeAsync(100); // First retry
-            await jest.advanceTimersByTimeAsync(200); // Second retry
-
-            await expect(resultPromise).rejects.toThrow(error);
+            // Execute and expect rejection
+            await expect(policy.executeWithRetry(operation)).rejects.toThrow('Connection failed');
             expect(operation).toHaveBeenCalledTimes(3); // 1 initial + 2 retries
+
+            // Restore fake timers for subsequent tests
+            jest.useFakeTimers();
         });
 
         it('should call onRetry callback', async () => {

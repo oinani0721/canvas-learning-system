@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: extracted from conversation history
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: none
 
 **Relevant Files**:

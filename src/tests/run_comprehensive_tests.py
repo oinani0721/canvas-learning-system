@@ -17,27 +17,25 @@ Created: 2025-01-22
 Story: 8.14
 """
 
+import argparse
 import asyncio
-import time
 import json
+import os
+import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
-from typing import Dict, List, Any, Tuple
-import argparse
-import subprocess
-import os
+from typing import Any, Dict
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from parallel_agent_executor import ParallelAgentExecutor
 from context_isolation_manager import ContextIsolationManager
-from task_queue_manager import TaskQueueManager
 from error_handling_manager import ErrorHandlingManager
-from result_aggregator import ResultAggregator
-from performance_monitor import PerformanceMonitor
+from parallel_agent_executor import ParallelAgentExecutor
+from task_queue_manager import TaskQueueManager
 
 
 class TestResult:
@@ -249,7 +247,7 @@ class ComprehensiveTestRunner:
 
             await executor.shutdown()
 
-        except Exception as e:
+        except Exception:
             await executor.shutdown()
             raise
 
@@ -660,7 +658,7 @@ class ComprehensiveTestRunner:
 
         # 总体摘要
         summary = report["test_summary"]
-        print(f"📊 测试摘要:")
+        print("📊 测试摘要:")
         print(f"  总测试数: {summary['total_tests']}")
         print(f"  通过测试: {summary['passed_tests']}")
         print(f"  失败测试: {summary['failed_tests']}")
@@ -668,7 +666,7 @@ class ComprehensiveTestRunner:
         print(f"  总执行时间: {summary['total_execution_time']:.2f}秒")
 
         # AC验收状态
-        print(f"\n🎯 验收标准状态:")
+        print("\n🎯 验收标准状态:")
         print("-" * 50)
 
         for ac_code, ac_result in report["acceptance_criteria_results"].items():
@@ -678,7 +676,7 @@ class ComprehensiveTestRunner:
             print(f"      ({ac_result['success_count']}/{ac_result['total_count']} 测试通过)")
 
         # 最终结论
-        print(f"\n🏆 最终结论:")
+        print("\n🏆 最终结论:")
         if summary["overall_success"]:
             print("  ✅ 所有验收标准通过！")
             print("  ✅ Story 8.14 实现完成！")

@@ -16,16 +16,15 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 # 添加项目根目录到路径
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 try:
-    from canvas_error_logger import CanvasErrorLogger, ErrorSeverity, ErrorCategory
-    from error_recovery_advisor import ErrorRecoveryAdvisor
+    from canvas_error_logger import CanvasErrorLogger, ErrorCategory, ErrorSeverity
     from error_analyzer import ErrorAnalyzer
+    from error_recovery_advisor import ErrorRecoveryAdvisor
     ERROR_LOGGER_AVAILABLE = True
 except ImportError as e:
     ERROR_LOGGER_AVAILABLE = False

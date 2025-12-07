@@ -9,17 +9,13 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
 import json
 import tempfile
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import pytest
-
-from graphiti_integration import GraphitiKnowledgeGraph, GraphitiContextManager
 from concept_extractor import ConceptExtractor
 from graph_commands import GraphCommandHandler
 from graph_visualizer import GraphVisualizer

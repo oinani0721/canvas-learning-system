@@ -18,15 +18,14 @@ Created: 2025-01-24
 
 import json
 import os
-import tempfile
-import unittest
-import time
-import threading
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, List, Any
 import sqlite3
+import tempfile
+import threading
+import time
+import unittest
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
+from typing import List
 
 print("[DEBUG] Standard imports completed")
 
@@ -38,13 +37,9 @@ print("[DEBUG] pytest imported")
 print("[DEBUG] About to import canvas_progress_tracker modules...")
 try:
     print("[DEBUG] Importing CanvasMonitorEngine...")
-    from canvas_progress_tracker.canvas_monitor_engine import (
-        CanvasMonitorEngine, MonitorConfig
-    )
+    from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, MonitorConfig
     print("[DEBUG] Importing data_stores...")
-    from canvas_progress_tracker.data_stores import (
-        HotDataStore, ColdDataStore
-    )
+    from canvas_progress_tracker.data_stores import ColdDataStore, HotDataStore
     print("[DEBUG] Importing LearningAnalyzer...")
     from canvas_progress_tracker.learning_analyzer import LearningAnalyzer
     print("[DEBUG] Importing AsyncCanvasProcessor...")
@@ -345,7 +340,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         session_file = self.hot_store._get_today_session_file()
         with open(session_file, 'r', encoding='utf-8') as f:
             session_data = json.load(f)
-        
+
         # 过滤指定canvas的事件
         hot_data = [e for e in session_data['events'] if e.get('canvas_id') == canvas_id]
         self.assertEqual(
@@ -359,7 +354,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         for event in hot_data:
             if isinstance(event.get('details'), dict):
                 event['details'] = json.dumps(event['details'])
-        
+
         inserted_count = self.cold_store.insert_learning_events(hot_data)
         self.assertEqual(
             inserted_count, 10,
@@ -457,10 +452,10 @@ class TestEndToEndIntegration(unittest.TestCase):
                 "timestamp": today.isoformat()
             },
         ]
-        
+
         # 使用ColdDataStore插入events
         self.cold_store.insert_learning_events(events_data)
-        
+
 
         transitions_data = [
             (canvas_id, "node-1", "1", "3", today.isoformat()),
@@ -489,25 +484,25 @@ class TestEndToEndIntegration(unittest.TestCase):
         # Step 4: 验证报告文件生成成功
         self.assertIsNotNone(report, "报告应该被生成")
         self.assertTrue(os.path.exists(report), f"报告文件应该存在: {report}")
-        
+
         # Step 5: 验证报告文件内容
         with open(report, 'r', encoding='utf-8') as f:
             report_content = f.read()
-        
+
         # 验证报告包含关键信息 (日期可能是"2025-11-03"或"2025年11月03日"格式)
         date_str = str(today_date)  # e.g., "2025-11-03"
         year, month, day = date_str.split('-')
         # 检查报告是否包含年、月、日（任意格式）
         self.assertIn(year, report_content, "报告应包含年份")
         self.assertIn("学习", report_content, "报告应包含学习相关内容")
-        
+
         # 验证数据正确性 - 通过cold_store查询验证
         events = self.cold_store.query_learning_events(
             start_time=datetime.combine(today_date, datetime.min.time()).replace(tzinfo=timezone.utc),
             end_time=datetime.combine(today_date, datetime.max.time()).replace(tzinfo=timezone.utc)
         )
         self.assertEqual(len(events), 3, "应该有3个事件")
-        
+
         transitions = self.cold_store.query_color_transitions(
             start_time=datetime.combine(today_date, datetime.min.time()).replace(tzinfo=timezone.utc),
             end_time=datetime.combine(today_date, datetime.max.time()).replace(tzinfo=timezone.utc)
@@ -648,7 +643,7 @@ class TestEndToEndIntegration(unittest.TestCase):
         session_file = self.hot_store._get_today_session_file()
         with open(session_file, 'r', encoding='utf-8') as f:
             session_data = json.load(f)
-        
+
         # 过滤指定canvas的事件
         hot_data = [e for e in session_data['events'] if e.get('canvas_id') == canvas_id]
 

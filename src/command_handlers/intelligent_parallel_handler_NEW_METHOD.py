@@ -8,7 +8,7 @@ import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Any, Dict, List
 
 
 def _update_canvas_correct_structure(
@@ -189,7 +189,7 @@ def _update_canvas_correct_structure(
             nodes_created += 2
             self.stats["created_blue_nodes"] += 2
 
-            print(f"   ✅ 创建3层结构:")
+            print("   ✅ 创建3层结构:")
             print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
 
         except Exception as e:
@@ -204,7 +204,7 @@ def _update_canvas_correct_structure(
             if backup_path and Path(backup_path).exists():
                 try:
                     self._rollback_from_backup(canvas_path, backup_path)
-                    print(f"   🔙 已回滚到备份版本")
+                    print("   🔙 已回滚到备份版本")
                 except Exception as rollback_error:
                     print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
             raise
@@ -222,7 +222,7 @@ def _update_canvas_correct_structure(
         if backup_path and Path(backup_path).exists():
             try:
                 self._rollback_from_backup(canvas_path, backup_path)
-                print(f"   🔙 已回滚到备份版本")
+                print("   🔙 已回滚到备份版本")
             except Exception as rollback_error:
                 print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
         raise

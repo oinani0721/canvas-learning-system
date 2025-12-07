@@ -23,19 +23,22 @@ Created: 2025-11-29
 """
 
 from typing import Literal
-from langgraph.graph import StateGraph, START, END
-from langgraph.types import Send, RetryPolicy
 
-from agentic_rag.state import CanvasRAGState
+from langgraph.graph import END, START, StateGraph
+from langgraph.types import RetryPolicy, Send
+
 from agentic_rag.config import CanvasRAGConfig
 from agentic_rag.nodes import (
-    retrieve_graphiti,
-    retrieve_lancedb,
+    check_quality,
     fuse_results,
     rerank_results,
-    check_quality,
+    retrieve_graphiti,
+    retrieve_lancedb,
 )
 
+# Story 6.8: 导入多模态检索节点
+from agentic_rag.retrievers import multimodal_retrieval_node
+from agentic_rag.state import CanvasRAGState
 
 # ========================================
 # Conditional Edge: Fan-out to Parallel Retrieval
@@ -51,13 +54,16 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
         return [Send("generate_joke", {"subject": s}) for s in state['subjects']]
     ```
 
+    Story 6.8 扩展: 添加多模态检索节点，三路并行检索
+
     Returns:
         List[Send]: Send objects for parallel execution
     """
-    # Send to both Graphiti and LanceDB in parallel
+    # Send to Graphiti, LanceDB, and Multimodal in parallel (Story 6.8)
     return [
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
+        Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
     ]
 
 
@@ -157,13 +163,14 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     - add_node, add_conditional_edges, add_edge
     - compile()
 
-    Graph Structure:
+    Graph Structure (Story 6.8 扩展):
     ```
     START
       ↓
     fan_out_retrieval (conditional edge)
       ├──→ retrieve_graphiti (parallel)
-      └──→ retrieve_lancedb (parallel)
+      ├──→ retrieve_lancedb (parallel)
+      └──→ retrieve_multimodal (parallel) [Story 6.8]
            ↓ (converge)
          fuse_results
            ↓
@@ -210,6 +217,17 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         )
     )
 
+    # Story 6.8: 多模态检索节点 (with timeout degradation per AC 6.8.4)
+    builder.add_node(
+        "retrieve_multimodal",
+        multimodal_retrieval_node,
+        retry_policy=RetryPolicy(
+            retry_on=Exception,
+            max_attempts=2,  # 较少重试，以满足2秒延迟要求
+            backoff_factor=1.5,
+        )
+    )
+
     # Processing nodes
     builder.add_node("fuse_results", fuse_results)
     builder.add_node("rerank_results", rerank_results)
@@ -231,9 +249,11 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
 
     # retrieve_graphiti → fuse_results
     # retrieve_lancedb → fuse_results
-    # (Both parallel nodes converge to fuse_results automatically)
+    # retrieve_multimodal → fuse_results (Story 6.8)
+    # (All parallel nodes converge to fuse_results automatically)
     builder.add_edge("retrieve_graphiti", "fuse_results")
     builder.add_edge("retrieve_lancedb", "fuse_results")
+    builder.add_edge("retrieve_multimodal", "fuse_results")  # Story 6.8
 
     # fuse_results → rerank_results
     builder.add_edge("fuse_results", "rerank_results")

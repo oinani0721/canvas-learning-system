@@ -6,7 +6,7 @@
  * @module tests/parsers
  */
 
-import { describe, it, expect } from 'vitest';
+// Jest globals are available (describe, it, expect)
 import { ReviewOutputParser } from '../src/parsers/ReviewOutputParser';
 import { GenerateReviewOutputParser } from '../src/parsers/GenerateReviewOutputParser';
 import { CompleteReviewOutputParser } from '../src/parsers/CompleteReviewOutputParser';

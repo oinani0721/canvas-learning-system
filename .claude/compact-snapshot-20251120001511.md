@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Developing
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: none
 
 **Relevant Files**:

@@ -19,31 +19,28 @@ Date: 2025-01-15
 """
 
 import json
-import os
 import sys
-import time
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
 import pytest
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from canvas_progress_tracker.data_stores import (
-    HotDataStore,
-    hot_data_callback,
-    get_hot_data_store,
-    validate_event,
-    SESSION_DIR,
-    SESSION_SCHEMA,
     EVENT_SCHEMA,
     METADATA_SCHEMA,
+    SESSION_SCHEMA,
     FileLock,
-    retry_on_failure
+    HotDataStore,
+    hot_data_callback,
+    retry_on_failure,
+    validate_event,
 )
-
 
 # ============================================================================
 # Fixtures

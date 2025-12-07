@@ -11,20 +11,21 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import asyncio
 import json
-import tempfile
 import os
-from typing import Dict, List
-from pathlib import Path
-from unittest.mock import patch, AsyncMock, MagicMock
 
 # Import the canvas utils modules
 import sys
+import tempfile
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from canvas_utils import CanvasOrchestrator, CanvasBusinessLogic, CanvasJSONOperator
+from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
 
 # Mock imports for systems that may not be fully implemented
 sys.modules['graphiti'] = MagicMock()
@@ -349,7 +350,7 @@ class TestEndToEndPerformance:
                     agent_result={}  # Empty result to trigger agent call
                 )
                 successful_operations += 1
-            except Exception as e:
+            except Exception:
                 failed_operations += 1
                 # 系统应该能继续运行
                 continue
@@ -411,8 +412,9 @@ class TestEndToEndPerformance:
 
     def test_system_resource_usage_monitoring(self, complete_workflow_canvas):
         """测试系统资源使用监控"""
-        import psutil
         import gc
+
+        import psutil
 
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

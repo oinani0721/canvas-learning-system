@@ -8,13 +8,12 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
 import json
 from datetime import datetime, timedelta
-from typing import Dict, Any, List, Optional
-from pathlib import Path
+from typing import Any, Dict, Optional
 
 from slash_command_system import CommandExecutionContext
+
 
 async def handle_analyze_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理学习分析命令
@@ -219,7 +218,7 @@ async def _generate_analysis_report(analysis_result: Dict,
 
 async def _generate_markdown_report(analysis_result: Dict, analysis_type: str) -> str:
     """生成Markdown格式报告"""
-    report = f"# 学习分析报告\n\n"
+    report = "# 学习分析报告\n\n"
     report += f"**分析类型**: {analysis_type}\n"
     report += f"**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
 

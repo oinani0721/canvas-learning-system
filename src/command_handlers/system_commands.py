@@ -8,13 +8,10 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
-import json
-import time
-from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 from slash_command_system import CommandExecutionContext
+
 
 async def handle_help_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理系统帮助命令"""

@@ -4,7 +4,6 @@
 验证YAML frontmatter、Markdown结构、内容完整性和输出格式
 """
 
-import json
 import re
 from pathlib import Path
 

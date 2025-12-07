@@ -328,7 +328,126 @@ Feature: 三层记忆系统 + Agentic RAG
     And 融合时标注文档来源Canvas
 
   # ============================================================
-  # UI交互场景 (18)
+  # POC验证和迁移场景 (19-23) - Story 12.2, 12.3
+  # ============================================================
+
+  @priority-high @poc @story-12.2
+  Scenario: LanceDB POC性能验证 - 10K向量
+    Given LanceDB 测试数据库已初始化
+    And 已导入 10,000 个测试向量 (维度: 1536)
+    When 执行语义相似度搜索 (top-10)
+    Then P95 延迟 < 20ms
+    And 查询结果准确率 >= 95%
+    And 内存占用 < 500MB
+
+  @priority-high @poc @story-12.2
+  Scenario: LanceDB POC性能验证 - 100K向量
+    Given LanceDB 测试数据库已初始化
+    And 已导入 100,000 个测试向量 (维度: 1536)
+    When 执行语义相似度搜索 (top-10)
+    Then P95 延迟 < 50ms
+    And 查询结果准确率 >= 95%
+    And 支持并发查询 (10 QPS)
+
+  @priority-high @poc @story-12.2
+  Scenario: LanceDB 支持 OpenAI Embedding
+    Given LanceDB 已初始化
+    And OpenAI API 可用
+    When 插入文档时使用 text-embedding-3-small 生成向量
+    Then 向量维度为 1536
+    And 向量成功存储到 LanceDB
+    And 语义搜索结果与 OpenAI embedding 一致
+
+  @priority-medium @migration @story-12.3
+  Scenario: ChromaDB 到 LanceDB 数据迁移
+    Given ChromaDB 包含以下数据:
+      | 集合名称           | 文档数 | 向量维度 |
+      | canvas_explanations | 500    | 1536     |
+      | canvas_concepts      | 200    | 1536     |
+    When 执行迁移工具 migrate_chromadb_to_lancedb
+    Then LanceDB 成功导入所有文档
+    And 数据一致性校验通过:
+      | 检查项     | 结果 |
+      | 文档数量   | 一致 |
+      | 向量内容   | 一致 |
+      | 元数据完整 | 一致 |
+    And 迁移日志记录完整
+
+  @priority-medium @migration @story-12.3
+  Scenario: ChromaDB 到 LanceDB 双写模式
+    Given 系统配置为双写模式
+    And ChromaDB 和 LanceDB 同时运行
+    When 插入新文档到语义记忆层
+    Then 文档同时写入 ChromaDB 和 LanceDB
+    And 两个数据库内容一致
+    And 读取操作优先使用 LanceDB
+    And 双写延迟增加 < 50%
+
+  @priority-medium @migration @story-12.3
+  Scenario: LanceDB 迁移回滚计划
+    Given 已完成 ChromaDB 到 LanceDB 迁移
+    And LanceDB 运行正常
+    When 检测到 LanceDB 严重故障
+    Then 自动触发回滚:
+      | 步骤 | 操作                        |
+      | 1    | 切换读取到 ChromaDB         |
+      | 2    | 停止 LanceDB 写入           |
+      | 3    | 通知管理员                  |
+    And 服务可用性 >= 99.9%
+    And 数据不丢失
+
+  # ============================================================
+  # LangGraph StateGraph 场景 (24-26) - Story 12.5
+  # ============================================================
+
+  @priority-high @stategraph @story-12.5
+  Scenario: CanvasRAGState Schema 定义
+    Given Agentic RAG StateGraph 初始化
+    When 检查 CanvasRAGState 类型定义
+    Then 包含以下字段:
+      | 字段名            | 类型                | 用途               |
+      | query             | str                 | 原始查询           |
+      | rewritten_query   | Optional[str]       | 重写后的查询       |
+      | canvas_file       | str                 | 当前Canvas文件     |
+      | graphiti_results  | List[SearchResult]  | Graphiti检索结果   |
+      | lancedb_results   | List[SearchResult]  | LanceDB检索结果    |
+      | temporal_results  | List[WeakConcept]   | Temporal检索结果   |
+      | fused_results     | List[SearchResult]  | 融合后结果         |
+      | quality_score     | QualityLevel        | 质量评分           |
+      | rewrite_count     | int                 | 重写次数           |
+      | final_output      | Any                 | 最终输出           |
+    And 所有字段类型检查通过
+
+  @priority-high @stategraph @story-12.5
+  Scenario: CanvasRAGConfig Context 配置
+    Given Agentic RAG StateGraph 初始化
+    When 检查 CanvasRAGConfig 配置
+    Then 包含以下配置项:
+      | 配置项            | 默认值          | 说明                |
+      | fusion_strategy   | rrf             | 默认融合策略        |
+      | rerank_mode       | hybrid_auto     | 重排序模式          |
+      | max_rewrite       | 2               | 最大重写次数        |
+      | timeout_ms        | 200             | 单层检索超时        |
+      | quality_threshold | 0.6             | 质量阈值            |
+    And 配置可通过 RunnableConfig 传递
+
+  @priority-high @stategraph @story-12.5
+  Scenario: StateGraph 编译和执行
+    Given CanvasRAGState 和 CanvasRAGConfig 已定义
+    And 以下节点已实现:
+      | 节点名             | 功能                   |
+      | analyze_query      | 查询分析               |
+      | fan_out_retrieval  | 并行检索 (Send模式)    |
+      | fuse_results       | 结果融合               |
+      | evaluate_quality   | 质量评估               |
+      | generate_output    | 输出生成               |
+    When 执行 StateGraph.compile()
+    Then 编译成功，返回 CompiledGraph
+    And 图结构包含条件边 (质量不足时重写)
+    And 端到端执行测试通过
+
+  # ============================================================
+  # UI交互场景 (27)
   # ============================================================
 
   @priority-medium @ui @epic-13

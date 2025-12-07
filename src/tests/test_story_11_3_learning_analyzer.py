@@ -16,31 +16,23 @@ Story 11.3测试文件 - 学习分析回调系统测试
 - 集成测试（端到端、多Canvas并发）
 """
 
-import pytest
 import time
-import tempfile
-import os
-import json
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from canvas_progress_tracker.canvas_monitor_engine import (
-    CanvasChange,
-    CanvasChangeType
-)
+import pytest
+from canvas_progress_tracker.canvas_monitor_engine import CanvasChange, CanvasChangeType
 from canvas_progress_tracker.learning_analyzer import (
+    COLOR_BLUE,
+    COLOR_GREEN,
+    COLOR_PURPLE,
+    COLOR_RED,
+    COLOR_YELLOW,
     LearningAnalyzer,
-    LearningEvent,
     LearningEventType,
     get_learning_analyzer,
     learning_analysis_callback,
-    COLOR_RED,
-    COLOR_GREEN,
-    COLOR_PURPLE,
-    COLOR_BLUE,
-    COLOR_YELLOW
 )
-
 
 # ==================== Fixtures ====================
 

@@ -1,0 +1,158 @@
+[
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "de5c499d-f7de-49fc-a6dc-367b5b87caa4",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:38.533756+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "d25bbc3d-5174-414f-a5f8-69a47495524e",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:38.501511+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "8505ab36-bf16-499d-b41a-a23755989cec",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:19.724904+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "f1285a13-4551-4057-86b7-7845ce2e6de4",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T18:19:19.668759+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "84d4ccfc-6a18-457f-803a-5c89f3ecd87f",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:54.378516+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "310b713a-8c18-4aa6-b15a-da9de5e99fb2",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:54.345804+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "fbf84d82-7160-4c9e-bc8b-bfde96e2c89e",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:35.753853+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "05eba8b8-adb4-4ada-b11d-c5fe54e24aa2",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:35.721626+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "2ccfc4d7-d340-4020-8361-0197daa769f5",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:06.227187+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "2125609f-1bd2-44bb-baba-c572b399da01",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:40:06.183210+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "345a0c14-2ec9-48d8-bdba-ac0afdb4b804",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:39:20.197834+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "d7fdccac-2886-4779-a460-0e39597187a3",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-04T10:39:20.164094+00:00",
+    "type": "manual"
+  }
+]

@@ -12,12 +12,12 @@ from fastapi import APIRouter
 from app.models import (
     DecomposeRequest,
     DecomposeResponse,
-    ScoreRequest,
-    ScoreResponse,
-    NodeScore,
+    ErrorResponse,
     ExplainRequest,
     ExplainResponse,
-    ErrorResponse,
+    NodeScore,
+    ScoreRequest,
+    ScoreResponse,
 )
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)

@@ -7,9 +7,9 @@ Provides models for Canvas operations including nodes and edges.
 Models match specs/api/fastapi-backend-api.openapi.yml
 """
 
-from typing import Optional, List, Literal
-from pydantic import BaseModel, Field
+from typing import List, Literal, Optional
 
+from pydantic import BaseModel, Field
 
 # Valid color codes
 ColorCode = Literal["1", "2", "3", "4", "5", "6"]

@@ -135,7 +135,7 @@ export interface ABTestResult {
  * 默认设置
  */
 export const DEFAULT_OPTIMIZER_SETTINGS: FSRSOptimizerSettings = {
-    apiBaseUrl: 'http://localhost:8000/api/v1',
+    apiBaseUrl: 'http://localhost:8001/api/v1',
     timeout: 30000,
     minSamples: 100,
     maxIterations: 100,

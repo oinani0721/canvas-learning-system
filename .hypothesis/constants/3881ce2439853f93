@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\__init__.py
+# hypothesis_version: 6.148.1
+
+['AGENT_ERRORS', 'AGENT_EXECUTION_TIME', 'AGENT_INVOCATIONS', 'CONCURRENT_REQUESTS', 'ERROR_COUNTER', 'ERROR_RETRY_COUNTER', 'ErrorCode', 'LoggingMiddleware', 'MEMORY_ERRORS', 'MEMORY_QUERIES', 'MEMORY_QUERY_LATENCY', 'MetricsMiddleware', 'REQUEST_COUNT', 'REQUEST_LATENCY', 'get_error_category', 'get_max_retries', 'is_retryable', 'metrics_middleware', 'record_error', 'record_memory_query', 'record_retry_attempt', 'track_memory_query']

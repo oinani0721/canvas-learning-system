@@ -1,0 +1,43 @@
+schema: 1
+story: "12.15"
+story_title: "E2E集成测试"
+gate: PASS
+status_reason: "E2E测试设计全面，覆盖两个核心业务场景，降级测试完备，trace_id实现可追溯"
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-29T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 2 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "建议添加更多边界条件测试"
+      - "建议添加超时测试"
+
+quality_score: 95
+expires: "2025-12-13T00:00:00Z"
+
+evidence:
+  tests_reviewed: 5
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security: { status: PASS, notes: "N/A" }
+  performance: { status: PASS, notes: "P95<400ms验证" }
+  reliability: { status: PASS, notes: "降级测试覆盖" }
+  maintainability: { status: PASS, notes: "fixture复用性好" }
+
+recommendations:
+  immediate: []
+  future:
+    - action: "添加更多边界条件测试"
+      refs: ["src/tests/e2e/"]
+    - action: "添加超时测试(pytest-timeout)"
+      refs: ["src/tests/e2e/conftest.py"]

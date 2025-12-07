@@ -8,25 +8,25 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import json
-import tempfile
 import os
-from typing import Dict, List
 
 # Import the optimizer
 import sys
+import tempfile
+import time
 from pathlib import Path
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 from canvas_performance_optimizer import (
     CanvasPerformanceOptimizer,
-    read_canvas_optimized,
-    write_canvas_optimized,
-    batch_canvas_operations,
     get_canvas_optimizer,
     optimized_read_canvas,
-    optimized_write_canvas
+    optimized_write_canvas,
+    read_canvas_optimized,
+    write_canvas_optimized,
 )
 
 

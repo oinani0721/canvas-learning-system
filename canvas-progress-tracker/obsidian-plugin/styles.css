@@ -12,9 +12,10 @@
  * ✅ Verified from Story 14.3: Task card styling
  */
 
-/* Import Review Dashboard and Task Card styles */
+/* Import Review Dashboard, Task Card, and Intelligent Parallel styles */
 @import url('./src/styles/review-dashboard.css');
 @import url('./src/styles/task-card.css');
+@import url('./src/styles/intelligent-parallel.css');
 
 /* ========== Settings Panel ========== */
 .canvas-review-settings {

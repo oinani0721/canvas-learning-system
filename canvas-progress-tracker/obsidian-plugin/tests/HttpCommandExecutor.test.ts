@@ -6,7 +6,7 @@
  * @module tests/HttpCommandExecutor
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+// Jest globals are available (describe, it, expect, beforeEach, afterEach)
 import {
   HttpCommandExecutor,
   MockCommandExecutor,
@@ -26,7 +26,7 @@ describe('HttpCommandExecutor', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('Command Validation', () => {
@@ -52,7 +52,7 @@ describe('HttpCommandExecutor', () => {
 
   describe('API Communication', () => {
     it('should make POST request with correct headers', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ success: true, output: 'test' }),
       });
@@ -74,7 +74,7 @@ describe('HttpCommandExecutor', () => {
 
     it('should include command in request body', async () => {
       let requestBody: unknown;
-      const mockFetch = vi.fn().mockImplementation((_url, options) => {
+      const mockFetch = jest.fn().mockImplementation((_url, options) => {
         requestBody = JSON.parse(options.body);
         return Promise.resolve({
           ok: true,
@@ -94,7 +94,7 @@ describe('HttpCommandExecutor', () => {
 
   describe('Error Handling', () => {
     it('should throw on HTTP 401/403 without retry', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 401,
       });
@@ -105,7 +105,7 @@ describe('HttpCommandExecutor', () => {
     });
 
     it('should throw on HTTP 404 without retry', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 404,
       });
@@ -117,7 +117,7 @@ describe('HttpCommandExecutor', () => {
 
     it('should retry on HTTP 500', async () => {
       let callCount = 0;
-      const mockFetch = vi.fn().mockImplementation(() => {
+      const mockFetch = jest.fn().mockImplementation(() => {
         callCount++;
         if (callCount < 3) {
           return Promise.resolve({ ok: false, status: 500 });
@@ -134,7 +134,7 @@ describe('HttpCommandExecutor', () => {
     });
 
     it('should throw after max retries exhausted', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: false,
         status: 500,
       });
@@ -148,7 +148,7 @@ describe('HttpCommandExecutor', () => {
   describe('Timeout Handling', () => {
     it('should handle aborted requests', async () => {
       // Create a mock that simulates an abort
-      const mockFetch = vi.fn().mockImplementation(() => {
+      const mockFetch = jest.fn().mockImplementation(() => {
         const error = new Error('The operation was aborted');
         error.name = 'AbortError';
         return Promise.reject(error);
@@ -161,7 +161,7 @@ describe('HttpCommandExecutor', () => {
 
   describe('Response Handling', () => {
     it('should return success result', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         json: () =>
           Promise.resolve({
@@ -180,7 +180,7 @@ describe('HttpCommandExecutor', () => {
     });
 
     it('should include metadata in result', async () => {
-      const mockFetch = vi.fn().mockResolvedValue({
+      const mockFetch = jest.fn().mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ success: true, output: 'test' }),
       });

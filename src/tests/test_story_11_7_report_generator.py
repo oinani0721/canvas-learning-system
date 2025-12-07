@@ -11,26 +11,17 @@ Author: Dev Agent (James)
 Date: 2025-01-15
 """
 
-import pytest
-import json
-import tempfile
-import time
-from datetime import date, datetime, timedelta
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-
 import sys
+import time
+from datetime import date, timedelta
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from canvas_progress_tracker.report_generator import (
-    LearningReportGenerator,
-    ASCIIChartGenerator,
-    get_report_generator,
-    COLOR_CODE_TO_NAME,
-    COLOR_NAME_TO_EMOJI,
-    EBBINGHAUS_REVIEW_DAYS
-)
-
+from canvas_progress_tracker.report_generator import ASCIIChartGenerator, LearningReportGenerator, get_report_generator
 
 # ============================================================================
 # Test Fixtures
@@ -650,7 +641,7 @@ class TestIntegration:
     @pytest.mark.integration
     def test_real_data_stores_integration(self, temp_output_dir):
         """IV1: Integration with real HotDataStore and ColdDataStore"""
-        from canvas_progress_tracker.data_stores import HotDataStore, ColdDataStore
+        from canvas_progress_tracker.data_stores import ColdDataStore, HotDataStore
 
         hot_store = HotDataStore()
         cold_store = ColdDataStore()

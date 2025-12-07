@@ -6,27 +6,25 @@ Version: 1.0
 Created: 2025-01-24
 """
 
+import json
+import os
+import tempfile
+from unittest.mock import Mock
+
 import pytest
 import pytest_asyncio
-import asyncio
-import json
-import tempfile
-import os
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
 
 # 导入被测试的模块
 from parallel_canvas_processor import (
+    LoadBalanceStrategy,
+    NodeComplexity,
     ParallelCanvasProcessor,
     ProcessingTask,
-    ProcessingSession,
-    TaskStatus,
-    NodeComplexity,
     TaskDistributionConfig,
-    LoadBalanceStrategy
+    TaskStatus,
 )
-from canvas_utils import CanvasOrchestrator, CanvasJSONOperator, CanvasBusinessLogic
+
+from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
 
 
 @pytest_asyncio.fixture

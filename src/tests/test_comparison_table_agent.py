@@ -397,8 +397,8 @@ def test_table_dimensions_in_example():
 
 # 运行所有测试
 if __name__ == "__main__":
-    import sys
     import io
+    import sys
 
     # 设置UTF-8编码输出，避免Windows控制台编码问题
     if sys.platform == 'win32':

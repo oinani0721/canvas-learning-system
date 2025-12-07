@@ -17,24 +17,18 @@ import asyncio
 import json
 import os
 import shutil
+
+# 导入要测试的模块
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
-import pytest
-
-# 导入要测试的模块
-import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from canvas_utils.learning_session_manager import (
-    LearningSession,
-    LearningSessionManager,
-    get_session_manager,
-    create_learning_session
-)
+from canvas_utils.learning_session_manager import LearningSession, LearningSessionManager, create_learning_session
 
 
 class TestLearningSession(unittest.TestCase):
@@ -503,7 +497,7 @@ if __name__ == '__main__':
 
     # 打印总结
     print(f"\n{'='*60}")
-    print(f"测试总结")
+    print("测试总结")
     print(f"{'='*60}")
     print(f"总测试数: {result.testsRun}")
     print(f"通过: {result.testsRun - len(result.failures) - len(result.errors)}")

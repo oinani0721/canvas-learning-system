@@ -4,28 +4,29 @@ Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
 import asyncio
 import json
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
-import sys
 import os
+import shutil
+import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
     # Import Epic 9 components
-    from canvas_utils.model_adapter import ModelCompatibilityAdapter
+    from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
     from canvas_utils.canvas_validator import CanvasValidator
     from canvas_utils.memory_recorder import MemoryRecorder
+    from canvas_utils.model_adapter import ModelCompatibilityAdapter
     from canvas_utils.path_manager import PathManager
     from canvas_utils.session_monitor import SessionMonitor
-    from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic
     CANVAS_UTILS_AVAILABLE = True
 except ImportError as e:
     print(f"Import error: {e}")

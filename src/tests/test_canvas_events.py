@@ -13,20 +13,21 @@ Version: 1.0
 Created: 2025-10-24
 """
 
-import unittest
-import time
 import threading
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+import time
+import unittest
+from unittest.mock import Mock
 
-from canvas_progress_tracker.canvas_monitor_engine import (
-    CanvasChange, CanvasChangeType, CanvasEvent, CanvasEventType
-)
+from canvas_progress_tracker.canvas_monitor_engine import CanvasChange, CanvasChangeType, CanvasEvent, CanvasEventType
 from canvas_progress_tracker.events.canvas_event_handler import (
-    CanvasEventHandler, EventFilter, EventPriority, ProcessingResult
+    CanvasEventHandler,
+    EventFilter,
+    EventPriority,
 )
 from canvas_progress_tracker.events.event_dispatcher import (
-    EventDispatcher, DispatchConfig, DispatchStrategy, ListenerInfo
+    DispatchConfig,
+    DispatchStrategy,
+    EventDispatcher,
 )
 
 

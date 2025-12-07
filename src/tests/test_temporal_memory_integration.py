@@ -9,16 +9,17 @@ Version: 1.0
 Created: 2025-10-31
 """
 
-import pytest
 import os
-from unittest.mock import Mock, patch, MagicMock
-from memory_system.temporal_memory_manager import TemporalMemoryManager
+from unittest.mock import patch
+
+import pytest
 from memory_system.neo4j_validator import (
-    Neo4jConnectionError,
-    ERROR_CONNECTION_REFUSED,
     ERROR_AUTH_FAILED,
-    ERROR_DATABASE_NOT_FOUND
+    ERROR_CONNECTION_REFUSED,
+    ERROR_DATABASE_NOT_FOUND,
+    Neo4jConnectionError,
 )
+from memory_system.temporal_memory_manager import TemporalMemoryManager
 
 
 class TestTemporalMemoryManagerInitialization:

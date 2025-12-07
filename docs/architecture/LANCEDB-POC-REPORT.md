@@ -17,13 +17,13 @@
 
 | Metric | Latency (ms) | Target | Status |
 |--------|--------------|--------|--------|
-| P50    | 45.14 | - | ✅ |
-| P95    | 52.29 | < 20ms | ❌ |
-| P99    | 55.59 | - | ✅ |
+| P50    | 38.90 | - | ✅ |
+| P95    | 42.20 | < 20ms | ❌ |
+| P99    | 44.01 | - | ✅ |
 
 ### Disk Usage
 
-- **Database Path**: `C:\Users\ROG\AppData\Local\Temp\lancedb_poc_synthetic_ow_3ji38`
+- **Database Path**: `C:\Users\ROG\AppData\Local\Temp\lancedb_poc_synthetic_1yf0zizn`
 - **Total Size**: 709.90 MB
 
 ## Comparison: LanceDB vs ChromaDB
@@ -32,7 +32,7 @@
 
 | Database | 10K P95 | 100K P95 | 1M Support |
 |----------|---------|----------|------------|
-| **LanceDB** | 52.29ms | ~40ms (projected) | ✅ Yes |
+| **LanceDB** | 42.20ms | ~40ms (projected) | ✅ Yes |
 | ChromaDB (baseline) | ~15ms | ~40ms | ⚠️ Limited |
 
 ### Features
@@ -48,7 +48,7 @@
 
 | AC | Description | Status |
 |----|-------------|--------|
-| AC 2.1 | 10K P95 < 20ms | ❌ FAIL (52.29ms) |
+| AC 2.1 | 10K P95 < 20ms | ❌ FAIL (42.20ms) |
 | AC 2.2 | 100K P95 < 50ms | ⏳ Pending (需长时间测试) |
 | AC 2.3 | OpenAI集成 | ⏳ Pending (需API Key) |
 | AC 2.4 | 多模态 (Optional) | ⏸️ Skipped (需CUDA) |

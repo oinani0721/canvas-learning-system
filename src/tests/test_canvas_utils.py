@@ -4,16 +4,17 @@ Canvas Utils 单元测试
 测试 CanvasJSONOperator 类的所有功能
 """
 
-import pytest
-import time
 import os
 import sys
+import time
+
+import pytest
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 import canvas_utils
-from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic
+from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
 
 class TestCanvasJSONOperator:
@@ -2648,9 +2649,10 @@ class TestCanvasBusinessLogic:
 
     def test_add_sub_question_with_yellow_node_creates_both_nodes(self):
         """测试创建问题节点时自动创建黄色节点 (AC: 1)"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2701,9 +2703,10 @@ class TestCanvasBusinessLogic:
 
     def test_add_sub_question_yellow_node_position_v11_layout(self):
         """测试黄色节点位置符合v1.1布局（正下方，水平对齐） (AC: 2)"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2749,9 +2752,10 @@ class TestCanvasBusinessLogic:
 
     def test_add_sub_question_creates_edge_with_label(self):
         """测试创建连接边并添加标签'个人理解' (AC: 3)"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2806,9 +2810,10 @@ class TestCanvasBusinessLogic:
 
     def test_yellow_node_has_prompt_text(self):
         """测试黄色节点包含提示内容 (AC: 4)"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2850,9 +2855,10 @@ class TestCanvasBusinessLogic:
 
     def test_multiple_questions_vertical_spacing(self):
         """测试多个问题节点时垂直间距正确 (AC: 1, 2)"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2919,9 +2925,10 @@ class TestCanvasBusinessLogic:
 
     def test_add_sub_question_with_guidance(self):
         """测试添加问题时包含引导提示"""
-        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -2957,9 +2964,10 @@ class TestCanvasBusinessLogic:
 
     def test_add_sub_question_material_not_found(self):
         """测试材料节点不存在时抛出ValueError"""
-        from canvas_utils import CanvasBusinessLogic
         import os
         import shutil
+
+        from canvas_utils import CanvasBusinessLogic
 
         # 创建临时测试文件
         temp_path = "src/tests/fixtures/test-pairing-temp.canvas"
@@ -3259,8 +3267,8 @@ class TestCanvasBusinessLogic:
         }
 
         # 创建临时测试文件
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3344,8 +3352,8 @@ class TestCanvasBusinessLogic:
             ]
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3406,8 +3414,8 @@ class TestCanvasBusinessLogic:
             ]
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3450,8 +3458,8 @@ class TestCanvasBusinessLogic:
             "edges": []
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3492,8 +3500,8 @@ class TestCanvasBusinessLogic:
             "edges": []
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3571,8 +3579,8 @@ class TestCanvasBusinessLogic:
 
         test_canvas_data = {"nodes": nodes, "edges": edges}
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3623,8 +3631,8 @@ class TestCanvasBusinessLogic:
             ]
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3663,8 +3671,8 @@ class TestCanvasBusinessLogic:
             ]
         }
 
-        import tempfile
         import json
+        import tempfile
         with tempfile.NamedTemporaryFile(
             mode='w',
             suffix='.canvas',
@@ -3695,8 +3703,9 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_success(self):
         """测试成功批量评分所有黄色节点（包含不同分数段）"""
-        from canvas_utils import CanvasOrchestrator
         from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-batch-scoring.canvas"
@@ -3788,8 +3797,9 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_orphan_yellow_node(self):
         """测试黄色节点没有对应问题节点时的错误处理"""
-        from canvas_utils import CanvasOrchestrator
         from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-orphan-yellow.canvas"
@@ -3819,8 +3829,9 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_progress_display(self, capsys):
         """测试进度提示输出正确"""
-        from canvas_utils import CanvasOrchestrator
         from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-batch-scoring.canvas"
@@ -3848,8 +3859,9 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_report_content(self):
         """测试汇总报告包含所有必要信息"""
-        from canvas_utils import CanvasOrchestrator
         from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-batch-scoring.canvas"
@@ -3889,8 +3901,9 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_color_update(self):
         """测试评分后节点颜色正确更新"""
-        from canvas_utils import CanvasOrchestrator
         from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-batch-scoring.canvas"
@@ -3940,9 +3953,10 @@ class TestCanvasOrchestrator:
 
     def test_batch_score_all_yellow_nodes_interruption(self):
         """测试中断批量操作时保存已完成结果"""
-        from canvas_utils import CanvasOrchestrator
-        from unittest.mock import patch
         import shutil
+        from unittest.mock import patch
+
+        from canvas_utils import CanvasOrchestrator
 
         # 创建测试文件的副本（避免影响其他测试）
         test_copy = "src/tests/fixtures/test-batch-scoring-interrupt.canvas"
@@ -4041,9 +4055,10 @@ class TestCanvasOrchestrator:
 
     def test_save_report_to_file(self):
         """测试保存报告到文件"""
-        from canvas_utils import CanvasOrchestrator
-        import os
         import glob
+        import os
+
+        from canvas_utils import CanvasOrchestrator
 
         orchestrator = CanvasOrchestrator(
             "src/tests/fixtures/test-batch-scoring.canvas"
@@ -4278,8 +4293,9 @@ class TestVerificationQuestionGeneration:
 
     def test_generation_performance(self, sample_extracted_nodes):
         """测试问题生成耗时<5秒 (AC: 5)"""
-        from canvas_utils import CanvasOrchestrator
         import time
+
+        from canvas_utils import CanvasOrchestrator
 
         # Arrange: 准备较大规模数据(20个节点)
         red_nodes = [
@@ -4984,7 +5000,6 @@ class TestReviewCanvasDynamicOperations:
     def test_add_decomposition_to_review_canvas(self, tmp_path):
         """测试在检验白板上添加拆解问题 (AC: 1, 2)"""
         import shutil
-        import json
 
         # Arrange: 准备检验白板（复制到临时目录）
         review_canvas_src = "src/tests/fixtures/test-review-canvas.canvas"
@@ -5037,7 +5052,6 @@ class TestReviewCanvasDynamicOperations:
     def test_add_explanation_file_to_review_canvas(self, tmp_path):
         """测试在检验白板上添加补充解释文件节点 (AC: 1, 3)"""
         import shutil
-        import json
 
         # Arrange
         review_canvas_src = "src/tests/fixtures/test-review-canvas.canvas"
@@ -5093,7 +5107,6 @@ class TestReviewCanvasDynamicOperations:
     def test_review_canvas_grows_dynamically(self, tmp_path):
         """测试检验白板动态增长 (AC: 6)"""
         import shutil
-        import json
 
         # Arrange: 初始检验白板（3个问题，3个黄色节点，1个说明节点）
         review_canvas_src = "src/tests/fixtures/test-review-canvas.canvas"
@@ -5623,7 +5636,6 @@ class TestReviewCanvasIndependence:
 
     def test_source_node_id_metadata_present(self):
         """测试问题节点包含sourceNodeId元数据（AC 3）"""
-        import json
 
         # Arrange
         clustered_questions = {
@@ -5659,7 +5671,6 @@ class TestReviewCanvasIndependence:
 
     def test_description_node_has_metadata(self):
         """测试说明节点包含originalCanvasPath和generationTimestamp（AC 3）"""
-        import json
         from datetime import datetime
 
         # Arrange
@@ -5701,7 +5712,6 @@ class TestReviewCanvasIndependence:
 
     def test_multiple_review_canvases_coexist(self):
         """测试支持生成多个检验白板（AC 4）"""
-        import json
 
         # Arrange
         clustered_questions = {
@@ -5746,7 +5756,6 @@ class TestReviewCanvasIndependence:
 
     def test_delete_review_canvas_preserves_original(self):
         """测试删除检验白板不影响原白板（AC 1, 2）"""
-        import json
 
         # Arrange
         clustered_questions = {
@@ -5798,7 +5807,6 @@ class TestReviewCanvasIndependence:
 
     def test_metadata_tracking_for_progress_analysis(self):
         """测试元数据支持进步追踪（AC 5）"""
-        import json
         from datetime import datetime
 
         # Arrange

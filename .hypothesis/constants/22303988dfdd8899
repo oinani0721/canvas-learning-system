@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\review_service.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.2, 100, '%Y%m%d', ':', 'CanvasService', 'cancelled', 'canvas_name', 'completed', 'completed_at', 'details', 'edges', 'error', 'failed', 'green_nodes', 'in_progress', 'mastery_percentage', 'message', 'name', 'nodes', 'pending', 'processing', 'progress', 'progress_percentage', 'purple_nodes', 'recorded', 'recorded_at', 'red_nodes', 'review_generation', 'reviewed_nodes', 'running', 'scheduled', 'scheduled_date', 'score', 'skipped', 'source_canvas', 'started_at', 'status', 'task_id', 'text', 'total_nodes', 'trigger_point', 'unknown', '：']

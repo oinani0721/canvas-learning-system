@@ -1,0 +1,43 @@
+schema: 1
+story: "12.14"
+story_title: "性能基准测试"
+gate: PASS
+status_reason: "性能基准测试设计专业，覆盖IR质量+延迟+吞吐量三维度，阈值来源明确"
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-29T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 2 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "建议添加结果可视化"
+      - "建议添加历史趋势对比"
+
+quality_score: 95
+expires: "2025-12-13T00:00:00Z"
+
+evidence:
+  tests_reviewed: 5
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+nfr_validation:
+  security: { status: PASS, notes: "N/A" }
+  performance: { status: PASS, notes: "核心验证目标" }
+  reliability: { status: PASS, notes: "自动化可重复" }
+  maintainability: { status: PASS, notes: "模块化设计" }
+
+recommendations:
+  immediate: []
+  future:
+    - action: "添加基准测试结果可视化(matplotlib)"
+      refs: ["scripts/run_performance_benchmark.py"]
+    - action: "添加历史趋势对比功能"
+      refs: ["src/evaluation/"]

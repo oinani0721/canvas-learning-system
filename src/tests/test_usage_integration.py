@@ -9,17 +9,18 @@ Created: 2025-01-24
 """
 
 import asyncio
-import pytest
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
-import tempfile
 import shutil
 import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+
 sys.path.append('..')
 
-from glm_rate_limiter import GLMRateLimiter, RateLimitConfig, PlanType
-from usage_monitor import UsageMonitor, UsageHistoryEntry
 from enhanced_agent_instance_pool import EnhancedGLMInstancePool, QuotaControlConfig, QuotaExhaustionStrategy
+from glm_rate_limiter import GLMRateLimiter, PlanType, RateLimitConfig
+from usage_monitor import UsageMonitor
 
 
 class TestUsageIntegration:

@@ -20,17 +20,11 @@ Date: 2025-10-29
 Version: v1.0
 """
 
-import pytest
-import asyncio
-import os
 import json
+import os
 import time
-import psutil
-from pathlib import Path
-from typing import Dict, List, Any
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
 
+import pytest
 
 # ============================================================================
 # Local Test Fixtures (defined here to avoid conftest.py conflicts)
@@ -139,8 +133,9 @@ class TestCompleteLearningWorkflow:
         """
         # Import dependencies
         try:
-            from canvas_utils import CanvasJSONOperator
             from learning_session_wrapper import LearningSessionWrapper
+
+            from canvas_utils import CanvasJSONOperator
         except ImportError as e:
             pytest.skip(f"Required modules not available: {e}")
 
@@ -161,9 +156,9 @@ class TestCompleteLearningWorkflow:
 
         assert session is not None, "会话对象不应为None"
         assert session.session_id is not None, "会话ID不应为None"
-        print(f"✅ Phase 1 完成: 学习会话已启动")
+        print("✅ Phase 1 完成: 学习会话已启动")
         print(f"   Session ID: {session.session_id}")
-        print(f"   验证: Story 10.8 RealServiceLauncher工作正常")
+        print("   验证: Story 10.8 RealServiceLauncher工作正常")
 
         # ========== Phase 2: 运行智能并行处理 ==========
         print("\n" + "="*60)
@@ -215,7 +210,7 @@ class TestCompleteLearningWorkflow:
 
         stop_result = await wrapper.stop_session(session.session_id)
         assert stop_result['success'] is True, "停止会话应该成功"
-        print(f"✅ Phase 5 完成: 学习会话已停止")
+        print("✅ Phase 5 完成: 学习会话已停止")
 
         print("\n" + "="*60)
         print("🎉 完整学习流程测试通过！")
@@ -419,7 +414,6 @@ class TestRegression:
 
         验证Epic 10修复没有改变核心颜色系统
         """
-        from canvas_utils import CanvasJSONOperator
 
         # 通过读取实际Canvas文件验证颜色值
         # 红色="1", 绿色="2", 紫色="3", 蓝色="5", 黄色="6"

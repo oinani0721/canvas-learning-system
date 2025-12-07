@@ -12,17 +12,14 @@ Created: 2025-10-20
 
 import asyncio
 import datetime
-import sys
 import os
+import sys
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from canvas_utils_working import (
-    forgetting_curve_manager,
-    ebbinghaus_review_scheduler,
-    ReviewNode
-)
+from canvas_utils_working import ebbinghaus_review_scheduler, forgetting_curve_manager
+
 
 async def demo_ebbinghaus_system():
     """演示艾宾浩斯复习系统的完整功能"""
@@ -55,7 +52,7 @@ async def demo_ebbinghaus_system():
         print(f"[OK] 创建节点: {concept} (复杂度: {complexity})")
 
     # 2. 计算最优复习时间
-    print(f"\n[步骤2] 计算最优复习时间")
+    print("\n[步骤2] 计算最优复习时间")
     print("-" * 40)
 
     for node in created_nodes[:2]:  # 只展示前两个
@@ -74,7 +71,7 @@ async def demo_ebbinghaus_system():
             print(f"  第{i}次: {time.strftime('%Y-%m-%d')} ({days_from_now}天后)")
 
     # 3. 模拟学习进度和掌握度更新
-    print(f"\n[步骤3] 模拟学习进度")
+    print("\n[步骤3] 模拟学习进度")
     print("-" * 40)
 
     # 模拟用户已经学习并更新掌握度
@@ -90,7 +87,7 @@ async def demo_ebbinghaus_system():
         print(f"[OK] 更新掌握度: {node.concept} -> {mastery:.1%} (复习{node.review_count}次)")
 
     # 4. 获取记忆状态分析
-    print(f"\n[步骤4] 记忆状态分析")
+    print("\n[步骤4] 记忆状态分析")
     print("-" * 40)
 
     for node_id in ["demo_逆否命题", "demo_逻辑联结词"]:
@@ -104,7 +101,7 @@ async def demo_ebbinghaus_system():
         print(f"掌握度: {status['mastery_level']:.1%}")
 
     # 5. 生成复习计划
-    print(f"\n[步骤5] 生成未来30天复习计划")
+    print("\n[步骤5] 生成未来30天复习计划")
     print("-" * 40)
 
     schedule = forgetting_curve_manager.generate_review_schedule(
@@ -122,7 +119,7 @@ async def demo_ebbinghaus_system():
         print("未来30天内没有需要复习的任务")
 
     # 6. Agent智能调度演示
-    print(f"\n[步骤6] Agent智能调度演示")
+    print("\n[步骤6] Agent智能调度演示")
     print("-" * 40)
 
     # 获取需要复习的节点
@@ -157,7 +154,7 @@ async def demo_ebbinghaus_system():
             print(f"   复习原因: {item['review_reason']}")
 
     # 7. 完整复习会话演示
-    print(f"\n[步骤7] 完整复习会话演示")
+    print("\n[步骤7] 完整复习会话演示")
     print("-" * 40)
 
     session_result = await ebbinghaus_review_scheduler.execute_review_session("离散数学.canvas")
@@ -178,10 +175,10 @@ async def demo_ebbinghaus_system():
     print("  [OK] Agent智能调度")
     print("  [OK] 复习会话自动化")
 
-    print(f"\n[SYSTEM STATUS] 系统状态:")
+    print("\n[SYSTEM STATUS] 系统状态:")
     print(f"  - 总复习节点: {len(forgetting_curve_manager.review_nodes)}")
-    print(f"  - 系统运行状态: 正常")
-    print(f"  - 算法验证: 通过")
+    print("  - 系统运行状态: 正常")
+    print("  - 算法验证: 通过")
 
     return True
 

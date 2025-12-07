@@ -85,7 +85,7 @@ export interface TargetedReviewSettings {
  * Default service settings
  */
 export const DEFAULT_TARGETED_REVIEW_SETTINGS: TargetedReviewSettings = {
-    apiBaseUrl: 'http://localhost:8000/api/v1',
+    apiBaseUrl: 'http://localhost:8001/api/v1',
     timeout: 10000,
     weightConfig: { ...DEFAULT_WEIGHT_CONFIG },
 };

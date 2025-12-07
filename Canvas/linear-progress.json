@@ -1,0 +1,33 @@
+{
+  "version": "2.0",
+  "session_id": "linear-20251129-180027",
+  "daemon_pid": 225572,
+  "stories": [
+    "12.11",
+    "12.12",
+    "12.13",
+    "12.14",
+    "12.15"
+  ],
+  "current_index": 0,
+  "status": "in_progress",
+  "started_at": "2025-11-29T18:00:27.342832",
+  "last_updated": "2025-11-29T18:00:27.901400",
+  "completed_stories": [],
+  "current_story": {
+    "story_id": "12.11",
+    "started_at": "2025-11-29T18:00:27.342832",
+    "retry_count": 0,
+    "compact_restarts": 0,
+    "claude_pid": 154104
+  },
+  "halted_at": null,
+  "halt_reason": null,
+  "statistics": {
+    "total_duration_seconds": 0.0,
+    "total_retries": 0,
+    "total_compact_restarts": 0,
+    "stories_succeeded": 0,
+    "stories_failed": 0
+  }
+}

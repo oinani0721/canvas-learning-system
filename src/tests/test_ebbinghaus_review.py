@@ -12,12 +12,14 @@ Created: 2025-01-22
 """
 
 import math
-import pytest
-import tempfile
 import os
 import sqlite3
-from datetime import datetime
-from ebbinghaus_review import EbbinghausReviewScheduler, DEFAULT_REVIEW_INTERVALS
+import tempfile
+
+import pytest
+
+from ebbinghaus_review import DEFAULT_REVIEW_INTERVALS, EbbinghausReviewScheduler
+
 
 class TestEbbinghausReviewScheduler:
     """EbbinghausReviewScheduler类测试"""

@@ -8,27 +8,25 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
-import json
-import time
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, Any, Optional, List
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 # 导入Canvas工具库
 try:
-    from canvas_utils import CanvasOrchestrator, CanvasBusinessLogic
+    from canvas_utils import CanvasBusinessLogic, CanvasOrchestrator
 except ImportError:
     print("警告: 无法导入canvas_utils，某些功能可能不可用")
     CanvasOrchestrator = None
     CanvasBusinessLogic = None
 
 # 导入斜杠命令系统
-from slash_command_system import CommandExecutionContext
-
 # 导入其他必要的模块
 import os
 import shutil
+
+from slash_command_system import CommandExecutionContext
+
 
 async def handle_canvas_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理Canvas主命令

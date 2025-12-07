@@ -15,35 +15,20 @@ Created: 2025-01-22
 Story: 8.14 (Task 8)
 """
 
-import pytest
 import asyncio
-import time
-import json
 import tempfile
-import shutil
+import time
 from pathlib import Path
-from unittest.mock import Mock, AsyncMock, patch
-import uuid
+
+import pytest
+from context_isolation_manager import ContextIsolationManager
+from error_handling_manager import ErrorCategory, ErrorHandlingManager, ErrorRecord, RecoveryStrategy
 
 # 导入被测试模块
-from parallel_agent_executor import (
-    ParallelAgentExecutor, AgentTask, Priority, TaskStatus, ParallelExecutionSummary
-)
-from context_isolation_manager import (
-    ContextIsolationManager, IsolationLevel, ContextStatus
-)
-from task_queue_manager import (
-    TaskQueueManager, TaskDefinition, TaskPriority, QueueType, LoadBalancingStrategy
-)
-from error_handling_manager import (
-    ErrorHandlingManager, ErrorRecord, ErrorCategory, RecoveryStrategy
-)
-from result_aggregator import (
-    ResultAggregator, AgentResult, ResultMetadata, AggregationMethod
-)
-from performance_monitor import (
-    PerformanceMonitor, ResourceMetrics, ExecutionMetrics
-)
+from parallel_agent_executor import AgentTask, ParallelAgentExecutor, ParallelExecutionSummary
+from performance_monitor import PerformanceMonitor
+from result_aggregator import AgentResult, AggregationMethod, ResultAggregator, ResultMetadata
+from task_queue_manager import TaskDefinition, TaskPriority, TaskQueueManager
 
 
 class TestParallelAgentExecutor:

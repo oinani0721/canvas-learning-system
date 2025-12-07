@@ -5,14 +5,17 @@ Canvas Learning System - Story 8.8
 测试创意洞察生成、类比推理、学习路径建议等功能。
 """
 
-import pytest
 from unittest.mock import Mock, patch
-from datetime import datetime
+
+import pytest
 
 # 导入测试目标
 from creative_association_engine import (
-    CreativeAssociationEngine, CreativeInsight, Analogy,
-    LearningPath, LearningPathStep
+    Analogy,
+    CreativeAssociationEngine,
+    CreativeInsight,
+    LearningPath,
+    LearningPathStep,
 )
 
 

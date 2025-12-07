@@ -1,0 +1,40 @@
+schema: 1
+story: "12.11"
+story_title: "graphiti-memory-agent调用接口"
+gate: PASS
+status_reason: "Story规格完整，AC定义清晰，ADR约束引用正确，安全考虑完备"
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-29T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 1 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "建议添加is_healthy()健康检查方法"
+
+quality_score: 95
+expires: "2025-12-13T00:00:00Z"
+
+evidence:
+  tests_reviewed: 4
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security: { status: PASS, notes: "凭据使用环境变量，日志脱敏" }
+  performance: { status: PASS, notes: "异步执行，不阻塞" }
+  reliability: { status: PASS, notes: "重试+降级机制" }
+  maintainability: { status: PASS, notes: "代码注释清晰" }
+
+recommendations:
+  immediate: []
+  future:
+    - action: "添加健康检查方法is_healthy()"
+      refs: ["src/memory/graphiti_wrapper.py"]

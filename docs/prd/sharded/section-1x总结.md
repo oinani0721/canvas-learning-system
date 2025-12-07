@@ -27,4 +27,3 @@
 - Sprint Change Proposal: `docs/SPRINT-CHANGE-PROPOSAL-2025-11-13.md`
 
 ---
-

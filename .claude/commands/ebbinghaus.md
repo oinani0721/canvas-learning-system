@@ -1,3 +1,8 @@
+---
+name: ebbinghaus
+description: Enable Ebbinghaus forgetting curve-based intelligent review system
+---
+
 # Ebbinghaus Forgetting Curve Review System
 
 ## Metadata

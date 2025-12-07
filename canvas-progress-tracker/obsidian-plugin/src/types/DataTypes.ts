@@ -95,6 +95,14 @@ export interface MigrationConfig {
     targetVersion: number | null;
 }
 
+/**
+ * Default migration configuration
+ */
+export const DEFAULT_MIGRATION_CONFIG: MigrationConfig = {
+    migrationsDirectory: 'migrations',
+    targetVersion: null,
+};
+
 // ============================================================================
 // Review Record Types
 // ============================================================================
@@ -106,8 +114,13 @@ export type DifficultyLevel = 'easy' | 'medium' | 'hard';
 
 /**
  * Review record status
+ * - pending: Waiting to be reviewed
+ * - scheduled: Scheduled for future review
+ * - completed: Review finished
+ * - skipped: Review skipped by user
+ * - postponed: Review postponed to later
  */
-export type ReviewStatus = 'completed' | 'skipped' | 'postponed';
+export type ReviewStatus = 'pending' | 'scheduled' | 'completed' | 'skipped' | 'postponed';
 
 /**
  * Review record entity
@@ -122,6 +135,8 @@ export interface ReviewRecord {
     canvasTitle: string;
     /** Name of the concept reviewed */
     conceptName: string;
+    /** Unique concept identifier (node ID from Canvas) */
+    conceptId?: string;
 
     // Review information
     /** When the review occurred */

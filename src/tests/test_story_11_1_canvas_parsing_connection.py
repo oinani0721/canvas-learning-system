@@ -9,24 +9,23 @@ Story 11.1单元测试：连接Canvas内容解析逻辑
 - 性能统计
 """
 
-import pytest
-import time
 import json
-import tempfile
 import os
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock, call
-from datetime import datetime
-
 import sys
+import tempfile
+import time
+from unittest.mock import Mock
+
+import pytest
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from canvas_progress_tracker.canvas_monitor_engine import (
-    CanvasMonitorEngine,
     CanvasChange,
     CanvasChangeType,
+    CanvasMonitorEngine,
+    DebounceManager,
     MonitorConfig,
-    DebounceManager
 )
 
 

@@ -1,0 +1,43 @@
+schema: 1
+story: "12.12"
+story_title: "LangSmith可观测性集成"
+gate: PASS
+status_reason: "可观测性设计完整，覆盖追踪/成本/性能/安全四维度，Context7文档引用正确"
+reviewer: "Quinn (Test Architect)"
+updated: "2025-11-29T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 2 }
+  recommendations:
+    must_fix: []
+    monitor:
+      - "建议添加成本持久化"
+      - "建议添加告警集成"
+
+quality_score: 95
+expires: "2025-12-13T00:00:00Z"
+
+evidence:
+  tests_reviewed: 4
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security: { status: PASS, notes: "API Key使用环境变量" }
+  performance: { status: PASS, notes: "追踪开销<5ms" }
+  reliability: { status: PASS, notes: "可通过环境变量禁用" }
+  maintainability: { status: PASS, notes: "Dashboard配置文档完整" }
+
+recommendations:
+  immediate: []
+  future:
+    - action: "添加成本持久化到文件/数据库"
+      refs: ["src/observability/cost_tracker.py"]
+    - action: "添加Slack/钉钉告警集成"
+      refs: ["src/observability/"]

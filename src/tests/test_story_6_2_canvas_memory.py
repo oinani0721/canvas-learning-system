@@ -16,14 +16,12 @@ Created: 2025-10-18
 """
 
 import asyncio
+import json
 import os
 import sys
-import unittest
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
 import tempfile
-from pathlib import Path
-import json
-import time
+import unittest
+from unittest.mock import AsyncMock, patch
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if 'canvas_utils' in sys.modules:
     del sys.modules['canvas_utils']
 
-from canvas_utils import KnowledgeGraphLayer, CanvasJSONOperator
+from canvas_utils import CanvasJSONOperator, KnowledgeGraphLayer
 
 
 class TestCanvasMemoryFunctionality(unittest.TestCase):
@@ -167,8 +165,9 @@ class TestCanvasMemoryFunctionality(unittest.TestCase):
         """测试知识图谱禁用时的Canvas记忆 (Task 2)"""
         # Arrange
         os.environ["GRAPHITI_ENABLED"] = "false"
-        import canvas_utils
         import importlib
+
+        import canvas_utils
         importlib.reload(canvas_utils)
 
         kg_layer = canvas_utils.KnowledgeGraphLayer()

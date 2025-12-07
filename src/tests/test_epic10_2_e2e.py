@@ -20,17 +20,12 @@ Date: 2025-11-04
 Version: v1.0
 """
 
-import pytest
-import asyncio
-import os
 import json
+import os
 import time
-import shutil
 from pathlib import Path
-from typing import Dict, List, Any
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch
 
+import pytest
 
 # ============================================================================
 # Test Fixtures
@@ -101,8 +96,8 @@ async def test_e2e_10_nodes(test_canvas_10_nodes, cleanup_canvas_backup):
 
     # 导入依赖
     try:
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
         from canvas_utils import CanvasJSONOperator
+        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -185,8 +180,8 @@ async def test_e2e_20_nodes(test_canvas_20_nodes, cleanup_canvas_backup):
 
     # 导入依赖
     try:
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
         from canvas_utils import CanvasJSONOperator
+        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -251,8 +246,8 @@ async def test_e2e_50_nodes(test_canvas_50_nodes, cleanup_canvas_backup):
 
     # 导入依赖
     try:
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
         from canvas_utils import CanvasJSONOperator
+        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -319,8 +314,8 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
 
     # 导入依赖
     try:
-        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
         from canvas_utils import CanvasJSONOperator
+        from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
     except ImportError as e:
         pytest.skip(f"Required modules not available: {e}")
 
@@ -361,7 +356,7 @@ async def test_e2e_error_recovery(test_canvas_10_nodes, cleanup_canvas_backup):
         )
 
         # 验证执行结果
-        print(f"\n✅ 执行完成（允许部分失败）")
+        print("\n✅ 执行完成（允许部分失败）")
 
         # 系统应该能够继续，即使有错误
         assert result is not None, "即使有错误，也应返回结果"

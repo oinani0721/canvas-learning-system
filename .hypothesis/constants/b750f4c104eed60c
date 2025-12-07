@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\rollback.py
+# hypothesis_version: 6.148.1
+
+[100, 200, 201, 300, 400, 404, 500, '.canvas-learning', '/diff/{snapshot_id}', '/rollback', '/snapshot', 'Canvas file path', 'Execute rollback', 'Get single operation', 'Get single snapshot', 'Invalid request', 'List snapshots', 'Operation not found', 'Resource not found', 'Rollback failed', 'Snapshot not found', 'added', 'after', 'before', 'canvas_path', 'color', 'create_snapshot', 'created_by', 'description', 'edges', 'execute_rollback', 'fromNode', 'from_node', 'get_diff', 'get_operation', 'get_snapshot', 'height', 'id', 'last_operation_id', 'list_snapshots', 'metadata', 'model', 'modified', 'nodes', 'r', 'removed', 'size_bytes', 'system', 'tags', 'text', 'timestamp', 'toNode', 'to_node', 'type', 'user', 'utf-8', 'width', 'x', 'y']

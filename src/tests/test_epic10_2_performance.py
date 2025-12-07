@@ -14,14 +14,12 @@ Date: 2025-11-04
 Version: v1.0
 """
 
-import pytest
 import asyncio
 import time
-import json
 from pathlib import Path
 from typing import Dict
-from datetime import datetime
 
+import pytest
 
 # ============================================================================
 # Performance Benchmarks
@@ -164,7 +162,7 @@ def test_canvas_read_performance():
     print(f"📊 执行次数: {iterations}")
     print(f"⏱️  总时间: {elapsed_time:.3f}s")
     print(f"⏱️  平均时间: {avg_time*1000:.2f}ms")
-    print(f"🎯 性能目标: <100ms")
+    print("🎯 性能目标: <100ms")
 
     assert avg_time < 0.1, f"读取性能不达标: {avg_time*1000:.2f}ms > 100ms"
 
@@ -208,7 +206,7 @@ def test_canvas_write_performance():
     print(f"📊 执行次数: {iterations}")
     print(f"⏱️  总时间: {elapsed_time:.3f}s")
     print(f"⏱️  平均时间: {avg_time*1000:.2f}ms")
-    print(f"🎯 性能目标: <500ms")
+    print("🎯 性能目标: <500ms")
 
     assert avg_time < 0.5, f"写入性能不达标: {avg_time*1000:.2f}ms > 500ms"
 

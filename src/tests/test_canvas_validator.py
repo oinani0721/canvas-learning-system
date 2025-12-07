@@ -15,34 +15,29 @@ Created: 2025-10-28
 
 import json
 import os
-import tempfile
-import unittest
-from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 
 # 导入被测试的模块 - 直接导入避免canvas_utils包冲突
 import sys
-import os
+import tempfile
+import unittest
+from datetime import datetime
+from unittest.mock import Mock
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 添加canvas_utils目录到path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "canvas_utils"))
 
-from canvas_validator import (
-    CanvasValidator,
-    ValidationResult,
-    CanvasUpdateResult,
-    ValidationReport,
-    OperationResult
-)
-
 # 导入Canvas操作器 (从主canvas_utils.py文件)
 import sys
+
+from canvas_validator import CanvasUpdateResult, CanvasValidator, OperationResult, ValidationReport, ValidationResult
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 直接导入canvas_utils.py而不是包
 import importlib.util
+
 spec = importlib.util.spec_from_file_location("canvas_utils_module",
                                              os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
                                                         "canvas_utils.py"))

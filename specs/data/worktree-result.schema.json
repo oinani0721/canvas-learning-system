@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.local/schemas/worktree-result.schema.json",
+  "title": "Worktree Result",
+  "description": "Schema for parallel development worktree result files (.worktree-result.json)",
+  "type": "object",
+  "required": ["story_id", "outcome", "timestamp"],
+  "properties": {
+    "story_id": {
+      "type": "string",
+      "description": "The Story identifier (e.g., '13.1', '15.2')",
+      "pattern": "^\\d+\\.\\d+$",
+      "examples": ["13.1", "15.2", "8.11"]
+    },
+    "outcome": {
+      "type": "string",
+      "description": "Final workflow outcome",
+      "enum": ["SUCCESS", "DEV_BLOCKED", "QA_BLOCKED", "QA_CONCERNS_UNFIXED", "TIMEOUT", "ERROR"],
+      "x-source-verification": {
+        "source": "parallel-develop-auto.ps1",
+        "verified_date": "2025-11-26"
+      }
+    },
+    "tests_passed": {
+      "type": "boolean",
+      "description": "Whether all tests passed during development phase"
+    },
+    "test_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Total number of tests executed"
+    },
+    "test_failures": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Number of failed tests"
+    },
+    "qa_gate": {
+      "type": ["string", "null"],
+      "description": "QA Agent gate decision",
+      "enum": ["PASS", "CONCERNS", "FAIL", "WAIVED", null],
+      "x-source-verification": {
+        "source": ".bmad-core/templates/qa-gate-tmpl.yaml",
+        "verified_date": "2025-11-26"
+      }
+    },
+    "qa_commands_executed": {
+      "type": "array",
+      "description": "List of QA commands that were executed",
+      "items": {
+        "type": "string",
+        "enum": ["*trace", "*nfr-assess", "*review", "*gate"]
+      }
+    },
+    "commit_sha": {
+      "type": ["string", "null"],
+      "description": "Git commit SHA if workflow completed with commit",
+      "pattern": "^[a-f0-9]{40}$|^[a-f0-9]{7}$|^$"
+    },
+    "blocking_reason": {
+      "type": ["string", "null"],
+      "description": "Human-readable reason if workflow was blocked"
+    },
+    "fix_attempts": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3,
+      "default": 0,
+      "description": "Number of fix attempts made for CONCERNS gate"
+    },
+    "pre_commit_passed": {
+      "type": "boolean",
+      "description": "Whether pre-commit hooks passed on commit"
+    },
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Total workflow duration in seconds"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO-8601 timestamp when result was written"
+    },
+    "worktree_path": {
+      "type": "string",
+      "description": "Absolute path to the worktree directory"
+    },
+    "log_file": {
+      "type": "string",
+      "description": "Path to the dev-qa-output.log file"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "story_id": "15.1",
+      "outcome": "SUCCESS",
+      "tests_passed": true,
+      "test_count": 42,
+      "test_failures": 0,
+      "qa_gate": "PASS",
+      "qa_commands_executed": ["*trace", "*nfr-assess", "*review", "*gate"],
+      "commit_sha": "abc1234def5678901234567890abcdef12345678",
+      "blocking_reason": null,
+      "fix_attempts": 0,
+      "pre_commit_passed": true,
+      "duration_seconds": 1847.5,
+      "timestamp": "2025-11-26T14:30:00Z",
+      "worktree_path": "C:\\Users\\ROG\\托福\\Canvas-develop-15.1",
+      "log_file": "C:\\Users\\ROG\\托福\\Canvas-develop-15.1\\dev-qa-output.log"
+    },
+    {
+      "story_id": "15.2",
+      "outcome": "QA_BLOCKED",
+      "tests_passed": true,
+      "test_count": 38,
+      "test_failures": 0,
+      "qa_gate": "FAIL",
+      "qa_commands_executed": ["*trace", "*nfr-assess", "*review", "*gate"],
+      "commit_sha": null,
+      "blocking_reason": "High-severity security issue SEC-001: SQL injection vulnerability detected",
+      "fix_attempts": 0,
+      "pre_commit_passed": null,
+      "duration_seconds": 923.2,
+      "timestamp": "2025-11-26T14:15:00Z",
+      "worktree_path": "C:\\Users\\ROG\\托福\\Canvas-develop-15.2",
+      "log_file": "C:\\Users\\ROG\\托福\\Canvas-develop-15.2\\dev-qa-output.log"
+    },
+    {
+      "story_id": "15.3",
+      "outcome": "DEV_BLOCKED",
+      "tests_passed": false,
+      "test_count": 25,
+      "test_failures": 3,
+      "qa_gate": null,
+      "qa_commands_executed": [],
+      "commit_sha": null,
+      "blocking_reason": "3 unit tests failed: test_validation, test_api_response, test_error_handling",
+      "fix_attempts": 0,
+      "pre_commit_passed": null,
+      "duration_seconds": 456.8,
+      "timestamp": "2025-11-26T13:45:00Z",
+      "worktree_path": "C:\\Users\\ROG\\托福\\Canvas-develop-15.3",
+      "log_file": "C:\\Users\\ROG\\托福\\Canvas-develop-15.3\\dev-qa-output.log"
+    }
+  ]
+}

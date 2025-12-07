@@ -10,10 +10,10 @@ Created: 2025-01-22
 """
 
 import sys
-import unittest
 import time
-from pathlib import Path
+import unittest
 from datetime import datetime
+from pathlib import Path
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent
@@ -69,12 +69,12 @@ def run_all_tests():
             print(f"   跳过: {len(result.skipped)}")
 
             if result.failures:
-                print(f"\n❌ 失败的测试:")
+                print("\n❌ 失败的测试:")
                 for test, traceback in result.failures:
                     print(f"   - {test}: {traceback.split('AssertionError:')[-1].strip() if 'AssertionError:' in traceback else 'Unknown'}")
 
             if result.errors:
-                print(f"\n💥 错误的测试:")
+                print("\n💥 错误的测试:")
                 for test, traceback in result.errors:
                     print(f"   - {test}: {traceback.split('Exception:')[-1].strip() if 'Exception:' in traceback else 'Unknown'}")
 

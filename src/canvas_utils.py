@@ -160,7 +160,7 @@ except ImportError as e:
     TEMPORAL_MEMORY_ENABLED = False
     if LOGURU_ENABLED:
         logger.warning(f"Temporal Memory System未启用 - {e}")
-    print(f"警告: Temporal Memory System需要temporal_memory.py模块")
+    print("警告: Temporal Memory System需要temporal_memory.py模块")
 
 # Story 8.11: Canvas专用错误日志系统集成
 try:
@@ -7330,6 +7330,193 @@ class CanvasJSONOperator:
             node["attachments"] = [
                 att for att in node["attachments"]
                 if att.get("path") != image_path
+            ]
+
+        # 4. 如果没有附件了，移除空数组
+        if not node["attachments"]:
+            del node["attachments"]
+
+        return original_count - len(node.get("attachments", []))
+
+    @staticmethod
+    @canvas_error_handler("attach_pdf")
+    def attach_pdf(
+        canvas_data: Dict[str, Any],
+        node_id: str,
+        pdf_path: str,
+        page_range: Optional[str] = None,
+        thumbnail_base64: Optional[str] = None,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """为Canvas节点附加PDF文件
+
+        将PDF附加到指定节点，支持页面范围选择、缩略图和元数据存储。
+
+        Verified from Story 6.2:
+        - AC 6.2.1: 支持PDF格式，50MB限制
+        - AC 6.2.2: 生成首页150x200缩略图
+        - AC 6.2.3: 支持页面范围选择（如"1-10"）
+        - AC 6.2.4: 提取PDF元数据（标题、作者、页数）
+
+        Args:
+            canvas_data: Canvas JSON数据
+            node_id: 目标节点ID
+            pdf_path: PDF文件路径（相对于Canvas文件或绝对路径）
+            page_range: 可选的页面范围（如"1-10", "1,3,5-8"）
+            thumbnail_base64: 可选的base64编码缩略图
+            metadata: 可选的PDF元数据（title, author, page_count等）
+
+        Returns:
+            Dict[str, Any]: 添加的附件信息
+
+        Raises:
+            KeyError: 如果节点ID不存在
+            ValueError: 如果文件格式不是PDF
+
+        Example:
+            >>> canvas_data = {
+            ...     "nodes": [{"id": "text-abc123", "type": "text",
+            ...                "x": 0, "y": 0, "text": "学习笔记"}],
+            ...     "edges": []
+            ... }
+            >>> attachment = CanvasJSONOperator.attach_pdf(
+            ...     canvas_data,
+            ...     "text-abc123",
+            ...     "docs/textbook.pdf",
+            ...     page_range="1-50",
+            ...     thumbnail_base64="iVBORw0KGgo...",
+            ...     metadata={"title": "教材", "author": "作者", "page_count": 200}
+            ... )
+            >>> assert "attachments" in canvas_data["nodes"][0]
+            >>> assert attachment["type"] == "pdf"
+        """
+        import uuid
+        from pathlib import Path as PathLib
+
+        # 1. 查找节点
+        node = None
+        for n in canvas_data["nodes"]:
+            if n["id"] == node_id:
+                node = n
+                break
+
+        if node is None:
+            raise KeyError(f"节点不存在: {node_id}")
+
+        # 2. 验证PDF格式
+        path_obj = PathLib(pdf_path)
+        ext = path_obj.suffix.lower()
+        if ext != ".pdf":
+            raise ValueError(
+                f"不支持的文件格式: {ext}. 仅支持: .pdf"
+            )
+
+        # 3. 构建附件信息
+        attachment_id = f"pdf-{uuid.uuid4().hex[:8]}"
+        attachment = {
+            "id": attachment_id,
+            "type": "pdf",
+            "path": pdf_path,
+            "format": "pdf",
+            "created_at": __import__("datetime").datetime.now().isoformat()
+        }
+
+        # 4. 添加可选的页面范围
+        if page_range:
+            attachment["page_range"] = page_range
+
+        # 5. 添加可选的缩略图
+        if thumbnail_base64:
+            attachment["thumbnail"] = thumbnail_base64
+
+        # 6. 添加可选的元数据
+        if metadata:
+            attachment["metadata"] = metadata
+
+        # 7. 初始化attachments数组并添加
+        if "attachments" not in node:
+            node["attachments"] = []
+        node["attachments"].append(attachment)
+
+        return attachment
+
+    @staticmethod
+    @canvas_error_handler("detach_pdf")
+    def detach_pdf(
+        canvas_data: Dict[str, Any],
+        node_id: str,
+        attachment_id: Optional[str] = None,
+        pdf_path: Optional[str] = None
+    ) -> int:
+        """从Canvas节点移除PDF附件
+
+        根据attachment_id或pdf_path移除节点的PDF附件。
+        如果两个参数都不提供，则移除所有PDF类型附件。
+
+        Args:
+            canvas_data: Canvas JSON数据
+            node_id: 目标节点ID
+            attachment_id: 要移除的附件ID（可选）
+            pdf_path: 要移除的PDF路径（可选）
+
+        Returns:
+            int: 移除的附件数量
+
+        Raises:
+            KeyError: 如果节点ID不存在
+
+        Example:
+            >>> canvas_data = {
+            ...     "nodes": [{
+            ...         "id": "text-abc123",
+            ...         "type": "text",
+            ...         "attachments": [
+            ...             {"id": "pdf-12345678", "type": "pdf", "path": "doc.pdf"}
+            ...         ]
+            ...     }],
+            ...     "edges": []
+            ... }
+            >>> removed = CanvasJSONOperator.detach_pdf(
+            ...     canvas_data,
+            ...     "text-abc123",
+            ...     attachment_id="pdf-12345678"
+            ... )
+            >>> assert removed == 1
+        """
+        # 1. 查找节点
+        node = None
+        for n in canvas_data["nodes"]:
+            if n["id"] == node_id:
+                node = n
+                break
+
+        if node is None:
+            raise KeyError(f"节点不存在: {node_id}")
+
+        # 2. 检查是否有附件
+        if "attachments" not in node or not node["attachments"]:
+            return 0
+
+        # 3. 移除PDF附件
+        original_count = len(node["attachments"])
+
+        if attachment_id is None and pdf_path is None:
+            # 移除所有PDF类型附件
+            node["attachments"] = [
+                att for att in node["attachments"]
+                if att.get("type") != "pdf"
+            ]
+        elif attachment_id:
+            # 根据ID移除
+            node["attachments"] = [
+                att for att in node["attachments"]
+                if att.get("id") != attachment_id
+            ]
+        elif pdf_path:
+            # 根据路径移除
+            node["attachments"] = [
+                att for att in node["attachments"]
+                if att.get("path") != pdf_path
             ]
 
         # 4. 如果没有附件了，移除空数组

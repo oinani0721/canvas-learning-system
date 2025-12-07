@@ -7,10 +7,10 @@
 3. Canvas集成在execute_parallel()中正常工作
 """
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-import asyncio
-import os
-from unittest.mock import AsyncMock, MagicMock, patch
+
 from canvas_utils import ConcurrentAgentProcessor
 
 

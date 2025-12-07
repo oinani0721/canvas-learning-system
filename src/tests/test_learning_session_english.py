@@ -4,23 +4,20 @@ Learning Session Management System Test Suite (English Version)
 Test all functionality of the new /learning command system
 """
 
-import os
-import sys
 import asyncio
 import json
+import os
+import sys
 import time
 import unittest
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import tempfile
-import shutil
 
 # Add project path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from learning_session_wrapper import LearningSessionWrapper, LearningSession
+    from learning_session_wrapper import LearningSession, LearningSessionWrapper
     print("Learning session wrapper imported successfully")
 except ImportError as e:
     print(f"Import failed: {e}")

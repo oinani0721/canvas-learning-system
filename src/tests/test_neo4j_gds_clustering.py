@@ -7,12 +7,13 @@ Story: GDS.1 - Subtask 1.3, 2.4
 覆盖率目标: >90%
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from neo4j.exceptions import ServiceUnavailable, ClientError, AuthError
-
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+from neo4j.exceptions import ClientError, ServiceUnavailable
+
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

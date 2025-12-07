@@ -15,19 +15,17 @@ Version: 1.0
 Date: 2025-11-04
 """
 
-import pytest
 import sys
 from pathlib import Path
+
+import pytest
 
 # 添加项目根目录到sys.path
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from schedulers.intelligent_parallel_scheduler import (
-    IntelligentParallelScheduler,
-    SKLEARN_AVAILABLE
-)
+from schedulers.intelligent_parallel_scheduler import SKLEARN_AVAILABLE, IntelligentParallelScheduler
 
 
 class TestIntelligentParallelSchedulerBasics:

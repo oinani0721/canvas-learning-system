@@ -13,16 +13,23 @@ Version: 1.0
 Created: 2025-01-19
 """
 
+
 import pytest
-import asyncio
-from datetime import datetime
 
 from canvas_utils import (
-    ConflictDetector, ConflictResolver, IntelligentResultFusion,
-    TaskResult, ConflictDetection, ConflictResolution,
-    CONFLICT_TYPE_SEMANTIC, CONFLICT_TYPE_FACTUAL, CONFLICT_TYPE_STRUCTURAL,
-    CONFLICT_SEVERITY_HIGH_THRESHOLD, CONFLICT_SEVERITY_MEDIUM_THRESHOLD,
-    CONFLICT_RESOLUTION_AUTO, CONFLICT_RESOLUTION_MANUAL, CONFLICT_RESOLUTION_WEIGHTED
+    CONFLICT_RESOLUTION_AUTO,
+    CONFLICT_RESOLUTION_MANUAL,
+    CONFLICT_RESOLUTION_WEIGHTED,
+    CONFLICT_SEVERITY_HIGH_THRESHOLD,
+    CONFLICT_SEVERITY_MEDIUM_THRESHOLD,
+    CONFLICT_TYPE_FACTUAL,
+    CONFLICT_TYPE_SEMANTIC,
+    CONFLICT_TYPE_STRUCTURAL,
+    ConflictDetection,
+    ConflictDetector,
+    ConflictResolution,
+    ConflictResolver,
+    TaskResult,
 )
 
 
@@ -469,9 +476,7 @@ class TestConflictResolution:
 
     def test_conflict_types_constants(self):
         """测试冲突类型常量"""
-        from canvas_utils import (
-            CONFLICT_TYPE_SEMANTIC, CONFLICT_TYPE_FACTUAL, CONFLICT_TYPE_STRUCTURAL
-        )
+        from canvas_utils import CONFLICT_TYPE_FACTUAL, CONFLICT_TYPE_SEMANTIC, CONFLICT_TYPE_STRUCTURAL
 
         assert CONFLICT_TYPE_SEMANTIC == "semantic"
         assert CONFLICT_TYPE_FACTUAL == "factual"
@@ -479,9 +484,7 @@ class TestConflictResolution:
 
     def test_conflict_resolution_constants(self):
         """测试冲突解决策略常量"""
-        from canvas_utils import (
-            CONFLICT_RESOLUTION_AUTO, CONFLICT_RESOLUTION_MANUAL, CONFLICT_RESOLUTION_WEIGHTED
-        )
+        from canvas_utils import CONFLICT_RESOLUTION_AUTO, CONFLICT_RESOLUTION_MANUAL, CONFLICT_RESOLUTION_WEIGHTED
 
         assert CONFLICT_RESOLUTION_AUTO == "auto"
         assert CONFLICT_RESOLUTION_MANUAL == "manual"
@@ -489,9 +492,7 @@ class TestConflictResolution:
 
     def test_conflict_severity_thresholds(self):
         """测试冲突严重程度阈值常量"""
-        from canvas_utils import (
-            CONFLICT_SEVERITY_HIGH_THRESHOLD, CONFLICT_SEVERITY_MEDIUM_THRESHOLD
-        )
+        from canvas_utils import CONFLICT_SEVERITY_HIGH_THRESHOLD
 
         assert CONFLICT_SEVERITY_HIGH_THRESHOLD == 0.8
         assert CONFLICT_SEVERITY_MEDIUM_THRESHOLD == 0.5

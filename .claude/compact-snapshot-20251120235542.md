@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Implementing features
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11, Story 5.
 
 **Relevant Files**:
@@ -261,7 +261,7 @@ Multiple compression summaries revealed:
 - **SCP-005**: GraphRAG → Neo4j GDS Leiden algorithm
   - Cost savings: $8,584/year (88%)
   - Dev time: 4 days vs 16 days (75% reduction)
-- **3-Layer Memory System**: 
+- **3-Layer Memory System**:
   - Temporal (Neo4j)
   - Semantic (LanceDB)
   - Episodic (Graphiti)

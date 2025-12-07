@@ -1,3 +1,8 @@
+---
+name: ultrathink
+description: UltraThink deep analysis system - invoke multiple Claude agents for comprehensive understanding
+---
+
 # UltraThink深度分析系统 - 真正的Claude Agent调用
 
 ## 使用方法

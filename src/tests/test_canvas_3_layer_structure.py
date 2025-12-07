@@ -13,20 +13,21 @@ Date: 2025-11-04
 Story: STORY-10.2.3
 """
 
-import pytest
-import os
-import sys
 import json
+import os
 import shutil
+import sys
 import uuid
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any
+from pathlib import Path
+from typing import Any, Dict, List
+
+import pytest
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from canvas_utils import CanvasJSONOperator, COLOR_YELLOW, COLOR_BLUE
+from canvas_utils import CanvasJSONOperator
 
 
 class TestCanvas3LayerStructure:
@@ -255,7 +256,7 @@ class TestCanvas3LayerStructure:
                         nodes_created += 2
                         self.stats["created_blue_nodes"] += 2
 
-                        print(f"   ✅ 创建3层结构:")
+                        print("   ✅ 创建3层结构:")
                         print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
 
                     except Exception as e:
@@ -270,7 +271,7 @@ class TestCanvas3LayerStructure:
                         if backup_path and Path(backup_path).exists():
                             try:
                                 self._rollback_from_backup(canvas_path, backup_path)
-                                print(f"   🔙 已回滚到备份版本")
+                                print("   🔙 已回滚到备份版本")
                             except Exception as rollback_error:
                                 print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
                         raise
@@ -288,7 +289,7 @@ class TestCanvas3LayerStructure:
                     if backup_path and Path(backup_path).exists():
                         try:
                             self._rollback_from_backup(canvas_path, backup_path)
-                            print(f"   🔙 已回滚到备份版本")
+                            print("   🔙 已回滚到备份版本")
                         except Exception as rollback_error:
                             print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
                     raise
@@ -339,7 +340,7 @@ class TestCanvas3LayerStructure:
         # 验证节点ID格式
         assert blue_text_node["id"].startswith("ai-text-"), "Blue TEXT节点ID应以'ai-text-'开头"
 
-        print(f"✅ Blue TEXT节点属性验证通过")
+        print("✅ Blue TEXT节点属性验证通过")
         print(f"   Type: {blue_text_node['type']}")
         print(f"   Color: {blue_text_node['color']}")
         print(f"   Text preview: {blue_text_node['text'][:50]}...")
@@ -389,7 +390,7 @@ class TestCanvas3LayerStructure:
         # 验证节点ID格式
         assert file_node["id"].startswith("ai-file-"), "File节点ID应以'ai-file-'开头"
 
-        print(f"✅ File节点相对路径验证通过")
+        print("✅ File节点相对路径验证通过")
         print(f"   Type: {file_node['type']}")
         print(f"   File path: {file_path}")
         print(f"   Is relative: {not Path(file_path).is_absolute()}")
@@ -438,7 +439,7 @@ class TestCanvas3LayerStructure:
         assert "label" not in edge2 or edge2.get("label") is None or edge2.get("label") == "", \
             "Edge 2不应该有label (或label为空)"
 
-        print(f"✅ 边连接验证通过")
+        print("✅ 边连接验证通过")
         print(f"   Edge 1: {edge1['fromNode'][:20]}... → {edge1['toNode'][:20]}...")
         print(f"   Edge 1 label: '{edge1.get('label', 'N/A')}'")
         print(f"   Edge 2: {edge2['fromNode'][:20]}... → {edge2['toNode'][:20]}...")
@@ -476,7 +477,7 @@ class TestCanvas3LayerStructure:
         # 验证备份内容与原始内容相同
         assert backup_content == original_content, "备份内容应该与原始文件相同"
 
-        print(f"✅ 备份创建验证通过")
+        print("✅ 备份创建验证通过")
         print(f"   Backup file: {backup_file.name}")
 
         # Step 2: 测试回滚机制
@@ -505,7 +506,7 @@ class TestCanvas3LayerStructure:
         corrupted_exists = any(n["id"] == "corrupted-node" for n in canvas_data_after["nodes"])
         assert not corrupted_exists, "回滚后不应该存在错误节点"
 
-        print(f"✅ 回滚机制验证通过")
+        print("✅ 回滚机制验证通过")
 
     # ========== AC6: 统计更新测试 ==========
 
@@ -532,10 +533,10 @@ class TestCanvas3LayerStructure:
         assert mock_handler.stats["created_blue_nodes"] == initial_count + 2, \
             "每个成功的result应该使created_blue_nodes增加2"
 
-        print(f"✅ 统计更新验证通过 (单个result)")
+        print("✅ 统计更新验证通过 (单个result)")
         print(f"   Initial: {initial_count}")
         print(f"   After: {mock_handler.stats['created_blue_nodes']}")
-        print(f"   Increment: +2")
+        print("   Increment: +2")
 
     # ========== 端到端集成测试 ==========
 
@@ -601,7 +602,7 @@ class TestCanvas3LayerStructure:
         assert mock_handler.stats["created_blue_nodes"] == 2, "应该创建了2个节点"
         assert len(mock_handler.stats["errors"]) == 0, "不应该有错误"
 
-        print(f"✅ 端到端集成测试通过")
+        print("✅ 端到端集成测试通过")
         print(f"   Nodes: {len(canvas_data['nodes'])} (Yellow + Blue TEXT + File)")
         print(f"   Edges: {len(canvas_data['edges'])} (Yellow→Blue, Blue→File)")
         print(f"   Structure verified: Yellow[{yellow_node['id'][:15]}...] → BlueText[{blue_text_node['id'][:15]}...] → File[{file_node['id'][:15]}...]")
@@ -649,10 +650,10 @@ class TestCanvas3LayerStructure:
         assert len(canvas_data["nodes"]) == 3, "应该只处理有效的result"
         assert mock_handler.stats["created_blue_nodes"] == 2, "只为有效result创建节点"
 
-        print(f"✅ 错误处理验证通过")
-        print(f"   Invalid results skipped: 1")
-        print(f"   Valid results processed: 1")
-        print(f"   Total nodes created: 2 (Blue TEXT + File)")
+        print("✅ 错误处理验证通过")
+        print("   Invalid results skipped: 1")
+        print("   Valid results processed: 1")
+        print("   Total nodes created: 2 (Blue TEXT + File)")
 
     # ========== 多Agent类型测试 ==========
 

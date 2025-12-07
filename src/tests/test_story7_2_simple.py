@@ -6,22 +6,21 @@ Story 7.2: 智能结果融合引擎简化测试套件
 避免Unicode编码问题的测试运行器
 """
 
-import unittest
 import asyncio
-import time
-import sys
 import os
+import sys
+import time
 
 # 添加路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
-    ConflictDetectionEngine,
     ConfidenceBasedFusion,
-    InformationIntegrityProtection,
+    ConflictDetectionEngine,
     FusionProcessTransparency,
+    InformationIntegrityProtection,
     IntelligentResultFusionEngine,
-    intelligent_result_fusion
+    intelligent_result_fusion,
 )
 
 

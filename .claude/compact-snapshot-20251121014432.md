@@ -13,7 +13,7 @@
 
 **Active Agent**: SM Agent
 **Executing Function**: Testing
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11, Story 11.1
 
 **Relevant Files**:

@@ -8,7 +8,6 @@ Created: 2025-10-30
 """
 
 import sys
-import os
 from pathlib import Path
 
 # 添加项目根目录到sys.path
@@ -16,11 +15,8 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 import asyncio
-from command_handlers.learning_commands import (
-    LearningSessionManager,
-    check_neo4j_connection,
-    check_mcp_server_health
-)
+
+from command_handlers.learning_commands import LearningSessionManager, check_mcp_server_health, check_neo4j_connection
 
 
 async def test_system_detection():
@@ -59,13 +55,13 @@ async def test_graceful_degradation():
         interactive=False
     )
 
-    print(f"\n会话启动结果:")
+    print("\n会话启动结果:")
     print(f"  - success: {result['success']}")
     print(f"  - running_systems: {result['running_systems']}/{result['total_systems']}")
     print(f"  - session_id: {result['session_id']}")
 
     # 显示状态报告
-    print(f"\n状态报告:")
+    print("\n状态报告:")
     print(result['status_report'])
 
 

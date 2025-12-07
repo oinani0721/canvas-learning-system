@@ -12,8 +12,8 @@ Created: 2025-10-28
 """
 
 import asyncio
-import sys
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -22,6 +22,7 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from test_memory_recorder import TestRunner
+
 # from test_learning_session_manager import LearningSessionTestRunner
 
 
@@ -69,10 +70,10 @@ async def run_all_memory_tests():
 
         # 添加测试类
         from test_learning_session_manager import (
+            TestConvenienceFunctions,
+            TestIntegrationWithMemoryRecorder,
             TestLearningSession,
             TestLearningSessionManager,
-            TestIntegrationWithMemoryRecorder,
-            TestConvenienceFunctions
         )
 
         test_classes = [
@@ -118,7 +119,7 @@ async def run_all_memory_tests():
         print(f"❌ 失败的测试模块: {', '.join(failed_modules)}")
         print("⚠️  请检查上述错误并修复后重新运行")
 
-    print(f"\n📈 测试统计:")
+    print("\n📈 测试统计:")
     print(f"   总测试数: {total_tests}")
     print(f"   通过: {total_passed}")
     print(f"   失败: {total_failed}")

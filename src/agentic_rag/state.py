@@ -19,10 +19,10 @@ Version: 1.0.0
 Created: 2025-11-29
 """
 
-from typing import Annotated, Literal, Optional, List, Dict, Any
-from typing_extensions import TypedDict
+from typing import Annotated, Any, Dict, List, Literal, Optional
+
 from langgraph.graph import MessagesState
-import operator
+from typing_extensions import TypedDict
 
 
 def add_dicts(left: Optional[Dict[str, float]], right: Optional[Dict[str, float]]) -> Dict[str, float]:
@@ -88,6 +88,8 @@ class CanvasRAGState(MessagesState):
     # 检索结果字段 (List[SearchResult])
     graphiti_results: Annotated[List[SearchResult], "Graphiti知识图谱检索结果"]
     lancedb_results: Annotated[List[SearchResult], "LanceDB向量检索结果"]
+    # Story 6.8: 多模态检索结果
+    multimodal_results: Annotated[List[SearchResult], "多模态检索结果 (图片、PDF等)"]
     fused_results: Annotated[List[SearchResult], "融合算法输出结果"]
     reranked_results: Annotated[List[SearchResult], "Reranking后的最终结果"]
 
@@ -119,5 +121,7 @@ class CanvasRAGState(MessagesState):
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
     graphiti_latency_ms: Annotated[Optional[float], "Graphiti检索延迟 (ms)"]
     lancedb_latency_ms: Annotated[Optional[float], "LanceDB检索延迟 (ms)"]
+    # Story 6.8: 多模态检索延迟
+    multimodal_latency_ms: Annotated[Optional[float], "多模态检索延迟 (ms)"]
     fusion_latency_ms: Annotated[Optional[float], "融合算法延迟 (ms)"]
     reranking_latency_ms: Annotated[Optional[float], "Reranking延迟 (ms)"]

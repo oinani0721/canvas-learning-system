@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\canvas.py
+# hypothesis_version: 6.148.1
+
+[400, 404, '/{canvas_name}', '/{canvas_name}/edges', '/{canvas_name}/nodes', 'Create edge', 'Create node', 'Delete edge', 'Delete node', 'Not found', 'Read Canvas file', 'Update node', 'Validation error', 'create_edge', 'create_node', 'delete_edge', 'delete_node', 'description', 'model', 'read_canvas', 'text', 'update_node']

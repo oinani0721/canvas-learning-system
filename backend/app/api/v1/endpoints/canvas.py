@@ -7,18 +7,17 @@ Provides 6 endpoints for Canvas file and node/edge operations.
 [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas]
 """
 
-from typing import Optional
 
-from fastapi import APIRouter, HTTPException, status, Response
+from fastapi import APIRouter, Response, status
 
 from app.models import (
     CanvasResponse,
-    NodeCreate,
-    NodeUpdate,
-    NodeRead,
     EdgeCreate,
     EdgeRead,
     ErrorResponse,
+    NodeCreate,
+    NodeRead,
+    NodeUpdate,
 )
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)

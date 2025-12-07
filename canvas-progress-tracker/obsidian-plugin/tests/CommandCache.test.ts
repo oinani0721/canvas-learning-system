@@ -6,7 +6,7 @@
  * @module tests/CommandCache
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+// Jest globals are available (describe, it, expect, beforeEach, afterEach)
 import { CommandCache } from '../src/cache/CommandCache';
 
 describe('CommandCache', () => {
@@ -59,28 +59,28 @@ describe('CommandCache', () => {
 
   describe('TTL and Expiration', () => {
     it('should expire items after TTL', async () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
 
       await cache.set('key1', 'value1', 1000); // 1 second TTL
       expect(await cache.get('key1')).toBe('value1');
 
-      vi.advanceTimersByTime(1500); // Advance past TTL
+      jest.advanceTimersByTime(1500); // Advance past TTL
       expect(await cache.get('key1')).toBeNull();
 
-      vi.useRealTimers();
+      jest.useRealTimers();
     });
 
     it('should use custom TTL when provided', async () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
 
       await cache.set('key1', 'value1', 2000); // 2 seconds
-      vi.advanceTimersByTime(1500);
+      jest.advanceTimersByTime(1500);
       expect(await cache.get('key1')).toBe('value1');
 
-      vi.advanceTimersByTime(1000);
+      jest.advanceTimersByTime(1000);
       expect(await cache.get('key1')).toBeNull();
 
-      vi.useRealTimers();
+      jest.useRealTimers();
     });
   });
 

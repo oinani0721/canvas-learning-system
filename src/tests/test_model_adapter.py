@@ -13,31 +13,30 @@ Version: 1.0
 Created: 2025-10-28
 """
 
-import json
 import os
 import sys
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from canvas_utils.model_adapter import (
-    ModelCompatibilityAdapter,
-    ModelDetector,
-    OpusProcessor,
-    GLMProcessor,
-    SonnetProcessor,
-    DefaultProcessor,
     BaseModelProcessor,
+    DefaultProcessor,
+    GLMProcessor,
+    ModelCompatibilityAdapter,
     ModelDetectionResult,
+    ModelDetector,
     NodeDetectionResult,
+    OpusProcessor,
     ProcessingConfig,
+    SonnetProcessor,
     create_adapter,
     detect_current_model,
-    get_processor_for_model
+    get_processor_for_model,
 )
 
 

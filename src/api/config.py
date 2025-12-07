@@ -8,9 +8,10 @@ handling and configuration validation.
 """
 
 from functools import lru_cache
-from typing import List, Optional
-from pydantic_settings import BaseSettings
+from typing import List
+
 from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):

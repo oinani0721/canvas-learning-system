@@ -4,23 +4,23 @@ Epic 9 - Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
-import sys
 import os
+import sys
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
     from canvas_utils.model_adapter import (
-        ModelCompatibilityAdapter,
-        Opus41Processor,
-        GLM46Processor,
-        Sonnet35Processor,
         DefaultProcessor,
-        ModelProcessor
+        GLM46Processor,
+        ModelCompatibilityAdapter,
+        ModelProcessor,
+        Opus41Processor,
+        Sonnet35Processor,
     )
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:

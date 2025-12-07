@@ -20,13 +20,13 @@ python src/tests/contract/mock_api_server.py --api both
 - AGENT_API_PORT: Agent API端口（默认8001）
 """
 
-import json
 import argparse
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Dict, Any, List
-from flask import Flask, request, jsonify
+from typing import Any, Dict
+
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 
 # ============================================================================

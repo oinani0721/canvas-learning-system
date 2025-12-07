@@ -14,15 +14,15 @@ Created: 2025-11-03
 Story: 10.13
 """
 
-import sys
-import os
-from pathlib import Path
 import asyncio
-import time
-import json
 
 # 配置UTF-8输出（Windows兼容）
 import io
+import json
+import sys
+import time
+from pathlib import Path
+
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
     sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
@@ -32,7 +32,6 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from command_handlers.learning_commands import LearningSessionManager
-
 
 # ============================================================================
 # Test 1: 验证懒加载修复循环依赖 (AC 2)
@@ -59,7 +58,6 @@ def test_lazy_loading_no_circular_dependency():
 
         # 2. 测试向后兼容的直接导入（应触发__getattr__）
         print("\n1.2 测试向后兼容的直接导入...")
-        from canvas_utils import CanvasBusinessLogic
         print("  ✅ CanvasBusinessLogic 直接导入成功（__getattr__生效）")
 
         # 3. 测试canvas_integration_coordinator导入（应无循环依赖）

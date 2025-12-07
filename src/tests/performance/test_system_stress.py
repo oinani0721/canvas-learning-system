@@ -13,17 +13,14 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
-import threading
-import asyncio
-import json
-import tempfile
-import os
 import gc
+import json
+import os
+import tempfile
+import time
+
 import psutil
-import sys
-from pathlib import Path
+import pytest
 
 # resource module is Unix-specific, not available on Windows
 try:
@@ -31,15 +28,13 @@ try:
     RESOURCE_AVAILABLE = True
 except ImportError:
     RESOURCE_AVAILABLE = False
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Dict, Any
-import multiprocessing
 from dataclasses import dataclass
+from typing import Any, Dict, List
 
 # Import system components
 try:
-    from canvas_performance_optimizer import CanvasPerformanceOptimizer
     from agent_performance_optimizer import AgentPerformanceOptimizer
+    from canvas_performance_optimizer import CanvasPerformanceOptimizer
 except ImportError:
     pytest.skip("Performance optimizers not available", allow_module_level=True)
 

@@ -11,13 +11,14 @@ Story: 10.11.2 - MCP Graphiti Server Health Check Integration
 """
 
 import asyncio
+from unittest.mock import AsyncMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock
 from memory_system.mcp_health_check import (
-    check_mcp_server_health,
     MCPServerUnavailableError,
+    check_mcp_server_health,
     detect_mcp_server_path,
-    suggest_mcp_server_startup
+    suggest_mcp_server_startup,
 )
 
 
@@ -78,7 +79,7 @@ class TestMCPHealthCheckIntegrationPatterns:
             assert graphiti_unavailable is True
 
             # Pattern: Generate user-friendly message
-            error_message = f"❌ Graphiti知识图谱功能不可用\n"
+            error_message = "❌ Graphiti知识图谱功能不可用\n"
             error_message += f"原因: {health['error']}\n"
             error_message += f"建议: {health['suggestion']}\n"
             error_message += f"路径: {health['mcp_server_path']}"

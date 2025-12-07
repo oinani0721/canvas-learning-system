@@ -9,18 +9,19 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import json
-import tempfile
 import os
-from typing import Dict, List
-from pathlib import Path
 
 # Import the canvas utils modules
 import sys
+import tempfile
+import time
+from pathlib import Path
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic, CanvasOrchestrator
+from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
 
 class TestCanvasPerformance:
@@ -282,8 +283,9 @@ class TestCanvasPerformance:
 
     def test_memory_usage_canvas_operations(self, large_canvas_data):
         """测试Canvas操作的内存使用情况"""
-        import psutil
         import gc
+
+        import psutil
 
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

@@ -636,6 +636,74 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             });
         }
 
+        // Notification Settings Group (Story 14.7)
+        this.createSettingGroup(container, '通知设置');
+
+        // Enable Notifications
+        new Setting(container)
+            .setName('启用通知')
+            .setDesc('每日首次打开 Obsidian 时显示复习提醒')
+            .addToggle(toggle => toggle
+                .setValue(settings.enableNotifications)
+                .onChange(async (value) => {
+                    settings.enableNotifications = value;
+                    await this.plugin.saveSettings();
+                    this.displaySection('review');
+                }));
+
+        if (settings.enableNotifications) {
+            // Quiet Hours Start
+            new Setting(container)
+                .setName('静默时段开始')
+                .setDesc(`从此时间开始不发送通知：${settings.quietHoursStart}:00`)
+                .addSlider(slider => slider
+                    .setLimits(0, 23, 1)
+                    .setValue(settings.quietHoursStart)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        settings.quietHoursStart = value;
+                        await this.plugin.saveSettings();
+                        this.displaySection('review');
+                    }));
+
+            // Quiet Hours End
+            new Setting(container)
+                .setName('静默时段结束')
+                .setDesc(`到此时间恢复通知：${settings.quietHoursEnd}:00`)
+                .addSlider(slider => slider
+                    .setLimits(0, 23, 1)
+                    .setValue(settings.quietHoursEnd)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        settings.quietHoursEnd = value;
+                        await this.plugin.saveSettings();
+                        this.displaySection('review');
+                    }));
+
+            // Min Notification Interval
+            new Setting(container)
+                .setName('通知最小间隔')
+                .setDesc(`两次通知之间的最小间隔：${settings.minNotificationInterval}小时`)
+                .addSlider(slider => slider
+                    .setLimits(1, 48, 1)
+                    .setValue(settings.minNotificationInterval)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        settings.minNotificationInterval = value;
+                        await this.plugin.saveSettings();
+                        this.displaySection('review');
+                    }));
+
+            // Quiet Hours Info
+            const quietHoursInfo = container.createDiv('quiet-hours-info');
+            const startHour = settings.quietHoursStart.toString().padStart(2, '0');
+            const endHour = settings.quietHoursEnd.toString().padStart(2, '0');
+            quietHoursInfo.createEl('p', {
+                text: `当前静默时段：${startHour}:00 - ${endHour}:00`,
+                cls: 'setting-item-description'
+            });
+        }
+
         // Scoring Settings Group
         this.createSettingGroup(container, '评分设置');
 
@@ -798,7 +866,7 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         }
 
         try {
-            const response = await fetch(`${url}/health`, {
+            const response = await fetch(`${url}/api/v1/health`, {
                 method: 'GET',
                 signal: AbortSignal.timeout(10000)
             });

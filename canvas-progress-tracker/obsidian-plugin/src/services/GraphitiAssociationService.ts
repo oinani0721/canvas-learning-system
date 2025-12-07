@@ -33,7 +33,7 @@ interface GraphitiConfig {
  * ✅ Verified from Story 16.3 Dev Notes (2s timeout, 30s cache)
  */
 const DEFAULT_CONFIG: GraphitiConfig = {
-    baseUrl: 'http://localhost:8000',
+    baseUrl: 'http://localhost:8001',
     timeout: 2000,      // 2 seconds timeout for graceful degradation
     retryCount: 3,
     cacheTimeout: 30000 // 30 seconds cache

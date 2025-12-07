@@ -10,43 +10,30 @@
 """
 
 import asyncio
-import pytest
-import time
-import uuid
-from unittest.mock import Mock, patch, AsyncMock
-from datetime import datetime
+import os
 
 # Import the classes we're testing
 import sys
-import os
+from datetime import datetime
+
+import pytest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
+    CONCURRENT_AGENTS_ENABLED,
+    DEFAULT_TIMEOUT_SECONDS,
     # Constants
     MAX_CONCURRENT_AGENTS,
-    DEFAULT_TIMEOUT_SECONDS,
     PRIORITY_HIGH,
     PRIORITY_MEDIUM,
-    PRIORITY_LOW,
-    TASK_STATUS_PENDING,
-    TASK_STATUS_RUNNING,
     TASK_STATUS_COMPLETED,
-    TASK_STATUS_FAILED,
-    TASK_STATUS_CANCELLED,
-    CONCURRENT_AGENT_TYPES,
-    CONCURRENT_AGENTS_ENABLED,
-
+    ConcurrentAgentExecutor,
     # Data models
     ConcurrentTask,
-    TaskExecutionContext,
-    TaskResult,
-    PerformanceMetrics,
-
-    # Core classes
-    TaskDecomposer,
+    MultiAgentOrchestrator,
     ResourceMonitor,
-    ConcurrentAgentExecutor,
-    MultiAgentOrchestrator
+    TaskDecomposer,
 )
 
 
@@ -568,7 +555,7 @@ class TestIntegration:
         assert isinstance(resource_status["memory_ok"], bool)
         assert isinstance(resource_status["cpu_ok"], bool)
 
-        print(f"集成测试完成:")
+        print("集成测试完成:")
         print(f"  - 分解任务数: {len(tasks)}")
         print(f"  - 执行任务数: {result['total_tasks']}")
         print(f"  - 成功任务数: {result['successful_tasks']}")

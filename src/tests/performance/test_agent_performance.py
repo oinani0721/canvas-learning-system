@@ -12,20 +12,21 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import asyncio
 import json
-import tempfile
 import os
-from typing import Dict, List
-from pathlib import Path
-from unittest.mock import patch, AsyncMock
 
 # Import the canvas utils modules
 import sys
+import tempfile
+import time
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
-from canvas_utils import CanvasOrchestrator, CanvasBusinessLogic
+from canvas_utils import CanvasOrchestrator
 
 
 class TestAgentPerformance:
@@ -313,8 +314,9 @@ class TestAgentPerformance:
 
     def test_agent_memory_usage_performance(self, large_canvas_with_many_nodes):
         """测试Agent操作的内存使用情况"""
-        import psutil
         import gc
+
+        import psutil
 
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB

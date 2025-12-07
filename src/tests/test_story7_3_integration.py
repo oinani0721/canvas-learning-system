@@ -11,25 +11,24 @@ import os
 import tempfile
 import time
 import unittest
-from datetime import datetime
-from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict
 
 # 导入被测试的模块
 try:
-    from canvas_utils import (
-        CanvasLearningAnalyzer,
-        CanvasIntelligentScheduler,
-        CanvasClaudeOrchestratorBridge,
-        BatchCanvasProcessor,
-        CLAUDE_CODE_ENABLED,
-        CanvasOrchestrator
-    )
     from claude_canvas_tools import (
+        canvas_batch_processor,
         canvas_intelligent_scheduler,
         canvas_orchestrator_collaboration,
-        canvas_batch_processor,
-        get_tools_manager
+        get_tools_manager,
+    )
+
+    from canvas_utils import (
+        CLAUDE_CODE_ENABLED,
+        BatchCanvasProcessor,
+        CanvasClaudeOrchestratorBridge,
+        CanvasIntelligentScheduler,
+        CanvasLearningAnalyzer,
+        CanvasOrchestrator,
     )
 except ImportError as e:
     print(f"警告: 无法导入测试模块 - {e}")
@@ -644,8 +643,9 @@ class TestPerformanceOptimization(TestStory73Integration):
 
     def test_memory_usage_optimization(self):
         """测试内存使用优化"""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -726,7 +726,7 @@ class TestSystemCompatibility(TestStory73Integration):
         """测试现有API兼容性"""
         # 验证现有canvas_utils.py的公共API仍然可用
         try:
-            from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic
+            from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
             # 测试基础JSON操作
             json_op = CanvasJSONOperator()

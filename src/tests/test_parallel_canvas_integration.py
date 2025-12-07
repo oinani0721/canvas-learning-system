@@ -13,25 +13,25 @@ Version: 1.0
 Created: 2025-01-24
 """
 
-import pytest
 import json
-import tempfile
 import os
-from pathlib import Path
+import tempfile
 from datetime import datetime
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
+
+import pytest
 
 # 导入被测试的模块
 from parallel_canvas_processor import (
-    ProcessingTask,
-    ProcessingSession,
-    TaskStatus,
-    NodeComplexity,
     CanvasUpdateResult,
-    ResultAggregator
+    NodeComplexity,
+    ProcessingSession,
+    ProcessingTask,
+    ResultAggregator,
+    TaskStatus,
 )
+
 from canvas_utils import CanvasJSONOperator, CanvasOrchestrator
-from transaction_manager import FileTransactionManager
 
 
 @pytest.fixture
@@ -523,7 +523,7 @@ class TestUpdateCanvasData:
         assert len(updated_data['nodes']) == initial_node_count, "节点数量不应该改变"
         assert len(updated_data['edges']) == initial_edge_count, "边数量不应该改变"
 
-        print(f"✅ 测试通过: 正确处理缺失output_file的情况")
+        print("✅ 测试通过: 正确处理缺失output_file的情况")
 
 
 class TestIntegrationWithResultAggregator:
@@ -567,7 +567,7 @@ class TestIntegrationWithResultAggregator:
 
             # 验证节点和边被创建（如果实现正确）
             # 注: 这个测试可能需要根据实际实现调整
-            print(f"✅ 集成测试: ResultAggregator 正确处理更新")
+            print("✅ 集成测试: ResultAggregator 正确处理更新")
 
         except Exception as e:
             # 如果 ResultAggregator 依赖其他组件，可能需要更多mock

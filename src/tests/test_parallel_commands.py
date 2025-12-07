@@ -8,24 +8,19 @@ Version: 1.0
 Created: 2025-01-26
 """
 
-import asyncio
-import pytest
-import unittest.mock as mock
-from datetime import datetime
-import json
 import os
 import sys
-import tempfile
+import unittest.mock as mock
 import uuid
+from datetime import datetime
+
+import pytest
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from parallel_command_parser import (
-    ParallelCommandParser, ParallelCommand, CommandType, TaskPriority,
-    CommandConfig
-)
 from command_executor import CommandExecutor, ExecutionStatus, ProgressTracker
+from parallel_command_parser import CommandConfig, CommandType, ParallelCommand, ParallelCommandParser
 
 
 class TestParallelCommandParser:

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\agents.py
+# hypothesis_version: 6.148.1
+
+[7.0, 7.5, 8.0, 8.5, 31.0, 400, '/decompose/basic', '/decompose/deep', '/explain/comparison', '/explain/example', '/explain/four-level', '/explain/memory', '/explain/oral', '/score', '3', 'Validation error', 'decompose_basic', 'decompose_deep', 'description', 'explain_comparison', 'explain_example', 'explain_four_level', 'explain_memory', 'explain_oral', 'model', 'score_understanding']

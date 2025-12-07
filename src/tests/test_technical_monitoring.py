@@ -17,44 +17,35 @@ Created: 2025-01-22
 Story: 8.18 - 建立完整技术验证和监控系统
 """
 
-import asyncio
-import json
-import pytest
+# 导入被测试的模块
+import sys
 import tempfile
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 import yaml
 
-# 导入被测试的模块
-import sys
 sys.path.append('..')
-
-from technical_validation_monitoring_system import (
-    TechnicalValidationMonitoringSystem,
-    TechnologyValidationResult,
-    MonitoringAlert,
-    SystemHealthMetrics,
-    create_technical_monitoring_system,
-    run_quick_health_check
-)
 
 from context7_technology_validator import (
     Context7TechnologyValidator,
     Context7ValidationResult,
     PerformanceBenchmark,
-    IntegrationRisk,
     create_context7_validator,
-    run_context7_validation
+    run_context7_validation,
+)
+from monitoring_dashboard import DashboardConfig, MonitoringDashboard, create_monitoring_dashboard
+from technical_validation_monitoring_system import (
+    SystemHealthMetrics,
+    TechnicalValidationMonitoringSystem,
+    TechnologyValidationResult,
+    create_technical_monitoring_system,
+    run_quick_health_check,
 )
 
-from monitoring_dashboard import (
-    MonitoringDashboard,
-    DashboardPanel,
-    DashboardConfig,
-    create_monitoring_dashboard
-)
 
 class TestTechnicalValidationMonitoringSystem:
     """技术验证和监控系统测试"""
@@ -886,8 +877,9 @@ class TestPerformance:
 
     def test_memory_usage(self):
         """测试内存使用"""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss

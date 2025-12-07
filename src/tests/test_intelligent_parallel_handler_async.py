@@ -16,23 +16,21 @@ Author: Canvas Learning System
 Date: 2025-11-04
 """
 
-import pytest
-import asyncio
-import time
-import tempfile
 import json
 import os
-from pathlib import Path
-from datetime import datetime
 
 # Add project root to path
 import sys
+import tempfile
+import time
+from pathlib import Path
+
+import pytest
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from command_handlers.intelligent_parallel_handler import IntelligentParallelCommandHandler
-from command_handlers.async_execution_engine import AsyncExecutionEngine, AsyncTask
-
 
 # ========== Test Fixtures ==========
 

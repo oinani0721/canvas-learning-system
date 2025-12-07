@@ -8,20 +8,20 @@ Created: 2025-01-22
 """
 
 import os
-import json
-import unittest
-from unittest.mock import Mock, patch, MagicMock
-from pathlib import Path
 
 # 导入要测试的模块
 import sys
+import unittest
+from pathlib import Path
+from unittest.mock import Mock, patch
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from critical_nodes_extractor import CriticalNodesExtractor, CriticalNode, SourceAnalysis
-from knowledge_graph_integration import KnowledgeGraphIntegration, KnowledgeGraphContext
-from intelligent_question_generator import IntelligentQuestionGenerator, GeneratedQuestion, QuestionGenerationConfig
-from learning_cycle_manager import LearningCycleManager, LearningStep
+from critical_nodes_extractor import CriticalNode, CriticalNodesExtractor, SourceAnalysis
 from dynamic_review_canvas_generator import DynamicReviewCanvasGenerator
+from intelligent_question_generator import GeneratedQuestion, IntelligentQuestionGenerator, QuestionGenerationConfig
+from knowledge_graph_integration import KnowledgeGraphContext, KnowledgeGraphIntegration
+from learning_cycle_manager import LearningCycleManager, LearningStep
 
 
 class TestCriticalNodesExtractor(unittest.TestCase):
@@ -171,7 +171,7 @@ class TestIntelligentQuestionGenerator(unittest.TestCase):
 
     def test_estimate_time(self):
         """测试时间估算"""
-        from intelligent_question_generator import QuestionType, DifficultyLevel
+        from intelligent_question_generator import DifficultyLevel, QuestionType
 
         basic_time = self.generator._estimate_time(DifficultyLevel.BASIC, QuestionType.CONCEPTUAL_UNDERSTANDING)
         advanced_time = self.generator._estimate_time(DifficultyLevel.ADVANCED, QuestionType.PROBLEM_SOLVING)
@@ -287,7 +287,7 @@ class TestDynamicReviewCanvasGenerator(unittest.TestCase):
 
     def test_calculate_quality_metrics(self):
         """测试质量指标计算"""
-        from intelligent_question_generator import GeneratedQuestion, QuestionType, DifficultyLevel
+        from intelligent_question_generator import DifficultyLevel, GeneratedQuestion, QuestionType
 
         test_questions = [
             GeneratedQuestion(

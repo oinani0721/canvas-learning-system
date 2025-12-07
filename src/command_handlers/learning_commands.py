@@ -12,34 +12,28 @@ Created: 2025-10-30
 Story: 10.10 - 修复/learning start命令核心逻辑
 """
 
-import os
-import json
-import socket
-import platform
 import asyncio
+import json
+import os
+import platform
+import socket
 from datetime import datetime
-from typing import Dict, Optional, Any, List
 from pathlib import Path
-from loguru import logger
+from typing import Any, Dict, Optional
 
-# 导入记忆管理器
-from memory_system.temporal_memory_manager import TemporalMemoryManager
-from memory_system.semantic_memory_manager import SemanticMemoryManager
-from memory_system.memory_exceptions import (
-    TemporalMemoryError,
-    SemanticMemoryError
-)
+from loguru import logger
+from memory_system.error_formatters import format_startup_report
 
 # 导入MCP健康检查
-from memory_system.mcp_health_check import (
-    check_mcp_server_health,
-    MCPServerUnavailableError
-)
+from memory_system.mcp_health_check import check_mcp_server_health
+from memory_system.memory_exceptions import SemanticMemoryError, TemporalMemoryError
+from memory_system.semantic_memory_manager import SemanticMemoryManager
 
 # Import system mode detection (Story 10.11.4)
 from memory_system.system_mode_detector import SystemModeDetector
-from memory_system.error_formatters import format_startup_report
 
+# 导入记忆管理器
+from memory_system.temporal_memory_manager import TemporalMemoryManager
 
 # =============================================================================
 # System Mode Info Storage (Story 10.11.4 Task 3)
@@ -354,10 +348,10 @@ class LearningSessionManager:
             cache_key = session_dir
 
             if cache_key not in cls._instance_cache:
-                logger.info(f"🔧 创建新的LearningSessionManager实例（缓存未命中）")
+                logger.info("🔧 创建新的LearningSessionManager实例（缓存未命中）")
                 cls._instance_cache[cache_key] = cls(session_dir=session_dir)
             else:
-                logger.info(f"⚡ 复用已缓存的LearningSessionManager实例（缓存命中）")
+                logger.info("⚡ 复用已缓存的LearningSessionManager实例（缓存命中）")
 
             return cls._instance_cache[cache_key]
 
@@ -424,23 +418,23 @@ class LearningSessionManager:
 
         if not mcp_health['available']:
             # MCP服务器不可用，显示友好错误消息
-            logger.warning(f"❌ Graphiti知识图谱功能不可用")
-            logger.warning(f"MCP服务器未连接")
-            logger.warning(f"")
+            logger.warning("❌ Graphiti知识图谱功能不可用")
+            logger.warning("MCP服务器未连接")
+            logger.warning("")
             logger.warning(f"原因: {mcp_health['error']}")
-            logger.warning(f"")
-            logger.warning(f"自动启动命令:")
-            logger.warning(f"  deployment\\start_all_mcp_servers.bat")
-            logger.warning(f"")
-            logger.warning(f"或手动启动:")
-            logger.warning(f"  cd graphiti/mcp_server")
-            logger.warning(f"  start_graphiti_mcp.bat")
-            logger.warning(f"")
-            logger.warning(f"预计时间: 30秒")
-            logger.warning(f"")
-            logger.warning(f"💡 系统将继续以降级模式启动（Graphiti功能不可用）")
-            logger.warning(f"   时序记忆和语义记忆仍将正常工作")
-            logger.warning(f"")
+            logger.warning("")
+            logger.warning("自动启动命令:")
+            logger.warning("  deployment\\start_all_mcp_servers.bat")
+            logger.warning("")
+            logger.warning("或手动启动:")
+            logger.warning("  cd graphiti/mcp_server")
+            logger.warning("  start_graphiti_mcp.bat")
+            logger.warning("")
+            logger.warning("预计时间: 30秒")
+            logger.warning("")
+            logger.warning("💡 系统将继续以降级模式启动（Graphiti功能不可用）")
+            logger.warning("   时序记忆和语义记忆仍将正常工作")
+            logger.warning("")
 
             # 设置降级模式标记
             graphiti_unavailable = True
@@ -537,7 +531,7 @@ class LearningSessionManager:
 
         # AC 3验证：并行启动应<40秒（vs 串行60-120秒）
         if parallel_elapsed < 40:
-            logger.success(f"🎯 性能目标达成: 并行启动<40秒 ✓")
+            logger.success("🎯 性能目标达成: 并行启动<40秒 ✓")
         else:
             logger.warning(f"⚠️ 并行启动耗时{parallel_elapsed:.2f}秒超过40秒目标")
 
@@ -976,10 +970,10 @@ class LearningSessionManager:
                 if system_key == 'semantic' and 'mode' in system_data:
                     mode = system_data['mode']
                     if mode == 'mcp':
-                        report_lines.append(f"   模式: MCP完整模式")
+                        report_lines.append("   模式: MCP完整模式")
                     elif mode == 'fallback':
-                        report_lines.append(f"   模式: 降级模式 - 本地缓存")
-                        report_lines.append(f"   ⚠️  高级语义搜索不可用，使用关键词搜索")
+                        report_lines.append("   模式: 降级模式 - 本地缓存")
+                        report_lines.append("   ⚠️  高级语义搜索不可用，使用关键词搜索")
 
                     # 显示功能限制
                     if 'features' in system_data:

@@ -7,8 +7,9 @@ Story 15.6: API文档和测试框架
 ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: TestClient testing)
 """
 
-import pytest
 from datetime import date, timedelta
+
+import pytest
 
 
 @pytest.mark.api

@@ -1,0 +1,536 @@
+/**
+ * Intelligent Parallel Processing Modal Styles
+ *
+ * Styles for GroupPreviewModal, ProgressMonitorModal, and ResultSummaryModal.
+ * Implements Story 13.8: 智能并行处理UI
+ *
+ * ✅ Uses Obsidian CSS variables for theme compatibility
+ */
+
+/* ============================================================================
+   Base Modal Styles
+   ============================================================================ */
+
+.intelligent-parallel-modal {
+    max-width: 700px;
+    max-height: 80vh;
+    overflow: hidden;
+}
+
+.intelligent-parallel-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+/* ============================================================================
+   Modal Header
+   ============================================================================ */
+
+.intelligent-parallel-modal .modal-header {
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+    flex-shrink: 0;
+}
+
+.intelligent-parallel-modal .modal-title {
+    margin: 0;
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+/* ============================================================================
+   Loading State
+   ============================================================================ */
+
+.intelligent-parallel-modal .loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem 2rem;
+    gap: 1rem;
+}
+
+.intelligent-parallel-modal .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.intelligent-parallel-modal .loading-text {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+/* ============================================================================
+   Error State
+   ============================================================================ */
+
+.intelligent-parallel-modal .error-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2rem;
+    gap: 1rem;
+    text-align: center;
+}
+
+.intelligent-parallel-modal .error-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-error);
+}
+
+.intelligent-parallel-modal .error-message {
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    max-width: 400px;
+}
+
+.intelligent-parallel-modal .retry-button,
+.intelligent-parallel-modal .close-button {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    transition: background-color 0.15s ease;
+}
+
+.intelligent-parallel-modal .retry-button:hover,
+.intelligent-parallel-modal .close-button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+/* ============================================================================
+   Node Summary
+   ============================================================================ */
+
+.intelligent-parallel-modal .node-summary {
+    padding: 1rem 1.5rem;
+    background-color: var(--background-primary-alt);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.intelligent-parallel-modal .summary-text {
+    margin: 0;
+    color: var(--text-normal);
+    font-size: 0.95rem;
+}
+
+/* ============================================================================
+   Group List (CSS Grid)
+   ============================================================================ */
+
+.intelligent-parallel-modal .group-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+    padding: 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* ============================================================================
+   Group Card
+   ============================================================================ */
+
+.intelligent-parallel-modal .group-card {
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.intelligent-parallel-modal .group-card:hover {
+    border-color: var(--interactive-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Group Card Header */
+.intelligent-parallel-modal .group-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.intelligent-parallel-modal .group-name {
+    font-weight: 600;
+    font-size: 0.95rem;
+    color: var(--text-normal);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Priority Badge */
+.intelligent-parallel-modal .priority-badge {
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: white;
+    flex-shrink: 0;
+}
+
+.intelligent-parallel-modal .priority-high {
+    background-color: #ef4444;
+}
+
+.intelligent-parallel-modal .priority-medium {
+    background-color: #f59e0b;
+}
+
+.intelligent-parallel-modal .priority-low {
+    background-color: #22c55e;
+}
+
+/* Agent Info */
+.intelligent-parallel-modal .agent-info {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.intelligent-parallel-modal .agent-name {
+    background-color: var(--background-primary);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+}
+
+/* Node List */
+.intelligent-parallel-modal .node-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.85rem;
+}
+
+.intelligent-parallel-modal .node-item {
+    color: var(--text-normal);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.intelligent-parallel-modal .node-more {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* Group Time */
+.intelligent-parallel-modal .group-time {
+    margin-top: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.intelligent-parallel-modal .time-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+
+/* ============================================================================
+   Modal Footer
+   ============================================================================ */
+
+.intelligent-parallel-modal .modal-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--background-modifier-border);
+    background-color: var(--background-secondary);
+    flex-shrink: 0;
+}
+
+.intelligent-parallel-modal .estimated-time {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+}
+
+.intelligent-parallel-modal .button-container {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.intelligent-parallel-modal .cancel-button {
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    transition: background-color 0.15s ease;
+}
+
+.intelligent-parallel-modal .cancel-button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.intelligent-parallel-modal .confirm-button {
+    padding: 0.5rem 1.25rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    transition: filter 0.15s ease;
+}
+
+.intelligent-parallel-modal .confirm-button:hover {
+    filter: brightness(1.1);
+}
+
+/* ============================================================================
+   Progress Monitor Modal Specific Styles
+   ============================================================================ */
+
+.progress-monitor-modal .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+    background-color: var(--background-secondary);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.progress-monitor-modal .overall-progress {
+    padding: 1rem 1.5rem;
+    background-color: var(--background-primary-alt);
+}
+
+.progress-monitor-modal .progress-bar-container {
+    height: 8px;
+    background-color: var(--background-modifier-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-top: 0.5rem;
+}
+
+.progress-monitor-modal .progress-bar-fill {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    border-radius: 4px;
+    transition: width 0.3s ease;
+}
+
+.progress-monitor-modal .progress-text {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.5rem;
+}
+
+.progress-monitor-modal .group-status-list {
+    padding: 1rem 1.5rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.progress-monitor-modal .group-status-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.5rem;
+    background-color: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+}
+
+.progress-monitor-modal .group-status-name {
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.progress-monitor-modal .group-status-badge {
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.progress-monitor-modal .status-pending {
+    background-color: var(--background-modifier-border);
+    color: var(--text-muted);
+}
+
+.progress-monitor-modal .status-running {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.progress-monitor-modal .status-completed {
+    background-color: #22c55e;
+    color: white;
+}
+
+.progress-monitor-modal .status-failed {
+    background-color: #ef4444;
+    color: white;
+}
+
+.progress-monitor-modal .control-buttons {
+    display: flex;
+    gap: 0.5rem;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.progress-monitor-modal .control-button {
+    flex: 1;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    transition: background-color 0.15s ease;
+}
+
+.progress-monitor-modal .control-button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.progress-monitor-modal .control-button.danger {
+    border-color: #ef4444;
+    color: #ef4444;
+}
+
+.progress-monitor-modal .control-button.danger:hover {
+    background-color: rgba(239, 68, 68, 0.1);
+}
+
+/* ============================================================================
+   Result Summary Modal Specific Styles
+   ============================================================================ */
+
+.result-summary-modal .result-header {
+    padding: 1.5rem;
+    text-align: center;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.result-summary-modal .result-icon {
+    font-size: 3rem;
+    margin-bottom: 0.5rem;
+}
+
+.result-summary-modal .result-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.result-summary-modal .result-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.result-summary-modal .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    padding: 1.5rem;
+}
+
+.result-summary-modal .stat-card {
+    text-align: center;
+    padding: 1rem;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.result-summary-modal .stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-normal);
+}
+
+.result-summary-modal .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.result-summary-modal .node-results {
+    padding: 1rem 1.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.result-summary-modal .node-result-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.result-summary-modal .node-result-item:last-child {
+    border-bottom: none;
+}
+
+.result-summary-modal .node-result-name {
+    font-size: 0.9rem;
+    color: var(--text-normal);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.result-summary-modal .node-result-status {
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.result-summary-modal .node-result-status.success {
+    color: #22c55e;
+}
+
+.result-summary-modal .node-result-status.failed {
+    color: #ef4444;
+}
+
+.result-summary-modal .done-button {
+    margin: 1.5rem;
+    padding: 0.75rem 2rem;
+    border-radius: 6px;
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    width: calc(100% - 3rem);
+    transition: filter 0.15s ease;
+}
+
+.result-summary-modal .done-button:hover {
+    filter: brightness(1.1);
+}

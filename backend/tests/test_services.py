@@ -9,23 +9,16 @@ Tests:
 - BackgroundTaskManager task lifecycle
 - ReviewService background task execution
 """
-import pytest
 import asyncio
 import json
 from pathlib import Path
-from datetime import datetime
 
+import pytest
+from app.core.exceptions import CanvasNotFoundException, NodeNotFoundException, TaskNotFoundError, ValidationError
+from app.services.agent_service import AgentResult, AgentService, AgentType
+from app.services.background_task_manager import BackgroundTaskManager, TaskStatus
 from app.services.canvas_service import CanvasService
-from app.services.agent_service import AgentService, AgentType, AgentResult
-from app.services.background_task_manager import BackgroundTaskManager, TaskStatus, TaskInfo
-from app.services.review_service import ReviewService, ReviewProgress
-from app.core.exceptions import (
-    CanvasNotFoundException,
-    NodeNotFoundException,
-    ValidationError,
-    TaskNotFoundError
-)
-
+from app.services.review_service import ReviewProgress, ReviewService
 
 # ============================================================================
 # CanvasService Tests

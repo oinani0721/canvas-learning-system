@@ -609,13 +609,13 @@ export class ApiClient {
 
 /**
  * Create a default API client with standard configuration
- * @param baseUrl - Backend base URL (default: http://localhost:8000/api/v1)
+ * @param baseUrl - Backend base URL (default: http://localhost:8001/api/v1)
  * @returns Configured ApiClient instance
  *
  * @source Story 13.3 Dev Notes - 插件设置集成示例
  */
 export function createDefaultApiClient(
-  baseUrl = 'http://localhost:8000/api/v1'
+  baseUrl = 'http://localhost:8001/api/v1'
 ): ApiClient {
   return new ApiClient({
     baseUrl,

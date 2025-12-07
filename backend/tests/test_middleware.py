@@ -13,10 +13,6 @@ Tests:
 """
 
 import pytest
-from fastapi import FastAPI, HTTPException
-from fastapi.testclient import TestClient
-
-from app.config import get_settings
 from app.core.exception_handlers import register_exception_handlers
 from app.exceptions import (
     AgentExecutionError,
@@ -26,7 +22,8 @@ from app.exceptions import (
     ValidationError,
 )
 from app.middleware import ErrorHandlerMiddleware, LoggingMiddleware
-
+from fastapi import FastAPI, HTTPException
+from fastapi.testclient import TestClient
 
 # ══════════════════════════════════════════════════════════════════
 # Test Fixtures
@@ -424,7 +421,7 @@ class TestHealthEndpoint:
         assert "timestamp" in data
 
     def test_root_endpoint(self):
-        """Test root endpoint returns ok status."""
+        """Test root endpoint returns API info."""
         from app.main import app
 
         client = TestClient(app)
@@ -432,4 +429,6 @@ class TestHealthEndpoint:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["status"] == "ok"
+        # Root endpoint returns: message, version, docs, health
+        assert "message" in data
+        assert "Canvas Learning System API" in data["message"]

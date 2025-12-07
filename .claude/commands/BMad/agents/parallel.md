@@ -57,6 +57,16 @@ commands:
   - status: Execute task parallel-status.md - Show all worktree progress
   - merge: Execute task parallel-merge.md - Merge completed worktrees
   - cleanup: Execute task parallel-cleanup.md - Remove completed worktrees
+  # Linear Daemon Commands (24/7 Unattended Mode)
+  - linear: Execute task parallel-linear.md - Start background daemon for sequential Story development
+  - linear-status: Execute task parallel-linear-status.md - Show daemon progress and statistics
+  - linear-stop: Execute task parallel-linear-stop.md - Gracefully stop the running daemon
+  - linear-resume: Execute task parallel-linear-resume.md - Resume interrupted daemon session
+  # Epic Orchestrator Commands (Full SM→PO→Dev→QA Automation) ⭐ NEW
+  - epic-develop: Execute task epic-develop.md - Start Epic full automation workflow (SM→PO→Dev→QA)
+  - epic-status: Execute task epic-status.md - Check workflow status and progress
+  - epic-resume: Execute task epic-resume.md - Resume interrupted workflow from checkpoint
+  - epic-stop: Execute task epic-stop.md - Gracefully stop running workflow
   - exit: Say goodbye as the Parallel Dev Coordinator and exit persona
 
 dependencies:
@@ -66,10 +76,22 @@ dependencies:
     - parallel-status.md
     - parallel-merge.md
     - parallel-cleanup.md
+    # Linear Daemon Tasks
+    - parallel-linear.md
+    - parallel-linear-status.md
+    - parallel-linear-stop.md
+    - parallel-linear-resume.md
+    # Epic Orchestrator Tasks (Full Automation)
+    - epic-develop.md
+    - epic-status.md
+    - epic-resume.md
+    - epic-stop.md
   checklists:
     - parallel-safety-checklist.md
   data:
     - worktree-tracking.yaml
+    - linear-progress.json
+    - bmad_orchestrator.db
 ```
 
 ---
@@ -149,6 +171,134 @@ Each session runs in non-interactive mode with:
 **Output**: Logs saved to `Canvas-develop-{story}/dev-qa-output.log`
 
 **Note**: Claude Code cannot open terminals automatically. The script uses `Start-Process` to launch separate PowerShell windows.
+
+### Linear Daemon Mode (24/7 Unattended) ⭐ NEW
+
+For completely hands-off development, use the Linear Daemon commands:
+
+```bash
+# Step 1: Create worktrees first (required)
+*init "15.1,15.2,15.3,15.4,15.5,15.6"
+
+# Step 2: Start daemon in background
+*linear "15.1,15.2,15.3,15.4,15.5,15.6"
+# 🎉 Now you can leave the computer!
+
+# Optional: Check progress anytime
+*linear-status
+
+# Optional: Stop daemon gracefully
+*linear-stop
+
+# Optional: Resume after interruption
+*linear-resume
+```
+
+**Linear Daemon Features**:
+- 🔄 **Sequential Processing**: One Story at a time, in order
+- 🔁 **Auto-Recovery**: Handles Claude session compact/crash automatically
+- 🔂 **Single Retry**: Retries blocked Stories once before halting
+- 💾 **Crash Recovery**: Progress saved to `linear-progress.json`
+- ⚡ **Circuit Breaker**: Max 5 compact restarts per Story
+- 🛡️ **Graceful Shutdown**: Ctrl+C or `*linear-stop` for clean exit
+
+**When to Use Linear vs Parallel**:
+| Feature | Parallel Mode | Linear Daemon |
+|---------|--------------|---------------|
+| Execution | Multiple simultaneous | One at a time |
+| Human Oversight | Some required | None (24/7) |
+| Resource Usage | High (N sessions) | Low (1 session) |
+| Recovery | Manual restart | Automatic |
+| Best For | Quick parallel burst | Overnight automation |
+
+### Epic Orchestrator Mode (Full SM→PO→Dev→QA Automation) ⭐⭐ NEWEST
+
+For **complete end-to-end automation** including Story creation and approval, use the Epic Orchestrator:
+
+```bash
+# Step 1: Analyze dependencies (preview mode)
+*epic-develop 15 --stories "15.1,15.2,15.3,15.4,15.5,15.6" --dry-run
+# Shows: conflict analysis, batch groupings, recommended mode
+
+# Step 2: Start full automation
+*epic-develop 15 --stories "15.1,15.2,15.3,15.4,15.5,15.6"
+# 🎉 Complete 24/7 automation from SM to merged commits!
+
+# Monitor progress anytime
+*epic-status epic-15
+
+# Resume after interruption
+*epic-resume epic-15
+
+# Stop if needed
+*epic-stop epic-15
+```
+
+**Epic Orchestrator Features**:
+- 📋 **SM Phase**: Auto-generates Story drafts from Epic
+- ✅ **PO Phase**: Auto-approves Story drafts
+- 🔍 **Analysis Phase**: Detects conflicts, generates parallel batches
+- 🛡️ **SDD Pre-Validation** ⭐: Tier 1/2 validation before DEV (blocking)
+- 💻 **DEV Phase**: Parallel Story development in worktrees
+- 🧪 **QA Phase**: Automated code review and testing
+- 🔄 **FIX Phase**: Auto-retry for CONCERNS (1 attempt)
+- 📋 **SDD Post-Validation** ⭐: Tier 3/4 contract testing after QA
+- 🔀 **MERGE Phase**: Git worktree merge
+- 📝 **COMMIT Phase**: Final commit with changelog
+- 🧹 **CLEANUP Phase** ⭐: Guaranteed worktree cleanup (even on HALT)
+- 💾 **Status Persistence**: Auto-updates `canvas-project-status.yaml` with Story status
+
+**Architecture (v1.1.0 - 12 Nodes)**:
+```
+SM → PO → ANALYSIS → SDD_PRE → DEV → QA → SDD → MERGE → COMMIT → CLEANUP → END
+                        ↓              ↓     ↓
+                       HALT ←←←←←←←←←←←←←←←←←←
+                        ↓
+                     CLEANUP → END
+```
+
+**v1.1.0 New Features**:
+- **SDD Pre-Validation**: Validates OpenAPI/Schemas before DEV (blocks on critical issues)
+- **SDD Post-Validation**: Contract testing with Schemathesis after QA
+- **Guaranteed Cleanup**: Worktrees cleaned even on HALT
+- **Session Health Monitoring**: 5-minute stuck detection with partial result extraction
+
+**When to Use Epic Orchestrator vs Linear Daemon**:
+| Feature | Linear Daemon | Epic Orchestrator |
+|---------|--------------|-------------------|
+| Story Creation | Manual (use SM first) | **Automatic (SM→PO)** |
+| Dependency Analysis | Manual `*analyze` | **Automatic** |
+| Execution Mode | Sequential only | **Auto-detect (parallel/linear/hybrid)** |
+| Crash Recovery | Progress file | **SQLite checkpoint** |
+| Status Persistence | Manual | **Automatic to YAML** |
+| SDD Validation | None | **4-Tier (Pre + Post)** |
+| Worktree Cleanup | Manual | **Automatic (guaranteed)** |
+| Session Monitoring | None | **5-min stuck detection** |
+| Best For | Simple sequential | **Full Epic automation** |
+
+### Status Persistence (Auto YAML Updates) ⭐ NEW
+
+Epic Orchestrator **automatically persists Story status** to `.bmad-core/data/canvas-project-status.yaml`:
+
+**Status Mapping**:
+| Workflow Outcome | YAML Status | Emoji |
+|-----------------|-------------|-------|
+| QA: PASS/WAIVED | `completed` | ✅ |
+| QA: CONCERNS | `qa-review` | 🔄 |
+| QA: FAIL | `blocked` | ❌ |
+| DEV: SUCCESS | `dev-complete` | 🔄 |
+| DEV: BLOCKED/ERROR | `blocked` | ❌ |
+| Story drafted | `draft` | ⏳ |
+| Default | `pending` | ⏳ |
+
+**Features**:
+- 💾 **End-of-Workflow Batch Update**: Status written after workflow completes
+- 🛡️ **HALT Preservation**: Partial status saved when workflow halts
+- 🔒 **Downgrade Protection**: Completed status never overwritten by lower priority
+- 📦 **Backup Mechanism**: `.bak` file created before each write
+- 🔄 **Rollback on Failure**: Auto-restore from backup if write fails
+
+**Implementation**: `src/bmad_orchestrator/status_persister.py` (~320 lines)
 
 ---
 

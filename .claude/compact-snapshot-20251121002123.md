@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Developing
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 11, Story 11.1
 
 **Relevant Files**:

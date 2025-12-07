@@ -1,3 +1,8 @@
+---
+name: error-monitor
+description: Enable Loguru-based enterprise error monitoring and diagnostics
+---
+
 # Enterprise Error Monitoring System
 
 ## Metadata

@@ -12,11 +12,11 @@ Exception Hierarchy:
 """
 
 from .canvas_exceptions import (
+    AgentExecutionError,
     CanvasException,
     CanvasNotFoundError,
     NodeNotFoundError,
     ValidationError,
-    AgentExecutionError,
 )
 
 __all__ = [

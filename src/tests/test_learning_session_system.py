@@ -13,23 +13,20 @@ Version: 1.0
 Date: 2025-10-25
 """
 
-import os
-import sys
 import asyncio
 import json
+import os
+import sys
 import time
 import unittest
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Any, Optional
-import tempfile
-import shutil
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from learning_session_wrapper import LearningSessionWrapper, LearningSession
+    from learning_session_wrapper import LearningSession, LearningSessionWrapper
     print("✅ 学习会话包装器导入成功")
 except ImportError as e:
     print(f"❌ 导入失败: {e}")

@@ -30,15 +30,14 @@ Date: 2025-11-04
 """
 
 import asyncio
-import json
 import os
-import sys
 import shutil
+import sys
+import traceback
+import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-import uuid
-import traceback
+from typing import Any, Dict, List, Optional
 
 # 添加项目根目录到sys.path以导入canvas_utils
 project_root = Path(__file__).parent.parent
@@ -47,12 +46,7 @@ if str(project_root) not in sys.path:
 
 # 导入Canvas工具库
 try:
-    from canvas_utils import (
-        CanvasJSONOperator,
-        CanvasBusinessLogic,
-        COLOR_YELLOW,
-        COLOR_BLUE
-    )
+    from canvas_utils import COLOR_BLUE, COLOR_YELLOW, CanvasBusinessLogic, CanvasJSONOperator
     CANVAS_UTILS_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: canvas_utils not available - {e}")
@@ -162,7 +156,7 @@ class IntelligentParallelCommandHandler:
         Returns:
             执行结果字典
         """
-        print(f"\n🚀 启动智能并行处理 (Phase 3 - 6 Agents)...")
+        print("\n🚀 启动智能并行处理 (Phase 3 - 6 Agents)...")
         print(f"📋 Canvas文件: {canvas_path}")
         print(f"🆔 会话ID: {self.session_id}")
 
@@ -243,7 +237,7 @@ class IntelligentParallelCommandHandler:
         if options is None:
             options = {}
 
-        print(f"\n🚀 启动智能并行处理 (Async Version - Story 10.2.2)...")
+        print("\n🚀 启动智能并行处理 (Async Version - Story 10.2.2)...")
         print(f"📋 Canvas文件: {canvas_path}")
         print(f"🆔 会话ID: {self.session_id}")
 
@@ -388,7 +382,7 @@ class IntelligentParallelCommandHandler:
                 print(f"   [{progress:.0f}%] ✅ 任务 {task_id} 完成 ({agent_name} → {node_id})")
 
         # Step 5: 执行并发任务
-        print(f"\n🚀 开始并发执行...")
+        print("\n🚀 开始并发执行...")
         execution_result = await engine.execute_parallel(
             tasks=async_tasks,
             executor_func=execute_agent_call,
@@ -731,7 +725,7 @@ class IntelligentParallelCommandHandler:
             print(f"   优先级: {group['priority']}")
             print(f"   节点数: {len(nodes)}")
             print(f"   描述: {agent_info['description']}")
-            print(f"\n   处理节点:")
+            print("\n   处理节点:")
             for node in nodes:
                 content_preview = node['content'][:50] + "..." if len(node['content']) > 50 else node['content']
                 print(f"     - {node['id']}: {content_preview}")
@@ -1179,7 +1173,7 @@ class IntelligentParallelCommandHandler:
                 nodes_created += 2
                 self.stats["created_blue_nodes"] += 2
 
-                print(f"   ✅ 创建3层结构:")
+                print("   ✅ 创建3层结构:")
                 print(f"      Yellow({node_id[:16]}...) → BlueText({blue_text_node_id[:16]}...) → File({file_node_id[:16]}...)")
 
             except Exception as e:
@@ -1194,7 +1188,7 @@ class IntelligentParallelCommandHandler:
                 if backup_path and Path(backup_path).exists():
                     try:
                         self._rollback_from_backup(canvas_path, backup_path)
-                        print(f"   🔙 已回滚到备份版本")
+                        print("   🔙 已回滚到备份版本")
                     except Exception as rollback_error:
                         print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
                 raise
@@ -1212,7 +1206,7 @@ class IntelligentParallelCommandHandler:
             if backup_path and Path(backup_path).exists():
                 try:
                     self._rollback_from_backup(canvas_path, backup_path)
-                    print(f"   🔙 已回滚到备份版本")
+                    print("   🔙 已回滚到备份版本")
                 except Exception as rollback_error:
                     print(f"   ⚠️ 回滚失败: {str(rollback_error)}")
             raise
@@ -1292,7 +1286,7 @@ class IntelligentParallelCommandHandler:
 
             # 调用Graphiti MCP工具
             # Phase 1: 打印记忆内容（实际环境中会调用MCP工具）
-            print(f"📝 记忆内容准备完成:")
+            print("📝 记忆内容准备完成:")
             print(f"   - 会话ID: {self.session_id}")
             print(f"   - 处理节点: {self.stats['processed_nodes']}")
             print(f"   - 生成文档: {self.stats['generated_docs']}")
@@ -1325,7 +1319,7 @@ class IntelligentParallelCommandHandler:
         print("\n" + "="*60)
         print("✅ 智能并行处理完成!")
         print("="*60)
-        print(f"📊 执行统计:")
+        print("📊 执行统计:")
         print(f"   - 总节点数: {self.stats['total_nodes']}")
         print(f"   - 成功处理: {self.stats['processed_nodes']}")
         print(f"   - 生成文档: {self.stats['generated_docs']}")
@@ -1333,7 +1327,7 @@ class IntelligentParallelCommandHandler:
         print(f"   - 错误数: {len(self.stats['errors'])}")
 
         if self.stats['errors'] and options.get("verbose", False):
-            print(f"\n⚠️  错误详情:")
+            print("\n⚠️  错误详情:")
             for error in self.stats['errors']:
                 print(f"   - {error}")
 

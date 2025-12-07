@@ -10,22 +10,22 @@ Date: 2025-10-27
 
 import json
 import os
-import tempfile
-import unittest
-from datetime import datetime
-from unittest.mock import MagicMock, patch
-import pytest
 
 # 导入要测试的模块
 import sys
+import tempfile
+import unittest
+
+import pytest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from auto_node_generator import (
     AutoNodeGenerator,
-    NodeIDGenerator,
+    IntelligentLayoutOptimizer,
     NodeConnectionRules,
     NodeContentGenerator,
-    IntelligentLayoutOptimizer
+    NodeIDGenerator,
 )
 
 

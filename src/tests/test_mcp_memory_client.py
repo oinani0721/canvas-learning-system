@@ -5,18 +5,20 @@ Canvas Learning System - Story 8.8
 测试语义记忆存储、搜索、压缩等核心功能。
 """
 
-import pytest
-import json
-import tempfile
 import os
-import shutil
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime
+import tempfile
+from unittest.mock import Mock, patch
+
+import pytest
 
 # 导入测试目标
 from mcp_memory_client import (
-    MCPSemanticMemory, HardwareDetector, ConceptInfo,
-    SemanticRelationship, CompressionMetadata, AccessMetadata
+    AccessMetadata,
+    CompressionMetadata,
+    ConceptInfo,
+    HardwareDetector,
+    MCPSemanticMemory,
+    SemanticRelationship,
 )
 
 

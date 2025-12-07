@@ -1135,7 +1135,7 @@ Example 4 (unknown):
 </CodeBlocks>
 
 <Info>
-  We also provide an 
+  We also provide an
 
   [Asynchronous Python client](/install-sdks#initialize-the-client)
 
@@ -1282,7 +1282,7 @@ Example 4 (python):
 ```python
 episode = client.graph.add(
       user_id=user_id,
-      type="text", 
+      type="text",
       data="The user is an avid fan of Eric Clapton"
   )
 
@@ -1339,7 +1339,7 @@ await graphiti.build_communities()
 
 graphiti = Graphiti(
     "bolt://localhost:7687",
-    "neo4j", 
+    "neo4j",
     "password",
     llm_client=AnthropicClient(
         config=LLMConfig(
@@ -1449,7 +1449,7 @@ The following is only required for the first run of this notebook or when you'd 
 graphiti = Graphiti(
     "bolt://localhost:7687",
     "neo4j",
-    "password", 
+    "password",
     llm_client=GroqClient(
         config=LLMConfig(
             api_key="<your-groq-api-key>",
@@ -1677,7 +1677,7 @@ print(r)
 python
 r = await graph_invoke(
     """
-    I'm fine. But have been a bit stressful lately. Mostly work related. 
+    I'm fine. But have been a bit stressful lately. Mostly work related.
     But also my dog. I'm worried about her.
     """,
     first_name,
@@ -1820,9 +1820,9 @@ async def get_by_uuid(cls, driver: AsyncDriver, uuid: str):
             """
         MATCH (n:Entity {uuid: $uuid})
         RETURN
-            n.uuid As uuid, 
-            n.name AS name, 
-            n.created_at AS created_at, 
+            n.uuid As uuid,
+            n.name AS name,
+            n.created_at AS created_at,
             n.summary AS summary
         """,
             uuid=uuid,
@@ -3220,10 +3220,10 @@ node_search_results = await graphiti._search(
 python
 async def add_customer_data(tenant_id, customer_data):
     """Add customer data to a tenant-specific namespace"""
-    
+
     # Use the tenant_id as the namespace
     namespace = f"tenant_{tenant_id}"
-    
+
     # Create an episode for this customer data
     await graphiti.add_episode(
         name=f"customer_data_{customer_data['id']}",
@@ -3236,9 +3236,9 @@ async def add_customer_data(tenant_id, customer_data):
 
 async def search_tenant_data(tenant_id, query):
     """Search within a tenant's namespace"""
-    
+
     namespace = f"tenant_{tenant_id}"
-    
+
     # Only search within this tenant's namespace
     return await graphiti.search(
         query=query,
@@ -3526,7 +3526,7 @@ Example 4 (unknown):
 
 <RESTAURANTS>
   - name: Green Leaf Cafe; dietary_accommodation: vegetarian
-  - name: Insomnia Cookies; 
+  - name: Insomnia Cookies;
 </RESTAURANTS>
 ```
 
@@ -3989,9 +3989,9 @@ graphiti = Graphiti(neo4j_uri, neo4j_user, neo4j_password)
 try:
     # Initialize the graph database with graphiti's indices. This only needs to be done once.
     await graphiti.build_indices_and_constraints()
-    
+
     # Additional code will go here
-    
+
 finally:
     # Close the connection
     await graphiti.close()
@@ -4115,11 +4115,11 @@ class State(TypedDict):
 python
 def create_zep_tools(user_name: str):
     """Create Zep search tools configured for a specific user."""
-    
+
     @tool
     async def search_facts(query: str, limit: int = 5) -> list[str]:
         """Search for facts in all conversations had with a user.
-        
+
         Args:
             query (str): The search query.
             limit (int): The number of results to return. Defaults to 5.
@@ -4138,7 +4138,7 @@ Returns:
 @tool
     async def search_nodes(query: str, limit: int = 5) -> list[str]:
         """Search for nodes in all conversations had with a user.
-        
+
         Args:
             query (str): The search query.
             limit (int): The number of results to return. Defaults to 5.
@@ -4153,7 +4153,7 @@ Returns:
         if not summaries:
             return ["No nodes found for the query."]
         return summaries
-    
+
     return [search_facts, search_nodes]
 
 **Examples:**
@@ -4196,11 +4196,11 @@ Set up your Python project, ideally with [a virtual environment](https://medium.
 
 <Tabs>
   <Tab title="pip">
-    
+
   </Tab>
 
 <Tab title="uv">
-    
+
   </Tab>
 </Tabs>
 
@@ -4208,15 +4208,15 @@ Set up your TypeScript project and then:
 
 <Tabs>
   <Tab title="npm">
-    
+
   </Tab>
 
 <Tab title="yarn">
-    
+
   </Tab>
 
 <Tab title="pnpm">
-    
+
   </Tab>
 </Tabs>
 
@@ -4607,20 +4607,20 @@ from zep_livekit import ZepUserAgent
 
 async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    
+
     # Setup Zep integration
     zep_client = AsyncZep(api_key=os.environ.get("ZEP_API_KEY"))
     participant_name = ctx.room.remote_participants[0].name or "User"
     user_id = f"livekit_{participant_name}_{ctx.room.name}"
     thread_id = f"thread_{ctx.room.name}"
-    
+
     # Create user and thread
     try:
         await zep_client.user.add(user_id=user_id, first_name=participant_name)
         await zep_client.thread.create(thread_id=thread_id, user_id=user_id)
     except Exception:
         pass  # Already exists
-    
+
     # Create agent session
     session = agents.AgentSession(
         stt=openai.STT(),
@@ -4628,7 +4628,7 @@ async def entrypoint(ctx: JobContext):
         tts=openai.TTS(),
         vad=silero.VAD.load(),
     )
-    
+
     # Create voice assistant with Zep memory
     zep_agent = ZepUserAgent(
         zep_client=zep_client,
@@ -4640,10 +4640,10 @@ async def entrypoint(ctx: JobContext):
         instructions="You are a helpful voice assistant with persistent memory. "
                     "Remember details from previous conversations."
     )
-    
+
     # Start the session with the agent
     await session.start(agent=zep_agent, room=ctx.room)
-    
+
     logging.info("Voice assistant with Zep memory is running")
     await session.aclose()
 
@@ -5128,7 +5128,7 @@ For more contextually relevant results, you can use a center node to rerank sear
 for result in results.results:
     content = result.content
     metadata = result.metadata
-    
+
     if 'edge_name' in metadata:
         # Fact/relationship result
         print(f"Fact: {content}")
@@ -5142,7 +5142,7 @@ for result in results.results:
         # Episode/message result
         print(f"Message: {content}")
         print(f"Role: {metadata.get('episode_role', 'unknown')}")
-    
+
     print(f"Source: {metadata.get('source')}\n")
 python
 
@@ -5164,15 +5164,15 @@ Example 1 (unknown):
 - Memory vs tools comparison
 
 facts_results = await graph_memory.query(
-    "Python frameworks", 
-    limit=10, 
+    "Python frameworks",
+    limit=10,
     scope="edges"  # "edges" (facts), "nodes" (entities), "episodes" (messages)
 )
 
 print(f"Found {len(facts_results.results)} facts about Python frameworks:")
 for result in facts_results.results:
     print(f"- {result.content}")
-    
+
 entities_results = await graph_memory.query(
     "programming languages",
     limit=5,
@@ -5956,7 +5956,7 @@ from pydantic import validator
 class Person(BaseModel):
     """A person entity."""
     age: Optional[int] = Field(None, description="Age in years")
-    
+
     @validator('age')
     def validate_age(cls, v):
         if v is not None and (v < 0 or v > 150):
@@ -6827,12 +6827,12 @@ return {"messages": [response]}
 python
 def create_agent(user_name: str):
     """Create a LangGraph agent configured for a specific user."""
-    
+
     # Create tools configured for this user
     tools = create_zep_tools(user_name)
     tool_node = ToolNode(tools)
     llm_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(tools)
-    
+
     # Update the chatbot function to use the configured LLM
     async def chatbot_with_tools(state: State):
         memory = await zep.thread.get_user_context(state["thread_id"])
@@ -6877,7 +6877,7 @@ await zep.thread.add_messages(
 logger.info(f"Messages in state: {state['messages']}")
 
 return {"messages": [response]}
-    
+
     # Define the function that determines whether to continue or not
     async def should_continue(state, config):
         messages = state["messages"]
@@ -6888,18 +6888,18 @@ return {"messages": [response]}
         # Otherwise if there is, we continue
         else:
             return "continue"
-    
+
     # Build the graph
     graph_builder = StateGraph(State)
     memory = MemorySaver()
-    
+
     graph_builder.add_node("agent", chatbot_with_tools)
     graph_builder.add_node("tools", tool_node)
-    
+
     graph_builder.add_edge(START, "agent")
     graph_builder.add_conditional_edges("agent", should_continue, {"continue": "tools", "end": END})
     graph_builder.add_edge("tools", "agent")
-    
+
     return graph_builder.compile(checkpointer=memory)
 python
 first_name = "Daniel"

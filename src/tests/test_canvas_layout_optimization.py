@@ -9,33 +9,31 @@ Created: 2025-01-21
 """
 
 import json
-import pytest
-import tempfile
 import os
-from typing import Dict, Any
-from unittest.mock import patch, MagicMock
 
 # 导入被测试的模块
 import sys
+import tempfile
+from typing import Any, Dict
+
+import pytest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
-    LayoutPreferences,
-    LayoutSnapshot,
-    LayoutOptimizationResult,
-    LayoutOptimizer,
-    CanvasBusinessLogic,
-    CanvasOrchestrator,
-    LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT,
+    DEFAULT_NODE_WIDTH,
     LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER,
+    LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT,
     LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT,
     LAYOUT_OPTIMIZATION_DEFAULT_ALIGNMENT,
-    LAYOUT_QUALITY_TARGET_SCORE,
-    YELLOW_NODE_WIDTH,
-    YELLOW_NODE_HEIGHT,
     QUESTION_NODE_HEIGHT,
+    YELLOW_NODE_HEIGHT,
+    YELLOW_NODE_WIDTH,
     YELLOW_OFFSET_Y,
-    DEFAULT_NODE_WIDTH
+    CanvasBusinessLogic,
+    CanvasOrchestrator,
+    LayoutOptimizer,
+    LayoutPreferences,
 )
 
 

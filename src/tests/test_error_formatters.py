@@ -4,15 +4,14 @@ Unit tests for error_formatters (Story 10.11.4)
 Tests the startup report generation and fix suggestion functions.
 """
 
+
 import pytest
-from io import StringIO
-import sys
 from memory_system.error_formatters import (
     format_startup_report,
     generate_fix_suggestions,
     require_graphiti,
+    require_semantic_advanced,
     require_temporal,
-    require_semantic_advanced
 )
 
 

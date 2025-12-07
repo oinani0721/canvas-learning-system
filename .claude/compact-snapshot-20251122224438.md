@@ -107,7 +107,7 @@ create mode 100644 .bmad-core/planning-iterations/snapshots/iteration-003.json
 ### 📅 时间线
 ```
 2025-11-19 03:31:37  → 创建 iteration-001.json
-2025-11-19 03:xx:xx  → 创建 iteration-002.json  
+2025-11-19 03:xx:xx  → 创建 iteration-002.json
 2025-11-19 03:49:04  → 创建 iteration-003.json
 ```
 

@@ -11,31 +11,25 @@
 """
 
 import asyncio
-import pytest
-import time
-import statistics
-import sys
 import os
-from typing import List, Dict, Any
-from unittest.mock import Mock, patch
+import sys
+import time
+
+import pytest
 
 # 添加项目根目录到路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils import (
-    # 并发执行核心组件
-    TaskDecomposer,
-    ConcurrentAgentExecutor,
-    MultiAgentOrchestrator,
-    ResourceMonitor,
-
     # 常量
     CONCURRENT_AGENTS_ENABLED,
     MAX_CONCURRENT_AGENTS,
     PERFORMANCE_TARGET_SPEEDUP,
-    AGENT_SUCCESS_RATE_TARGET,
-    RECOVERY_SUCCESS_RATE_TARGET,
-    DEFAULT_TIMEOUT_SECONDS
+    ConcurrentAgentExecutor,
+    MultiAgentOrchestrator,
+    ResourceMonitor,
+    # 并发执行核心组件
+    TaskDecomposer,
 )
 
 
@@ -225,7 +219,7 @@ class TestPerformanceBenchmarks:
         overall_accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
         target_accuracy = 0.95  # 95%
 
-        print(f"\n   📊 任务分解总体准确率:")
+        print("\n   📊 任务分解总体准确率:")
         print(f"     正确预测: {correct_predictions}/{total_predictions}")
         print(f"     准确率: {overall_accuracy:.2%}")
         print(f"     目标准确率: {target_accuracy:.0%}")
@@ -297,7 +291,7 @@ class TestPerformanceBenchmarks:
         recovery_rate = successful_recoveries / total_recovery_attempts if total_recovery_attempts > 0 else 0
         target_recovery_rate = 0.90  # 90%
 
-        print(f"\n   📊 故障恢复统计:")
+        print("\n   📊 故障恢复统计:")
         print(f"     总恢复尝试: {total_recovery_attempts}")
         print(f"     成功恢复: {successful_recoveries}")
         print(f"     恢复成功率: {recovery_rate:.2%}")
@@ -320,7 +314,7 @@ class TestPerformanceBenchmarks:
         # 测试资源监控功能
         resource_status = monitor.check_resource_limits()
 
-        print(f"   📊 当前资源状态:")
+        print("   📊 当前资源状态:")
         print(f"     内存使用: {resource_status['memory_usage_mb']:.2f}MB")
         print(f"     内存状态: {'✅ 正常' if resource_status['memory_ok'] else '❌ 超限'}")
         print(f"     CPU使用率: {resource_status['cpu_usage_percent']:.1f}%")
@@ -328,7 +322,7 @@ class TestPerformanceBenchmarks:
         print(f"     可用内存: {resource_status['free_memory_mb']:.2f}MB")
 
         # 测试任务容量管理
-        print(f"\n   🔍 任务容量测试:")
+        print("\n   🔍 任务容量测试:")
         for task_count in [1, 3, 5, 10]:
             can_add = monitor.can_add_more_tasks(task_count)
             status = "✅ 可添加" if can_add else "❌ 不能添加"
@@ -336,13 +330,13 @@ class TestPerformanceBenchmarks:
             assert isinstance(can_add, bool), "容量检查应返回布尔值"
 
         # 验证资源限制常量
-        print(f"\n   ⚙️  资源限制配置:")
+        print("\n   ⚙️  资源限制配置:")
         print(f"     最大内存使用: {monitor.memory_limit_mb}MB")
         print(f"     最大CPU使用率: {monitor.cpu_limit_percent}%")
         print(f"     最小空闲内存: {monitor.min_free_memory_mb}MB")
         print(f"     最大并发任务: {MAX_CONCURRENT_AGENTS}")
 
-        print(f"   ✅ 资源监控和优化机制正常工作")
+        print("   ✅ 资源监控和优化机制正常工作")
 
     @pytest.mark.asyncio
     async def test_performance_metrics_accuracy(self):
@@ -370,7 +364,7 @@ class TestPerformanceBenchmarks:
             "failed_tasks", "memory_usage_mb", "cpu_usage_percent"
         ]
 
-        print(f"   📊 性能指标验证:")
+        print("   📊 性能指标验证:")
         for metric in required_metrics:
             assert metric in metrics, f"缺少性能指标: {metric}"
             print(f"     ✅ {metric}: {metrics[metric]}")
@@ -388,7 +382,7 @@ class TestPerformanceBenchmarks:
         calculated_success_rate = metrics["completed_tasks"] / metrics["total_tasks"] if metrics["total_tasks"] > 0 else 0
         assert abs(metrics["success_rate"] - calculated_success_rate) < 0.01, "成功率计算应准确"
 
-        print(f"   ✅ 所有性能指标计算正确且合理")
+        print("   ✅ 所有性能指标计算正确且合理")
 
     @pytest.mark.asyncio
     async def test_comprehensive_performance_stress_test(self):
@@ -417,7 +411,7 @@ class TestPerformanceBenchmarks:
         successful_results = [r for r in results if isinstance(r, dict) and r.get("success", False)]
         total_execution_time = end_time - start_time
 
-        print(f"   📊 压力测试结果:")
+        print("   📊 压力测试结果:")
         print(f"     并发任务数: {len(tasks)}")
         print(f"     成功任务数: {len(successful_results)}")
         print(f"     总执行时间: {total_execution_time:.3f}秒")
@@ -434,7 +428,7 @@ class TestPerformanceBenchmarks:
 
         assert avg_speedup >= 1.0, "平均性能提升应至少为1倍"
 
-        print(f"   ✅ 压力测试通过，系统性能稳定")
+        print("   ✅ 压力测试通过，系统性能稳定")
 
 
 if __name__ == "__main__":

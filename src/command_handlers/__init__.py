@@ -9,9 +9,9 @@ Created: 2025-01-22
 """
 
 # 导入所有处理器模块
+from .analytics_commands import *
 from .canvas_commands import *
 from .memory_commands import *
-from .analytics_commands import *
 from .system_commands import *
 from .utilities_commands import *
 

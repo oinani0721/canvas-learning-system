@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\health.py
+# hypothesis_version: 6.148.1
+
+[200, 500, '/health', 'description', 'health_check', 'healthy', 'model', '健康检查', '应用健康', '应用异常', '返回应用状态、名称、版本和时间戳']

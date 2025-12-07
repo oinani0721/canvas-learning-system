@@ -18,18 +18,16 @@ import json
 import os
 import tempfile
 import unittest
-from datetime import datetime, timezone
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-from typing import Dict, Any
-
-import pytest
+from datetime import datetime
+from typing import Dict
+from unittest.mock import patch
 
 # 尝试导入主要模块
 try:
-    from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic, CanvasOrchestrator
     from error_recovery_advisor import ErrorRecoveryAdvisor
     from system_health_monitor import SystemHealthMonitor
+
+    from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
     CORE_MODULES_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Core modules not available: {e}")
@@ -441,8 +439,9 @@ class TestCanvasWorkflowEdgeCases(unittest.TestCase):
     @unittest.skipUnless(CORE_MODULES_AVAILABLE, "Core modules not available")
     def test_corrupted_canvas_recovery(self):
         """测试损坏Canvas的恢复"""
-        from canvas_utils import CanvasJSONOperator
         from error_recovery_advisor import get_recovery_advice
+
+        from canvas_utils import CanvasJSONOperator
 
         json_operator = CanvasJSONOperator()
         corrupted_canvas_path = os.path.join(self.temp_dir, "corrupted.canvas")
@@ -466,7 +465,8 @@ class TestCanvasWorkflowEdgeCases(unittest.TestCase):
     def test_concurrent_canvas_operations(self):
         """测试并发Canvas操作"""
         import threading
-        from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic
+
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
 
         json_operator = CanvasJSONOperator()
         business_logic = CanvasBusinessLogic()

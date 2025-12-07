@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\background_task_manager.py
+# hypothesis_version: 6.148.1
+
+[0.0, 1.0, '_initialized', 'cancelled', 'completed', 'completed_at', 'created_at', 'error', 'failed', 'metadata', 'pending', 'progress', 'result', 'running', 'started_at', 'status', 'task_id', 'task_type']

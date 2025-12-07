@@ -8,25 +8,23 @@ Canvas集成协调器单元测试
 - 事务管理器
 """
 
-import pytest
 import json
 import os
 import tempfile
-import asyncio
-from pathlib import Path
 from datetime import datetime
+
+import pytest
 
 # 导入被测试的模块
 from canvas_utils.canvas_integration_coordinator import (
+    COLOR_BLUE,
+    COLOR_YELLOW,
     CanvasIntegrationCoordinator,
-    NodeLayoutEngine,
     CanvasTransactionManager,
     IntegrationResult,
+    NodeLayoutEngine,
     Transaction,
-    COLOR_BLUE,
-    COLOR_YELLOW
 )
-
 
 # ========== Fixtures ==========
 
@@ -290,7 +288,7 @@ class TestCanvasIntegrationCoordinator:
 
         # 验证结果（如果失败，打印详细错误信息）
         if not result.success:
-            print(f"\n集成失败详情:")
+            print("\n集成失败详情:")
             print(f"  错误: {result.error}")
             print(f"  IntegrationResult: {result}")
 

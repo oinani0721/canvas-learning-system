@@ -101,20 +101,7 @@ export class ErrorRecoveryManager {
         operation: string,
         fallbackData?: T
     ): Promise<RecoveryResult<T>> {
-        // Strategy 1: Use cached data if available
-        if (fallbackData !== undefined) {
-            this.notifier.showCacheFallback();
-            this.markFeatureDegraded(operation, 'Using cached data');
-
-            return {
-                success: true,
-                data: fallbackData,
-                action: 'use_cache',
-                message: 'API服务暂时不可用，已使用缓存数据'
-            };
-        }
-
-        // Strategy 2: Check internal cache
+        // Strategy 1: Check internal cache first (most recent data)
         const cached = this.getCachedData<T>(operation);
         if (cached) {
             this.notifier.showCacheFallback();
@@ -125,6 +112,19 @@ export class ErrorRecoveryManager {
                 data: cached,
                 action: 'use_cache',
                 message: 'API服务暂时不可用，已使用内部缓存数据'
+            };
+        }
+
+        // Strategy 2: Use provided fallback data
+        if (fallbackData !== undefined) {
+            this.notifier.showCacheFallback();
+            this.markFeatureDegraded(operation, 'Using fallback data');
+
+            return {
+                success: true,
+                data: fallbackData,
+                action: 'use_cache',
+                message: 'API服务暂时不可用，已使用备用数据'
             };
         }
 

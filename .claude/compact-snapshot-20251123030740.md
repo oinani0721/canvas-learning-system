@@ -13,7 +13,7 @@
 
 **Active Agent**: PM Agent
 **Executing Function**: Feature development
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 13, Story 13.1
 
 **Relevant Files**:
@@ -70,12 +70,12 @@
 def finalize():
     # 1. 运行验证
     validate_iteration()
-    
+
     # 2. Git操作（内置pre-commit hooks触发）
     subprocess.run(["git", "add", "."])
     subprocess.run(["git", "commit", "-m", f"Planning: Iteration {iteration_num}"])
     # → Pre-commit hooks 自动运行
-    
+
     # 3. 创建Git tag
     subprocess.run(["git", "tag", f"planning-v{iteration_num}"])
 ```
@@ -108,7 +108,7 @@ Pre-commit hooks会自动触发。
 
 ```gherkin
 Feature: Scoring Agent - 4维评分系统
-  
+
   Scenario: 评分黄色节点 - 完全理解（绿色）
     Given 黄色节点"yellow-001"存在
     When 用户调用scoring-agent评分节点"yellow-001"
@@ -253,27 +253,27 @@ def finalize():
     # 1. 最终验证（包含PRD-Spec drift检测）
     if not validate_iteration():
         return error("Validation failed")
-    
+
     # 2. 更新iteration log
     update_iteration_log()
-    
+
     # 3. Git commit（触发pre-commit hooks）
     result = subprocess.run([
         "git", "add", "."
     ])
     result = subprocess.run([
-        "git", "commit", "-m", 
+        "git", "commit", "-m",
         f"Planning: Iteration {iteration_num} - {goal}"
     ])
     # → Pre-commit hooks 自动运行：
     #   - check-prd-spec-sync.py
     #   - validate-schemas.py
-    
+
     # 4. 创建Git tag
     subprocess.run([
         "git", "tag", f"planning-v{iteration_num}"
     ])
-    
+
     # 5. 生成post-checklist
     generate_post_checklist()
 ```

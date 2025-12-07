@@ -10,7 +10,6 @@ Obsidian plugin access.
 [Source: docs/stories/15.1.story.md#AC4]
 """
 
-import pytest
 from fastapi.testclient import TestClient
 
 

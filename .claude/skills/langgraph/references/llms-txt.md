@@ -130,7 +130,7 @@ graph = builder.compile()
 
 print(response_1.response_metadata["model_name"])
   print(response_2.response_metadata["model_name"])
-  
+
   claude-haiku-4-5-20251001
   gpt-4.1-mini-2025-04-14
   python  theme={null}
@@ -171,7 +171,7 @@ graph = builder.compile()
   response = graph.invoke({"messages": [input_message]}, context={"model_provider": "openai", "system_message": "Respond in Italian."})
   for message in response["messages"]:
       message.pretty_print()
-  
+
   ================================ Human Message ================================
 
 hi
@@ -756,23 +756,23 @@ To leverage custom authentication and access user-level metadata in your deploym
 
 <Tabs>
      <Tab title="Python Client">
-       
+
      </Tab>
 
 <Tab title="Python RemoteGraph">
-       
+
      </Tab>
 
 <Tab title="JavaScript Client">
-       
+
      </Tab>
 
 <Tab title="JavaScript RemoteGraph">
-       
+
      </Tab>
 
 <Tab title="CURL">
-       
+
      </Tab>
    </Tabs>
 
@@ -891,7 +891,7 @@ builder = StateGraph(State)
 display(Image(graph.get_graph().draw_mermaid_png()))
   python  theme={null}
   graph.invoke({"value_1": "c"})
-  
+
   {'value_1': 'a b', 'value_2': 10}
   python  theme={null}
     builder = StateGraph(State).add_sequence([step_1, step_2, step_3])  # [!code highlight]
@@ -6846,15 +6846,15 @@ The following are examples of directory structures for Python and JavaScript app
 
 <Tabs>
   <Tab title="Python (requirements.txt)">
-    
+
   </Tab>
 
 <Tab title="Python (pyproject.toml)">
-    
+
   </Tab>
 
 <Tab title="JS (package.json)">
-    
+
   </Tab>
 </Tabs>
 
@@ -8895,7 +8895,7 @@ We will cover the following concepts:
 * [Human-in-the-loop](/oss/python/langgraph/interrupts) processes
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 Set up [LangSmith](https://smith.langchain.com) to inspect what is happening inside your chain or agent. Then set the following environment variables:
@@ -9849,7 +9849,7 @@ The supervisor recognizes this requires both calendar and email actions, calls `
 Here's everything together in a runnable script:
 
 <Expandable title="View complete code" defaultOpen={false}>
-  
+
 </Expandable>
 
 ### Understanding the architecture
@@ -11689,7 +11689,7 @@ Start by configuring your evaluators. In this example, the application generates
 If you already have your own dataset with evaluators configured, you can skip this step.
 
 <Accordion title="Configure evaluators on a dataset.">
-  
+
 </Accordion>
 
 ### 2. Create composite feedback
@@ -11697,7 +11697,7 @@ If you already have your own dataset with evaluators configured, you can skip th
 Create composite feedback that aggregates the individual evaluator scores using your custom function. This example uses a weighted average of the individual evaluator scores.
 
 <Accordion title="Create a composite feedback.">
-  
+
 </Accordion>
 
 <Callout icon="pen-to-square" iconType="regular">
@@ -11815,11 +11815,11 @@ Use this guide to configure TLS in LangSmith. Start by mounting internal certifi
 Use this approach to make internal/public CAs trusted system‑wide by LangSmith (Playground model calls and [database/external service connections](/langsmith/self-hosted#storage-services)).
 
 1. Create a file containing all CAs required for TLS with databases and external services. If your deployment is communicating directly to `beacon.langchain.com` without a proxy, make sure to include a public trusted CA. All certs should be concatenated in this file with an empty line in between.
-   
+
 2. Create a Kubernetes secret with a key containing the contents of this file.
-   
+
 3. If using custom CA for TLS with your databases and other external services, provide the following values to your LangSmith helm chart:
-   
+
 4. Make sure to use TLS supported connection strings:
    * <b>Postgres</b>: Add `?sslmode=verify-full&sslrootcert=system` to the end.
    * <b>Redis</b>: Use `rediss://` instead of `redis://` as the prefix.
@@ -13990,7 +13990,7 @@ Specify configuration using a key called **"configurable"** which is reserved fo
 State can also be accessed by the agent's **tools**, which can read or update the state as needed. See [tool calling guide](/oss/javascript/langchain/tools#short-term-memory) for details.
 
 <Tab title="In a workflow">
-    
+
   </Tab>
 </Tabs>
 
@@ -14601,7 +14601,7 @@ For simple bugfixes, you can get started immediately:
 <Step title="Clone and setup">
 
 <Step title="Create a branch">
-    
+
   </Step>
 
 <Step title="Make your changes">
@@ -14941,15 +14941,15 @@ In order to write effective tests, there's a few good practices to follow:
 
 <Tabs>
   <Tab title="Unit tests">
-    
+
   </Tab>
 
 <Tab title="Integration tests">
-    
+
   </Tab>
 
 <Tab title="Mock usage">
-    
+
   </Tab>
 </Tabs>
 
@@ -15239,7 +15239,7 @@ Before submitting documentation:
   </Step>
 
 <Step title="Check formatting">
-    
+
   </Step>
 
 <Step title="Build locally">
@@ -17037,7 +17037,7 @@ config = {"configurable": {"thread_id": "1"}}
   final_response = graph.invoke({"messages": "what's my name?"}, config)
 
 final_response["messages"][-1].pretty_print()
-  
+
   ================================== Ai Message ==================================
 
 Your name is Bob, as you mentioned when you first introduced yourself.
@@ -17087,7 +17087,7 @@ for event in app.stream(
       stream_mode="values"
   ):
       print([(message.type, message.content) for message in event["messages"]])
-  
+
   [('human', "hi! I'm bob")]
   [('human', "hi! I'm bob"), ('ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?')]
   [('human', "hi! I'm bob"), ('ai', 'Hi Bob! How are you doing today? Is there anything I can help you with?'), ('human', "what's my name?")]
@@ -17171,7 +17171,7 @@ checkpointer = InMemorySaver()
 
 final_response["messages"][-1].pretty_print()
   print("\nSummary:", final_response["context"]["running_summary"].summary)
-  
+
   ================================== Ai Message ==================================
 
 From our conversation, I can see that you introduced yourself as Bob. That's the name you shared with me when we began talking.
@@ -17188,7 +17188,7 @@ Summary: In this conversation, I was introduced to Bob, who then asked me to wri
 }
     }
     graph.get_state(config)  # [!code highlight]
-    
+
     StateSnapshot(
         values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today?), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]}, next=(),
         config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
@@ -17215,7 +17215,7 @@ Summary: In this conversation, I was introduced to Bob, who then asked me to wri
 }
     }
     checkpointer.get_tuple(config)  # [!code highlight]
-    
+
     CheckpointTuple(
         config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
         checkpoint={
@@ -17242,7 +17242,7 @@ Summary: In this conversation, I was introduced to Bob, who then asked me to wri
         }
     }
     list(graph.get_state_history(config))  # [!code highlight]
-    
+
     [
         StateSnapshot(
             values={'messages': [HumanMessage(content="hi! I'm bob"), AIMessage(content='Hi Bob! How are you doing today? Is there anything I can help you with?'), HumanMessage(content="what's my name?"), AIMessage(content='Your name is Bob.')]},
@@ -17312,7 +17312,7 @@ Summary: In this conversation, I was introduced to Bob, who then asked me to wri
         }
     }
     list(checkpointer.list(config))  # [!code highlight]
-    
+
     [
         CheckpointTuple(
             config={'configurable': {'thread_id': '1', 'checkpoint_ns': '', 'checkpoint_id': '1f029ca3-1f5b-6704-8004-820c16b69a5a'}},
@@ -19392,7 +19392,7 @@ builder.add_edge(START, "a")
 # Test it out
   result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
   print(result)
-  
+
   Node A sees []
   Node B sees ['A']
   Node A sees ['A', 'B']
@@ -19448,7 +19448,7 @@ builder.add_edge(START, "a")
 display(Image(graph.get_graph().draw_mermaid_png()))
   python  theme={null}
   result = graph.invoke({"aggregate": []})
-  
+
   Node A sees []
   Node B sees ['A']
   Node D sees ['A', 'B']
@@ -19465,7 +19465,7 @@ try:
       result = graph.invoke({"aggregate": []}, {"recursion_limit": 4})
   except GraphRecursionError:
       print("Recursion Error")
-  
+
   Node A sees []
   Node B sees ['A']
   Node C sees ['A', 'B']
@@ -21467,7 +21467,7 @@ You can now test the API:
 2. Send a message to the agent:
 
 <Tab title="Rest API">
-    
+
   </Tab>
 </Tabs>
 
@@ -21757,7 +21757,7 @@ You can now test the API:
 2. Send a message to the assistant (threadless run):
 
 <Tab title="Rest API">
-    
+
   </Tab>
 </Tabs>
 
@@ -21892,7 +21892,7 @@ When you call `generate_insights()`, the SDK will:
 3. Return a link to your results in the LangSmith UI
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 <Note>Generating insights over 1,000 threads typically costs \$1.00-\$2.00 with OpenAI models and \$3.00-\$4.00 with current Anthropic models. The cost scales with the number of threads sampled and the size of each thread.</Note>
@@ -22075,11 +22075,11 @@ Note that LangSmith does not provide authentication endpoints - you'll need to h
 
 <Tabs>
   <Tab title="OAuth2 with Bearer Token">
-    
+
   </Tab>
 
 <Tab title="API Key">
-    
+
   </Tab>
 </Tabs>
 
@@ -22314,11 +22314,11 @@ If a [node](/oss/javascript/langgraph/graph-api#nodes) contains multiple operati
 
 <Tabs>
   <Tab title="Original">
-    
+
   </Tab>
 
 <Tab title="With task">
-    
+
   </Tab>
 </Tabs>
 
@@ -23567,11 +23567,11 @@ First, we will define a quick helper function for printing out JS and CURL model
 
 <Tabs>
   <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -23579,15 +23579,15 @@ Then, let's import our required packages and instantiate our client, assistant, 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -23595,15 +23595,15 @@ Now let's start two runs, with the second interrupting the first one with a mult
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -23611,15 +23611,15 @@ Verify that the thread has data from both runs:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -27291,11 +27291,11 @@ Using the [`entrypoint`](#entrypoint) function will return an object that can be
 
 <Tabs>
   <Tab title="Invoke">
-    
+
   </Tab>
 
 <Tab title="Stream">
-    
+
   </Tab>
 </Tabs>
 
@@ -27303,11 +27303,11 @@ Resuming an execution after an [interrupt](https://langchain-ai.github.io/langgr
 
 <Tabs>
   <Tab title="Invoke">
-    
+
   </Tab>
 
 <Tab title="Stream">
-    
+
   </Tab>
 </Tabs>
 
@@ -27319,11 +27319,11 @@ This assumes that the underlying **error** has been resolved and execution can p
 
 <Tabs>
   <Tab title="Invoke">
-    
+
   </Tab>
 
 <Tab title="Stream">
-    
+
   </Tab>
 </Tabs>
 
@@ -28674,11 +28674,11 @@ Access Gemini models, Vertex AI Model Garden and other Google Cloud services via
 
 <AccordionGroup>
   <Accordion title="Llama on Vertex AI Model Garden">
-    
+
   </Accordion>
 
 <Accordion title="Mistral on Vertex AI Model Garden">
-    
+
   </Accordion>
 
 <Accordion title="Gemma local from Hugging Face">
@@ -28688,7 +28688,7 @@ Access Gemini models, Vertex AI Model Garden and other Google Cloud services via
     Local Gemma model loaded from Kaggle.
 
 <Accordion title="Gemma on Vertex AI Model Garden">
-    
+
   </Accordion>
 
 <Accordion title="Vertex AI image captioning">
@@ -28722,7 +28722,7 @@ Access Gemini models, Vertex AI Model Garden and other Google Cloud services via
     Local Gemma model loaded from Kaggle.
 
 <Accordion title="Gemma on Vertex AI Model Garden">
-    
+
   </Accordion>
 
 <Accordion title="Vertex AI image captioning">
@@ -31463,11 +31463,11 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
 
 <Tabs>
   <Tab title="src/agent/ui.tsx">
-    
+
   </Tab>
 
 <Tab title="src/agent/styles.css">
-    
+
   </Tab>
 </Tabs>
 
@@ -31475,7 +31475,7 @@ CSS and Tailwind 4.x is also supported out of the box, so you can freely use Tai
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JS">
@@ -31501,11 +31501,11 @@ By default `LoadExternalComponent` will use the `assistantId` from `useStream()`
 
 <Tabs>
   <Tab title="src/app/page.tsx">
-    
+
   </Tab>
 
 <Tab title="langgraph.json">
-    
+
   </Tab>
 </Tabs>
 
@@ -31527,15 +31527,15 @@ Then you can push updates to the UI component by calling `ui.push()` / `push_ui_
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JS">
-    
+
   </Tab>
 
 <Tab title="ui.tsx">
-    
+
   </Tab>
 </Tabs>
 
@@ -31545,11 +31545,11 @@ Similar to how messages can be removed from the state by appending a RemoveMessa
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JS">
-    
+
   </Tab>
 </Tabs>
 
@@ -32004,7 +32004,7 @@ Additionally, you have to provide one of the following:
 </Note>
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ## Persist state at the thread level
@@ -32087,15 +32087,15 @@ First let's set up our client and thread:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32105,15 +32105,15 @@ If we list the current runs on this thread, we will see that it's empty:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32123,15 +32123,15 @@ Now let's kick off a run:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32139,15 +32139,15 @@ The first time we poll it, we can see `status=pending`:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32155,15 +32155,15 @@ Now we can join the run, wait for it to finish and check that status again:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32171,15 +32171,15 @@ Perfect! The run succeeded as we would expect. We can double check that the run 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32187,15 +32187,15 @@ We can also just print the content of the last AIMessage:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32564,7 +32564,7 @@ The pytest integration lets you define datasets and evaluators as test cases.
 To track a test in LangSmith add the `@pytest.mark.langsmith` decorator. Every decorated test case will be synced to a dataset example. When you run the test suite, the dataset will be updated and a new experiment will be created with one result for each test case.
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 When you run this test it will have a default `pass` boolean feedback key based on the test case passing / failing. It will also track any inputs, outputs, and reference (expected) outputs that you log.
@@ -32937,15 +32937,15 @@ You'll see that the second agent will respond using information from the [checkp
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32953,29 +32953,29 @@ We can see that these agents are different:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -32987,15 +32987,15 @@ We can now run the OpenAI assistant on the thread first.
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -33005,15 +33005,15 @@ Now, we can run it on the default assistant and see that this second assistant i
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -33578,7 +33578,7 @@ In LangSmith, when you save changes to a prompt, you're essentially creating a n
 The webhook will send a JSON payload containing the new **prompt manifest**.
 
 <Accordion title="Sample Webhook Payload">
-  
+
 </Accordion>
 
 <Note>
@@ -34501,7 +34501,7 @@ Alternatively, you can set static interrupts at run time:
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -36373,7 +36373,7 @@ One of the most common uses of interrupts is to pause before a critical action a
 When you resume the graph, pass `true` to approve or `false` to reject:
 
 <Accordion title="Full example">
-  
+
 </Accordion>
 
 ### Review and edit state
@@ -36383,7 +36383,7 @@ Sometimes you want to let a human review and edit part of the graph state before
 When resuming, provide the edited content:
 
 <Accordion title="Full example">
-  
+
 </Accordion>
 
 ### Interrupts in tools
@@ -36395,7 +36395,7 @@ First, define a tool that uses [`interrupt`](https://langchain-ai.github.io/lang
 This approach is useful when you want the approval logic to live with the tool itself, making it reusable across different parts of your graph. The LLM can call the tool naturally, and the interrupt will pause execution whenever the tool is invoked, allowing you to approve, edit, or cancel the action.
 
 <Accordion title="Full example">
-  
+
 </Accordion>
 
 ### Validating human input
@@ -36405,7 +36405,7 @@ Sometimes you need to validate input from humans and ask again if it's invalid. 
 Each time you resume the graph with invalid input, it will ask again with a clearer message. Once valid input is provided, the node completes and the graph continues.
 
 <Accordion title="Full example">
-  
+
 </Accordion>
 
 ## Rules of interrupts
@@ -36574,11 +36574,11 @@ First, we will define a quick helper function for printing out JS and CURL model
 
 <Tabs>
   <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -36586,15 +36586,15 @@ Now, let's import our required packages and instantiate our client, assistant, a
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -36602,15 +36602,15 @@ Now we can start our two runs and join the second one until it has completed:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -36618,15 +36618,15 @@ We can see that the thread has partial data from the first run + data from the s
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -36634,11 +36634,11 @@ Verify that the original, interrupted run was interrupted
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 </Tabs>
 
@@ -40315,7 +40315,7 @@ message = AIMessage(
         response_metadata={"model_provider": "anthropic"}
     )
     message.content_blocks
-    
+
     [{'type': 'reasoning',
       'reasoning': '...',
       'extras': {'signature': 'WaUjzkyp...'}},
@@ -40338,7 +40338,7 @@ message = AIMessage(
         response_metadata={"model_provider": "openai"}
     )
     message.content_blocks
-    
+
     [{'type': 'reasoning', 'id': 'rs_abc123', 'reasoning': 'summary 1'},
      {'type': 'reasoning', 'id': 'rs_abc123', 'reasoning': 'summary 2'},
      {'type': 'text', 'text': '...', 'id': 'msg_abc123'}]
@@ -41121,7 +41121,7 @@ Here's a boilerplate example of how to use `process_inputs` and `process_outputs
 
 <Expandable title="the code">
   <CodeGroup>
-    
+
   </CodeGroup>
 </Expandable>
 
@@ -41525,11 +41525,11 @@ Observe that this node tries to read and use the `model_name` as defined by the 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 </Tabs>
 
@@ -41543,15 +41543,15 @@ This example uses the same context schema as above, and creates an assistant wit
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -41567,15 +41567,15 @@ We have now created an assistant called "Open AI Assistant" that has `model_name
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -41594,15 +41594,15 @@ For example, to update your assistant's system prompt:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -41624,15 +41624,15 @@ In the example above, to rollback to the first version of the assistant:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -42571,7 +42571,7 @@ In production, use a store backed by a database:
 Enable semantic search in your graph's memory store to let graph agents search for items in the store by semantic similarity.
 
 <Accordion title="Long-term memory with semantic search">
-  
+
 </Accordion>
 
 ## Manage short-term memory
@@ -42618,7 +42618,7 @@ Prompting and orchestration logic can be used to summarize the message history. 
 Then, you can generate a summary of the chat history, using any existing summary as context for the next summary. This `summarizeConversation` node can be called after some number of messages have accumulated in the `messages` state key.
 
 <Accordion title="Full example: summarize messages">
-  
+
 </Accordion>
 
 ### Manage checkpoints
@@ -42956,7 +42956,7 @@ See [`UsageMetadata`](https://reference.langchain.com/javascript/types/_langchai
 During streaming, you'll receive [`AIMessageChunk`](https://v03.api.js.langchain.com/classes/_langchain_core.messages_ai_message.AIMessageChunk.html) objects that can be combined into a full message object:
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 * [Streaming tokens from chat models](/oss/javascript/langchain/models#stream)
@@ -43015,11 +43015,11 @@ Message objects implement a `contentBlocks` property that will lazily parse the 
 
 <Tabs>
   <Tab title="Anthropic">
-    
+
   </Tab>
 
 <Tab title="OpenAI">
-    
+
   </Tab>
 </Tabs>
 
@@ -47041,7 +47041,7 @@ Define your [configuration](/oss/python/langgraph/use-graph-api#add-runtime-conf
 * **Example**:
 
 <Accordion title="Full example configuration">
-  
+
 </Accordion>
 
 #### Editing prompts in the UI
@@ -48429,7 +48429,7 @@ for chunk in graph.stream(
       subgraphs=True, # [!code highlight]
   ):
       print(chunk)
-  
+
   ((), {'node_1': {'foo': 'hi! foo'}})
   (('node_2:e58e5673-a661-ebb0-70d4-e298a7fc28b7',), {'subgraph_node_1': {'bar': 'bar'}})
   (('node_2:e58e5673-a661-ebb0-70d4-e298a7fc28b7',), {'subgraph_node_2': {'foo': 'hi! foobar'}})
@@ -48622,7 +48622,7 @@ final_content = response.chat_history[-1]["content"]
 
 # Export the graph for LangSmith
     graph = create_graph()
-    
+
     langgraph>=0.1.0
     pyautogen>=0.2.0
     langchain-core>=0.1.0
@@ -48639,7 +48639,7 @@ final_content = response.chat_history[-1]["content"]
   pip install -U langgraph-cli
   bash uv theme={null}
   uv add langgraph-cli
-  
+
 langgraph deploy --config langgraph.json
 ```
 
@@ -50338,7 +50338,7 @@ To optimize the query, the example:
 2. Fetches root runs in batches while processing tool runs concurrently.
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ### Advanced: export retriever IO for traces with feedback
@@ -50347,7 +50347,7 @@ This query is useful if you want to fine-tune embeddings or diagnose end-to-end 
 The following Python example demonstrates how to export retriever inputs and outputs within traces that have a specific feedback score.
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 <Callout icon="pen-to-square" iconType="regular">
@@ -50446,7 +50446,7 @@ The agent is built using the [`StateGraph`](https://langchain-ai.github.io/langg
 Congratulations! You've built your first agent using the LangGraph Graph API.
 
 <Accordion title="Full code example">
-      
+
     </Accordion>
   </Tab>
 
@@ -50480,7 +50480,7 @@ The agent is built using the @\[`@entrypoint`] function.
 Congratulations! You've built your first agent using the LangGraph Functional API.
 
 <Accordion title="Full code example" icon="code">
-      
+
     </Accordion>
   </Tab>
 </Tabs>
@@ -50931,11 +50931,11 @@ First, we will define a quick helper function for printing out JS and CURL model
 
 <Tabs>
   <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -50943,15 +50943,15 @@ Now, let's import our required packages and instantiate our client, assistant, a
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -50959,15 +50959,15 @@ Now we can run a thread and try to run a second one with the "reject" option, wh
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -50975,15 +50975,15 @@ We can verify that the original thread finished executing:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -52364,11 +52364,11 @@ First, we will define a quick helper function for printing out JS and CURL model
 
 <Tabs>
   <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -52376,15 +52376,15 @@ Now, let's import our required packages and instantiate our client, assistant, a
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -52392,15 +52392,15 @@ Now let's run a thread with the multitask parameter set to "rollback":
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -52408,15 +52408,15 @@ We can see that the thread has data only from the second run
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -52424,11 +52424,11 @@ Verify that the original, rolled back run was deleted
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 </Tabs>
 
@@ -52674,11 +52674,11 @@ Before you begin, ensure you have an API key for [LangSmith](https://smith.langc
 
 <Tabs>
   <Tab title="Python server">
-    
+
   </Tab>
 
 <Tab title="Node server">
-    
+
   </Tab>
 </Tabs>
 
@@ -52688,11 +52688,11 @@ Create a new app from the [`new-langgraph-project-python` template](https://gith
 
 <Tabs>
   <Tab title="Python server">
-    
+
   </Tab>
 
 <Tab title="Node server">
-    
+
   </Tab>
 </Tabs>
 
@@ -52707,11 +52707,11 @@ In the root of your new LangGraph app, install the dependencies in `edit` mode s
 
 <Tabs>
   <Tab title="Python server">
-    
+
   </Tab>
 
 <Tab title="Node server">
-    
+
   </Tab>
 </Tabs>
 
@@ -52725,11 +52725,11 @@ Start the Agent Server locally:
 
 <Tabs>
   <Tab title="Python server">
-    
+
   </Tab>
 
 <Tab title="Node server">
-    
+
   </Tab>
 </Tabs>
 
@@ -52756,7 +52756,7 @@ The [`langgraph dev`](/langsmith/cli) command starts [Agent Server](/langsmith/a
 2. Send a message to the assistant (threadless run):
 
 <Tab title="Rest API">
-    
+
   </Tab>
 </Tabs>
 
@@ -52896,7 +52896,7 @@ For an Agent Server running on a custom host/port, update the baseURL parameter.
 2. Send a message to the assistant (threadless run):
 
 <Tab title="Rest API">
-    
+
   </Tab>
 </Tabs>
 
@@ -56865,7 +56865,7 @@ Before agents can authenticate, you need to configure an OAuth provider using th
 2. Go to your OAuth provider's developer console and create a new OAuth application.
 
 3. Set LangChain's API as an available callback URL using this structure:
-   
+
    For example, if your provider\_id is "github-local-dev", use:
 
 4. Use `client.create_oauth_provider()` with the credentials from your OAuth app:
@@ -57287,7 +57287,7 @@ The [**hybrid**](/langsmith/hybrid) model lets you run the [data plane](/langsmi
 The following steps describe how to connect your self-hosted data plane to the managed LangSmith control plane.
 
 1. `KEDA` is installed on your cluster.
-   
+
 2. A valid `Ingress` controller is installed on your cluster. For more information about configuring ingress for your deployment, refer to [Create an ingress for installations](/langsmith/self-host-ingress).
 3. You have slack space in your cluster for multiple deployments. `Cluster-Autoscaler` is recommended to automatically provision new nodes.
 4. You will need to enable egress to two control plane URLs. The listener polls these endpoints for deployments:
@@ -57311,7 +57311,7 @@ The following steps describe how to connect your self-hosted data plane to the m
    * `LangGraphPlatform CRD`: A CRD for LangSmith Deployment. This contains the spec for managing an instance of a LangSmith Deployment.
    * `langgraph-platform-operator`: This operator handles changes to your LangSmith CRDs.
 4. Configure your `langgraph-dataplane-values.yaml` file.
-   
+
    * `config.langsmithApiKey`: The `langgraph-listener` deployment authenticates with LangChain's LangGraph control plane API with the `langsmithApiKey`.
    * `config.langsmithWorkspaceId`: The `langgraph-listener` deployment is coupled to Agent Server deployments in the LangSmith workspace. In other words, the `langgraph-listener` deployment can only manage Agent Server deployments in the specified LangSmith workspace ID.
    * `config.langgraphListenerId`: In addition to being coupled with a LangSmith workspace, the `langgraph-listener` deployment is also coupled to a listener. When a new Agent Server deployment is created, it is automatically coupled to a `langgraphListenerId`. Specifying `langgraphListenerId` ensures that the `langgraph-listener` deployment can only manage Agent Server deployments that are coupled to `langgraphListenerId`.
@@ -57321,7 +57321,7 @@ The following steps describe how to connect your self-hosted data plane to the m
    * `operator.enabled`: There can only be 1 instance of the `langgraph-platform-operator` deployed in a Kubernetes namespace. Set this to `false` if there is already an instance of `langgraph-platform-operator` deployed in the current Kubernetes namespace.
    * `operator.createCRDs`: Set this value to `false` if the Kubernetes cluster already has the `LangGraphPlatform CRD` installed. During installation, an error will occur if the CRD is already installed. This situation may occur if multiple listeners are deployed on the same Kubernetes cluster.
 5. Deploy `langgraph-dataplane` Helm chart.
-   
+
 6. If successful, you will see three services start up in your namespace.
 
 Your hybrid infrastructure is now ready to create deployments.
@@ -58765,15 +58765,15 @@ First, let's setup our client:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -58783,15 +58783,15 @@ We can stream the results of a stateless run in an almost identical fashion to h
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -58801,15 +58801,15 @@ In addition to streaming, you can also wait for a stateless result by using the 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59028,13 +59028,13 @@ The streamed output from [`messages` mode](#supported-stream-modes) is a tuple `
 You can associate `tags` with LLM invocations to filter the streamed tokens by LLM invocation.
 
 <Accordion title="Extended example: filtering by tags">
-  
+
 </Accordion>
 
 To stream tokens only from specific nodes, use `stream_mode="messages"` and filter the outputs by the `langgraph_node` field in the streamed metadata:
 
 <Accordion title="Extended example: streaming LLM tokens from specific nodes">
-  
+
 </Accordion>
 
 ## Stream custom data
@@ -59046,11 +59046,11 @@ To send **custom user-defined data** from inside a LangGraph node or tool, follo
 
 <Tabs>
   <Tab title="node">
-    
+
   </Tab>
 
 <Tab title="tool">
-    
+
   </Tab>
 </Tabs>
 
@@ -59138,11 +59138,11 @@ Source: https://docs.langchain.com/langsmith/streaming
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
@@ -59194,15 +59194,15 @@ The streamed outputs will be tuples of `(mode, chunk)` where `mode` is the name 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59214,7 +59214,7 @@ Use the stream modes `updates` and `values` to stream the state of the graph as 
 * `values` streams the **full value** of the state after each step of the graph.
 
 <Accordion title="Example graph">
-  
+
 </Accordion>
 
 <Note>
@@ -59223,15 +59223,15 @@ Use the stream modes `updates` and `values` to stream the state of the graph as 
 
 <Tabs>
     <Tab title="Python">
-      
+
     </Tab>
 
 <Tab title="JavaScript">
-      
+
     </Tab>
 
 <Tab title="cURL">
-      
+
     </Tab>
   </Tabs>
 
@@ -59244,15 +59244,15 @@ Use this to stream only the **state updates** returned by the nodes after each s
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59262,15 +59262,15 @@ Use this to stream the **full state** of the graph after each step.
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59308,15 +59308,15 @@ Use the `debug` streaming mode to stream as much information as possible through
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59344,7 +59344,7 @@ The streamed output from [`messages-tuple` mode](#supported-stream-modes) is a t
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59359,15 +59359,15 @@ To send **custom user-defined data**:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59375,15 +59375,15 @@ To stream all events, including the state of the graph:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59401,7 +59401,7 @@ If you don't want to **persist the outputs** of a streaming run in the [checkpoi
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59419,7 +59419,7 @@ LangSmith allows you to join an active [background run](/langsmith/background-ru
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -59665,11 +59665,11 @@ Safari blocks plain-HTTP traffic on localhost. When running Studio with `langgra
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JS">
-    
+
   </Tab>
 </Tabs>
 
@@ -59693,11 +59693,11 @@ Disable Brave Shields for LangSmith using the Brave icon in the URL bar.
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JS">
-    
+
   </Tab>
 </Tabs>
 
@@ -59714,11 +59714,11 @@ Define a mapping between router outputs and target nodes:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 </Tabs>
 
@@ -60080,7 +60080,7 @@ You can inspect the graph state via `graph.getState(config)`. To view the subgra
 </Warning>
 
 <Accordion title="View interrupted subgraph state">
-  
+
 </Accordion>
 
 ## Stream subgraph outputs
@@ -62159,15 +62159,15 @@ We'll implement each node as a simple function. Remember: nodes take state, do w
 
 <AccordionGroup>
   <Accordion title="Read and classify nodes" icon="brain">
-    
+
   </Accordion>
 
 <Accordion title="Search and tracking nodes" icon="database">
-    
+
   </Accordion>
 
 <Accordion title="Response nodes" icon="pen-to-square">
-    
+
   </Accordion>
 </AccordionGroup>
 
@@ -62178,7 +62178,7 @@ Now we connect our nodes into a working graph. Since our nodes handle their own 
 To enable [human-in-the-loop](/oss/javascript/langgraph/interrupts) with `interrupt()`, we need to compile with a [checkpointer](/oss/javascript/langgraph/persistence) to save state between runs:
 
 <Accordion title="Graph compilation code" icon="diagram-project" defaultOpen={true}>
-  
+
 </Accordion>
 
 The graph structure is minimal because routing happens inside nodes through `Command` objects. Each node declares where it can go, making the flow explicit and traceable.
@@ -62188,7 +62188,7 @@ The graph structure is minimal because routing happens inside nodes through `Com
 Let's run our agent with an urgent billing issue that needs human review:
 
 <Accordion title="Testing the agent" icon="flask">
-  
+
 </Accordion>
 
 The graph pauses when it hits `interrupt()`, saves everything to the checkpointer, and waits. It can resume days later, picking up exactly where it left off. The `thread_id` ensures all state for this conversation is preserved together.
@@ -63361,16 +63361,16 @@ To time travel using the LangSmith Deployment API (via the LangGraph SDK):
 ## Use time travel in a workflow
 
 <Accordion title="Example graph">
-  
+
 </Accordion>
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
@@ -63380,15 +63380,15 @@ To time travel using the LangSmith Deployment API (via the LangGraph SDK):
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -63398,15 +63398,15 @@ To time travel using the LangSmith Deployment API (via the LangGraph SDK):
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -63414,15 +63414,15 @@ To time travel using the LangSmith Deployment API (via the LangGraph SDK):
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="cURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -64798,7 +64798,7 @@ Install the required packages using your preferred package manager:
 Set your API keys and project name:
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ### 2. Configure OpenTelemetry integration
@@ -64866,7 +64866,7 @@ Install the required packages using your preferred package manager:
 Set your API keys and project name:
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ### 2. Configure OpenTelemetry integration
@@ -64936,7 +64936,7 @@ Install the required packages using your preferred package manager:
 Set your LangSmith API key and project name:
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ### 2. Configure OpenTelemetry integration
@@ -65219,7 +65219,7 @@ If you're using LangChain or LangGraph, use the built-in integration to trace yo
 1. Install the LangSmith package with OpenTelemetry support:
 
 <CodeGroup>
-     
+
    </CodeGroup>
 
 <Info>
@@ -65229,7 +65229,7 @@ If you're using LangChain or LangGraph, use the built-in integration to trace yo
 2. In your LangChain/LangGraph App, enable the OpenTelemetry integration by setting the `LANGSMITH_OTEL_ENABLED` environment variable:
 
 <CodeGroup>
-     
+
    </CodeGroup>
 
 3. Create a LangChain application with tracing. For example:
@@ -65243,13 +65243,13 @@ For non-LangChain applications or custom instrumentation, you can trace your app
 1. Install the OpenTelemetry SDK, OpenTelemetry exporter packages, as well as the OpenAI package:
 
 <CodeGroup>
-     
+
    </CodeGroup>
 
 2. Setup environment variables for the endpoint, substitute your specific values:
 
 <CodeGroup>
-     
+
    </CodeGroup>
 
 <Note>
@@ -65263,7 +65263,7 @@ For non-LangChain applications or custom instrumentation, you can trace your app
 Optional: Specify a custom project name other than "default":
 
 <CodeGroup>
-     
+
    </CodeGroup>
 
 This code sets up an OTEL tracer and exporter that will send traces to LangSmith. It then calls OpenAI and sends the required OpenTelemetry attributes.
@@ -65371,7 +65371,7 @@ Install the required packages using your preferred package manager:
 Set your API keys and project name:
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 ### 2. Configure OpenTelemetry integration
@@ -65444,7 +65444,7 @@ Install the Vercel AI SDK. This guide uses Vercel's OpenAI integration for the c
 ## Environment configuration
 
 <CodeGroup>
-  
+
 </CodeGroup>
 
 Import and wrap AI SDK methods, then use them as you normally would:
@@ -68099,15 +68099,15 @@ First, let's set up our SDK client, assistant, and thread:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -68117,15 +68117,15 @@ To create a cron job associated with a specific thread, you can write:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -68133,15 +68133,15 @@ Note that it is **very** important to delete `Cron` jobs that are no longer usef
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -68151,15 +68151,15 @@ You can also create stateless cron jobs by using the following code:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -68167,15 +68167,15 @@ Again, remember to delete your job once you are done with it!
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69071,7 +69071,7 @@ The [**Functional API**](/oss/javascript/langgraph/functional-api) allows you to
 When defining an `entrypoint`, input is restricted to the first argument of the function. To pass multiple inputs, you can use a dictionary.
 
 <Accordion title="Extended example: simple workflow">
-  
+
 </Accordion>
 
 <Accordion title="Extended example: Compose an essay with an LLM">
@@ -69092,7 +69092,7 @@ This example uses LangGraph's concurrency model to improve execution time, espec
 The **Functional API** and the [**Graph API**](/oss/javascript/langgraph/graph-api) can be used together in the same application as they share the same underlying runtime.
 
 <Accordion title="Extended example: calling a simple graph from the functional API">
-  
+
 </Accordion>
 
 ## Call other entrypoints
@@ -69100,7 +69100,7 @@ The **Functional API** and the [**Graph API**](/oss/javascript/langgraph/graph-a
 You can call other **entrypoints** from within an **entrypoint** or a **task**.
 
 <Accordion title="Extended example: calling another entrypoint">
-  
+
 </Accordion>
 
 The **Functional API** uses the same streaming mechanism as the **Graph API**. Please
@@ -69624,15 +69624,15 @@ To create a new thread, use the [LangGraph SDK](/langsmith/sdk) `create` method.
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69640,15 +69640,15 @@ Alternatively, if you already have a thread in your application whose state you 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69658,15 +69658,15 @@ Finally, you can create a thread with an arbitrary pre-defined state by providin
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69678,15 +69678,15 @@ Use the `status` field to filter threads based on their status. Supported values
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69696,15 +69696,15 @@ The `search` method allows you to filter on metadata:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69720,15 +69720,15 @@ To view a specific thread given its `thread_id`, use the `get` method:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69738,15 +69738,15 @@ To view the current state of a given thread, use the `get_state` method:
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -69754,15 +69754,15 @@ Optionally, to view the state of a thread at a given checkpoint, simply pass in 
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="Javascript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -70022,15 +70022,15 @@ Before making API calls, set up your assistant and thread.
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -70042,15 +70042,15 @@ For example, if your server listens for webhook events at `https://my-server.app
 
 <Tabs>
   <Tab title="Python">
-    
+
   </Tab>
 
 <Tab title="JavaScript">
-    
+
   </Tab>
 
 <Tab title="CURL">
-    
+
   </Tab>
 </Tabs>
 
@@ -72618,7 +72618,7 @@ model = init_chat_model(temperature=0)
 model_with_tools.invoke(
       "what's bigger in 2024 LA or NYC", config={"configurable": {"model": "gpt-4.1-mini"}}
   ).tool_calls
-  
+
   [
       {
           'name': 'GetPopulation',
@@ -72638,7 +72638,7 @@ model_with_tools.invoke(
       "what's bigger in 2024 LA or NYC",
       config={"configurable": {"model": "claude-sonnet-4-5-20250929"}},
   ).tool_calls
-  
+
   [
       {
           'name': 'GetPopulation',
@@ -73473,7 +73473,7 @@ def update_user_info(
     runtime: ToolRuntime[CustomContext, CustomState],
 ) -> Command:
     """Look up and update user info."""
-    user_id = runtime.context.user_id 
+    user_id = runtime.context.user_id
     name = "John Smith" if user_id == "user_123" else "Unknown user"
     return Command(update={  # [!code highlight]
         "user_name": name,
@@ -73498,7 +73498,7 @@ agent = create_agent(
     model="gpt-5-nano",
     tools=[update_user_info, greet],
     state_schema=CustomState, # [!code highlight]
-    context_schema=CustomContext,  
+    context_schema=CustomContext,
 )
 
 agent.invoke(

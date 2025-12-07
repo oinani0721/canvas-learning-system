@@ -183,7 +183,7 @@ export class ProgressTrackerView extends ItemView {
         try {
             // Load current progress
             const progressResponse = await fetch(
-                `http://localhost:8000/api/v1/progress/analyze?` +
+                `http://localhost:8001/api/v1/progress/analyze?` +
                 `review_canvas=${encodeURIComponent(this.state.canvasPath)}&` +
                 `original_canvas=${encodeURIComponent(this.state.originalCanvasPath)}`
             );
@@ -196,7 +196,7 @@ export class ProgressTrackerView extends ItemView {
 
             // Load multi-review history
             const historyResponse = await fetch(
-                `http://localhost:8000/api/v1/progress/history?` +
+                `http://localhost:8001/api/v1/progress/history?` +
                 `original_canvas=${encodeURIComponent(this.state.originalCanvasPath)}`
             );
 

@@ -4,30 +4,31 @@ Epic 9 - Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
 import asyncio
 import json
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-import sys
 import os
+import shutil
+import sys
+import tempfile
 from datetime import datetime
+from pathlib import Path
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
     from canvas_utils.memory_recorder import (
+        BackupSystem,
+        FileSystemMemoryClient,
+        GraphitiMemoryClient,
+        LocalMemoryClient,
+        MemoryEntry,
         MemoryRecorder,
         MemorySystem,
         RecordingResult,
-        MemoryEntry,
-        BackupSystem,
-        GraphitiMemoryClient,
-        LocalMemoryClient,
-        FileSystemMemoryClient
     )
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:

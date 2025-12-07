@@ -16,20 +16,19 @@ Created: 2025-10-24
 Story: 11.4 - 实现异步处理架构
 """
 
-import pytest
-import time
-import threading
-from unittest.mock import Mock, MagicMock, patch
-from queue import Queue
 import os
 import sys
+import threading
+import time
+from unittest.mock import Mock
+
+import pytest
 
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_progress_tracker.async_processor import AsyncCanvasProcessor, AsyncTaskStats
 from canvas_progress_tracker.canvas_monitor_engine import CanvasMonitorEngine, DebounceManager
-
 
 # ===== Fixtures =====
 

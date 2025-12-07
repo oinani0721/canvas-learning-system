@@ -4,7 +4,6 @@
 """
 
 import sys
-import os
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -15,7 +14,7 @@ async def quick_test():
     """快速测试"""
     try:
         # 导入模块
-        from canvas_utils.memory_recorder import MemoryRecorder, create_memory_recorder
+        from canvas_utils.memory_recorder import MemoryRecorder
 
         print("成功导入记忆记录器模块")
 
@@ -75,9 +74,8 @@ if __name__ == '__main__':
     success = asyncio.run(quick_test())
 
     # 清理测试文件
-    import os
-    import shutil
     import pathlib
+    import shutil
     test_dir = pathlib.Path('data')
     if test_dir.exists():
         shutil.rmtree(test_dir)

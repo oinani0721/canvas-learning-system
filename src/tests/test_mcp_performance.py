@@ -5,21 +5,19 @@ Canvas Learning System - Story 8.8
 测试MCP语义记忆服务的性能指标，确保满足PRD要求。
 """
 
-import pytest
-import time
 import statistics
 import tempfile
-import os
-import threading
-from unittest.mock import Mock, patch
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from unittest.mock import Mock, patch
+
+import pytest
+from creative_association_engine import CreativeAssociationEngine
 
 # 导入测试目标
 from mcp_memory_client import MCPSemanticMemory
-from semantic_processor import SemanticProcessor
-from creative_association_engine import CreativeAssociationEngine
 from memory_compression import MemoryCompressor
-from canvas_mcp_integration import CanvasMCPIntegration
+from semantic_processor import SemanticProcessor
 
 
 class TestMCPPerformance:

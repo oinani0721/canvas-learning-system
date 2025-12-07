@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: Testing
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: none
 
 **Relevant Files**:
@@ -72,7 +72,7 @@
 
 Perfect! Task 5 is now 100% complete with all 4 ADR files created:
 - ✅ `docs/architecture/decisions/0001-use-obsidian-canvas.md`
-- ✅ `docs/architecture/decisions/0002-langgraph-agents.md`  
+- ✅ `docs/architecture/decisions/0002-langgraph-agents.md`
 - ✅ `docs/architecture/decisions/0003-graphiti-memory.md`
 - ✅ `docs/architecture/decisions/0004-async-execution-engine.md`
 

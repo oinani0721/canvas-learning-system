@@ -13,7 +13,7 @@
 
 **Active Agent**: none
 **Executing Function**: extracted from conversation history
-**Core Content**: 
+**Core Content**:
 **Current Epic/Story**: Epic 12, Story 12.2
 
 **Relevant Files**:

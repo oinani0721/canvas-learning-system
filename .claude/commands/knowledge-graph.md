@@ -1,3 +1,8 @@
+---
+name: knowledge-graph
+description: Enable Graphiti-based time-aware knowledge graph memory system
+---
+
 # Graphiti Knowledge Graph System
 
 ## Metadata

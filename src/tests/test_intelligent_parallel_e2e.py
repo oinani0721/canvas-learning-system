@@ -9,15 +9,12 @@ E2E测试: 智能并行处理完整流程
 5. 验证蓝色解释节点和黄色总结节点已创建
 """
 
-import pytest
-import asyncio
-import os
 import json
-from canvas_utils import (
-    CanvasJSONOperator,
-    IntelligentParallelScheduler,
-    ConcurrentAgentProcessor
-)
+import os
+
+import pytest
+
+from canvas_utils import CanvasJSONOperator, ConcurrentAgentProcessor, IntelligentParallelScheduler
 
 
 class TestIntelligentParallelE2E:
@@ -132,7 +129,7 @@ class TestIntelligentParallelE2E:
         canvas_data = operator.read_canvas()
 
         print(f"Canvas节点总数: {len(canvas_data['nodes'])}")
-        print(f"原始节点: 2个黄色节点")
+        print("原始节点: 2个黄色节点")
         print(f"当前节点: {len(canvas_data['nodes'])} 个节点")
 
         # 如果Canvas集成成功,应该有蓝色和黄色节点

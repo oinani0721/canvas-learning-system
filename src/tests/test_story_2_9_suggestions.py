@@ -17,9 +17,9 @@ Created: 2025-10-15
 Reviewed & Refactored: Quinn (QA Agent)
 """
 
-import pytest
-from typing import Dict, List, Any
+from typing import Any, Dict
 
+import pytest
 
 # ========== Constants ==========
 
@@ -258,7 +258,7 @@ def test_high_score_recommends_next_stage():
         f"高分(≥80)不应推荐补充解释Agent,实际推荐: {suggestion['recommended_agent']}"
     assert "继续拆解" in suggestion["suggestion_text"] or "检验阶段" in suggestion["suggestion_text"], \
         f"应该建议继续拆解或检验阶段,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 85分(≥80) → 不推荐补充Agent,建议进入下一阶段")
+    print("✅ 测试通过: 85分(≥80) → 不推荐补充Agent,建议进入下一阶段")
 
 
 def test_low_score_recommends_detailed_explanation():
@@ -286,7 +286,7 @@ def test_low_score_recommends_detailed_explanation():
         f"低分(<60)应该推荐clarification-path,实际推荐: {suggestion['recommended_agent']}"
     assert "详细" in suggestion["reasoning"] or "基础性错误" in suggestion["reasoning"], \
         f"建议理由应该提到'详细'或'基础性错误',实际: {suggestion['reasoning']}"
-    print(f"✅ 测试通过: 45分(<60) → 推荐 clarification-path")
+    print("✅ 测试通过: 45分(<60) → 推荐 clarification-path")
 
 
 def test_empty_yellow_node_suggestion():
@@ -309,7 +309,7 @@ def test_empty_yellow_node_suggestion():
         f"应该提供2个选项(A和B),实际: {len(suggestion['options'])}个"
     assert "费曼学习法" in suggestion["suggestion_text"], \
         f"应该提到费曼学习法,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 黄色节点为空 → 提示填写理解,强调输出重要性")
+    print("✅ 测试通过: 黄色节点为空 → 提示填写理解,强调输出重要性")
 
 
 def test_suggestion_includes_clear_reasoning():
@@ -340,7 +340,7 @@ def test_suggestion_includes_clear_reasoning():
         f"建议文本应该包含'推荐理由'部分,实际: {suggestion['suggestion_text']}"
     assert "14/25" in suggestion["suggestion_text"] or "形象性" in suggestion["reasoning"], \
         f"建议应该关联到具体的维度得分,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 建议包含清晰的推荐理由,关联到最弱维度得分")
+    print("✅ 测试通过: 建议包含清晰的推荐理由,关联到最弱维度得分")
 
 
 def test_tied_dimensions():

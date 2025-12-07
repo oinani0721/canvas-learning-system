@@ -3,11 +3,9 @@
 验证Story 10.1-10.4之间的接口兼容性和数据流正确性
 """
 
-import pytest
-import asyncio
 import json
-from typing import Dict, Any
-from unittest.mock import AsyncMock, patch
+
+import pytest
 
 # 模拟导入（实际实现时需要调整）
 # from canvas_utils import (

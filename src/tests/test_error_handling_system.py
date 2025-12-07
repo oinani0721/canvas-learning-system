@@ -4,29 +4,26 @@
 测试错误隔离、重试机制、优雅降级、错误日志和熔断器功能。
 """
 
-import pytest
 import asyncio
-import tempfile
 import shutil
-from pathlib import Path
+import tempfile
 from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, AsyncMock
+from pathlib import Path
+
+import pytest
+from circuit_breaker_manager import CircuitBreakerManager, CircuitState
 
 # 导入要测试的模块
 from error_isolation_manager import (
-    ErrorIsolationManager, ErrorInfo, ErrorCategory, ErrorSeverity,
-    InstanceInfo, IsolationLevel
+    ErrorCategory,
+    ErrorInfo,
+    ErrorIsolationManager,
+    ErrorSeverity,
+    InstanceInfo,
 )
-from retry_manager import (
-    RetryManager, RetryPolicy, RetryStrategy, RetryState
-)
-from graceful_degradation_manager import (
-    GracefulDegradationManager, ProcessingTask, DegradationLevel
-)
-from error_logger import ErrorLogger, DiagnosticCollector, LogLevel, DiagnosticLevel
-from circuit_breaker_manager import (
-    CircuitBreakerManager, CircuitBreakerConfig, CircuitState
-)
+from error_logger import DiagnosticCollector, DiagnosticLevel, ErrorLogger, LogLevel
+from graceful_degradation_manager import GracefulDegradationManager, ProcessingTask
+from retry_manager import RetryManager, RetryPolicy, RetryStrategy
 
 
 @pytest.fixture

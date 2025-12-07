@@ -14,9 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
 from .routers import (
-    health_router,
-    canvas_router,
     agents_router,
+    canvas_router,
+    health_router,
     review_router,
 )
 

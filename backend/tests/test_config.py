@@ -8,7 +8,6 @@ and validates settings from environment variables.
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#配置管理]
 """
 
-import pytest
 
 from app.config import Settings, get_settings
 

@@ -21,7 +21,7 @@ import sqlite3
 import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional
 
 # ========== 常量定义 ==========
 
@@ -668,8 +668,8 @@ class EbbinghausReviewScheduler:
         Returns:
             str: 备份文件路径
         """
-        import shutil
         import os
+        import shutil
         from datetime import datetime
 
         if backup_path is None:

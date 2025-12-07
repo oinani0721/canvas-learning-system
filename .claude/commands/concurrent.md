@@ -1,3 +1,8 @@
+---
+name: concurrent
+description: Enable multi-agent concurrent processing for accelerated analysis
+---
+
 # Multi-Agent Concurrent Processing
 
 ## Metadata

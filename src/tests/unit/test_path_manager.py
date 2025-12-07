@@ -4,26 +4,20 @@ Epic 9 - Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
-import sys
 import os
-from datetime import datetime
+import shutil
+import sys
+import tempfile
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
-    from canvas_utils.path_manager import (
-        PathManager,
-        PathResolutionResult,
-        PathType,
-        PathError,
-        PathValidationError
-    )
+    from canvas_utils.path_manager import PathError, PathManager, PathResolutionResult, PathType, PathValidationError
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:
     CANVAS_UTILS_AVAILABLE = False

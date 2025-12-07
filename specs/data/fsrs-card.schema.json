@@ -2,11 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/fsrs-card.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T19:15:00Z",
+    "verified_at": "2025-11-28T14:30:00Z",
     "sources": [
       {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "context7", "library_id": "/open-spaced-repetition/py-fsrs", "topic": "State enum verification"},
       {"type": "prd", "section": "FR3", "epic": "Epic 14"},
       {"type": "official_doc", "url": "https://github.com/open-spaced-repetition/py-fsrs"}
+    ],
+    "changelog": [
+      {"date": "2025-11-28", "change": "state field updated from string enum to integer enum per py-fsrs Context7 verification", "reason": "SoT conflict resolution - Story 12.4 validation"}
     ]
   },
   "title": "FSRS复习卡片",
@@ -67,9 +71,9 @@
       "description": "遗忘次数"
     },
     "state": {
-      "type": "string",
-      "enum": ["New", "Learning", "Review", "Relearning"],
-      "description": "卡片状态"
+      "type": "integer",
+      "enum": [1, 2, 3],
+      "description": "卡片状态 (py-fsrs State enum: 1=Learning, 2=Review, 3=Relearning). Context7 Verified: /open-spaced-repetition/py-fsrs"
     },
     "last_review": {
       "type": "string",

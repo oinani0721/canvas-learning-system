@@ -1,3 +1,102 @@
 # Models Package
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: response model)
 """Pydantic models for request/response validation."""
+
+# Rollback models (Story 18.1)
+# [Source: docs/architecture/rollback-recovery-architecture.md:296-400]
+from app.models.rollback import (
+    CreateSnapshotRequest,
+    DiffResponse,
+    GraphSyncStatusEnum,
+    OperationDataResponse,
+    OperationHistoryResponse,
+    OperationMetadataResponse,
+    OperationResponse,
+    OperationTypeEnum,
+    RollbackRequest,
+    RollbackResult,
+    RollbackTypeEnum,
+    SnapshotListResponse,
+    SnapshotMetadataResponse,
+    SnapshotResponse,
+    SnapshotTypeEnum,
+)
+from app.models.schemas import (
+    CanvasResponse,
+    # Agents
+    DecomposeRequest,
+    DecomposeResponse,
+    EdgeCreate,
+    EdgeRead,
+    EdgeSide,
+    ErrorResponse,
+    ExplainRequest,
+    ExplainResponse,
+    GenerateReviewRequest,
+    GenerateReviewResponse,
+    HealthCheckResponse,
+    # Common
+    HealthStatus,
+    NodeColor,
+    NodeCreate,
+    NodeRead,
+    NodeScore,
+    # Canvas
+    NodeType,
+    NodeUpdate,
+    RecordReviewRequest,
+    RecordReviewResponse,
+    # Review
+    ReviewItem,
+    ReviewScheduleResponse,
+    ScoreRequest,
+    ScoreResponse,
+)
+
+__all__ = [
+    # Common
+    "HealthStatus",
+    "HealthCheckResponse",
+    "ErrorResponse",
+    # Canvas
+    "NodeType",
+    "NodeColor",
+    "EdgeSide",
+    "NodeCreate",
+    "NodeUpdate",
+    "NodeRead",
+    "EdgeCreate",
+    "EdgeRead",
+    "CanvasResponse",
+    # Agents
+    "DecomposeRequest",
+    "DecomposeResponse",
+    "ScoreRequest",
+    "ScoreResponse",
+    "NodeScore",
+    "ExplainRequest",
+    "ExplainResponse",
+    # Review
+    "ReviewItem",
+    "ReviewScheduleResponse",
+    "GenerateReviewRequest",
+    "GenerateReviewResponse",
+    "RecordReviewRequest",
+    "RecordReviewResponse",
+    # Rollback (Story 18.1-18.5)
+    "OperationTypeEnum",
+    "OperationDataResponse",
+    "OperationMetadataResponse",
+    "OperationResponse",
+    "OperationHistoryResponse",
+    "SnapshotTypeEnum",
+    "SnapshotMetadataResponse",
+    "SnapshotResponse",
+    "SnapshotListResponse",
+    "CreateSnapshotRequest",
+    "RollbackTypeEnum",
+    "RollbackRequest",
+    "RollbackResult",
+    "GraphSyncStatusEnum",
+    "DiffResponse",
+]

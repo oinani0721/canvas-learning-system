@@ -1,3 +1,8 @@
+---
+name: unified-memory
+description: Canvas v2.0 unified memory system integrating Graphiti temporal and MCP semantic memory
+---
+
 # Canvas v2.0 统一记忆系统命令
 
 ## 命令描述

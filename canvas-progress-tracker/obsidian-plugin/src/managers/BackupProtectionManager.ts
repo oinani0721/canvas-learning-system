@@ -42,7 +42,20 @@ export class BackupProtectionManager {
 
   constructor(vault: Vault) {
     this.vault = vault;
-    this.protectionData = { ...DEFAULT_BACKUP_PROTECTION_DATA };
+    // Deep copy to avoid shared state between instances
+    this.protectionData = BackupProtectionManager.createFreshDefaultData();
+  }
+
+  /**
+   * Create a fresh copy of default protection data
+   * Uses deep copy to prevent shared state issues in tests
+   */
+  private static createFreshDefaultData(): BackupProtectionData {
+    return {
+      version: DEFAULT_BACKUP_PROTECTION_DATA.version,
+      lastModified: Date.now(),
+      backups: {},  // Fresh empty object - critical for test isolation
+    };
   }
 
   // ============================================================================
@@ -85,15 +98,15 @@ export class BackupProtectionManager {
           this.protectionData = data;
         } else {
           console.warn('BackupProtectionManager: Invalid metadata format, using defaults');
-          this.protectionData = { ...DEFAULT_BACKUP_PROTECTION_DATA };
+          this.protectionData = BackupProtectionManager.createFreshDefaultData();
         }
       } else {
         // File doesn't exist, use defaults
-        this.protectionData = { ...DEFAULT_BACKUP_PROTECTION_DATA };
+        this.protectionData = BackupProtectionManager.createFreshDefaultData();
       }
     } catch (error) {
       console.log('BackupProtectionManager: No existing metadata, creating new');
-      this.protectionData = { ...DEFAULT_BACKUP_PROTECTION_DATA };
+      this.protectionData = BackupProtectionManager.createFreshDefaultData();
     }
   }
 
@@ -125,6 +138,21 @@ export class BackupProtectionManager {
   async isProtected(filePath: string): Promise<boolean> {
     await this.ensureInitialized();
 
+    const metadata = this.protectionData.backups[filePath];
+    return metadata?.protected === true;
+  }
+
+  /**
+   * Check if a backup file is protected (synchronous version)
+   * Returns false if data not yet initialized.
+   *
+   * @param filePath - Path to the backup file
+   * @returns True if protected, false otherwise or if not initialized
+   */
+  isProtectedSync(filePath: string): boolean {
+    if (!this.initialized) {
+      return false;
+    }
     const metadata = this.protectionData.backups[filePath];
     return metadata?.protected === true;
   }
@@ -446,7 +474,7 @@ export class BackupProtectionManager {
    * Use with caution!
    */
   async resetAll(): Promise<void> {
-    this.protectionData = { ...DEFAULT_BACKUP_PROTECTION_DATA };
+    this.protectionData = BackupProtectionManager.createFreshDefaultData();
     await this.saveMetadata();
     new Notice('所有备份保护已重置');
   }

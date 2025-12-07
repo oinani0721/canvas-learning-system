@@ -5,6 +5,14 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
+# Monitoring & Metrics
+# ✅ Verified from Context7:/prometheus/client_python (topic: Counter Histogram Gauge)
+prometheus-client>=0.17.0
+
+# Logging (ADR-010)
+# ✅ Verified from ADR-010 (structlog integration)
+structlog>=23.0.0
+
 # Data Validation & Settings
 pydantic>=2.5.0
 pydantic-settings>=2.0.0

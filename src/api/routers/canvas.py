@@ -7,17 +7,18 @@ Provides endpoints for Canvas file and node operations.
 """
 
 import uuid
-from typing import Dict, Any
+from typing import Any, Dict
+
 from fastapi import APIRouter, HTTPException, status
 
 from ..models import (
-    NodeCreate,
-    NodeUpdate,
-    NodeRead,
+    CanvasResponse,
     EdgeCreate,
     EdgeRead,
-    CanvasResponse,
     ErrorResponse,
+    NodeCreate,
+    NodeRead,
+    NodeUpdate,
 )
 
 router = APIRouter(prefix="/canvas", tags=["Canvas"])

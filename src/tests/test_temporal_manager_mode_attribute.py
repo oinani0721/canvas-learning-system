@@ -4,8 +4,9 @@
 这个测试验证修复后的TemporalMemoryManager正确实现了mode属性。
 """
 
-import pytest
 import os
+
+import pytest
 from memory_system.temporal_memory_manager import TemporalMemoryManager
 
 

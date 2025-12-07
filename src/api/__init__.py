@@ -8,7 +8,7 @@ and Ebbinghaus review system.
 Story 15.6: API Documentation and Testing Framework
 """
 
+from .config import get_settings, settings
 from .main import app, create_app
-from .config import settings, get_settings
 
 __all__ = ["app", "create_app", "settings", "get_settings"]

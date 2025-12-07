@@ -468,16 +468,16 @@ Zep's context block can either be in summarized or basic form (summarized by def
 
     <FACTS>
       - Emily is experiencing issues with logging in. (2024-11-14 02:13:19+00:00 -
-        present) 
-      - User account Emily0e62 has a suspended status due to payment failure. 
-        (2024-11-14 02:03:58+00:00 - present) 
+        present)
+      - User account Emily0e62 has a suspended status due to payment failure.
+        (2024-11-14 02:03:58+00:00 - present)
       - user has the id of Emily0e62 (2024-11-14 02:03:54 - present)
       - The failed transaction used a card with last four digits 1234. (2024-09-15
         00:00:00+00:00 - present)
       - The reason for the transaction failure was 'Card expired'. (2024-09-15
         00:00:00+00:00 - present)
-      - user has the name of Emily Painter (2024-11-14 02:03:54 - present) 
-      - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30 
+      - user has the name of Emily Painter (2024-11-14 02:03:54 - present)
+      - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30
         00:00:00+00:00 - 2024-08-30 00:00:00+00:00)
     </FACTS>
 
@@ -488,15 +488,15 @@ Zep's context block can either be in summarized or basic form (summarized by def
     <ENTITIES>
       - Emily0e62: Emily0e62 is a user account associated with a transaction,
         currently suspended due to payment failure, and is also experiencing issues
-        with logging in. 
-      - Card expired: The node represents the reason for the transaction failure, 
-        which is indicated as 'Card expired'. 
-      - Magic Pen Tool: The tool being used by the user that is malfunctioning. 
-      - User: user 
-      - Support Agent: Support agent responding to the user's bug report. 
-      - SupportBot: SupportBot is the virtual assistant providing support to the user, 
-        Emily, identified as SupportBot. 
-      - Emily Painter: Emily is a user reporting a bug with the magic pen tool, 
+        with logging in.
+      - Card expired: The node represents the reason for the transaction failure,
+        which is indicated as 'Card expired'.
+      - Magic Pen Tool: The tool being used by the user that is malfunctioning.
+      - User: user
+      - Support Agent: Support agent responding to the user's bug report.
+      - SupportBot: SupportBot is the virtual assistant providing support to the user,
+        Emily, identified as SupportBot.
+      - Emily Painter: Emily is a user reporting a bug with the magic pen tool,
         similar to Emily Painter, who is expressing frustration with the AI art
         generation tool and seeking assistance regarding issues with the PaintWiz app.
     </ENTITIES>
@@ -521,7 +521,7 @@ Refer to our [agent memory walk-through](/walkthrough) for a more complete examp
 <CodeBlocks>
   ```python Python
   graph = client.graph.create(
-      graph_id="some-graph-id", 
+      graph_id="some-graph-id",
       name="Graph Name",
       description="This is a description."
   )
@@ -795,7 +795,7 @@ The example below shows how to create a LangChain LangGraph tool to search for f
   @tool
   async def search_facts(state: MessagesState, query: str, limit: int = 5):
       """Search for facts in all conversations had with a user.
-      
+
       Args:
           state (MessagesState): The Agent's state.
           query (str): The search query.
@@ -804,9 +804,9 @@ The example below shows how to create a LangChain LangGraph tool to search for f
           list: A list of facts that match the search query.
       """
       search_results = await zep.graph.search(
-        user_id=state['user_name'], 
-        query=query, 
-        limit=limit, 
+        user_id=state['user_name'],
+        query=query,
+        limit=limit,
       )
 
       return [edge.fact for edge in search_results.edges]
@@ -991,16 +991,16 @@ Zep's context block can either be in summarized or basic form (summarized by def
 
     <FACTS>
       - Emily is experiencing issues with logging in. (2024-11-14 02:13:19+00:00 -
-        present) 
-      - User account Emily0e62 has a suspended status due to payment failure. 
-        (2024-11-14 02:03:58+00:00 - present) 
+        present)
+      - User account Emily0e62 has a suspended status due to payment failure.
+        (2024-11-14 02:03:58+00:00 - present)
       - user has the id of Emily0e62 (2024-11-14 02:03:54 - present)
       - The failed transaction used a card with last four digits 1234. (2024-09-15
         00:00:00+00:00 - present)
       - The reason for the transaction failure was 'Card expired'. (2024-09-15
         00:00:00+00:00 - present)
-      - user has the name of Emily Painter (2024-11-14 02:03:54 - present) 
-      - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30 
+      - user has the name of Emily Painter (2024-11-14 02:03:54 - present)
+      - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30
         00:00:00+00:00 - 2024-08-30 00:00:00+00:00)
     </FACTS>
 
@@ -1011,15 +1011,15 @@ Zep's context block can either be in summarized or basic form (summarized by def
     <ENTITIES>
       - Emily0e62: Emily0e62 is a user account associated with a transaction,
         currently suspended due to payment failure, and is also experiencing issues
-        with logging in. 
-      - Card expired: The node represents the reason for the transaction failure, 
-        which is indicated as 'Card expired'. 
-      - Magic Pen Tool: The tool being used by the user that is malfunctioning. 
-      - User: user 
-      - Support Agent: Support agent responding to the user's bug report. 
-      - SupportBot: SupportBot is the virtual assistant providing support to the user, 
-        Emily, identified as SupportBot. 
-      - Emily Painter: Emily is a user reporting a bug with the magic pen tool, 
+        with logging in.
+      - Card expired: The node represents the reason for the transaction failure,
+        which is indicated as 'Card expired'.
+      - Magic Pen Tool: The tool being used by the user that is malfunctioning.
+      - User: user
+      - Support Agent: Support agent responding to the user's bug report.
+      - SupportBot: SupportBot is the virtual assistant providing support to the user,
+        Emily, identified as SupportBot.
+      - Emily Painter: Emily is a user reporting a bug with the magic pen tool,
         similar to Emily Painter, who is expressing frustration with the AI art
         generation tool and seeking assistance regarding issues with the PaintWiz app.
     </ENTITIES>
@@ -1331,7 +1331,7 @@ OPENAI_API_KEY=<key>
 </CodeBlocks>
 
 <Info>
-  We also provide an 
+  We also provide an
 
   [Asynchronous Python client](/install-sdks#initialize-the-client)
 
@@ -1653,10 +1653,10 @@ We're going to use the [memory](/adding-memory#adding-messages) and [graph](/add
 
   /**
    * Convert chat history to Zep messages.
-   * 
+   *
    * Args:
    * chatHistory (array): Array of objects containing chat messages.
-   * 
+   *
    * Returns:
    * array: Array of Zep message objects.
    */
@@ -1814,20 +1814,20 @@ FACTS and ENTITIES represent relevant context to the current conversation.
   - Emily Painter: Emily Painter contacted PaintWiz support for assistance, where she was welcomed by the support bot that inquired about the specific issues she was facing to provide better help.
   - Emily@painters.com: user with the email of Emily@painters.com
   - Emily5e57: Emily5e57, a user of the PaintWiz AI art generation tool, successfully processed a transaction of $99.99 on July 30, 2024, using a card ending in '1234'. However, she is experiencing
-significant frustration with the application due to malfunctions, such as the landscape generator incorrectly transforming mountains into fountains and characters being depicted with six fingers. 
-These issues have led her to question the reliability of the tool, and she considers it to be completely broken. Emily has reached out to PaintWiz support for assistance, as these problems are 
+significant frustration with the application due to malfunctions, such as the landscape generator incorrectly transforming mountains into fountains and characters being depicted with six fingers.
+These issues have led her to question the reliability of the tool, and she considers it to be completely broken. Emily has reached out to PaintWiz support for assistance, as these problems are
 severely disrupting her artistic process.
   - PaintWiz support: PaintWiz is an AI art generation platform that provides tools for users to create art. Recently, a user named Emily reported significant issues with the service, claiming that
-the AI art generation is not functioning properly. The support bot responded to her concerns, apologizing for the disruption to her artistic process and asking for more details about the specific 
-tool or feature she was using. This interaction highlights PaintWiz's commitment to customer support, as they actively seek to assist users with their inquiries and problems related to their 
+the AI art generation is not functioning properly. The support bot responded to her concerns, apologizing for the disruption to her artistic process and asking for more details about the specific
+tool or feature she was using. This interaction highlights PaintWiz's commitment to customer support, as they actively seek to assist users with their inquiries and problems related to their
 products.
   - SupportBot: A support agent named Emily addressed a user's report about a bug in a drawing application where the magic pen tool incorrectly produced goats instead of boats. After confirming the
-issue, she escalated it to the engineering team and suggested a temporary workaround of manually selecting the boat shape. Meanwhile, SupportBot, a virtual assistant for PaintWiz, also assisted 
+issue, she escalated it to the engineering team and suggested a temporary workaround of manually selecting the boat shape. Meanwhile, SupportBot, a virtual assistant for PaintWiz, also assisted
 another user named Emily who was frustrated with the AI art generation feature, acknowledging her concerns and requesting more details to help resolve the problem.
   - AI art generation: Emily, a user, expressed her frustration regarding the AI art generation, stating that it is completely broken.
-  - options: The user reported a bug with the magic pen tool, stating that when attempting to draw boats, the tool instead draws goats. The support agent acknowledged the issue and requested more 
-details about how the user was utilizing the tool. The user explained that they select the magic pen and draw a boat shape, but it gets replaced with goats. The support agent confirmed they would 
-escalate the issue to the engineering team and suggested that the user manually select the boat shape from the options instead of drawing it with the pen. The user expressed hope for a quick 
+  - options: The user reported a bug with the magic pen tool, stating that when attempting to draw boats, the tool instead draws goats. The support agent acknowledged the issue and requested more
+details about how the user was utilizing the tool. The user explained that they select the magic pen and draw a boat shape, but it gets replaced with goats. The support agent confirmed they would
+escalate the issue to the engineering team and suggested that the user manually select the boat shape from the options instead of drawing it with the pen. The user expressed hope for a quick
 resolution.
 </ENTITIES>
 ```
@@ -2057,7 +2057,7 @@ Here, the support agent is provided with Emily's billing information and account
 </CodeBlocks>
 
 ```text
-Hi Emily! I'm here to help you. It looks like your account is currently suspended due to a payment failure. This might be the reason you're unable to log in. 
+Hi Emily! I'm here to help you. It looks like your account is currently suspended due to a payment failure. This might be the reason you're unable to log in.
 
 The last transaction on your account failed because the card you were using has expired. If you update your payment information, we can help you get your account reactivated. Would you like assistance with that?
 ```
@@ -2091,7 +2091,7 @@ FACTS and ENTITIES represent relevant context to the current conversation.
   - SupportBot is part of PaintWiz support. (2025-02-24 23:24:28 - present)
   - user has the email of Emily@painters.com (2025-02-24 23:24:29 - present)
   - Emily is a user of PaintWiz. (2025-02-24 23:24:28 - present)
-  - The support agent suggested that Emily manually select the boat shape from the options. (2025-02-24 23:24:29 - 
+  - The support agent suggested that Emily manually select the boat shape from the options. (2025-02-24 23:24:29 -
 present)
   - All the people in Emily1c2e's drawings have six fingers. (2025-02-24 23:24:28 - present)
   - Emily1c2e is using the landscape generator. (2025-02-24 23:24:28 - present)
@@ -2105,33 +2105,33 @@ present)
 # ENTITY_NAME: entity summary
 <ENTITIES>
   - goats: In a recent support interaction, a user reported a bug with the magic pen tool in a drawing application,
-where attempting to draw boats resulted in the tool drawing goats instead. The user, Emily, described the issue, 
-stating that whenever she selects the magic pen and draws a boat shape, it is replaced with a goat shape. The 
-support agent acknowledged the problem and confirmed it would be escalated to the engineering team for resolution. 
-In the meantime, the agent suggested that Emily could manually select the boat shape from the available options 
+where attempting to draw boats resulted in the tool drawing goats instead. The user, Emily, described the issue,
+stating that whenever she selects the magic pen and draws a boat shape, it is replaced with a goat shape. The
+support agent acknowledged the problem and confirmed it would be escalated to the engineering team for resolution.
+In the meantime, the agent suggested that Emily could manually select the boat shape from the available options
 instead of using the pen tool. Emily expressed her hope for a quick fix to the issue.
-  - failure_reason: Two transactions failed due to expired cards: one on September 15, 2024, and another on August 
+  - failure_reason: Two transactions failed due to expired cards: one on September 15, 2024, and another on August
 30, 2024, for the amount of $99.99 associated with account ID 'Emily1c2e'.
-  - status: User account "Emily1c2e" is suspended due to a payment failure. A transaction of $99.99 on September 
+  - status: User account "Emily1c2e" is suspended due to a payment failure. A transaction of $99.99 on September
 15, 2024, failed because the card ending in "1234" had expired. This card had previously been used successfully for
 the same amount on July 30, 2024, but a failure on August 30, 2024, resulted in the account's suspension.
-  - bug: A user reported a bug with the magic pen tool, stating that when attempting to draw boats, the tool 
-instead draws goats. The support agent acknowledged the issue and requested more details about how the user was 
-utilizing the tool. The user explained that they select the magic pen and draw a boat shape, but it gets replaced 
-with goats. The support agent confirmed the bug and stated that it would be escalated to the engineering team for 
-resolution. In the meantime, they suggested that the user manually select the boat shape from the options instead 
+  - bug: A user reported a bug with the magic pen tool, stating that when attempting to draw boats, the tool
+instead draws goats. The support agent acknowledged the issue and requested more details about how the user was
+utilizing the tool. The user explained that they select the magic pen and draw a boat shape, but it gets replaced
+with goats. The support agent confirmed the bug and stated that it would be escalated to the engineering team for
+resolution. In the meantime, they suggested that the user manually select the boat shape from the options instead
 of using the pen. The user expressed hope for a quick fix.
-  - user_id: Emily reported a bug with the magic pen tool in a drawing application, where attempting to draw boats 
-resulted in goats being drawn instead. A support agent acknowledged the issue and requested more details. Emily 
+  - user_id: Emily reported a bug with the magic pen tool in a drawing application, where attempting to draw boats
+resulted in goats being drawn instead. A support agent acknowledged the issue and requested more details. Emily
 explained her process, and the agent confirmed the bug, stating it would be escalated to the engineering team. As a
-temporary workaround, the agent suggested manually selecting the boat shape. Emily expressed hope for a quick 
+temporary workaround, the agent suggested manually selecting the boat shape. Emily expressed hope for a quick
 resolution. Additionally, it was noted that another user, identified as "Emily1c2e," has a suspended account due to
 a payment failure.
-  - people: Emily is frustrated with the AI art generation feature of PaintWiz, specifically mentioning that the 
+  - people: Emily is frustrated with the AI art generation feature of PaintWiz, specifically mentioning that the
 people in her drawings are depicted with six fingers, which she finds ridiculous.
-  - character creator: Emily is experiencing significant issues with the character creator feature of the app. She 
-reports that when using the landscape generator and character creator, the app is malfunctioning, resulting in 
-bizarre outcomes such as people in her drawings having six fingers. Emily expresses her frustration, stating that 
+  - character creator: Emily is experiencing significant issues with the character creator feature of the app. She
+reports that when using the landscape generator and character creator, the app is malfunctioning, resulting in
+bizarre outcomes such as people in her drawings having six fingers. Emily expresses her frustration, stating that
 the AI art generation is completely broken and is not functioning as expected.
 </ENTITIES>
 ```
@@ -3033,11 +3033,11 @@ When creating messages via the API, you should provide the `created_at` timestam
   });
 
   const messages: Message[] = [
-      { 
+      {
           createdAt: "2025-06-01T13:11:12Z",
-          name: "Jane", 
-          role: "user", 
-          content: "What's the weather like today?" 
+          name: "Jane",
+          role: "user",
+          content: "What's the weather like today?"
       },
   ];
 
@@ -3248,16 +3248,16 @@ FACTS and ENTITIES represent relevant context to the current conversation.
 
 <FACTS>
   - Emily is experiencing issues with logging in. (2024-11-14 02:13:19+00:00 -
-    present) 
-  - User account Emily0e62 has a suspended status due to payment failure. 
-    (2024-11-14 02:03:58+00:00 - present) 
+    present)
+  - User account Emily0e62 has a suspended status due to payment failure.
+    (2024-11-14 02:03:58+00:00 - present)
   - user has the id of Emily0e62 (2024-11-14 02:03:54 - present)
   - The failed transaction used a card with last four digits 1234. (2024-09-15
     00:00:00+00:00 - present)
   - The reason for the transaction failure was 'Card expired'. (2024-09-15
     00:00:00+00:00 - present)
-  - user has the name of Emily Painter (2024-11-14 02:03:54 - present) 
-  - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30 
+  - user has the name of Emily Painter (2024-11-14 02:03:54 - present)
+  - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30
     00:00:00+00:00 - 2024-08-30 00:00:00+00:00)
 </FACTS>
 
@@ -3268,15 +3268,15 @@ FACTS and ENTITIES represent relevant context to the current conversation.
 <ENTITIES>
   - Emily0e62: Emily0e62 is a user account associated with a transaction,
     currently suspended due to payment failure, and is also experiencing issues
-    with logging in. 
-  - Card expired: The node represents the reason for the transaction failure, 
-    which is indicated as 'Card expired'. 
-  - Magic Pen Tool: The tool being used by the user that is malfunctioning. 
-  - User: user 
-  - Support Agent: Support agent responding to the user's bug report. 
-  - SupportBot: SupportBot is the virtual assistant providing support to the user, 
-    Emily, identified as SupportBot. 
-  - Emily Painter: Emily is a user reporting a bug with the magic pen tool, 
+    with logging in.
+  - Card expired: The node represents the reason for the transaction failure,
+    which is indicated as 'Card expired'.
+  - Magic Pen Tool: The tool being used by the user that is malfunctioning.
+  - User: user
+  - Support Agent: Support agent responding to the user's bug report.
+  - SupportBot: SupportBot is the virtual assistant providing support to the user,
+    Emily, identified as SupportBot.
+  - Emily Painter: Emily is a user reporting a bug with the magic pen tool,
     similar to Emily Painter, who is expressing frustration with the AI art
     generation tool and seeking assistance regarding issues with the PaintWiz app.
 </ENTITIES>
@@ -3777,7 +3777,7 @@ The `graph.clone` method allows you to create complete copies of graphs with new
       "context"
       "fmt"
       "log"
-      
+
       "github.com/getzep/zep-go/v3"
       zepclient "github.com/getzep/zep-go/v3/client"
       "github.com/getzep/zep-go/v3/option"
@@ -3845,7 +3845,7 @@ Here's an example demonstrating how to clone a user graph:
       "context"
       "fmt"
       "log"
-      
+
       "github.com/getzep/zep-go/v3"
       zepclient "github.com/getzep/zep-go/v3/client"
       "github.com/getzep/zep-go/v3/option"
@@ -4749,7 +4749,7 @@ In the example below, results are returned if they match:
       search_filters=SearchFilters(
           created_at=[
               # First condition graph (AND logic within)
-              [DateFilter(comparison_operator=">=", date="2025-07-01T20:57:56Z"), 
+              [DateFilter(comparison_operator=">=", date="2025-07-01T20:57:56Z"),
                DateFilter(comparison_operator="<", date="2025-08-01T20:57:56Z")],
               # Second condition graph (OR logic with first graph)
               [DateFilter(comparison_operator="<", date="2025-05-01T20:57:56Z")],
@@ -5094,7 +5094,7 @@ When searching nodes in the graph, you may provide a list of types to filter the
   	if err != nil {
   		log.Fatal("Error marshaling attributes:", err)
   	}
-  	
+
   	fmt.Printf("Preference %d:\n%s\n\n", i+1, string(attributesJSON))
   }
   ```
@@ -6220,8 +6220,8 @@ The `fact_rating_instruction` framework consists of an instruction and three exa
 
 <CodeBlocks>
   ```python Rating Facts for Poignancy
-  fact_rating_instruction = """Rate the facts by poignancy. Highly poignant 
-  facts have a significant emotional impact or relevance to the user. 
+  fact_rating_instruction = """Rate the facts by poignancy. Highly poignant
+  facts have a significant emotional impact or relevance to the user.
   Facts with low poignancy are minimally relevant or of little emotional
   significance."""
   fact_rating_examples = FactRatingExamples(
@@ -6242,7 +6242,7 @@ The `fact_rating_instruction` framework consists of an instruction and three exa
   client.user.add(
       user_id=user_id,
       fact_rating_instruction=FactRatingInstruction(
-          instruction="""Rate the facts by how relevant they 
+          instruction="""Rate the facts by how relevant they
                          are to purchasing shoes.""",
           examples=FactRatingExamples(
               high="The user has agreed to purchase a Reebok running shoe.",
@@ -6396,14 +6396,14 @@ Batch processing works for all types of data, including data with a temporal dim
       "context"
       "encoding/json"
       "log"
-      
+
       "github.com/getzep/zep-go/v3"
       zepclient "github.com/getzep/zep-go/v3/client"
   )
 
   jsonData, _ := json.Marshal(map[string]interface{}{
-      "name": "Eric Clapton", 
-      "age": 78, 
+      "name": "Eric Clapton",
+      "age": 78,
       "genre": "Rock",
   })
 
@@ -6534,7 +6534,7 @@ In addition to adding batch data to your graph, you can add batch message data d
           },
           {
               Content: "I can't access my dashboard and keep getting an error",
-              Role:    "user", 
+              Role:    "user",
               Name:    zep.String("customer"),
           },
           {
@@ -6942,7 +6942,7 @@ Now, let's add some data and immediately try to search for that data; because da
   ```python
   episode = client.graph.add(
       user_id=user_id,
-      type="text", 
+      type="text",
       data="The user is an avid fan of Eric Clapton"
   )
 
@@ -7028,15 +7028,15 @@ We can check the status of the episode to see when it has finished processing, u
   ```typescript
     // Check if episode is processed
     const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-    
+
     let processedEpisode = await client.graph.episode.get(episode.uuid);
-    
+
     while (!processedEpisode.processed) {
       console.log("Waiting for episode to process...");
       await sleep(1000); // Sleep for 1 second
       processedEpisode = await client.graph.episode.get(episode.uuid);
     }
-    
+
     console.log("Episode processed successfully");
   ```
 
@@ -7675,7 +7675,7 @@ FACTS and ENTITIES represent relevant context to the current conversation.
   - John Doe states that he is vegetarian. (Date range: 2025-06-16T02:17:25Z - present)
   - John Doe is lactose intolerant (Date range: 2025-06-16T02:17:25Z - present)
 </FACTS>
- 
+
 # These are the most relevant entities
 # ENTITY_NAME: entity summary
 <ENTITIES>
@@ -7960,7 +7960,7 @@ Note also that we designed the context block template around the custom entity a
   import (
   	"strings"
   )
-  	
+
   const CONTEXT_STRING_TEMPLATE_2 = `PREVIOUS_RESTAURANT_VISITS, DIETARY_PREFERENCES, and RESTAURANTS represent relevant context to the current conversation.
   # These are the most relevant restaurants the user has previously visited
   # format: restaurant_name: RESTAURANT_NAME
@@ -8050,19 +8050,19 @@ PREVIOUS_RESTAURANT_VISITS, DIETARY_PREFERENCES, and RESTAURANTS represent relev
   - restaurant_name: Insomnia Cookies
   - restaurant_name: Green Leaf Cafe
 </PREVIOUS_RESTAURANT_VISITS>
- 
+
 # These are the most relevant dietary preferences of the user, whether they represent an allergy, and their valid date ranges
 # format: allergy: True/False; preference_type: PREFERENCE_TYPE (Date range: from - to)
 <DIETARY_PREFERENCES>
   - allergy: False; preference_type: vegetarian (Date range: 2025-06-16T02:17:25Z - present)
   - allergy: False; preference_type: lactose intolerance (Date range: 2025-06-16T02:17:25Z - present)
 </DIETARY_PREFERENCES>
- 
+
 # These are the most relevant restaurants the user has discussed previously
 # format: name: RESTAURANT_NAME; cuisine_type: CUISINE_TYPE; dietary_accommodation: DIETARY_ACCOMMODATION
 <RESTAURANTS>
   - name: Green Leaf Cafe; dietary_accommodation: vegetarian
-  - name: Insomnia Cookies; 
+  - name: Insomnia Cookies;
 </RESTAURANTS>
 ```
 
@@ -8356,7 +8356,7 @@ FACTS and ENTITIES represent relevant context to the current conversation.
   - John Doe states that he is vegetarian. (Date range: 2025-06-16T02:17:25Z - present)
   - John Doe is lactose intolerant (Date range: 2025-06-16T02:17:25Z - present)
 </FACTS>
- 
+
 # These are the most relevant entities
 # ENTITY_NAME: entity summary
 <ENTITIES>
@@ -9439,16 +9439,16 @@ FACTS and ENTITIES represent relevant context to the current conversation.
 
 <FACTS>
   - Emily is experiencing issues with logging in. (2024-11-14 02:13:19+00:00 -
-    present) 
-  - User account Emily0e62 has a suspended status due to payment failure. 
-    (2024-11-14 02:03:58+00:00 - present) 
+    present)
+  - User account Emily0e62 has a suspended status due to payment failure.
+    (2024-11-14 02:03:58+00:00 - present)
   - user has the id of Emily0e62 (2024-11-14 02:03:54 - present)
   - The failed transaction used a card with last four digits 1234. (2024-09-15
     00:00:00+00:00 - present)
   - The reason for the transaction failure was 'Card expired'. (2024-09-15
     00:00:00+00:00 - present)
-  - user has the name of Emily Painter (2024-11-14 02:03:54 - present) 
-  - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30 
+  - user has the name of Emily Painter (2024-11-14 02:03:54 - present)
+  - Account Emily0e62 made a failed transaction of 99.99. (2024-07-30
     00:00:00+00:00 - 2024-08-30 00:00:00+00:00)
 </FACTS>
 
@@ -9459,15 +9459,15 @@ FACTS and ENTITIES represent relevant context to the current conversation.
 <ENTITIES>
   - Emily0e62: Emily0e62 is a user account associated with a transaction,
     currently suspended due to payment failure, and is also experiencing issues
-    with logging in. 
-  - Card expired: The node represents the reason for the transaction failure, 
-    which is indicated as 'Card expired'. 
-  - Magic Pen Tool: The tool being used by the user that is malfunctioning. 
-  - User: user 
-  - Support Agent: Support agent responding to the user's bug report. 
-  - SupportBot: SupportBot is the virtual assistant providing support to the user, 
-    Emily, identified as SupportBot. 
-  - Emily Painter: Emily is a user reporting a bug with the magic pen tool, 
+    with logging in.
+  - Card expired: The node represents the reason for the transaction failure,
+    which is indicated as 'Card expired'.
+  - Magic Pen Tool: The tool being used by the user that is malfunctioning.
+  - User: user
+  - Support Agent: Support agent responding to the user's bug report.
+  - SupportBot: SupportBot is the virtual assistant providing support to the user,
+    Emily, identified as SupportBot.
+  - Emily Painter: Emily is a user reporting a bug with the magic pen tool,
     similar to Emily Painter, who is expressing frustration with the AI art
     generation tool and seeking assistance regarding issues with the PaintWiz app.
 </ENTITIES>
@@ -9519,7 +9519,7 @@ Zep will perform a user graph search right after persisting the memory and retur
 </CodeBlocks>
 
 <Tip>
-  Read more in the 
+  Read more in the
 
   [Thread SDK Reference](/sdk-reference/thread/add-messages)
 </Tip>
@@ -9538,7 +9538,7 @@ client = AsyncZep(api_key="your_api_key")
 async def add_and_retrieve_from_zep(messages):
     # Concatenate message content to create query string
     query = " ".join([msg.content for msg in messages])
-    
+
     # Execute all operations concurrently
     add_result, edges_result, nodes_result = await asyncio.gather(
         client.thread.add_messages(
@@ -9556,7 +9556,7 @@ async def add_and_retrieve_from_zep(messages):
             scope="nodes"
         )
     )
-    
+
     return add_result, edges_result, nodes_result
 ```
 
@@ -9619,7 +9619,7 @@ You can hint to Zep that a retrieval may be made soon, allowing Zep to move user
 </CodeBlocks>
 
 <Tip>
-  Read more in the 
+  Read more in the
 
   [User SDK Reference](/sdk-reference/user/warm)
 </Tip>
@@ -10147,11 +10147,11 @@ These are examples of simple Tools that search Zep for facts (from edges) or nod
 ```python
 def create_zep_tools(user_name: str):
     """Create Zep search tools configured for a specific user."""
-    
+
     @tool
     async def search_facts(query: str, limit: int = 5) -> list[str]:
         """Search for facts in all conversations had with a user.
-        
+
         Args:
             query (str): The search query.
             limit (int): The number of results to return. Defaults to 5.
@@ -10170,7 +10170,7 @@ def create_zep_tools(user_name: str):
     @tool
     async def search_nodes(query: str, limit: int = 5) -> list[str]:
         """Search for nodes in all conversations had with a user.
-        
+
         Args:
             query (str): The search query.
             limit (int): The number of results to return. Defaults to 5.
@@ -10185,7 +10185,7 @@ def create_zep_tools(user_name: str):
         if not summaries:
             return ["No nodes found for the query."]
         return summaries
-    
+
     return [search_facts, search_nodes]
 
 # We'll create the actual tools after we have a user_name
@@ -10265,12 +10265,12 @@ This function creates a complete LangGraph agent configured for a specific user.
 ```python
 def create_agent(user_name: str):
     """Create a LangGraph agent configured for a specific user."""
-    
+
     # Create tools configured for this user
     tools = create_zep_tools(user_name)
     tool_node = ToolNode(tools)
     llm_with_tools = ChatOpenAI(model="gpt-4o-mini", temperature=0).bind_tools(tools)
-    
+
     # Update the chatbot function to use the configured LLM
     async def chatbot_with_tools(state: State):
         memory = await zep.thread.get_user_context(state["thread_id"])
@@ -10315,7 +10315,7 @@ def create_agent(user_name: str):
         logger.info(f"Messages in state: {state['messages']}")
 
         return {"messages": [response]}
-    
+
     # Define the function that determines whether to continue or not
     async def should_continue(state, config):
         messages = state["messages"]
@@ -10326,18 +10326,18 @@ def create_agent(user_name: str):
         # Otherwise if there is, we continue
         else:
             return "continue"
-    
+
     # Build the graph
     graph_builder = StateGraph(State)
     memory = MemorySaver()
-    
+
     graph_builder.add_node("agent", chatbot_with_tools)
     graph_builder.add_node("tools", tool_node)
-    
+
     graph_builder.add_edge(START, "agent")
     graph_builder.add_conditional_edges("agent", should_continue, {"continue": "tools", "end": END})
     graph_builder.add_edge("tools", "agent")
-    
+
     return graph_builder.compile(checkpointer=memory)
 ```
 
@@ -10418,7 +10418,7 @@ print(r)
 ```python
 r = await graph_invoke(
     """
-    I'm fine. But have been a bit stressful lately. Mostly work related. 
+    I'm fine. But have been a bit stressful lately. Mostly work related.
     But also my dog. I'm worried about her.
     """,
     first_name,
@@ -10530,7 +10530,7 @@ The `zep-autogen` package provides seamless integration between Zep and Microsof
   pip install zep-autogen zep-cloud autogen-core autogen-agentchat
   ```
 
-  ```bash uv  
+  ```bash uv
   uv add zep-autogen zep-cloud autogen-core autogen-agentchat
   ```
 
@@ -10630,7 +10630,7 @@ export OPENAI_API_KEY="your_openai_api_key"
       metadata = {"type": "message", "role": role}
       if name:
           metadata["name"] = name
-      
+
       await memory.add(MemoryContent(
           content=message,
           mime_type=MemoryMimeType.TEXT,
@@ -10828,14 +10828,14 @@ Both memory types support direct querying with different scope parameters.
 ### User memory queries
 
 ```python
-# Query user conversation history  
+# Query user conversation history
 results = await memory.query("What does Alice like?", limit=5)
 
 # Process different result types
 for result in results.results:
     content = result.content
     metadata = result.metadata
-    
+
     if 'edge_name' in metadata:
         # Fact/relationship result
         print(f"Fact: {content}")
@@ -10849,7 +10849,7 @@ for result in results.results:
         # Episode/message result
         print(f"Message: {content}")
         print(f"Role: {metadata.get('episode_role', 'unknown')}")
-    
+
     print(f"Source: {metadata.get('source')}\n")
 ```
 
@@ -10858,15 +10858,15 @@ for result in results.results:
 ```python
 # Query knowledge graph with scope control
 facts_results = await graph_memory.query(
-    "Python frameworks", 
-    limit=10, 
+    "Python frameworks",
+    limit=10,
     scope="edges"  # "edges" (facts), "nodes" (entities), "episodes" (messages)
 )
 
 print(f"Found {len(facts_results.results)} facts about Python frameworks:")
 for result in facts_results.results:
     print(f"- {result.content}")
-    
+
 entities_results = await graph_memory.query(
     "programming languages",
     limit=5,
@@ -10964,7 +10964,7 @@ The `zep-livekit` package provides seamless integration between Zep and LiveKit 
   pip install zep-livekit zep-cloud "livekit-agents[openai,silero]>=1.0.0"
   ```
 
-  ```bash uv  
+  ```bash uv
   uv add zep-livekit zep-cloud "livekit-agents[openai,silero]>=1.0.0"
   ```
 
@@ -11016,12 +11016,12 @@ export LIVEKIT_API_SECRET="your_livekit_secret"
   async def entrypoint(ctx: JobContext):
       # Initialize Zep client
       zep_client = AsyncZep(api_key=os.environ.get("ZEP_API_KEY"))
-      
+
       # Create unique user and thread IDs
       participant_name = ctx.room.remote_participants[0].name or "User"
       user_id = f"livekit_{participant_name}_{ctx.room.name}"
       thread_id = f"thread_{ctx.room.name}"
-      
+
       # Create user in Zep (if not exists)
       try:
           await zep_client.user.add(
@@ -11030,7 +11030,7 @@ export LIVEKIT_API_SECRET="your_livekit_secret"
           )
       except Exception as e:
           logging.info(f"User might already exist: {e}")
-      
+
       # Create thread for conversation memory
       try:
           await zep_client.thread.create(thread_id=thread_id, user_id=user_id)
@@ -11048,7 +11048,7 @@ export LIVEKIT_API_SECRET="your_livekit_secret"
           tts=openai.TTS(),
           vad=silero.VAD.load(),
       )
-      
+
       # Create Zep memory agent with enhanced configuration
       zep_agent = ZepUserAgent(
           zep_client=zep_client,
@@ -11060,7 +11060,7 @@ export LIVEKIT_API_SECRET="your_livekit_secret"
           instructions="You are a helpful voice assistant with persistent memory. "
                       "Remember details from previous conversations and reference them naturally."
       )
-      
+
       # Start the session with the agent
       await session.start(agent=zep_agent, room=ctx.room)
   ```
@@ -11070,7 +11070,7 @@ export LIVEKIT_API_SECRET="your_livekit_secret"
   ```python
       # Voice assistant will now have persistent memory
       logging.info("Voice assistant with Zep memory is running")
-      
+
       # Keep the session running
       await session.aclose()
   ```
@@ -11091,7 +11091,7 @@ zep_agent = ZepUserAgent(
     thread_id="thread_456",
     context_mode="basic",  # "basic" or "summary" - how context is assembled
     user_message_name="Alice",  # Name attribution for user messages
-    assistant_message_name="Assistant",  # Name attribution for AI messages  
+    assistant_message_name="Assistant",  # Name attribution for AI messages
     instructions="Custom system instructions for the agent"
 )
 ```
@@ -11142,7 +11142,7 @@ zep_agent = ZepUserAgent(
 
   async def setup_graph_agent(ctx: JobContext):
       zep_client = AsyncZep(api_key=os.environ.get("ZEP_API_KEY"))
-      
+
       # Set ontology for structured knowledge
       await zep_client.graph.set_ontology(
           entities={
@@ -11150,7 +11150,7 @@ zep_agent = ZepUserAgent(
               "Topic": Topic,
           }
       )
-      
+
       # Create knowledge graph
       graph_id = f"livekit_graph_{ctx.room.name}"
       try:
@@ -11172,7 +11172,7 @@ zep_agent = ZepUserAgent(
           tts=openai.TTS(),
           vad=silero.VAD.load(),
       )
-      
+
       # Create Zep graph agent
       zep_agent = ZepGraphAgent(
           zep_client=zep_client,
@@ -11185,7 +11185,7 @@ zep_agent = ZepUserAgent(
           instructions="You are a knowledgeable voice assistant. Use the provided "
                       "context about entities and facts to give informed responses."
       )
-      
+
       # Start the session with the graph agent
       await session.start(agent=zep_agent, room=ctx.room)
   ```
@@ -11250,20 +11250,20 @@ from zep_livekit import ZepUserAgent
 
 async def entrypoint(ctx: JobContext):
     await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
-    
+
     # Setup Zep integration
     zep_client = AsyncZep(api_key=os.environ.get("ZEP_API_KEY"))
     participant_name = ctx.room.remote_participants[0].name or "User"
     user_id = f"livekit_{participant_name}_{ctx.room.name}"
     thread_id = f"thread_{ctx.room.name}"
-    
+
     # Create user and thread
     try:
         await zep_client.user.add(user_id=user_id, first_name=participant_name)
         await zep_client.thread.create(thread_id=thread_id, user_id=user_id)
     except Exception:
         pass  # Already exists
-    
+
     # Create agent session
     session = agents.AgentSession(
         stt=openai.STT(),
@@ -11271,7 +11271,7 @@ async def entrypoint(ctx: JobContext):
         tts=openai.TTS(),
         vad=silero.VAD.load(),
     )
-    
+
     # Create voice assistant with Zep memory
     zep_agent = ZepUserAgent(
         zep_client=zep_client,
@@ -11283,10 +11283,10 @@ async def entrypoint(ctx: JobContext):
         instructions="You are a helpful voice assistant with persistent memory. "
                     "Remember details from previous conversations."
     )
-    
+
     # Start the session with the agent
     await session.start(agent=zep_agent, room=ctx.room)
-    
+
     logging.info("Voice assistant with Zep memory is running")
     await session.aclose()
 
@@ -11403,7 +11403,7 @@ Use `ZepGraphStorage` for organizational knowledge that multiple agents can acce
 
   # Create a graph first
   graph = zep_client.graph.create(
-      graph_id="company_knowledge", 
+      graph_id="company_knowledge",
       name="Company Knowledge Graph",
       description="Shared organizational knowledge and insights."
   )
@@ -11748,7 +11748,7 @@ The NVIDIA NeMo Agent Toolkit includes a memory module that integrates with Zep 
   pip install nvidia-nat-zep-cloud
   ```
 
-  ```bash uv  
+  ```bash uv
   uv add nvidia-nat-zep-cloud
   ```
 
@@ -22302,9 +22302,9 @@ graphiti = Graphiti(neo4j_uri, neo4j_user, neo4j_password)
 try:
     # Initialize the graph database with graphiti's indices. This only needs to be done once.
     await graphiti.build_indices_and_constraints()
-    
+
     # Additional code will go here
-    
+
 finally:
     # Close the connection
     await graphiti.close()
@@ -22814,7 +22814,7 @@ from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerCli
 # Configure Anthropic LLM with OpenAI embeddings and reranking
 graphiti = Graphiti(
     "bolt://localhost:7687",
-    "neo4j", 
+    "neo4j",
     "password",
     llm_client=AnthropicClient(
         config=LLMConfig(
@@ -22871,7 +22871,7 @@ from graphiti_core.cross_encoder.openai_reranker_client import OpenAIRerankerCli
 graphiti = Graphiti(
     "bolt://localhost:7687",
     "neo4j",
-    "password", 
+    "password",
     llm_client=GroqClient(
         config=LLMConfig(
             api_key="<your-groq-api-key>",
@@ -23669,7 +23669,7 @@ from pydantic import validator
 class Person(BaseModel):
     """A person entity."""
     age: Optional[int] = Field(None, description="Age in years")
-    
+
     @validator('age')
     def validate_age(cls, v):
         if v is not None and (v < 0 or v > 150):
@@ -23904,10 +23904,10 @@ Here's an example of using namespacing in a multi-tenant application:
 ```python
 async def add_customer_data(tenant_id, customer_data):
     """Add customer data to a tenant-specific namespace"""
-    
+
     # Use the tenant_id as the namespace
     namespace = f"tenant_{tenant_id}"
-    
+
     # Create an episode for this customer data
     await graphiti.add_episode(
         name=f"customer_data_{customer_data['id']}",
@@ -23920,9 +23920,9 @@ async def add_customer_data(tenant_id, customer_data):
 
 async def search_tenant_data(tenant_id, query):
     """Search within a tenant's namespace"""
-    
+
     namespace = f"tenant_{tenant_id}"
-    
+
     # Only search within this tenant's namespace
     return await graphiti.search(
         query=query,
@@ -24097,9 +24097,9 @@ Note that because these are class methods they are called using the class rather
             """
         MATCH (n:Entity {uuid: $uuid})
         RETURN
-            n.uuid As uuid, 
-            n.name AS name, 
-            n.created_at AS created_at, 
+            n.uuid As uuid,
+            n.name AS name,
+            n.created_at AS created_at,
             n.summary AS summary
         """,
             uuid=uuid,
@@ -24719,5 +24719,3 @@ Telemetry is automatically disabled during test runs (when `pytest` is detected)
 * Telemetry uses PostHog for anonymous analytics collection
 * All telemetry operations are designed to fail silently - they will never interrupt your application or affect Graphiti functionality
 * The anonymous ID is stored locally and is not tied to any personal information
-
-

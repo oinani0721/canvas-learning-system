@@ -175,7 +175,7 @@ _[Changes since v1.0](https://github.com/obsidianmd/obsidian-api/compare/32fe4c3
 - Exposed the `activeEditor` on the Workspace. When a markdown view is active, this will point to the underlying `MarkdownEditView`. If a canvas view is active, this will be an EmbeddedEditor component.
 
 With these two changes, plugins should be able to adapt to the new Canvas view quite easily. Custom
-views that react the the currently focused views will automatically respond to the user clicking 
+views that react the the currently focused views will automatically respond to the user clicking
 on file cards in the canvas. If a plugin is currently accessing the `Editor` using the following
 approach:
 

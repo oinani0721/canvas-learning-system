@@ -76,4 +76,57 @@ dependencies:
     - validate-next-story.md
   templates:
     - story-tmpl.yaml
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFLICT-HANDLING PROTOCOL (Step 8d Implementation)
+# ══════════════════════════════════════════════════════════════════════════════
+# This section instructs the PO Agent HOW to execute validate-next-story.md Step 8d
+# When conflicts are detected between Source of Truth (SoT) levels during validation
+# ══════════════════════════════════════════════════════════════════════════════
+conflict-handling:
+  trigger: "When executing validate-next-story.md and Step 8d detects conflicts"
+  behavior: |
+    When Step 8d (Conflict Resolution Protocol) detects conflicts between SoT levels:
+
+    1. HALT - Do not proceed to Step 9 or subsequent steps
+       - Do not mark story as READY or GO
+       - Conflicts must be resolved before validation can complete
+
+    2. FOR EACH CONFLICT detected, use AskUserQuestion tool:
+       Question Format:
+       "Conflict [N/Total]: [Document A] vs [Document B]
+        - Document A ([Level]): [specific value/definition]
+        - Document B ([Level]): [conflicting value/definition]
+        - SoT Hierarchy Suggests: [Document A/B] should be authoritative (Level X > Level Y)
+
+        How should this conflict be resolved?"
+
+       Options (ALWAYS include these 4 options):
+       A: "Accept SoT hierarchy recommendation" - Update lower-level document to match higher-level
+       B: "Override with justification" - Higher-level document is wrong, requires ADR creation
+       C: "Modify both documents" - Both need changes, specify what changes
+       D: "Defer decision" - Add to tech debt, Story remains DRAFT (blocks READY status)
+
+    3. RECORD each decision in Story's Dev Notes section:
+       ```markdown
+       ## Conflict Resolutions
+       | # | Conflict | Decision | Rationale | Resolved By | Timestamp |
+       |---|----------|----------|-----------|-------------|-----------|
+       | 1 | PRD vs Schema: email required | Accept SoT (PRD) | Schema out of date | User | 2025-11-25 |
+       ```
+
+    4. If user selects Option D (Defer) for ANY conflict:
+       - Story status MUST remain DRAFT
+       - Final Assessment MUST be "CONFLICT-BLOCKED"
+       - Include warning: "Story cannot be marked READY until all conflicts are resolved"
+
+    5. After ALL conflicts resolved with A, B, or C:
+       - Apply cascade updates (Step 8d.6)
+       - Re-validate affected sections (Step 8d.7)
+       - Only then proceed to Step 9
+
+  sot_hierarchy: |
+    Reference: docs/architecture/sot-hierarchy.md
+    PRD (Level 1) > Architecture (Level 2) > JSON Schema (Level 3) > OpenAPI (Level 4) > Story (Level 5) > Code (Level 6)
+
+  critical_rule: "NEVER mark a story as READY or GO if any unresolved conflicts exist"
 ```

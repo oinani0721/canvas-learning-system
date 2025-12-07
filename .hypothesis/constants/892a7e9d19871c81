@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\health.py
+# hypothesis_version: 6.148.1
+
+[0.0, 200, 500, '/health', '/health/metrics', 'Prometheus指标', 'Prometheus格式指标', 'available_bytes', 'avg_execution_time_s', 'avg_latency_s', 'avg_time_s', 'by_operation', 'by_type', 'content', 'count', 'cpu', 'description', 'disk', 'error_count', 'example', 'free_bytes', 'get_metrics_summary', 'health_check', 'healthy', 'invocations_total', 'memory', 'model', 'percent', 'queries_total', 'query_count', 'success_count', 'text/plain', 'total_bytes', 'utf-8', '健康检查', '应用健康', '应用异常', '指标摘要', '返回Prometheus格式的监控指标', '返回应用状态、名称、版本和时间戳']

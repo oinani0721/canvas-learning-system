@@ -9,22 +9,20 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
 import json
 import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-
-# 测试目标模块
-from graphiti_integration import GraphitiKnowledgeGraph, GraphitiContextManager
 from concept_extractor import ConceptExtractor
 from graph_commands import GraphCommandHandler
 from graph_visualizer import GraphVisualizer
+
+# 测试目标模块
+from graphiti_integration import GraphitiKnowledgeGraph
 
 
 class TestGraphitiKnowledgeGraph(unittest.TestCase):

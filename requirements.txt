@@ -264,6 +264,20 @@ Pillow>=10.0.0               # Python Imaging Library (Trust Score: 9.5/10)
                              # 支持: PNG, JPG, GIF, SVG (rasterized)
 
 # ===========================
+# Story 6.2: PDF节点类型支持依赖 (SCP-006)
+# ===========================
+PyMuPDF>=1.24.0              # PDF处理库 (Trust Score: 9.0/10)
+                             # 用于PDF解析、首页缩略图生成、元数据提取
+                             # 支持: PDF, XPS, EPUB, MOBI等格式
+
+# ===========================
+# Story 6.4: 图片OCR与描述生成依赖 (SCP-006)
+# ===========================
+google-generativeai>=0.8.0   # Gemini API客户端 (Trust Score: 9.5/10)
+                             # 用于Gemini 2.0 Flash Vision模型
+                             # 支持: OCR、图片描述、LaTeX公式识别
+
+# ===========================
 # Story 17.4: Performance Optimization依赖
 # ===========================
 orjson>=3.9.0                # 高性能JSON解析 (Trust Score: 9.2/10)

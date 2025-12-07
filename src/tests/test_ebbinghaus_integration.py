@@ -11,8 +11,9 @@ Created: 2025-11-02
 Story: 11.8 (系统集成与性能优化)
 """
 
-import pytest
 from pathlib import Path
+
+import pytest
 
 
 class TestEbbinghausIntegration:
@@ -32,7 +33,7 @@ class TestEbbinghausIntegration:
             "review-adapt.md",         # 动态复习调整
             "review-progress.md"       # 复习进度追踪
         ]
-        print(f"\n✅ 艾宾浩斯复习系统测试环境初始化")
+        print("\n✅ 艾宾浩斯复习系统测试环境初始化")
         print(f"   命令目录: {cls.commands_dir}")
         print(f"   复习命令数: {len(cls.review_commands)}")
 
@@ -50,7 +51,7 @@ class TestEbbinghausIntegration:
             "\n".join(f"  - {f}" for f in missing_files)
         )
 
-        print(f"\n✅ Subtask 4.1 通过: 艾宾浩斯算法实现位置验证")
+        print("\n✅ Subtask 4.1 通过: 艾宾浩斯算法实现位置验证")
         for cmd in self.review_commands:
             cmd_path = self.commands_dir / cmd
             print(f"   ✓ {cmd} ({cmd_path.stat().st_size:,}字节)")
@@ -61,7 +62,7 @@ class TestEbbinghausIntegration:
         assert test_file.exists(), "测试文件不存在"
         assert test_file.stat().st_size > 1000, "测试文件内容过少"
 
-        print(f"\n✅ Subtask 4.2 通过: test_ebbinghaus_integration.py已创建")
+        print("\n✅ Subtask 4.2 通过: test_ebbinghaus_integration.py已创建")
         print(f"   文件大小: {test_file.stat().st_size:,}字节")
 
     def test_subtask_4_3_review_command_structure(self):
@@ -87,7 +88,7 @@ class TestEbbinghausIntegration:
             f"/review命令缺少以下功能: {', '.join(missing_features)}"
         )
 
-        print(f"\n✅ Subtask 4.3 通过: 复习命令结构验证")
+        print("\n✅ Subtask 4.3 通过: 复习命令结构验证")
         print(f"   支持功能: {', '.join(required_features)}")
 
     def test_subtask_4_4_green_node_review_queue_interface(self):
@@ -111,8 +112,8 @@ class TestEbbinghausIntegration:
             f"generate-review命令缺少Canvas节点相关功能（找到{found_keywords}/3个关键词）"
         )
 
-        print(f"\n✅ Subtask 4.4 通过: 绿色节点复习队列接口验证")
-        print(f"   generate-review命令支持Canvas集成")
+        print("\n✅ Subtask 4.4 通过: 绿色节点复习队列接口验证")
+        print("   generate-review命令支持Canvas集成")
 
     def test_subtask_4_5_forgetting_curve_calculation(self):
         """Subtask 4.5: 验证遗忘曲线计算基于学习事件数据"""
@@ -139,7 +140,7 @@ class TestEbbinghausIntegration:
             f"艾宾浩斯命令缺少遗忘曲线相关内容（找到{found_keywords}/4个关键词）"
         )
 
-        print(f"\n✅ Subtask 4.5 通过: 遗忘曲线算法验证")
+        print("\n✅ Subtask 4.5 通过: 遗忘曲线算法验证")
         print(f"   找到{found_keywords}个相关关键词")
 
     def test_subtask_4_6_review_suggestions_in_report(self):
@@ -165,7 +166,7 @@ class TestEbbinghausIntegration:
             f"review-progress命令缺少报告相关功能（找到{found_keywords}/3个关键词）"
         )
 
-        print(f"\n✅ Subtask 4.6 通过: 复习建议报告接口验证")
+        print("\n✅ Subtask 4.6 通过: 复习建议报告接口验证")
         print(f"   找到{found_keywords}个相关关键词")
 
     def test_subtask_4_7_color_transition_to_review_queue_workflow(self):
@@ -197,8 +198,8 @@ class TestEbbinghausIntegration:
             "step5": "用户完成复习后运行/review complete记录"
         }
 
-        print(f"\n✅ Subtask 4.7 通过: 颜色流转→复习队列工作流验证")
-        print(f"   工作流设计:")
+        print("\n✅ Subtask 4.7 通过: 颜色流转→复习队列工作流验证")
+        print("   工作流设计:")
         for step, desc in workflow_description.items():
             print(f"      {step}: {desc}")
 
@@ -313,7 +314,7 @@ class TestEbbinghausIntegration:
         print(doc_content)
         print(f"{'='*70}\n")
 
-        print(f"\n✅ Subtask 4.8 通过: 艾宾浩斯集成文档已生成")
+        print("\n✅ Subtask 4.8 通过: 艾宾浩斯集成文档已生成")
         print(f"   文档行数: {len(integration_doc_lines)}")
 
 

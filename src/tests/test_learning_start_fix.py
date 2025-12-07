@@ -11,17 +11,17 @@ Version: 1.0
 Created: 2025-10-30
 """
 
-import pytest
 import json
 import os
 import sys
 import time
 from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
+from memory_system.memory_exceptions import TemporalMemoryError
 
 from command_handlers.learning_commands import LearningSessionManager
-from memory_system.memory_exceptions import TemporalMemoryError, SemanticMemoryError
 
 
 class TestLearningStartRealCalls:
@@ -51,7 +51,6 @@ class TestLearningStartRealCalls:
         mock_mcp_tool = AsyncMock(return_value=mock_result)
 
         # Use sys.modules to inject the mock
-        import sys
         mock_claude_tools = MagicMock()
         mock_claude_tools.mcp__graphiti_memory__add_episode = mock_mcp_tool
 

@@ -9,12 +9,12 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import json
-import tempfile
 import os
-from typing import Dict, List
+import tempfile
+import time
+
+import pytest
 
 
 class TestSimplePerformance:
@@ -127,8 +127,9 @@ class TestSimplePerformance:
 
     def test_memory_allocation_performance(self):
         """测试内存分配性能"""
-        import psutil
         import gc
+
+        import psutil
 
         process = psutil.Process()
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
@@ -170,8 +171,8 @@ class TestSimplePerformance:
 
     def test_concurrent_operations_performance(self):
         """测试并发操作性能"""
-        import threading
         import queue
+        import threading
 
         results_queue = queue.Queue()
 

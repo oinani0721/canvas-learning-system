@@ -582,6 +582,119 @@
 }
 
 /* ============================================================================
+   Review Mode Dialog (Story 14.5)
+   ============================================================================ */
+
+.review-mode-dialog {
+    max-width: 480px;
+}
+
+.mode-options {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin: 1rem 0;
+}
+
+.mode-option {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1rem;
+    border: 2px solid var(--background-modifier-border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background-color: var(--background-primary);
+}
+
+.mode-option:hover {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-secondary);
+}
+
+.mode-option.selected {
+    border-color: var(--interactive-accent);
+    background-color: rgba(var(--interactive-accent-rgb), 0.1);
+}
+
+.mode-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background-color: var(--background-modifier-hover);
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.mode-option.selected .mode-icon {
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+.mode-content {
+    flex: 1;
+}
+
+.mode-content strong {
+    display: block;
+    font-size: 0.9375rem;
+    color: var(--text-normal);
+    margin-bottom: 0.25rem;
+}
+
+.mode-content p {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    margin: 0;
+    line-height: 1.4;
+}
+
+.task-selection {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.task-selection > p {
+    font-size: 0.875rem;
+    color: var(--text-muted);
+    margin: 0 0 0.75rem 0;
+}
+
+.task-list-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.task-preview-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-normal);
+}
+
+.task-preview-item .task-icon {
+    color: var(--text-faint);
+    width: 12px;
+    height: 12px;
+}
+
+.task-more {
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    padding-left: 1.25rem;
+    font-style: italic;
+}
+
+/* ============================================================================
    Animations
    ============================================================================ */
 
@@ -636,4 +749,819 @@
     .action-button.primary {
         grid-column: span 1;
     }
+}
+
+/* ============================================================================
+   Story 14.6: History View Styles
+   ============================================================================ */
+
+/* Tab Navigation */
+.dashboard-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+    margin-bottom: 1rem;
+    background: var(--background-secondary);
+    border-radius: 8px 8px 0 0;
+    overflow: hidden;
+}
+
+.dashboard-tab {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.dashboard-tab:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.dashboard-tab.active {
+    background: var(--background-primary);
+    color: var(--text-accent);
+    border-bottom: 2px solid var(--text-accent);
+}
+
+.dashboard-tab .tab-icon {
+    font-size: 1rem;
+}
+
+/* Time Range Selector */
+.time-range-selector {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.25rem;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    width: fit-content;
+}
+
+.time-range-btn {
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    color: var(--text-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.time-range-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.time-range-btn.active {
+    background: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* History Content Layout */
+.history-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.history-section {
+    background: var(--background-primary);
+    border-radius: 8px;
+    padding: 1rem;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.history-section h3 {
+    margin: 0 0 1rem 0;
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.history-section h3 .section-icon {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+/* Daily Stats Chart */
+.daily-stats-chart {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 1rem;
+}
+
+.bar-chart {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    height: 120px;
+    gap: 4px;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.bar-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 40px;
+}
+
+.bar-fill {
+    width: 100%;
+    background: linear-gradient(180deg, var(--interactive-accent) 0%, var(--interactive-accent-hover) 100%);
+    border-radius: 4px 4px 0 0;
+    min-height: 4px;
+    transition: height 0.3s ease;
+}
+
+.bar-item:hover .bar-fill {
+    background: var(--text-accent);
+}
+
+.bar-label {
+    font-size: 0.625rem;
+    color: var(--text-muted);
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.bar-value {
+    font-size: 0.6875rem;
+    color: var(--text-normal);
+    font-weight: 500;
+}
+
+.chart-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 120px;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Canvas Trends */
+.canvas-trends {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.trend-item {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.trend-item:hover {
+    background: var(--background-modifier-hover);
+}
+
+.trend-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.trend-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.trend-meta {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.trend-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 120px;
+}
+
+.trend-progress-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--background-modifier-border);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.trend-progress-fill {
+    height: 100%;
+    background: var(--interactive-accent);
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.trend-progress-fill.improving {
+    background: var(--color-green);
+}
+
+.trend-progress-fill.declining {
+    background: var(--color-red);
+}
+
+.trend-progress-fill.stable {
+    background: var(--color-yellow);
+}
+
+.trend-rate {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    min-width: 45px;
+    text-align: right;
+}
+
+.trend-arrow {
+    font-size: 0.75rem;
+}
+
+.trend-arrow.up {
+    color: var(--color-green);
+}
+
+.trend-arrow.down {
+    color: var(--color-red);
+}
+
+.trend-arrow.stable {
+    color: var(--text-muted);
+}
+
+.trends-empty {
+    text-align: center;
+    padding: 2rem;
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* History List */
+.history-list-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.history-date-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.history-date-header {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.history-entries {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.history-entry {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.history-entry:hover {
+    background: var(--background-modifier-hover);
+}
+
+.history-entry-icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--background-primary);
+    border-radius: 50%;
+    font-size: 0.875rem;
+}
+
+.history-entry-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.history-entry-title {
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-entry-subtitle {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.125rem;
+}
+
+.history-entry-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.6875rem;
+    font-weight: 500;
+}
+
+.mode-badge.fresh {
+    background: var(--color-blue-rgb, rgba(59, 130, 246, 0.15));
+    color: var(--color-blue, #3b82f6);
+}
+
+.mode-badge.targeted {
+    background: var(--color-orange-rgb, rgba(249, 115, 22, 0.15));
+    color: var(--color-orange, #f97316);
+}
+
+.history-score {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.history-score.excellent {
+    color: var(--color-green);
+}
+
+.history-score.good {
+    color: var(--color-cyan);
+}
+
+.history-score.average {
+    color: var(--color-yellow);
+}
+
+.history-score.poor {
+    color: var(--color-red);
+}
+
+.history-empty {
+    text-align: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+
+.history-empty-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    opacity: 0.5;
+}
+
+.history-empty-text {
+    font-size: 0.875rem;
+}
+
+/* History View Loading State */
+.history-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    gap: 1rem;
+}
+
+.history-loading .loading-spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.history-loading-text {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+}
+
+/* Responsive adjustments for history view */
+@media (max-width: 768px) {
+    .dashboard-tabs {
+        border-radius: 0;
+    }
+
+    .time-range-selector {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .bar-chart {
+        height: 100px;
+    }
+
+    .trend-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .trend-progress {
+        width: 100%;
+    }
+
+    .history-entry {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .history-entry-meta {
+        width: 100%;
+        justify-content: space-between;
+        margin-top: 0.5rem;
+    }
+}
+
+/* ============================================================================
+   Story 14.8: Chart.js Statistics Charts
+   ============================================================================ */
+
+/* Chart Container */
+.chart-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 1rem;
+}
+
+.chart-container.small {
+    height: 150px;
+}
+
+.chart-container.medium {
+    height: 200px;
+}
+
+.chart-container.large {
+    height: 280px;
+}
+
+.chart-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+/* Chart Section Card */
+.chart-section {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.chart-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.chart-section-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--text-normal);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chart-section-title .title-icon {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.chart-section-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.chart-period-btn {
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.chart-period-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.chart-period-btn.active {
+    background: var(--interactive-accent);
+    border-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+}
+
+/* Chart Grid Layout */
+.charts-grid {
+    display: grid;
+    gap: 1rem;
+}
+
+.charts-grid.two-column {
+    grid-template-columns: repeat(2, 1fr);
+}
+
+.charts-grid.three-column {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+@media (max-width: 1024px) {
+    .charts-grid.three-column {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .charts-grid.two-column,
+    .charts-grid.three-column {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Chart Stats Summary */
+.chart-stats-summary {
+    display: flex;
+    justify-content: space-around;
+    padding: 0.75rem;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.chart-stat-item {
+    text-align: center;
+}
+
+.chart-stat-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: var(--text-normal);
+    line-height: 1.2;
+}
+
+.chart-stat-value.positive {
+    color: var(--color-green);
+}
+
+.chart-stat-value.negative {
+    color: var(--color-red);
+}
+
+.chart-stat-value.neutral {
+    color: var(--color-yellow);
+}
+
+.chart-stat-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.chart-stat-trend {
+    font-size: 0.6875rem;
+    margin-top: 0.125rem;
+}
+
+.chart-stat-trend.up {
+    color: var(--color-green);
+}
+
+.chart-stat-trend.down {
+    color: var(--color-red);
+}
+
+.chart-stat-trend.stable {
+    color: var(--text-muted);
+}
+
+/* Chart Empty State */
+.chart-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 150px;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.chart-empty-state .empty-icon {
+    font-size: 2rem;
+    opacity: 0.5;
+    margin-bottom: 0.5rem;
+}
+
+.chart-empty-state p {
+    font-size: 0.875rem;
+    margin: 0;
+}
+
+/* Chart Legend Custom Styles */
+.chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+}
+
+/* Statistics Tab (Story 14.8 enhancement) */
+.statistics-tab-content {
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+.statistics-overview {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.overview-card {
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    padding: 1rem;
+    text-align: center;
+}
+
+.overview-card .card-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.overview-card .card-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--text-normal);
+    line-height: 1;
+}
+
+.overview-card .card-label {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.25rem;
+}
+
+.overview-card .card-change {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    font-size: 0.6875rem;
+    margin-top: 0.5rem;
+}
+
+.overview-card .card-change.positive {
+    color: var(--color-green);
+}
+
+.overview-card .card-change.negative {
+    color: var(--color-red);
+}
+
+@media (max-width: 1024px) {
+    .statistics-overview {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .statistics-overview {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Chart Loading State */
+.chart-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    min-height: 150px;
+}
+
+.chart-loading .loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--background-modifier-border);
+    border-top-color: var(--interactive-accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Tooltip customization for dark mode */
+.theme-dark .chart-tooltip {
+    background: var(--background-primary) !important;
+    border: 1px solid var(--background-modifier-border) !important;
+}
+
+/* Review Notification Styles (Story 14.7) */
+.review-reminder-notice {
+    cursor: pointer;
+}
+
+.review-notification {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0;
+}
+
+.notification-icon {
+    font-size: 1.25rem;
+}
+
+.notification-text {
+    flex: 1;
+    font-weight: 500;
+}
+
+.notification-action {
+    color: var(--text-accent);
+    font-size: 0.875rem;
 }

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\exceptions\canvas_exceptions.py
+# hypothesis_version: 6.148.1
+
+[400, 404, 500, 'agent_type', 'canvas_name', 'code', 'details', 'field', 'message', 'node_id', 'value']

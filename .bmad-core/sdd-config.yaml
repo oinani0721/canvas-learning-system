@@ -1,0 +1,138 @@
+# ============================================================================
+# SDD (Specification-Driven Development) Configuration
+# Version: 1.1.0
+# Updated: 2025-12-01
+# ============================================================================
+#
+# This configuration controls the 4-tier SDD validation system used by
+# the BMad Orchestrator's sdd_pre_validation_node and sdd_validation_node.
+#
+# SDD Workflow:
+#   Analysis → SDD_PRE (pre-dev) → DEV → QA → SDD (post-QA) → MERGE → COMMIT
+#
+# Tier Hierarchy:
+#   - Tier 1/2: BLOCKING (fail = HALT workflow)
+#   - Tier 3/4: WARNING (fail = continue with warnings)
+#
+# ============================================================================
+
+# Global Settings
+# ----------------------------------------------------------------------------
+global:
+  enabled: true
+  verbose_logging: true
+  fail_fast: false  # If true, stop on first tier failure
+
+# ----------------------------------------------------------------------------
+# Pre-Development Validation (sdd_pre_validation_node)
+# Runs BEFORE development starts to catch issues early
+# ----------------------------------------------------------------------------
+pre_validation:
+  enabled: true
+
+  # Tier 1: Coverage Verification
+  # Ensures PRD requirements are covered by OpenAPI/Schema specs
+  tier1_coverage:
+    enabled: true
+    blocking: true  # If false, failures become warnings
+    threshold_percent: 80  # PRD→Spec coverage minimum (user confirmed: 80%)
+    script_path: "scripts/verify-sdd-coverage.py"
+
+  # Tier 2: Source Verification
+  # Ensures specs have x-source-verification metadata
+  tier2_source:
+    enabled: true
+    blocking: true  # If false, failures become warnings
+    script_path: "scripts/verify-sdd-source.py"
+    required_metadata:
+      - x-source-verification
+      - x-prd-reference
+
+  # Tier 3: Consistency Verification (pre-dev)
+  # Ensures PRD ↔ Schema ↔ OpenAPI are consistent
+  tier3_consistency:
+    enabled: true
+    blocking: false  # Warnings only, don't block dev start
+    script_path: "scripts/verify-sdd-consistency.py"
+
+# ----------------------------------------------------------------------------
+# Post-QA Validation (sdd_validation_node)
+# Runs AFTER QA passes to verify implementation matches specs
+# ----------------------------------------------------------------------------
+post_validation:
+  enabled: true
+
+  # Tier 1-3: Same as pre-validation
+  # Re-validates after code changes
+  tier1_coverage:
+    enabled: true
+    blocking: true
+    threshold_percent: 80
+    script_path: "scripts/verify-sdd-coverage.py"
+
+  tier2_source:
+    enabled: true
+    blocking: true
+    script_path: "scripts/verify-sdd-source.py"
+
+  tier3_consistency:
+    enabled: true
+    blocking: false
+    script_path: "scripts/verify-sdd-consistency.py"
+
+  # Tier 4: Contract Testing (NEW in v1.1.0)
+  # Runs pytest on tests/contract/ to validate API contracts
+  tier4_contract_tests:
+    enabled: true
+    blocking: false  # Warnings only, don't block merge
+    test_path: "tests/contract"
+    test_pattern: "test_*.py"
+    pytest_args:
+      - "-v"
+      - "--tb=short"
+      - "-q"
+    timeout_seconds: 300  # 5 minute timeout for contract tests
+
+# ----------------------------------------------------------------------------
+# Source Paths
+# Where to find SDD specification files
+# ----------------------------------------------------------------------------
+paths:
+  prd_location: "docs/prd"
+  openapi_specs: "specs/api"
+  json_schemas: "specs/data"
+  architecture_docs: "docs/architecture"
+  contract_tests: "tests/contract"
+
+# ----------------------------------------------------------------------------
+# Source of Truth (SoT) Hierarchy
+# Defines authority when documents conflict
+# Level 1 = highest authority
+# ----------------------------------------------------------------------------
+sot_hierarchy:
+  level1: "PRD"           # WHAT: Functional requirements
+  level2: "Architecture"  # HOW: System design
+  level3: "JSON Schema"   # Data structure contracts
+  level4: "OpenAPI Spec"  # API behavior contracts
+  level5: "Stories"       # Implementation details
+  level6: "Code"          # Must comply with all above
+
+# ----------------------------------------------------------------------------
+# Conflict Resolution
+# How to handle conflicts between SoT levels
+# ----------------------------------------------------------------------------
+conflict_resolution:
+  auto_resolve: false  # If true, higher level wins automatically
+  require_user_confirmation: true
+  log_conflicts: true
+  conflict_log_path: "logs/sdd-conflicts.log"
+
+# ----------------------------------------------------------------------------
+# Reporting
+# ----------------------------------------------------------------------------
+reporting:
+  generate_report: true
+  report_format: "markdown"
+  report_path: "reports/sdd-validation-report.md"
+  include_details: true
+  include_suggestions: true

@@ -9,7 +9,6 @@ Created: 2025-10-28
 
 import asyncio
 import sys
-import os
 from pathlib import Path
 
 # 添加项目根目录到Python路径
@@ -24,12 +23,12 @@ async def run_async_tests():
     # 导入测试模块
     from test_memory_recorder import (
         TestDataEncryption,
-        TestSystemHealthChecker,
         TestFileLogger,
+        TestIntegration,
         TestLocalMemoryDB,
         TestMemoryRecorder,
-        TestIntegration,
-        TestStress
+        TestStress,
+        TestSystemHealthChecker,
     )
 
     total_tests = 0
@@ -153,10 +152,10 @@ def run_sync_tests():
 
     # 导入测试模块
     from test_learning_session_manager import (
+        TestConvenienceFunctions,
+        TestIntegrationWithMemoryRecorder,
         TestLearningSession,
         TestLearningSessionManager,
-        TestIntegrationWithMemoryRecorder,
-        TestConvenienceFunctions
     )
 
     # 创建测试套件
@@ -173,7 +172,7 @@ def run_sync_tests():
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
 
-    print(f"\n学习会话管理器测试结果:")
+    print("\n学习会话管理器测试结果:")
     print(f"运行: {result.testsRun}")
     print(f"失败: {len(result.failures)}")
     print(f"错误: {len(result.errors)}")

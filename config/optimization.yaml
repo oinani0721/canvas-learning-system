@@ -1,0 +1,137 @@
+# Canvas Learning System - Optimization Configuration
+# ✅ Verified from Architecture Doc (performance-monitoring-architecture.md:336-398)
+# ✅ Verified from ADR-007 (ADR-007-CACHING-STRATEGY-TIERED.md)
+# [Source: docs/stories/17.4.story.md - Task 8]
+#
+# This file contains feature flags and configuration for all optimization features.
+# Changes can be made at runtime without code changes.
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Canvas File Cache Configuration
+# [Source: docs/architecture/performance-monitoring-architecture.md:346-360]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+canvas_cache:
+  # Enable/disable Canvas file caching
+  enabled: true
+
+  # Maximum number of cached Canvas files
+  max_size: 100
+
+  # Cache TTL in seconds (1 hour)
+  ttl: 3600
+
+  # Use orjson for JSON parsing (30% CPU reduction)
+  use_orjson: true
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Batch Writer Configuration
+# [Source: docs/architecture/performance-monitoring-architecture.md:361-380]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+batch_writer:
+  # Enable/disable batch writing
+  enabled: true
+
+  # Debounce delay in milliseconds
+  debounce_delay_ms: 500
+
+  # Maximum pending writes before force flush
+  max_pending: 10
+
+  # Use atomic writes (temp file + rename)
+  atomic_writes: true
+
+  # Create backup before write
+  create_backup: true
+
+  # Number of backups to retain
+  backup_count: 3
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Resource-Aware Scheduler Configuration
+# [Source: docs/architecture/performance-monitoring-architecture.md:381-398]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+scheduler:
+  # Enable/disable resource-aware scheduling
+  enabled: true
+
+  # Concurrency limits per load level
+  concurrency:
+    low: 12      # Low system load
+    medium: 8    # Medium system load
+    high: 4      # High system load
+    critical: 2  # Critical system load
+
+  # CPU thresholds (percentage)
+  cpu_thresholds:
+    medium: 50
+    high: 70
+    critical: 85
+
+  # Memory thresholds (percentage)
+  memory_thresholds:
+    medium: 60
+    high: 75
+    critical: 90
+
+  # Monitoring interval in seconds
+  monitor_interval: 1.0
+
+  # Fallback concurrency when psutil unavailable
+  fallback_concurrency: 4
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Feature Flags
+# [Source: docs/architecture/decisions/ADR-007-CACHING-STRATEGY-TIERED.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+feature_flags:
+  # Master switch for all optimizations
+  optimizations_enabled: true
+
+  # Individual feature toggles
+  canvas_read_optimization: true
+  canvas_write_optimization: true
+  resource_aware_scheduling: true
+
+  # Experimental features
+  experimental:
+    # Predictive cache warming (not yet implemented)
+    predictive_caching: false
+
+    # Compression for large Canvas files (not yet implemented)
+    canvas_compression: false
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Performance Targets
+# [Source: docs/architecture/performance-monitoring-architecture.md:336-345]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+targets:
+  # Cache hit rate target (80%+)
+  cache_hit_rate: 0.80
+
+  # CPU reduction target (30%)
+  cpu_reduction: 0.30
+
+  # Memory limit increase (50%)
+  memory_limit_increase: 0.50
+
+  # P95 latency reduction (40%)
+  p95_latency_reduction: 0.40
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Rollback Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+rollback:
+  # Enable automatic rollback on error spike
+  auto_rollback_enabled: false
+
+  # Error rate threshold for auto-rollback (percentage)
+  error_rate_threshold: 10
+
+  # Time window for error rate calculation (seconds)
+  error_rate_window: 60

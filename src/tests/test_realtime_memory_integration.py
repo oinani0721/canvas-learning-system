@@ -13,26 +13,22 @@ Version: 1.0
 Created: 2025-10-25
 """
 
-import json
 import os
+
+# 导入被测试的模块
+import sys
 import tempfile
 import time
 import unittest
 from datetime import datetime
-from pathlib import Path
-from unittest.mock import Mock, patch
 
-import pytest
-
-# 导入被测试的模块
-import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from learning_activity_capture import LearningActivityCapture
-from realtime_canvas_memory_integration import RealtimeCanvasMemoryIntegration
 from learning_pattern_analyzer import LearningPatternAnalyzer
 from memory_system_integrator import MemorySystemIntegrator
 from privacy_manager import PrivacyManager
+from realtime_canvas_memory_integration import RealtimeCanvasMemoryIntegration
 
 
 class TestRealtimeMemoryIntegration(unittest.TestCase):

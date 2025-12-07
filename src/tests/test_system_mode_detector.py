@@ -6,14 +6,14 @@ Tests the system mode detection logic and helper functions.
 
 import pytest
 from memory_system.system_mode_detector import (
+    MODE_BASIC,
+    MODE_FULL,
+    MODE_NAMES,
+    MODE_PARTIAL,
     SystemModeDetector,
     _build_available_list,
     _build_unavailable_list,
     _describe_impact,
-    MODE_FULL,
-    MODE_PARTIAL,
-    MODE_BASIC,
-    MODE_NAMES
 )
 
 

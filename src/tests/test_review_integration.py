@@ -13,15 +13,17 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import pytest
-import tempfile
 import json
-import time
-import os
 import math
-from datetime import datetime, timedelta
-from ebbinghaus_review import EbbinghausReviewScheduler, DEFAULT_REVIEW_INTERVALS, DEFAULT_MEMORY_STRENGTH
+import os
+import tempfile
+import time
+
+import pytest
 from review_manager_standalone import CanvasReviewManagerStandalone
+
+from ebbinghaus_review import DEFAULT_MEMORY_STRENGTH, DEFAULT_REVIEW_INTERVALS, EbbinghausReviewScheduler
+
 
 class TestReviewIntegration:
     """复习系统集成测试"""

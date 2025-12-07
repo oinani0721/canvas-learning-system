@@ -49,9 +49,10 @@ References:
 
 import os
 from pathlib import Path
+from typing import Any, Dict
+
 import pytest
 import schemathesis
-from typing import Dict, Any
 
 # ============================================================================
 # Project Paths Configuration
@@ -219,7 +220,7 @@ def sample_agent_invoke_request() -> Dict[str, Any]:
 
 # 配置Hypothesis（Schemathesis使用Hypothesis进行property-based testing）
 # 参见: https://hypothesis.readthedocs.io/
-from hypothesis import settings, Verbosity
+from hypothesis import Verbosity, settings
 
 # 设置Hypothesis配置文件
 settings.register_profile(

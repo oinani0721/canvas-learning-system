@@ -386,4 +386,132 @@ export class ReviewRecordDAO {
             nextReviewDate,
         });
     }
+
+    // =========================================================================
+    // Story 14.6/14.7 Methods - History & Notifications
+    // =========================================================================
+
+    /**
+     * Get pending reviews for a specific date (for notifications)
+     * Story 14.7: 复习提醒通知
+     */
+    async getPendingReviewsForDate(date: Date): Promise<ReviewRecord[]> {
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
+        const dueRecords = await this.getDueForReview(endOfDay);
+        // Filter to only pending/scheduled status
+        return dueRecords.filter((r) => r.status === 'pending' || r.status === 'scheduled');
+    }
+
+    /**
+     * Get reviews since a start date (for history view)
+     * Story 14.6: 复习历史查看
+     */
+    async getReviewsSince(startDate: Date): Promise<ReviewRecord[]> {
+        return await this.findByDateRange({
+            startDate,
+            endDate: new Date(),
+        });
+    }
+
+    /**
+     * Get reviews within a date range (for daily statistics)
+     * Story 14.6: 复习历史查看
+     */
+    async getReviewsInRange(startDate: Date, endDate: Date): Promise<ReviewRecord[]> {
+        return await this.findByDateRange({
+            startDate,
+            endDate,
+        });
+    }
+
+    /**
+     * Get review history for a specific concept
+     * Story 14.6: 复习历史查看
+     */
+    async getConceptReviews(conceptId: string): Promise<ReviewRecord[]> {
+        const allRecords = await this.getAll();
+        return allRecords
+            .filter((r) => r.conceptId === conceptId)
+            .sort((a, b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime());
+    }
+
+    /**
+     * Get review sessions for a canvas (grouped by session)
+     * Story 14.6: 复习历史查看 + 趋势分析
+     */
+    async getCanvasReviewSessions(canvasPath: string): Promise<{
+        date: Date;
+        passRate: number;
+        mode: string;
+        conceptsReviewed: number;
+        weakConceptsCount: number;
+    }[]> {
+        const records = await this.findByCanvasId(canvasPath);
+
+        // Group records by day to form "sessions"
+        const sessionMap = new Map<string, ReviewRecord[]>();
+
+        for (const record of records) {
+            const dateKey = new Date(record.reviewDate).toISOString().split('T')[0];
+            if (!sessionMap.has(dateKey)) {
+                sessionMap.set(dateKey, []);
+            }
+            sessionMap.get(dateKey)!.push(record);
+        }
+
+        const sessions: {
+            date: Date;
+            passRate: number;
+            mode: string;
+            conceptsReviewed: number;
+            weakConceptsCount: number;
+        }[] = [];
+
+        for (const [dateKey, dayRecords] of sessionMap) {
+            const conceptsReviewed = dayRecords.length;
+            const passedCount = dayRecords.filter((r) =>
+                r.status === 'completed' && (r.reviewScore || 0) >= 60
+            ).length;
+            const passRate = conceptsReviewed > 0 ? passedCount / conceptsReviewed : 0;
+            const weakConceptsCount = dayRecords.filter((r) =>
+                (r.reviewScore || 0) < 60
+            ).length;
+
+            // Determine mode based on if there's targeted review indicator
+            const hasTargetedReview = dayRecords.some((r) =>
+                r.difficultyLevel === 'hard' || r.memoryStrength < 0.5
+            );
+            const mode = hasTargetedReview ? 'targeted' : 'fresh';
+
+            sessions.push({
+                date: new Date(dateKey),
+                passRate,
+                mode,
+                conceptsReviewed,
+                weakConceptsCount,
+            });
+        }
+
+        // Sort by date descending
+        return sessions.sort((a, b) => b.date.getTime() - a.date.getTime());
+    }
+
+    /**
+     * Get list of canvases that have been reviewed since a date
+     * Story 14.6: 复习历史查看
+     */
+    async getReviewedCanvasesSince(startDate: Date): Promise<string[]> {
+        const records = await this.getReviewsSince(startDate);
+        const canvasSet = new Set<string>();
+
+        for (const record of records) {
+            if (record.canvasId) {
+                canvasSet.add(record.canvasId);
+            }
+        }
+
+        return Array.from(canvasSet);
+    }
 }

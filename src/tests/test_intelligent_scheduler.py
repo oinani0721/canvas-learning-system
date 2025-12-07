@@ -11,23 +11,17 @@
 
 import asyncio
 import json
-import pytest
-import tempfile
-import uuid
-from datetime import datetime
-from pathlib import Path
 
 # 导入要测试的模块
 import sys
+import tempfile
+from pathlib import Path
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent))
 
-from canvas_utils import (
-    IntelligentParallelScheduler,
-    NodeAnalysisResult,
-    TaskGroup,
-    CanvasJSONOperator,
-    COLOR_YELLOW
-)
+from canvas_utils import COLOR_YELLOW, IntelligentParallelScheduler, NodeAnalysisResult, TaskGroup
 
 
 class TestNodeAnalysisResult:

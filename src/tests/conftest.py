@@ -2,11 +2,12 @@
 # pytest配置文件 - 添加项目根目录到Python路径
 # Includes JSON Schema validation fixtures for SDD compliance
 
-import sys
 import json
-import pytest
+import sys
 from pathlib import Path
 from typing import Any, Dict
+
+import pytest
 
 # 将项目根目录添加到Python路径
 project_root = Path(__file__).parent.parent
@@ -15,7 +16,7 @@ sys.path.insert(0, str(project_root))
 # Try to import jsonschema
 try:
     import jsonschema
-    from jsonschema import validate, ValidationError
+    from jsonschema import ValidationError, validate
     JSONSCHEMA_AVAILABLE = True
 except ImportError:
     JSONSCHEMA_AVAILABLE = False

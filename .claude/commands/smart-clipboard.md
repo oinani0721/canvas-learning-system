@@ -1,3 +1,8 @@
+---
+name: smart-clipboard
+description: Solve agent text copy-paste issues with intelligent clipboard management
+---
+
 # Smart Clipboard System
 
 ## Metadata

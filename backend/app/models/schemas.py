@@ -8,12 +8,11 @@ All models are derived from the OpenAPI specification:
 [Source: specs/api/fastapi-backend-api.openapi.yml]
 """
 
-from datetime import datetime, date
+from datetime import date, datetime
 from enum import Enum
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Common Schemas

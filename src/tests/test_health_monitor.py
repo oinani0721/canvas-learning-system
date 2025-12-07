@@ -13,22 +13,26 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import unittest
-import json
 import os
+import shutil
 import sys
 import tempfile
-import shutil
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
+import unittest
+from unittest.mock import Mock, patch
 
 # 添加项目根目录到Python路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
-    from system_health_monitor import SystemHealthMonitor, HealthStatus, ComponentHealth
-    from component_health_checkers import ComponentHealthCheckers, CanvasOperationsChecker
-    from health_monitor_commands import HealthMonitorCommands, CommandOptions, canvas_status_command, error_log_command, health_check_command
+    from component_health_checkers import CanvasOperationsChecker, ComponentHealthCheckers
+    from health_monitor_commands import (
+        CommandOptions,
+        HealthMonitorCommands,
+        canvas_status_command,
+        error_log_command,
+        health_check_command,
+    )
+    from system_health_monitor import ComponentHealth, HealthStatus, SystemHealthMonitor
 except ImportError as e:
     print(f"警告：无法导入健康监控模块进行测试: {e}")
     SystemHealthMonitor = None

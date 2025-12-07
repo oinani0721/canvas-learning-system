@@ -1,0 +1,171 @@
+# Canvas Learning System - Alert Rules Configuration
+# ✅ Verified from Architecture Doc (performance-monitoring-architecture.md:281-323)
+# [Source: docs/stories/17.3.story.md - Task 2]
+#
+# Alert rule format:
+#   name: Unique rule identifier
+#   expression: Simplified PromQL expression
+#   for: Duration in seconds before firing
+#   severity: critical | warning | info
+#   summary: Short alert summary
+#   description: Detailed description with {value} placeholder
+#   labels: Additional labels for categorization
+
+alerts:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # API Performance Alerts
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: HighAPILatency
+    expression: 'canvas_api_request_latency_seconds{quantile="0.95"} > 1.0'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "API响应时间过高"
+    description: "95分位API响应时间超过1秒，当前值: {value}s"
+    labels:
+      component: api
+      category: performance
+
+  - name: HighErrorRate
+    expression: 'rate(canvas_api_requests_total{status=~"5.."}[5m]) / rate(canvas_api_requests_total[5m]) > 0.05'
+    for: 120  # 2 minutes
+    severity: critical
+    summary: "错误率过高"
+    description: "5分钟内错误率超过5%，可能存在系统性问题"
+    labels:
+      component: api
+      category: availability
+
+  - name: HighConcurrentTasks
+    expression: 'canvas_api_concurrent_requests > 100'
+    for: 120  # 2 minutes
+    severity: warning
+    summary: "并发任务过多"
+    description: "当前并发任务数: {value}，可能导致性能下降"
+    labels:
+      component: api
+      category: load
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Agent Performance Alerts
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: AgentExecutionSlow
+    expression: 'canvas_agent_execution_seconds{quantile="0.95"} > 10'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "Agent执行过慢"
+    description: "Agent 95分位执行时间超过10秒，当前值: {value}s"
+    labels:
+      component: agent
+      category: performance
+
+  - name: AgentHighFailureRate
+    expression: 'rate(canvas_agent_failures_total[5m]) / rate(canvas_agent_invocations_total[5m]) > 0.1'
+    for: 180  # 3 minutes
+    severity: warning
+    summary: "Agent失败率过高"
+    description: "Agent失败率超过10%，请检查Agent服务状态"
+    labels:
+      component: agent
+      category: reliability
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Memory System Alerts
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: MemorySystemDown
+    expression: 'up{job="memory_system"} == 0'
+    for: 60  # 1 minute
+    severity: critical
+    summary: "记忆系统不可用"
+    description: "记忆系统连接失败，请检查Neo4j/LanceDB服务"
+    labels:
+      component: memory
+      category: availability
+
+  - name: GraphitiHighLatency
+    expression: 'canvas_memory_graphiti_latency_seconds{quantile="0.95"} > 2.0'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "Graphiti查询延迟过高"
+    description: "Graphiti知识图谱查询P95延迟超过2秒"
+    labels:
+      component: memory
+      layer: graphiti
+      category: performance
+
+  - name: SemanticMemoryHighLatency
+    expression: 'canvas_memory_semantic_latency_seconds{quantile="0.95"} > 1.5'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "语义记忆查询延迟过高"
+    description: "语义记忆向量检索P95延迟超过1.5秒"
+    labels:
+      component: memory
+      layer: semantic
+      category: performance
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Resource Alerts
+  # ═══════════════════════════════════════════════════════════════════════════
+
+  - name: HighCPUUsage
+    expression: 'process_cpu_percent > 85'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "CPU使用率过高"
+    description: "进程CPU使用率持续超过85%"
+    labels:
+      component: system
+      category: resources
+
+  - name: HighMemoryUsage
+    expression: 'process_memory_percent > 80'
+    for: 300  # 5 minutes
+    severity: warning
+    summary: "内存使用率过高"
+    description: "进程内存使用率持续超过80%"
+    labels:
+      component: system
+      category: resources
+
+  - name: DiskSpaceLow
+    expression: 'disk_usage_percent > 90'
+    for: 60  # 1 minute
+    severity: critical
+    summary: "磁盘空间不足"
+    description: "磁盘使用率超过90%，请立即清理"
+    labels:
+      component: system
+      category: resources
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Notification Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+notification:
+  channels:
+    console:
+      enabled: true
+      # Uses structlog logging (ADR-010)
+
+    file:
+      enabled: true
+      path: "logs/alerts.log"
+
+    obsidian:
+      enabled: true
+      # Uses SSE broadcast (ADR-006)
+
+    webhook:
+      enabled: false
+      url: ""  # Optional webhook URL
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Alert Manager Configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+manager:
+  evaluation_interval: 30  # seconds
+  max_alerts: 100  # Maximum active alerts

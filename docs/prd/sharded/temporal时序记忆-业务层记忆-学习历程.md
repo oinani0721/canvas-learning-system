@@ -28,4 +28,3 @@
 - `store_to_temporal_memory()`: 每次Canvas操作后记录事件
 
 ---
-

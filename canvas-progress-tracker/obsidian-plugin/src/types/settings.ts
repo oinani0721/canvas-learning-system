@@ -278,7 +278,7 @@ export interface PluginSettings {
  */
 export const DEFAULT_SETTINGS: PluginSettings = {
     // Connection Settings
-    claudeCodeUrl: 'http://localhost:3005',
+    claudeCodeUrl: 'http://localhost:8001',
     apiKey: '',
     commandTimeout: 30000,
     retryCount: 3,

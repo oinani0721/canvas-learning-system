@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\error_tracking.py
+# hypothesis_version: 6.148.1
+
+[0.0, 1000, 1001, 1002, 1003, 1004, 1005, 1006, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 3000, 3001, 3002, 3010, 3020, 3030, 3040, 4000, 4001, 4002, 4010, 4020, 5000, 5001, 5002, 5003, 5004, 6000, '_total', 'agent', 'by_category', 'by_component', 'canvas_errors_total', 'category', 'client', 'component', 'error_code', 'external', 'failed', 'memory', 'retries', 'retry_outcome', 'success', 'success_rate', 'system', 'total', 'total_errors', 'unknown']

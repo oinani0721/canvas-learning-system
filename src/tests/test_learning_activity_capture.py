@@ -12,32 +12,19 @@ Version: 1.0
 Created: 2025-10-25
 """
 
-import asyncio
-import json
 import os
-import tempfile
-import time
-import unittest
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
-
-import pytest
 
 # 导入被测试的模块
 import sys
+import tempfile
+import time
+import unittest
+from datetime import datetime
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from learning_activity_capture import (
-    LearningActivity,
-    SessionContext,
-    LearningActivityCapture
-)
-from canvas_event_listener import (
-    CanvasEventListener,
-    CanvasEvent,
-    CanvasEventDispatcher
-)
+from canvas_event_listener import CanvasEvent, CanvasEventDispatcher, CanvasEventListener
+from learning_activity_capture import LearningActivity, LearningActivityCapture, SessionContext
 
 
 class TestLearningActivity(unittest.TestCase):

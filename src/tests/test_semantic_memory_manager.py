@@ -5,21 +5,18 @@ Story 10.11.3 - Task 8
 测试semantic_memory_manager.py的3种模式系统和模式适配器层。
 """
 
-import pytest
 import sys
 from pathlib import Path
-from typing import Dict, Any
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
 
 # 导入被测试的模块
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from memory_system.semantic_memory_manager import (
-    SemanticMemoryManager,
-    diagnose_mcp_memory_client
-)
 from memory_system.memory_exceptions import SemanticMemoryError
+from memory_system.semantic_memory_manager import SemanticMemoryManager, diagnose_mcp_memory_client
 
 
 class TestDiagnoseMCPMemoryClient:

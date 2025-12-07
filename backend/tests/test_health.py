@@ -11,8 +11,8 @@ and adheres to the API specification.
 [Source: docs/architecture/coding-standards.md#测试规范]
 """
 
-import pytest
 from datetime import datetime
+
 from fastapi.testclient import TestClient
 
 
@@ -143,3 +143,177 @@ class TestRootEndpoint:
         data = response.json()
 
         assert data["health"] == "/api/v1/health"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Metrics Endpoint Tests (Story 17.2)
+# [Source: specs/api/canvas-api.openapi.yml:605-642]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMetricsEndpoint:
+    """Test suite for GET /api/v1/health/metrics endpoint (Prometheus format)."""
+
+    def test_metrics_returns_200(self, client: TestClient):
+        """
+        Test that metrics endpoint returns HTTP 200 OK.
+
+        [Source: Story 17.2 AC-5]
+        """
+        response = client.get("/api/v1/health/metrics")
+        assert response.status_code == 200
+
+    def test_metrics_content_type(self, client: TestClient):
+        """
+        Test that metrics endpoint returns Prometheus text format.
+
+        ✅ Verified from Context7:/prometheus/client_python (topic: CONTENT_TYPE_LATEST)
+        """
+        response = client.get("/api/v1/health/metrics")
+        content_type = response.headers["content-type"]
+        # Prometheus text format starts with "text/plain" or "text/plain; version=..."
+        assert content_type.startswith("text/plain")
+
+    def test_metrics_contains_agent_metrics(self, client: TestClient):
+        """
+        Test that metrics output contains agent metrics.
+
+        [Source: Story 17.2 AC-1, AC-2]
+        """
+        response = client.get("/api/v1/health/metrics")
+        content = response.text
+
+        # Should contain agent-related metrics
+        assert "canvas_agent" in content or "agent" in content.lower()
+
+    def test_metrics_contains_memory_metrics(self, client: TestClient):
+        """
+        Test that metrics output contains memory system metrics.
+
+        [Source: Story 17.2 AC-3]
+        """
+        response = client.get("/api/v1/health/metrics")
+        content = response.text
+
+        # Should contain memory-related metrics
+        assert "canvas_memory" in content or "memory" in content.lower()
+
+    def test_metrics_contains_resource_metrics(self, client: TestClient):
+        """
+        Test that metrics output contains resource metrics.
+
+        [Source: Story 17.2 AC-4]
+        """
+        response = client.get("/api/v1/health/metrics")
+        content = response.text
+
+        # Should contain resource-related metrics (cpu, memory usage, disk)
+        assert "canvas_resource" in content or "resource" in content.lower()
+
+
+class TestMetricsSummaryEndpoint:
+    """Test suite for GET /api/v1/health/metrics/summary endpoint (JSON format)."""
+
+    def test_metrics_summary_returns_200(self, client: TestClient):
+        """
+        Test that metrics summary endpoint returns HTTP 200 OK.
+
+        [Source: Story 17.2 AC-6]
+        """
+        response = client.get("/api/v1/health/metrics/summary")
+        assert response.status_code == 200
+
+    def test_metrics_summary_content_type(self, client: TestClient):
+        """Test that metrics summary returns JSON content type."""
+        response = client.get("/api/v1/health/metrics/summary")
+        assert response.headers["content-type"] == "application/json"
+
+    def test_metrics_summary_structure(self, client: TestClient):
+        """
+        Test that metrics summary has correct top-level structure.
+
+        [Source: specs/api/canvas-api.openapi.yml:987-1060]
+        """
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        assert "agents" in data
+        assert "memory_system" in data
+        assert "resources" in data
+        assert "timestamp" in data
+
+    def test_metrics_summary_agents_structure(self, client: TestClient):
+        """
+        Test that agents section has correct structure.
+
+        [Source: Story 17.2 AC-1, AC-2]
+        """
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        agents = data["agents"]
+        assert "invocations_total" in agents
+        assert "avg_execution_time_s" in agents
+        assert "by_type" in agents
+        assert isinstance(agents["invocations_total"], int)
+        assert isinstance(agents["avg_execution_time_s"], (int, float))
+        assert isinstance(agents["by_type"], dict)
+
+    def test_metrics_summary_memory_system_structure(self, client: TestClient):
+        """
+        Test that memory_system section has correct structure.
+
+        [Source: Story 17.2 AC-3]
+        """
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        memory = data["memory_system"]
+        assert "queries_total" in memory
+        assert "avg_latency_s" in memory
+        assert "by_type" in memory
+        assert isinstance(memory["queries_total"], int)
+        assert isinstance(memory["avg_latency_s"], (int, float))
+        assert isinstance(memory["by_type"], dict)
+
+    def test_metrics_summary_resources_structure(self, client: TestClient):
+        """
+        Test that resources section has correct structure.
+
+        [Source: Story 17.2 AC-4]
+        """
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        resources = data["resources"]
+        assert "cpu_usage_percent" in resources
+        assert "memory_usage_percent" in resources
+        assert "memory_available_bytes" in resources
+        assert "memory_total_bytes" in resources
+        assert "disk_usage_percent" in resources
+        assert "disk_free_bytes" in resources
+
+    def test_metrics_summary_resources_values_valid(self, client: TestClient):
+        """Test that resource values are within valid ranges."""
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        resources = data["resources"]
+        # CPU and memory percentages should be 0-100
+        assert 0 <= resources["cpu_usage_percent"] <= 100
+        assert 0 <= resources["memory_usage_percent"] <= 100
+        assert 0 <= resources["disk_usage_percent"] <= 100
+        # Bytes should be non-negative
+        assert resources["memory_available_bytes"] >= 0
+        assert resources["memory_total_bytes"] >= 0
+        assert resources["disk_free_bytes"] >= 0
+
+    def test_metrics_summary_timestamp_format(self, client: TestClient):
+        """Test that timestamp is valid ISO 8601 format."""
+        response = client.get("/api/v1/health/metrics/summary")
+        data = response.json()
+
+        timestamp_str = data["timestamp"]
+        # Should be parseable as ISO 8601
+        parsed = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        assert parsed is not None

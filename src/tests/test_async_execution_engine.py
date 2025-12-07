@@ -16,8 +16,10 @@ Date: 2025-11-04
 """
 
 import asyncio
+
 import pytest
-from command_handlers.async_execution_engine import AsyncTask, AsyncExecutionEngine
+
+from command_handlers.async_execution_engine import AsyncExecutionEngine, AsyncTask
 
 
 class TestAsyncTaskCreation:

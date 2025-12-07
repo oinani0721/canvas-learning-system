@@ -12,20 +12,17 @@ Version: 1.0
 Created: 2025-01-19
 """
 
-import pytest
-import asyncio
 import time
-from datetime import datetime
+
+import pytest
 
 from canvas_utils import (
-    # 核心融合类
-    IntelligentResultFusion, ConcurrentAgentExecutor,
-
-    # 数据模型
-    TaskResult, FusionResult,
-
     # 常量
-    CONCURRENT_AGENTS_ENABLED
+    CONCURRENT_AGENTS_ENABLED,
+    ConcurrentAgentExecutor,
+    IntelligentResultFusion,
+    # 数据模型
+    TaskResult,
 )
 
 
@@ -195,14 +192,14 @@ class TestFusionIntegration:
     def test_fusion_constants(self):
         """测试融合相关常量"""
         from canvas_utils import (
-            FUSION_STRATEGY_SUPPLEMENTARY,
-            FUSION_STRATEGY_COMPETIMENTARY,
-            FUSION_STRATEGY_HIERARCHICAL,
-            FUSION_STRATEGY_WEIGHTED_VOTING,
+            CONFIDENCE_ASSESSMENT_ACCURACY_TARGET,
             CONFLICT_DETECTION_ACCURACY_TARGET,
             FUSION_PROCESSING_TIME_TARGET,
-            CONFIDENCE_ASSESSMENT_ACCURACY_TARGET,
-            INFORMATION_COMPLETENESS_TARGET
+            FUSION_STRATEGY_COMPETIMENTARY,
+            FUSION_STRATEGY_HIERARCHICAL,
+            FUSION_STRATEGY_SUPPLEMENTARY,
+            FUSION_STRATEGY_WEIGHTED_VOTING,
+            INFORMATION_COMPLETENESS_TARGET,
         )
 
         # 验证常量值
@@ -287,7 +284,7 @@ class TestFusionIntegration:
     def test_fusion_backward_compatibility(self):
         """测试向后兼容性"""
         # 确保新的融合功能不会破坏现有功能
-        from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic, CanvasOrchestrator
+        from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator, CanvasOrchestrator
 
         # 测试现有类仍然可以正常实例化
         try:

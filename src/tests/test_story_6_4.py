@@ -4,20 +4,21 @@
 Test Smart Review Board Generation (Story 6.4)
 """
 
-import pytest
 import asyncio
 import json
-import tempfile
 import os
+import tempfile
 from datetime import datetime, timedelta
+
+import pytest
+
 from canvas_utils import (
-    SmartReviewBoardGenerator,
-    KnowledgeGraphLayer,
-    CanvasJSONOperator,
-    COLOR_CODE_RED,
     COLOR_CODE_PURPLE,
-    COLOR_CODE_YELLOW
+    COLOR_CODE_RED,
+    KnowledgeGraphLayer,
+    SmartReviewBoardGenerator,
 )
+
 
 class TestSmartReviewBoardGeneration:
     """测试智能检验白板生成功能"""

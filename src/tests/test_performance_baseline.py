@@ -10,18 +10,13 @@ Created: 2025-10-22
 """
 
 import json
-import os
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
-from dataclasses import dataclass, field
 import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 
-from test_canvas_performance import (
-    PerformanceTestResult,
-    StressTestResult,
-    TestEnvironment
-)
+from test_canvas_performance import PerformanceTestResult, TestEnvironment
 
 
 @dataclass

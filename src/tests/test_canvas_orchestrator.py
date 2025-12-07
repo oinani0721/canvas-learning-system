@@ -15,11 +15,9 @@ Author: Dev Agent (James)
 Created: 2025-10-15
 """
 
-import json
 import pytest
-import os
-from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic, CanvasOrchestrator
 
+from canvas_utils import CanvasJSONOperator
 
 # ========== Helper Functions ==========
 
@@ -297,7 +295,7 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
 
     assert updated_node_1 is not None, "应该找到更新后的节点"
     assert updated_node_1.get("color") == "2", f"高分(≥80)应该变绿色，实际: {updated_node_1.get('color')}"
-    print(f"✅ 测试通过: 85分 → 绿色('2')")
+    print("✅ 测试通过: 85分 → 绿色('2')")
 
     # Test Case 2: 中等分数 (60-79) → 紫色
     canvas_data_2 = CanvasJSONOperator.read_canvas(temp_canvas_path)
@@ -313,7 +311,7 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
     updated_node_2 = next((n for n in updated_data_2["nodes"] if n["id"] == question_node_id_2), None)
 
     assert updated_node_2.get("color") == "3", f"中等分数(60-79)应该变紫色，实际: {updated_node_2.get('color')}"
-    print(f"✅ 测试通过: 72分 → 紫色('3')")
+    print("✅ 测试通过: 72分 → 紫色('3')")
 
     # Test Case 3: 低分 (<60) → 保持红色
     canvas_data_3 = CanvasJSONOperator.read_canvas(temp_canvas_path)
@@ -329,7 +327,7 @@ def test_scoring_result_updates_node_color_correctly(temp_canvas_path):
     updated_node_3 = next((n for n in updated_data_3["nodes"] if n["id"] == question_node_id_3), None)
 
     assert updated_node_3.get("color") == "1", f"低分(<60)应该保持红色，实际: {updated_node_3.get('color')}"
-    print(f"✅ 测试通过: 45分 → 红色('1')")
+    print("✅ 测试通过: 45分 → 红色('1')")
 
 
 # ========== 边界条件测试 ==========
@@ -344,7 +342,7 @@ def test_edge_case_exactly_10_characters(canvas_data):
     test_yellow_text = "十个字符测试内容12"  # 刚好10个字符
 
     assert len(test_yellow_text) >= 10, "应该满足≥10字符的条件"
-    print(f"✅ 边界测试通过: 10字符内容应该触发评分")
+    print("✅ 边界测试通过: 10字符内容应该触发评分")
 
 
 def test_edge_case_9_characters():
@@ -356,7 +354,7 @@ def test_edge_case_9_characters():
     test_yellow_text = "九个字符测试1"  # 9个字符
 
     assert len(test_yellow_text) < 10, "应该不满足≥10字符的条件"
-    print(f"✅ 边界测试通过: 9字符内容不应该触发评分")
+    print("✅ 边界测试通过: 9字符内容不应该触发评分")
 
 
 # ========== Story 2.9: 增强智能建议引擎测试 ==========
@@ -593,7 +591,7 @@ def test_high_score_recommends_next_stage():
         f"高分(≥80)不应推荐补充解释Agent,实际推荐: {suggestion['recommended_agent']}"
     assert "继续拆解" in suggestion["suggestion_text"] or "检验阶段" in suggestion["suggestion_text"], \
         f"应该建议继续拆解或检验阶段,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 85分(≥80) → 不推荐补充Agent,建议进入下一阶段")
+    print("✅ 测试通过: 85分(≥80) → 不推荐补充Agent,建议进入下一阶段")
 
 
 # ========== 测试用例10: 低分推荐clarification-path ==========
@@ -623,7 +621,7 @@ def test_low_score_recommends_detailed_explanation():
         f"低分(<60)应该推荐clarification-path,实际推荐: {suggestion['recommended_agent']}"
     assert "详细" in suggestion["reasoning"] or "基础性错误" in suggestion["reasoning"], \
         f"建议理由应该提到'详细'或'基础性错误',实际: {suggestion['reasoning']}"
-    print(f"✅ 测试通过: 45分(<60) → 推荐 clarification-path")
+    print("✅ 测试通过: 45分(<60) → 推荐 clarification-path")
 
 
 # ========== 测试用例11: 黄色节点为空的建议 ==========
@@ -648,7 +646,7 @@ def test_empty_yellow_node_suggestion():
         f"应该提供2个选项(A和B),实际: {len(suggestion['options'])}个"
     assert "费曼学习法" in suggestion["suggestion_text"], \
         f"应该提到费曼学习法,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 黄色节点为空 → 提示填写理解,强调输出重要性")
+    print("✅ 测试通过: 黄色节点为空 → 提示填写理解,强调输出重要性")
 
 
 # ========== 测试用例12: 建议理由清晰度 ==========
@@ -681,7 +679,7 @@ def test_suggestion_includes_clear_reasoning():
         f"建议文本应该包含'推荐理由'部分,实际: {suggestion['suggestion_text']}"
     assert "14/25" in suggestion["suggestion_text"] or "形象性" in suggestion["reasoning"], \
         f"建议应该关联到具体的维度得分,实际: {suggestion['suggestion_text']}"
-    print(f"✅ 测试通过: 建议包含清晰的推荐理由,关联到最弱维度得分")
+    print("✅ 测试通过: 建议包含清晰的推荐理由,关联到最弱维度得分")
 
 
 # ========== 测试用例13: 边界情况-4维度得分相同 ==========

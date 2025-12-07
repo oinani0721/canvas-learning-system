@@ -5,14 +5,12 @@ Canvas Learning System - Story 8.8
 测试概念提取、标签生成等功能。
 """
 
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 # 导入测试目标
-from semantic_processor import (
-    ConceptExtractor, TagGenerator, SemanticProcessor,
-    ExtractedConcept, TagSuggestion
-)
+from semantic_processor import ConceptExtractor, ExtractedConcept, SemanticProcessor, TagGenerator, TagSuggestion
 
 
 class TestConceptExtractor:

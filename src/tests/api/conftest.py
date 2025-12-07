@@ -9,8 +9,8 @@ Provides shared fixtures for FastAPI integration testing.
 import pytest
 from fastapi.testclient import TestClient
 
-from api.main import app, create_app
 from api.config import Settings
+from api.main import create_app
 
 
 @pytest.fixture(scope="session")

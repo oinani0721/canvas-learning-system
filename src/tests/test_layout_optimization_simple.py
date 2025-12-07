@@ -8,11 +8,12 @@ Version: 1.0
 Created: 2025-01-21
 """
 
-import pytest
-import tempfile
-import os
 import json
+import os
 import sys
+import tempfile
+
+import pytest
 
 # Add the parent directory to Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,7 +23,7 @@ def test_layout_preferences_creation():
     """测试布局偏好配置创建"""
     # Import here to avoid syntax errors from main file
     try:
-        from canvas_utils import LayoutPreferences, LAYOUT_OPTIMIZATION_DEFAULT_ALIGNMENT
+        from canvas_utils import LAYOUT_OPTIMIZATION_DEFAULT_ALIGNMENT, LayoutPreferences
 
         # Test default preferences
         prefs = LayoutPreferences()
@@ -44,12 +45,12 @@ def test_layout_constants():
     """测试布局常量定义"""
     try:
         from canvas_utils import (
-            LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT,
             LAYOUT_OPTIMIZATION_ALIGNMENT_CENTER,
+            LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT,
             LAYOUT_OPTIMIZATION_ALIGNMENT_RIGHT,
-            YELLOW_OFFSET_Y,
             QUESTION_NODE_HEIGHT,
-            YELLOW_NODE_WIDTH
+            YELLOW_NODE_WIDTH,
+            YELLOW_OFFSET_Y,
         )
 
         assert LAYOUT_OPTIMIZATION_ALIGNMENT_LEFT == "left"
@@ -134,7 +135,7 @@ def test_basic_canvas_operations():
 def test_yellow_position_calculation():
     """测试黄色节点位置计算逻辑"""
     try:
-        from canvas_utils import YELLOW_NODE_WIDTH, QUESTION_NODE_HEIGHT, YELLOW_OFFSET_Y
+        from canvas_utils import QUESTION_NODE_HEIGHT, YELLOW_NODE_WIDTH, YELLOW_OFFSET_Y
 
         # Test question node
         question_node = {

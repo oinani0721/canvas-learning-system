@@ -11,21 +11,20 @@ Created: 2025-10-21
 
 import json
 import os
-import pytest
-import tempfile
-import shutil
-from typing import Dict, List
 import sys
+import tempfile
+
+import pytest
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # 模拟依赖（如果未安装）
 try:
-    import numpy as np
     import jieba
-    from sklearn.feature_extraction.text import TfidfVectorizer
+    import numpy as np
     from sklearn.cluster import KMeans
+    from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics import silhouette_score
     DEPENDENCIES_AVAILABLE = True
 except ImportError:

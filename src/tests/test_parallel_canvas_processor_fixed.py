@@ -7,25 +7,22 @@ Created: 2025-01-27
 Fixed: 2025-01-27
 """
 
+import json
+import os
+import tempfile
+from unittest.mock import Mock, patch
+
 import pytest
 import pytest_asyncio
-import asyncio
-import json
-import tempfile
-import os
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 # 导入被测试的模块
 from parallel_canvas_processor import (
+    LoadBalanceStrategy,
+    NodeComplexity,
     ParallelCanvasProcessor,
     ProcessingTask,
-    ProcessingSession,
-    TaskStatus,
-    NodeComplexity,
     TaskDistributionConfig,
-    LoadBalanceStrategy
+    TaskStatus,
 )
 
 
@@ -292,7 +289,7 @@ class TestTaskDistribution:
     @pytest.mark.asyncio
     async def test_round_robin_distribution(self):
         """测试轮询分发策略"""
-        from parallel_canvas_processor import TaskDistributor, TaskDistributionConfig
+        from parallel_canvas_processor import TaskDistributionConfig, TaskDistributor
 
         config = TaskDistributionConfig(
             load_balance_strategy=LoadBalanceStrategy.ROUND_ROBIN
@@ -340,7 +337,7 @@ class TestTaskDistribution:
     @pytest.mark.asyncio
     async def test_complexity_based_distribution(self):
         """测试基于复杂度的分发策略"""
-        from parallel_canvas_processor import TaskDistributor, TaskDistributionConfig
+        from parallel_canvas_processor import TaskDistributionConfig, TaskDistributor
 
         config = TaskDistributionConfig(
             load_balance_strategy=LoadBalanceStrategy.COMPLEXITY_BASED

@@ -15,34 +15,31 @@ Created: 2025-10-28
 """
 
 import asyncio
-import json
 import os
 import shutil
-import tempfile
-import unittest
-from datetime import datetime, timedelta
-from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
-
-import pytest
 
 # 导入要测试的模块
 import sys
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from canvas_utils.memory_recorder import (
-    MemoryRecorder,
-    MemoryRecord,
-    MemoryRecordReport,
-    VerificationReport,
-    RecoveryReport,
-    SystemHealthStatus,
     DataEncryption,
-    SystemHealthChecker,
-    LocalMemoryDB,
     FileLogger,
+    LocalMemoryDB,
+    MemoryRecord,
+    MemoryRecorder,
+    MemoryRecordReport,
+    RecoveryReport,
+    SystemHealthChecker,
+    SystemHealthStatus,
+    VerificationReport,
     create_memory_recorder,
-    quick_record_session
+    quick_record_session,
 )
 
 
@@ -700,7 +697,7 @@ class TestRunner:
 
         # 打印总结
         print(f"\n{'='*60}")
-        print(f"测试总结")
+        print("测试总结")
         print(f"{'='*60}")
         print(f"总测试数: {total_tests}")
         print(f"通过: {passed_tests}")
@@ -708,7 +705,7 @@ class TestRunner:
         print(f"成功率: {(passed_tests/total_tests)*100:.1f}%")
 
         if failed_tests:
-            print(f"\n失败的测试:")
+            print("\n失败的测试:")
             for class_name, test_name, error in failed_tests[:5]:  # 只显示前5个
                 print(f"  - {class_name}.{test_name}: {error[:100]}...")
 

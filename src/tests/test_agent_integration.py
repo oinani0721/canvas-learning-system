@@ -11,9 +11,9 @@ Created: 2025-11-02
 Story: 11.8 (系统集成与性能优化)
 """
 
-import pytest
-import os
 from pathlib import Path
+
+import pytest
 
 
 class TestAgentIntegration:
@@ -44,7 +44,7 @@ class TestAgentIntegration:
     def setup_class(cls):
         """测试类初始化"""
         cls.agents_dir = Path("C:/Users/ROG/托福/.claude/agents")
-        print(f"\n✅ 测试环境初始化")
+        print("\n✅ 测试环境初始化")
         print(f"   Agent目录: {cls.agents_dir}")
         print(f"   Agent数量: {len(cls.AGENTS)}")
 
@@ -62,7 +62,7 @@ class TestAgentIntegration:
             assert "-" in agent, f"Agent名称格式错误: {agent} (应使用kebab-case)"
             assert agent.islower() or agent == agent.lower(), f"Agent名称应全小写: {agent}"
 
-        print(f"\n✅ Subtask 3.1 通过: Agent清单验证完成")
+        print("\n✅ Subtask 3.1 通过: Agent清单验证完成")
         for i, agent in enumerate(self.AGENTS, 1):
             print(f"   {i:2d}. {agent}")
 
@@ -118,7 +118,7 @@ class TestAgentIntegration:
             content = agent_file.read_text(encoding='utf-8')
             assert len(content) > 100, f"Agent文件内容过短: {agent_type}"
 
-        print(f"\n✅ Subtask 3.4 通过: 解释类Agent (4-6) 文件验证完成")
+        print("\n✅ Subtask 3.4 通过: 解释类Agent (4-6) 文件验证完成")
 
     def test_subtask_3_5_explanation_agents_part2_present(self):
         """Subtask 3.5: 测试解释类Agent (7-9) 文件完整性"""
@@ -135,7 +135,7 @@ class TestAgentIntegration:
             content = agent_file.read_text(encoding='utf-8')
             assert len(content) > 100, f"Agent文件内容过短: {agent_type}"
 
-        print(f"\n✅ Subtask 3.5 通过: 解释类Agent (7-9) 文件验证完成")
+        print("\n✅ Subtask 3.5 通过: 解释类Agent (7-9) 文件验证完成")
 
     def test_subtask_3_6_scoring_verification_agents_present(self):
         """Subtask 3.6: 测试评分和检验类Agent (10-12) 文件完整性"""
@@ -155,18 +155,18 @@ class TestAgentIntegration:
             # 验证关键字（确保Agent文件是正确的类型）
             if agent_type == "scoring-agent":
                 assert "score" in content.lower() or "评分" in content, (
-                    f"scoring-agent文件缺少评分相关内容"
+                    "scoring-agent文件缺少评分相关内容"
                 )
             elif agent_type == "verification-question-agent":
                 assert "question" in content.lower() or "问题" in content, (
-                    f"verification-question-agent文件缺少问题相关内容"
+                    "verification-question-agent文件缺少问题相关内容"
                 )
             elif agent_type == "canvas-orchestrator":
                 assert "orchestrat" in content.lower() or "orchestrat" in content, (
-                    f"canvas-orchestrator文件缺少orchestrator相关内容"
+                    "canvas-orchestrator文件缺少orchestrator相关内容"
                 )
 
-        print(f"\n✅ Subtask 3.6 通过: 评分和检验类Agent文件验证完成")
+        print("\n✅ Subtask 3.6 通过: 评分和检验类Agent文件验证完成")
 
     def test_subtask_3_7_agent_emoji_mapping(self):
         """Subtask 3.7: 验证Agent Emoji映射（用于学习分析）"""
@@ -223,7 +223,7 @@ class TestAgentIntegration:
             "\n".join(f"  - {err}" for err in errors)
         )
 
-        print(f"\n✅ Subtask 3.8 通过: Agent YAML frontmatter格式验证完成")
+        print("\n✅ Subtask 3.8 通过: Agent YAML frontmatter格式验证完成")
 
     def test_subtask_3_9_agent_integration_with_canvas_system(self):
         """Subtask 3.9: 验证Agent与Canvas系统集成（通过canvas_utils.py）"""
@@ -240,7 +240,7 @@ class TestAgentIntegration:
         assert "COLOR_PURPLE" in canvas_utils_content, "canvas_utils.py缺少COLOR_PURPLE常量"
         assert "COLOR_YELLOW" in canvas_utils_content, "canvas_utils.py缺少COLOR_YELLOW常量"
 
-        print(f"\n✅ Subtask 3.9 通过: Agent与Canvas系统集成验证完成")
+        print("\n✅ Subtask 3.9 通过: Agent与Canvas系统集成验证完成")
         print(f"   canvas_utils.py大小: {len(canvas_utils_content):,}字节")
 
     def test_subtask_3_10_create_agent_integration_report(self):
@@ -248,7 +248,7 @@ class TestAgentIntegration:
         report_lines = []
         report_lines.append("# AI Agent集成测试报告")
         report_lines.append("")
-        report_lines.append(f"**测试日期**: 2025-11-02")
+        report_lines.append("**测试日期**: 2025-11-02")
         report_lines.append(f"**测试用例数**: {len(self.AGENTS)}")
         report_lines.append("")
         report_lines.append("## 测试结果")
@@ -311,7 +311,7 @@ class TestAgentIntegration:
         print(report_content)
         print(f"{'='*60}\n")
 
-        print(f"\n✅ Subtask 3.10 通过: Agent集成测试报告已生成")
+        print("\n✅ Subtask 3.10 通过: Agent集成测试报告已生成")
 
 
 if __name__ == "__main__":

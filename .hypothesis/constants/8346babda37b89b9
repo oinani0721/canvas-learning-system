@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\rollback\__init__.py
+# hypothesis_version: 6.148.1
+
+['GraphSyncService', 'GraphSyncStatus', 'Operation', 'OperationData', 'OperationMetadata', 'OperationTracker', 'OperationType', 'RollbackEngine', 'RollbackError', 'RollbackResult', 'RollbackType', 'Snapshot', 'SnapshotManager', 'SnapshotMetadata', 'SnapshotType', 'SyncResult']

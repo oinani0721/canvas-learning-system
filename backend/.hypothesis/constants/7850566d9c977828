@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\models\common.py
+# hypothesis_version: 6.148.1
+
+[400, 404, '1.0.0', '2025-11-24T10:30:00Z', 'Application name', 'Application version', 'Canvas not found', 'Error code', 'Error message', 'Invalid format', 'Validation error', 'app_name', 'code', 'details', 'enum', 'examples', 'field', 'healthy', 'json_schema_extra', 'message', 'node_id', 'reason', 'status', 'timestamp', 'unhealthy', 'version']

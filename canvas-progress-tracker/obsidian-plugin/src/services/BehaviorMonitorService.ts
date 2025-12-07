@@ -47,7 +47,7 @@ export interface BehaviorMonitorSettings {
 export const DEFAULT_BEHAVIOR_MONITOR_SETTINGS: BehaviorMonitorSettings = {
     enabled: true,
     intervalHours: 6,
-    apiBaseUrl: 'http://localhost:8000/api/v1',
+    apiBaseUrl: 'http://localhost:8001/api/v1',
     timeout: 30000, // 30 seconds for potentially long-running analysis
     weaknessClusterThreshold: 3,
     daysWithoutReviewThreshold: 3,

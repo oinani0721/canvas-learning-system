@@ -11,11 +11,11 @@ Author: Canvas Learning System Team
 Created: 2025-10-31
 """
 
-import pytest
 import subprocess
 import sys
 from pathlib import Path
 
+import pytest
 
 # =============================================================================
 # Test 1: Diagnostic Script Runs Successfully

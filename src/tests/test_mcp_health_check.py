@@ -14,16 +14,15 @@ Story: 10.11.2 - MCP Graphiti Server Health Check
 """
 
 import asyncio
-import pytest
-from unittest.mock import patch, Mock, AsyncMock
-import importlib
+from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from memory_system.mcp_health_check import (
+    MCPServerUnavailableError,
     check_mcp_server_health,
     check_mcp_server_health_sync,
-    MCPServerUnavailableError,
     detect_mcp_server_path,
-    suggest_mcp_server_startup
+    suggest_mcp_server_startup,
 )
 
 

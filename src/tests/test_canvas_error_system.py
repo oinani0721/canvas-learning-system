@@ -4,14 +4,15 @@
 Unit tests for Canvas Error System - ErrorSeverity enum and related functionality
 Tests for Story 8.1: 修复ErrorSeverity枚举缺失INFO属性
 """
-import pytest
-import sys
 import os
+import sys
+
+import pytest
 
 # Add the parent directory to the path to import canvas_error_system
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from canvas_error_system import ErrorSeverity, ErrorCategory, CanvasError
+from canvas_error_system import CanvasError, ErrorCategory, ErrorSeverity
 
 
 class TestErrorSeverityEnum:

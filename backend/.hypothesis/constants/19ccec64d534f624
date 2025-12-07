@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\review.py
+# hypothesis_version: 6.148.1
+
+[404, '%Y%m%d', '/generate', '/record', '/schedule', 'Get review schedule', 'Not found', 'Record review result', 'description', 'get_review_schedule', 'model', 'record_review_result']

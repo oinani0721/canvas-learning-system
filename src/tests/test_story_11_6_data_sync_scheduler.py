@@ -10,23 +10,16 @@ Unit tests for Story 11.6: Data Sync Scheduler
 6. 监控（状态/健康检查）
 """
 
-import pytest
-import json
 import gzip
-import time
+import json
 import shutil
-from pathlib import Path
+import time
 from datetime import datetime, timedelta
-from typing import Dict, List
-from unittest.mock import Mock, patch, MagicMock
+from pathlib import Path
+from typing import Dict
 
-from canvas_progress_tracker.data_stores import (
-    DataSyncScheduler,
-    HotDataStore,
-    ColdDataStore,
-    get_data_sync_scheduler
-)
-
+import pytest
+from canvas_progress_tracker.data_stores import ColdDataStore, DataSyncScheduler, HotDataStore, get_data_sync_scheduler
 
 # ============================================================================
 # Fixtures
@@ -543,7 +536,6 @@ class TestDiskSpaceManagement:
 
     def test_early_archive_trigger(self, scheduler, monkeypatch):
         """测试提前归档触发（模拟低磁盘空间）"""
-        import shutil
         from collections import namedtuple
 
         # Mock shutil.disk_usage 返回低磁盘空间

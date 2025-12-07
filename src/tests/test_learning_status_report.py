@@ -14,16 +14,17 @@ Created: 2025-10-30
 Story: 10.11 - 实现诚实状态报告和优雅降级
 """
 
-import pytest
-import asyncio
-from pathlib import Path
 from datetime import datetime
-from unittest.mock import patch, MagicMock, AsyncMock
+from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from command_handlers.learning_commands import (
     LearningSessionManager,
-    check_neo4j_connection,
     check_mcp_server_health,
-    log_startup_error_to_debug_log
+    check_neo4j_connection,
+    log_startup_error_to_debug_log,
 )
 
 
@@ -354,8 +355,8 @@ class TestErrorLogging:
 
     def test_log_startup_error_to_debug_log(self):
         """测试错误日志记录到debug-log.md"""
-        import tempfile
         import shutil
+        import tempfile
 
         # 创建临时目录
         temp_dir = tempfile.mkdtemp()

@@ -13,22 +13,23 @@ Version: 1.0
 Created: 2025-10-24
 """
 
-import unittest
-import tempfile
-import os
 import json
+import os
+import tempfile
 import time
-import threading
+import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock
 
 from canvas_progress_tracker.canvas_monitor_engine import (
-    CanvasMonitorEngine, CanvasChange, CanvasChangeType, CanvasEvent,
-    CanvasEventType, MonitorConfig, DebounceManager
+    CanvasChange,
+    CanvasChangeType,
+    CanvasMonitorEngine,
+    MonitorConfig,
 )
 from canvas_progress_tracker.utils.change_detector import CanvasChangeDetector
 from canvas_progress_tracker.utils.debounce_manager import DebounceManager as UtilDebounceManager
-from canvas_progress_tracker.utils.performance_tracker import PerformanceTracker, PerformanceThresholds
+from canvas_progress_tracker.utils.performance_tracker import PerformanceThresholds, PerformanceTracker
 
 
 class TestCanvasMonitorEngine(unittest.TestCase):
@@ -483,8 +484,9 @@ class TestPerformanceTracker(unittest.TestCase):
     def test_check_threshold_violations(self):
         """测试检查阈值违规"""
         # 创建一个违反阈值的指标
-        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
         from datetime import datetime
+
+        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
 
         violating_metrics = PerformanceMetrics(
             timestamp=datetime.now(),
@@ -509,8 +511,9 @@ class TestPerformanceTracker(unittest.TestCase):
     def test_get_optimization_suggestions(self):
         """测试获取优化建议"""
         # 创建一个违反阈值的指标
-        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
         from datetime import datetime
+
+        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
 
         violating_metrics = PerformanceMetrics(
             timestamp=datetime.now(),
@@ -536,8 +539,9 @@ class TestPerformanceTracker(unittest.TestCase):
     def test_get_performance_summary(self):
         """测试获取性能摘要"""
         # 手动添加一些指标数据
-        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
         from datetime import datetime, timedelta
+
+        from canvas_progress_tracker.utils.performance_tracker import PerformanceMetrics
 
         for i in range(10):
             metrics = PerformanceMetrics(

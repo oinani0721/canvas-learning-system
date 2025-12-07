@@ -4,29 +4,30 @@ Epic 9 - Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
 import asyncio
 import json
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
-import sys
 import os
+import shutil
+import sys
+import tempfile
 from datetime import datetime, timedelta
+from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
     from canvas_utils.session_monitor import (
-        SessionMonitor,
-        SessionInfo,
-        SessionStatus,
-        SessionHealth,
         MonitoringEvent,
+        SessionHealth,
+        SessionInfo,
+        SessionMetrics,
+        SessionMonitor,
         SessionReport,
-        SessionMetrics
+        SessionStatus,
     )
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:

@@ -11,15 +11,14 @@ Story GDS.1 - Subtask 3.3: 添加端到端测试
 4. 性能测试: 完整流程<2秒
 """
 
-import os
 import json
+import os
 import time
-import pytest
-from pathlib import Path
 from typing import Dict
 
-from canvas_utils import CanvasBusinessLogic
+import pytest
 
+from canvas_utils import CanvasBusinessLogic
 
 # ============================================================================
 # Fixtures

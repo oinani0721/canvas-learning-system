@@ -8,15 +8,15 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import asyncio
 import json
 import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from slash_command_system import CommandExecutionContext
+
 
 async def handle_validate_command(context: CommandExecutionContext) -> Dict[str, Any]:
     """处理Canvas文件验证命令
@@ -471,7 +471,7 @@ async def _export_canvas_data(canvas_file: str, output_path: str,
 
 async def _convert_to_markdown(canvas_data: Dict, include_metadata: bool) -> str:
     """转换为Markdown格式"""
-    markdown = f"# Canvas内容导出\n\n"
+    markdown = "# Canvas内容导出\n\n"
 
     if include_metadata:
         markdown += f"**导出时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"

@@ -11,19 +11,16 @@
 import json
 import os
 import re
+
+# 假设canvas_utils.py在项目根目录
+import sys
 import tempfile
 from datetime import datetime
 from pathlib import Path
 
-# 假设canvas_utils.py在项目根目录
-import sys
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from canvas_utils import (
-    CanvasOrchestrator,
-    CanvasJSONOperator,
-    COLOR_BLUE
-)
+from canvas_utils import COLOR_BLUE, CanvasJSONOperator, CanvasOrchestrator
 
 
 def test_filename_convention():

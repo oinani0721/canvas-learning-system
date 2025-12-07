@@ -4,19 +4,13 @@ Integration tests for mode detection system (Story 10.11.4)
 Tests the full integration of mode detection in learning commands.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
-from unittest.mock import Mock, patch, MagicMock
-from command_handlers.learning_commands import (
-    set_mode_info,
-    get_mode_info,
-    LearningSessionManager
-)
-from memory_system.system_mode_detector import SystemModeDetector, MODE_FULL, MODE_PARTIAL, MODE_BASIC
-from memory_system.error_formatters import (
-    require_graphiti,
-    require_temporal,
-    require_semantic_advanced
-)
+from memory_system.error_formatters import require_graphiti, require_semantic_advanced, require_temporal
+from memory_system.system_mode_detector import MODE_BASIC, MODE_FULL, MODE_PARTIAL
+
+from command_handlers.learning_commands import LearningSessionManager, get_mode_info, set_mode_info
 
 
 class TestModeInfoStorage:

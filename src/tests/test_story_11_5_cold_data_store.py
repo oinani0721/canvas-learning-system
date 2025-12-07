@@ -9,21 +9,22 @@ Author: Dev Agent (James)
 Date: 2025-11-01
 """
 
-import pytest
 import sqlite3
-import tempfile
-import threading
-import time
-from datetime import datetime, date, timedelta
-from pathlib import Path
-from typing import List, Dict
 
 # Import the module to test
 import sys
+import tempfile
+import threading
+import time
+from datetime import date, datetime
+from pathlib import Path
+from typing import Dict
+
+import pytest
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from canvas_progress_tracker.data_stores import ColdDataStore, get_cold_data_store
-
 
 # ============================================================================
 # Fixtures

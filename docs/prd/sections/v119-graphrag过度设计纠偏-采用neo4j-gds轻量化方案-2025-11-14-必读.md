@@ -62,4 +62,3 @@ RETURN
 - `docs/architecture/GRAPHRAG-NECESSITY-ASSESSMENT.md`
 
 ---
-

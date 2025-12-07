@@ -12,13 +12,12 @@ from datetime import date, timedelta
 from fastapi import APIRouter, status
 
 from app.models import (
-    ReviewScheduleResponse,
-    ReviewItem,
+    ErrorResponse,
     GenerateReviewRequest,
     GenerateReviewResponse,
     RecordReviewRequest,
     RecordReviewResponse,
-    ErrorResponse,
+    ReviewScheduleResponse,
 )
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)

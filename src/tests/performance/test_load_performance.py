@@ -4,29 +4,28 @@ Epic 9 - Canvas System Robustness Enhancement
 Story 9.6 - Integration Testing and Validation
 """
 
-import pytest
 import asyncio
 import json
-import time
-import tempfile
-import shutil
-from pathlib import Path
-from unittest.mock import Mock, patch
-import sys
 import os
-from concurrent.futures import ThreadPoolExecutor
+import shutil
+import sys
+import tempfile
+import time
+from pathlib import Path
+
 import psutil
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')))
 
 try:
-    from canvas_utils.model_adapter import ModelCompatibilityAdapter
+    from canvas_utils import CanvasBusinessLogic, CanvasJSONOperator
     from canvas_utils.canvas_validator import CanvasValidator
     from canvas_utils.memory_recorder import MemoryRecorder
+    from canvas_utils.model_adapter import ModelCompatibilityAdapter
     from canvas_utils.path_manager import PathManager
     from canvas_utils.session_monitor import SessionMonitor
-    from canvas_utils import CanvasJSONOperator, CanvasBusinessLogic
     CANVAS_UTILS_AVAILABLE = True
 except ImportError:
     CANVAS_UTILS_AVAILABLE = False
@@ -160,7 +159,7 @@ class TestLoadPerformance:
         assert all(r is not None for r in stop_results)
         assert stop_time < 5.0, f"Session stop too slow: {stop_time}s"
 
-        print(f"Concurrent sessions test results:")
+        print("Concurrent sessions test results:")
         print(f"  - Sessions: {session_count}")
         print(f"  - Startup time: {startup_time:.2f}s")
         print(f"  - Operation time: {operation_time:.2f}s")
@@ -196,7 +195,7 @@ class TestLoadPerformance:
         assert all(r.is_valid for r in results)
         assert batch_time < 10.0, f"Batch validation too slow: {batch_time}s for {canvas_count} canvases"
 
-        print(f"Canvas validation test results:")
+        print("Canvas validation test results:")
         print(f"  - Single canvas ({len(large_canvas_data['nodes'])} nodes): {validation_time:.3f}s")
         print(f"  - Batch validation ({canvas_count} canvases): {batch_time:.2f}s")
         print(f"  - Avg per canvas: {batch_time/canvas_count:.3f}s")
@@ -233,7 +232,7 @@ class TestLoadPerformance:
         assert resolution_time < 0.5, f"Path resolution too slow: {resolution_time}s"
         assert avg_resolution < 0.005, f"Average path resolution too slow: {avg_resolution}s"
 
-        print(f"Path manager test results:")
+        print("Path manager test results:")
         print(f"  - Generated {path_count} paths: {generation_time:.3f}s")
         print(f"  - Average generation time: {avg_time*1000:.2f}ms")
         print(f"  - Resolved 100 paths: {resolution_time:.3f}s")
@@ -279,7 +278,7 @@ class TestLoadPerformance:
         assert processor_time < 0.1, f"Processor retrieval too slow: {processor_time}s"
         assert avg_processor < 0.0001, f"Average processor retrieval too slow: {avg_processor*1000:.3f}ms"
 
-        print(f"Model adapter test results:")
+        print("Model adapter test results:")
         print(f"  - Detected {detection_count} models: {detection_time:.3f}s")
         print(f"  - Average detection time: {avg_detection*1000:.3f}ms")
         print(f"  - Retrieved 1000 processors: {processor_time:.3f}s")
@@ -333,7 +332,7 @@ class TestLoadPerformance:
         assert all(s is not None for s in retrieved_sessions), "Some retrievals failed"
         assert retrieval_time < 10.0, f"Retrieval too slow: {retrieval_time}s"
 
-        print(f"Memory recorder test results:")
+        print("Memory recorder test results:")
         print(f"  - Recorded {session_count} sessions: {recording_time:.2f}s")
         print(f"  - Average recording time: {recording_time/session_count:.3f}s")
         print(f"  - Retrieved {session_count} sessions: {retrieval_time:.2f}s")
@@ -401,7 +400,7 @@ class TestLoadPerformance:
         assert operation_time < 10.0, f"Node operations too slow: {operation_time}s"
         assert avg_operation < 0.01, f"Average operation time too slow: {avg_operation*1000:.1f}ms"
 
-        print(f"Canvas operations test results:")
+        print("Canvas operations test results:")
         print(f"  - Read {read_count} times: {read_time:.3f}s")
         print(f"  - Average read time: {avg_read*1000:.2f}ms")
         print(f"  - Node operations ({operation_count}): {operation_time:.3f}s")
@@ -520,7 +519,7 @@ class TestLoadPerformance:
         assert memory_mb < 1000, f"Memory usage too high: {memory_mb}MB"
         assert cpu_percent < 80, f"CPU usage too high: {cpu_percent}%"
 
-        print(f"\nStress test results:")
+        print("\nStress test results:")
         print(f"  - Sessions: {session_count}")
         print(f"  - Operations per session: {operations_per_session}")
         print(f"  - Canvas size: {canvas_size} nodes")

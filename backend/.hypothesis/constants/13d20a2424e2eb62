@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\logging_middleware.py
+# hypothesis_version: 6.148.1
+
+[1000, ',', 'X-Process-Time', 'X-Request-ID', 'iso', 'request_completed', 'request_id', 'request_started', 'unknown', 'user-agent', 'x-forwarded-for', 'x-real-ip']

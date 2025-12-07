@@ -8,39 +8,28 @@ Version: 2.0
 Created: 2025-10-23
 """
 
-import pytest
-import json
-import tempfile
-import os
-import shutil
-from unittest.mock import Mock, patch, MagicMock
-from datetime import datetime, timedelta
-import uuid
 import sys
+from datetime import datetime, timedelta
+from unittest.mock import Mock, patch
+
+import pytest
 
 # 添加项目根目录到路径
 sys.path.append('..')
 sys.path.append('../memory_system')
 
 from memory_system import (
-    UnifiedMemoryInterface,
-    TemporalMemoryManager,
-    SemanticMemoryManager,
-    MemoryConsistencyValidator,
     GracefulDegradationManager,
-    UnifiedMemoryEntry,
-    MemoryLink,
-    TemporalMemoryData,
-    SemanticMemoryData,
-    MemoryType,
-    MemoryLinkType,
-    LearningState,
     InteractionType,
-    MemorySystemError,
-    TemporalMemoryError,
-    SemanticMemoryError,
-    UnifiedMemoryError,
-    MemoryConsistencyError
+    LearningState,
+    MemoryConsistencyValidator,
+    MemoryLink,
+    MemoryLinkType,
+    MemoryType,
+    SemanticMemoryManager,
+    TemporalMemoryManager,
+    UnifiedMemoryEntry,
+    UnifiedMemoryInterface,
 )
 
 

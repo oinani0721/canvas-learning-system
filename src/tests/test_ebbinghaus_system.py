@@ -17,20 +17,16 @@ Created: 2025-10-20
 import asyncio
 import datetime
 import json
-import sys
-import os
 import math
-from typing import Dict, Any
+import os
+import sys
+from typing import Any, Dict
 
 # 添加项目路径
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 try:
-    from canvas_utils_working import (
-        ForgettingCurveManager,
-        EbbinghausReviewScheduler,
-        ReviewNode
-    )
+    from canvas_utils_working import EbbinghausReviewScheduler, ForgettingCurveManager, ReviewNode
     IMPORT_SUCCESS = True
 except ImportError as e:
     print(f"[ERROR] 导入失败: {e}")
@@ -443,6 +439,6 @@ if __name__ == "__main__":
     try:
         with open("ebbinghaus_test_results.json", "w", encoding="utf-8") as f:
             json.dump(results, f, ensure_ascii=False, indent=2, default=str)
-        print(f"\n测试结果已保存到: ebbinghaus_test_results.json")
+        print("\n测试结果已保存到: ebbinghaus_test_results.json")
     except Exception as e:
         print(f"保存测试结果失败: {e}")

@@ -14,25 +14,25 @@ Author: Canvas Learning System Team
 Created: 2025-10-31
 """
 
-import pytest
-import sys
 import os
-from unittest.mock import Mock, AsyncMock, patch, MagicMock
+import sys
 from pathlib import Path
+from unittest.mock import Mock, patch
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "deployment"))
 
 # Import functions to test
 from diagnose_environment import (
-    check_python_version,
-    check_pip_packages,
     check_environment_variables,
-    check_neo4j_database,
     check_mcp_memory_client_import,
-    generate_diagnosis_report
+    check_neo4j_database,
+    check_pip_packages,
+    check_python_version,
+    generate_diagnosis_report,
 )
-
 
 # =============================================================================
 # Test 1: Python Version Check

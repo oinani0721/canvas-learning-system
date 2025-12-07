@@ -13,23 +13,19 @@ Story 11.6 快速集成验证脚本 - DataSyncScheduler
 运行方式：python tests/test_story_11_6_integration_manual.py
 """
 
-import os
-import sys
 import json
-import time
+import os
 import shutil
+import sys
 import tempfile
-from pathlib import Path
+import time
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # 添加项目根目录到路径
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from canvas_progress_tracker.data_stores import (
-    HotDataStore,
-    ColdDataStore,
-    DataSyncScheduler
-)
+from canvas_progress_tracker.data_stores import ColdDataStore, DataSyncScheduler, HotDataStore
 
 
 class Colors:

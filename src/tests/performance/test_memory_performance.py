@@ -12,18 +12,19 @@ Version: 2.0
 Created: 2025-01-22
 """
 
-import pytest
-import time
 import asyncio
 import json
-import tempfile
 import os
-from typing import Dict, List
-from pathlib import Path
-from unittest.mock import patch, AsyncMock, MagicMock
 
 # Import the canvas utils modules
 import sys
+import tempfile
+import time
+from pathlib import Path
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 # Mock imports for memory systems that may not be fully implemented

@@ -7,19 +7,16 @@ Story: GDS.1 - Subtask 3.1, 3.3
 覆盖率目标: >90%
 """
 
-import pytest
-from unittest.mock import Mock, MagicMock, patch, call
-from pathlib import Path
-
-import sys
 import os
+import sys
+from unittest.mock import MagicMock, patch
+
+import pytest
+
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ebbinghaus.trigger_point_4 import (
-    trigger_weak_point_clustering,
-    trigger_weak_point_clustering_with_review_canvas
-)
+from ebbinghaus.trigger_point_4 import trigger_weak_point_clustering, trigger_weak_point_clustering_with_review_canvas
 
 
 class TestTriggerWeakPointClustering:

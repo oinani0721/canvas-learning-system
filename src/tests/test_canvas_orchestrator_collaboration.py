@@ -11,7 +11,6 @@ import os
 import tempfile
 import unittest
 from datetime import datetime
-from pathlib import Path
 
 # 导入pytest
 try:
@@ -21,12 +20,9 @@ except ImportError:
 
 # 导入被测试的模块
 try:
-    from canvas_utils import (
-        CanvasClaudeOrchestratorBridge,
-        CanvasOrchestrator,
-        CLAUDE_CODE_ENABLED
-    )
     from claude_canvas_tools import canvas_orchestrator_collaboration
+
+    from canvas_utils import CLAUDE_CODE_ENABLED, CanvasClaudeOrchestratorBridge, CanvasOrchestrator
 except ImportError as e:
     print(f"警告: 无法导入测试模块 - {e}")
     CLAUDE_CODE_ENABLED = False

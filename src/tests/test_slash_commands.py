@@ -8,32 +8,27 @@ Version: 1.0
 Created: 2025-01-22
 """
 
-import pytest
 import asyncio
-import json
-import tempfile
-import os
-from pathlib import Path
-from unittest.mock import Mock, AsyncMock
 
 # 添加项目根目录到Python路径
 import sys
+from pathlib import Path
+
+import pytest
+
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 from slash_command_system import (
-    SlashCommandSystem,
+    ArgumentParser,
+    AutoCompletionSystem,
+    CommandExecutionResult,
     CommandMetadata,
     CommandParameter,
-    CommandExecutionContext,
-    CommandExecutionResult,
-    ArgumentParser,
     CommandRegistry,
-    AutoCompletionSystem,
-    get_slash_command_system,
-    execute_slash_command,
-    validate_slash_command
+    SlashCommandSystem,
 )
+
 
 class TestArgumentParser:
     """测试参数解析器"""

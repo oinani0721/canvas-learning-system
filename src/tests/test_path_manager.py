@@ -8,20 +8,21 @@ Version: 1.0
 Created: 2025-10-28
 """
 
-import os
 import json
-import tempfile
+import os
 import shutil
-import unittest
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import patch, MagicMock
 
 # Add parent directory to path
 import sys
+import tempfile
+import unittest
+from datetime import datetime
+from pathlib import Path
+from unittest.mock import patch
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from canvas_utils.path_manager import PathManager, PathValidator, ValidationResult, PathReport
+from canvas_utils.path_manager import PathManager, PathReport, PathValidator
 
 
 class TestPathManager(unittest.TestCase):

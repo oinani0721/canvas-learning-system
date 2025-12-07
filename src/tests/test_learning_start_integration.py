@@ -17,24 +17,16 @@ Created: 2025-10-30
 Story: 10.10 - 修复/learning start命令核心逻辑
 """
 
-import pytest
-import asyncio
 import json
 import os
 import shutil
 from pathlib import Path
-from datetime import datetime
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import pytest
+
 # 测试导入 - 验证模块可以正确导入
-from command_handlers.learning_commands import (
-    LearningSessionManager,
-    create_learning_session_manager
-)
-from memory_system.memory_exceptions import (
-    TemporalMemoryError,
-    SemanticMemoryError
-)
+from command_handlers.learning_commands import LearningSessionManager, create_learning_session_manager
 
 
 @pytest.fixture

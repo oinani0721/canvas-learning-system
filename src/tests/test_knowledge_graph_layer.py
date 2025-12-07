@@ -12,9 +12,7 @@ import asyncio
 import os
 import sys
 import unittest
-from unittest.mock import Mock, patch, AsyncMock
-import tempfile
-from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,8 +49,9 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         os.environ["GRAPHITI_ENABLED"] = "true"
 
         # 重新加载模块以获取新的环境变量
-        import canvas_utils
         import importlib
+
+        import canvas_utils
         importlib.reload(canvas_utils)
 
         # Act
@@ -78,8 +77,9 @@ class TestKnowledgeGraphLayer(unittest.TestCase):
         os.environ["GRAPHITI_ENABLED"] = "false"
 
         # 重新加载模块以获取新的环境变量
-        import canvas_utils
         import importlib
+
+        import canvas_utils
         importlib.reload(canvas_utils)
 
         # Act

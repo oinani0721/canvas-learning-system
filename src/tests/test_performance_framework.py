@@ -9,30 +9,25 @@ Version: 1.0
 Created: 2025-10-22
 """
 
-import unittest
-import tempfile
-import os
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+import os
 
 # 导入要测试的模块
 import sys
+import tempfile
+import unittest
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tests.test_canvas_performance import (
     CanvasPerformanceTester,
-    TestCanvasGenerator,
+    MemoryMonitor,
+    PerformanceReportGenerator,
     PerformanceTestResult,
     StressTestResult,
-    MemoryMonitor,
-    PerformanceReportGenerator
+    TestCanvasGenerator,
 )
-from tests.test_performance_baseline import (
-    PerformanceBaselineManager,
-    PerformanceBaseline,
-    RegressionTestResult
-)
+from tests.test_performance_baseline import PerformanceBaselineManager, RegressionTestResult
 
 
 class TestMemoryMonitor(unittest.TestCase):
@@ -446,19 +441,19 @@ def run_performance_tests():
     result = runner.run(suite)
 
     print(f"\n{'='*50}")
-    print(f"性能测试框架测试结果:")
+    print("性能测试框架测试结果:")
     print(f"运行测试: {result.testsRun}")
     print(f"失败: {len(result.failures)}")
     print(f"错误: {len(result.errors)}")
     print(f"跳过: {len(result.skipped)}")
 
     if result.failures:
-        print(f"\n失败的测试:")
+        print("\n失败的测试:")
         for test, traceback in result.failures:
             print(f"  - {test}: {traceback.split('AssertionError:')[-1].strip()}")
 
     if result.errors:
-        print(f"\n错误的测试:")
+        print("\n错误的测试:")
         for test, traceback in result.errors:
             print(f"  - {test}: {traceback.split('Exception:')[-1].strip()}")
 

@@ -28,6 +28,111 @@ export type TaskFilterOption = 'all' | 'overdue' | 'today' | 'high-priority';
 export type TaskSortOption = 'priority' | 'dueDate' | 'memoryStrength' | 'canvas';
 
 /**
+ * Dashboard tab options (Story 14.6)
+ */
+export type DashboardTab = 'tasks' | 'history';
+
+/**
+ * History time range options (Story 14.6)
+ */
+export type HistoryTimeRange = '7d' | '30d';
+
+/**
+ * Review mode for history display (Story 14.6)
+ */
+export type ReviewMode = 'fresh' | 'targeted';
+
+// ============================================================================
+// History Types (Story 14.6)
+// ============================================================================
+
+/**
+ * History entry for review record display
+ */
+export interface HistoryEntry {
+    /** Unique entry ID */
+    id: string;
+    /** Canvas file path */
+    canvasPath: string;
+    /** Canvas title */
+    canvasTitle: string;
+    /** Concept name */
+    conceptName: string;
+    /** Review date */
+    reviewDate: Date;
+    /** Score (1-5) */
+    score: number;
+    /** Review mode */
+    mode: ReviewMode;
+    /** Memory strength after review */
+    memoryStrength: number;
+    /** Review duration in seconds */
+    duration?: number;
+}
+
+/**
+ * Daily statistics item for charts
+ */
+export interface DailyStatItem {
+    /** Date string (YYYY-MM-DD) */
+    date: string;
+    /** Number of concepts reviewed */
+    conceptCount: number;
+    /** Average score (1-5) */
+    averageScore: number;
+    /** Total review time in minutes */
+    totalMinutes: number;
+}
+
+/**
+ * Canvas review trend for multi-review analysis
+ */
+export interface CanvasReviewTrend {
+    /** Canvas file path */
+    canvasPath: string;
+    /** Canvas title */
+    canvasTitle: string;
+    /** Review sessions */
+    sessions: ReviewSession[];
+    /** Overall progress rate (percentage) */
+    progressRate: number;
+    /** Progress trend direction */
+    trend: 'up' | 'down' | 'stable';
+}
+
+/**
+ * Single review session data
+ */
+export interface ReviewSession {
+    /** Session date */
+    date: Date;
+    /** Pass rate (0-1) */
+    passRate: number;
+    /** Review mode */
+    mode: ReviewMode;
+    /** Concepts reviewed count */
+    conceptsReviewed: number;
+    /** Weak concepts count */
+    weakConceptsCount: number;
+}
+
+/**
+ * History view state (Story 14.6)
+ */
+export interface HistoryViewState {
+    /** History entries */
+    entries: HistoryEntry[];
+    /** Daily statistics */
+    dailyStats: DailyStatItem[];
+    /** Canvas review trends */
+    canvasTrends: CanvasReviewTrend[];
+    /** Selected time range */
+    timeRange: HistoryTimeRange;
+    /** Loading state */
+    loading: boolean;
+}
+
+/**
  * Review task interface
  */
 export interface ReviewTask {
@@ -192,8 +297,12 @@ export interface QuickActionsProps extends BaseComponentProps {
  * Dashboard view state
  */
 export interface DashboardViewState {
+    /** Current active tab (Story 14.6) */
+    currentTab: DashboardTab;
     tasks: ReviewTask[];
     statistics: DashboardStatistics;
+    /** History view state (Story 14.6) */
+    historyState: HistoryViewState;
     loading: boolean;
     error: string | null;
     sortBy: TaskSortOption;
@@ -202,9 +311,21 @@ export interface DashboardViewState {
 }
 
 /**
+ * Default history view state (Story 14.6)
+ */
+export const DEFAULT_HISTORY_STATE: HistoryViewState = {
+    entries: [],
+    dailyStats: [],
+    canvasTrends: [],
+    timeRange: '7d',
+    loading: false,
+};
+
+/**
  * Default dashboard state
  */
 export const DEFAULT_DASHBOARD_STATE: DashboardViewState = {
+    currentTab: 'tasks',
     tasks: [],
     statistics: {
         todayPending: 0,
@@ -222,6 +343,7 @@ export const DEFAULT_DASHBOARD_STATE: DashboardViewState = {
         masteryDistribution: [],
         recentActivities: [],
     },
+    historyState: DEFAULT_HISTORY_STATE,
     loading: true,
     error: null,
     sortBy: 'priority',

@@ -10,6 +10,7 @@ backend API. Settings are loaded from environment variables and .env files.
 [Source: specs/api/fastapi-backend-api.openapi.yml]
 """
 
+import json
 from functools import lru_cache
 from typing import List
 
@@ -181,10 +182,26 @@ class Settings(BaseSettings):
         """
         Parse CORS_ORIGINS string into a list of origins.
 
+        Supports two formats:
+        1. Comma-separated: "http://localhost:3000,http://127.0.0.1:3000"
+        2. JSON array: '["http://localhost:3000","http://127.0.0.1:3000"]'
+
         Returns:
             List of allowed CORS origin strings.
         """
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",") if origin.strip()]
+        cors_value = self.CORS_ORIGINS.strip()
+
+        # Try JSON array format first (handles system env variable override)
+        if cors_value.startswith("["):
+            try:
+                origins = json.loads(cors_value)
+                if isinstance(origins, list):
+                    return [str(o).strip() for o in origins if o]
+            except json.JSONDecodeError:
+                pass  # Fall through to comma-separated parsing
+
+        # Comma-separated format (from .env file)
+        return [origin.strip() for origin in cors_value.split(",") if origin.strip()]
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Lowercase Property Aliases (for convenience)
