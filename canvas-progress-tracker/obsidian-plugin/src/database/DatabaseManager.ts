@@ -199,7 +199,7 @@ export class DatabaseManager {
             id,
             createdAt: timestamp,
             updatedAt: timestamp,
-        } as T;
+        } as unknown as T;
 
         table.records.push(newRecord);
 

@@ -307,7 +307,7 @@ export class HotkeyManager {
         checking: boolean,
         editor: Editor,
         view: MarkdownView
-      ) => {
+      ): boolean | void => {
         // Check if current view is a Canvas file
         const isCanvasView = view.file?.extension === 'canvas';
 
@@ -320,11 +320,13 @@ export class HotkeyManager {
           if (definition.callback) {
             definition.callback();
           } else if (definition.editorCheckCallback) {
-            definition.editorCheckCallback(false, editor, view);
+            // Call with checking=false only (editorCheckCallback signature)
+            (definition.editorCheckCallback as any)(false, editor, view);
           } else {
             this.log(`HotkeyManager: No callback for ${definition.id}`);
           }
         }
+        return;
       };
     } else if (definition.callback) {
       commandOptions.callback = definition.callback;

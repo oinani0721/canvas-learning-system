@@ -22,6 +22,19 @@ from .canvas import (
     NodeUpdate,
 )
 from .common import ErrorResponse, HealthCheckResponse
+from .memory import (
+    GraphitiMemoryItem,
+    GraphitiQueryResponse,
+    MemoryLayerStatus,
+    MemoryQueryRequest,
+    MemoryStoreRequest,
+    MemoryStoreResponse,
+    MemorySystemStatus,
+    SemanticMemoryItem,
+    SemanticQueryResponse,
+    TemporalMemoryItem,
+    TemporalQueryResponse,
+)
 from .review import (
     GenerateReviewRequest,
     GenerateReviewResponse,
@@ -57,4 +70,16 @@ __all__ = [
     "GenerateReviewResponse",
     "RecordReviewRequest",
     "RecordReviewResponse",
+    # Memory
+    "MemoryQueryRequest",
+    "TemporalMemoryItem",
+    "SemanticMemoryItem",
+    "GraphitiMemoryItem",
+    "TemporalQueryResponse",
+    "SemanticQueryResponse",
+    "GraphitiQueryResponse",
+    "MemoryLayerStatus",
+    "MemorySystemStatus",
+    "MemoryStoreRequest",
+    "MemoryStoreResponse",
 ]

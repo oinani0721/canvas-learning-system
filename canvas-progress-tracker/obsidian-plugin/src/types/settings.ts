@@ -268,6 +268,91 @@ export interface PluginSettings {
      * @default false
      */
     associationModeEnabled: boolean;
+
+    // ========== Memory System Settings (P1 Task #8) ==========
+    /**
+     * Neo4j database URI
+     * Used for Graphiti knowledge graph storage
+     * @default 'bolt://localhost:7687'
+     */
+    neo4jUri: string;
+
+    /**
+     * Neo4j database username
+     * @default 'neo4j'
+     */
+    neo4jUser: string;
+
+    /**
+     * Neo4j database password
+     * @default ''
+     */
+    neo4jPassword: string;
+
+    /**
+     * Enable Neo4j connection
+     * @default false
+     */
+    neo4jEnabled: boolean;
+
+    /**
+     * LanceDB data storage path
+     * Path where vector embeddings are stored
+     * @default ''
+     */
+    lancedbPath: string;
+
+    /**
+     * Enable CUDA acceleration for LanceDB
+     * Requires NVIDIA GPU with CUDA support
+     * @default false
+     */
+    lancedbCudaEnabled: boolean;
+
+    /**
+     * Enable LanceDB semantic memory
+     * @default false
+     */
+    lancedbEnabled: boolean;
+
+    /**
+     * Graphiti group ID for memory isolation
+     * @default 'canvas-learning-system'
+     */
+    graphitiGroupId: string;
+
+    /**
+     * Graphiti MCP server URL
+     * @default 'http://localhost:8000/sse'
+     */
+    graphitiMcpUrl: string;
+
+    /**
+     * Enable Graphiti knowledge graph
+     * @default false
+     */
+    graphitiEnabled: boolean;
+
+    // ========== LLM Model Settings ==========
+    /**
+     * OpenAI API Key for LanceDB vector embeddings
+     * Required when using LanceDB semantic memory
+     * @default ''
+     */
+    openaiApiKey: string;
+
+    /**
+     * Embedding model for vector generation
+     * @default 'text-embedding-3-small'
+     */
+    embeddingModel: string;
+
+    /**
+     * Cohere API Key for hybrid search reranking (optional)
+     * Used to improve search result relevance
+     * @default ''
+     */
+    cohereApiKey: string;
 }
 
 /**
@@ -327,13 +412,35 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     settingsVersion: 2,
 
     // Association Mode Settings (Story 16.4)
-    associationModeEnabled: false
+    associationModeEnabled: false,
+
+    // ========== Memory System Settings (P1 Task #8) ==========
+    // Neo4j Configuration
+    neo4jUri: 'bolt://localhost:7687',
+    neo4jUser: 'neo4j',
+    neo4jPassword: '',
+    neo4jEnabled: false,
+
+    // LanceDB Configuration
+    lancedbPath: '',
+    lancedbCudaEnabled: false,
+    lancedbEnabled: false,
+
+    // Graphiti MCP Configuration
+    graphitiGroupId: 'canvas-learning-system',
+    graphitiMcpUrl: 'http://localhost:8000/sse',
+    graphitiEnabled: false,
+
+    // LLM Model Configuration
+    openaiApiKey: '',
+    embeddingModel: 'text-embedding-3-small',
+    cohereApiKey: ''
 };
 
 /**
  * Settings section identifiers
  */
-export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced';
+export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced' | 'memory';
 
 /**
  * Settings section metadata
@@ -378,6 +485,12 @@ export const SETTINGS_SECTIONS: SettingsSectionInfo[] = [
         name: '高级设置',
         description: '调试、性能和实验性功能',
         icon: '⚙️'
+    },
+    {
+        id: 'memory',
+        name: '🧠 记忆系统',
+        description: 'Neo4j/LanceDB/Graphiti三层记忆配置',
+        icon: '🧠'
     }
 ];
 

@@ -28,9 +28,10 @@ export type TaskFilterOption = 'all' | 'overdue' | 'today' | 'high-priority';
 export type TaskSortOption = 'priority' | 'dueDate' | 'memoryStrength' | 'canvas';
 
 /**
- * Dashboard tab options (Story 14.6)
+ * Dashboard tab options (Story 14.6 + Story 14.13 + Epic 16)
+ * Extended to include verification canvas and cross-canvas learning tabs
  */
-export type DashboardTab = 'tasks' | 'history';
+export type DashboardTab = 'tasks' | 'history' | 'verification' | 'cross-canvas';
 
 /**
  * History time range options (Story 14.6)
@@ -297,12 +298,16 @@ export interface QuickActionsProps extends BaseComponentProps {
  * Dashboard view state
  */
 export interface DashboardViewState {
-    /** Current active tab (Story 14.6) */
+    /** Current active tab (Story 14.6 + Story 14.13 + Epic 16) */
     currentTab: DashboardTab;
     tasks: ReviewTask[];
     statistics: DashboardStatistics;
     /** History view state (Story 14.6) */
     historyState: HistoryViewState;
+    /** Verification view state (Story 14.13) */
+    verificationState: VerificationViewState;
+    /** Cross-canvas view state (Epic 16) */
+    crossCanvasState: CrossCanvasViewState;
     loading: boolean;
     error: string | null;
     sortBy: TaskSortOption;
@@ -319,6 +324,27 @@ export const DEFAULT_HISTORY_STATE: HistoryViewState = {
     canvasTrends: [],
     timeRange: '7d',
     loading: false,
+};
+
+/**
+ * Default verification view state (Story 14.13)
+ */
+export const DEFAULT_VERIFICATION_STATE: VerificationViewState = {
+    relations: [],
+    loading: false,
+    selectedRelationId: undefined,
+};
+
+/**
+ * Default cross-canvas view state (Epic 16)
+ */
+export const DEFAULT_CROSS_CANVAS_STATE: CrossCanvasViewState = {
+    associations: [],
+    searchResults: [],
+    knowledgePaths: [],
+    searchQuery: '',
+    loading: false,
+    selectedAssociationId: undefined,
 };
 
 /**
@@ -344,9 +370,165 @@ export const DEFAULT_DASHBOARD_STATE: DashboardViewState = {
         recentActivities: [],
     },
     historyState: DEFAULT_HISTORY_STATE,
+    verificationState: DEFAULT_VERIFICATION_STATE,
+    crossCanvasState: DEFAULT_CROSS_CANVAS_STATE,
     loading: true,
     error: null,
     sortBy: 'priority',
     filterBy: 'all',
     lastUpdated: null,
 };
+
+// ============================================================================
+// Verification Canvas Types (Story 14.13 - 检验历史存储)
+// ============================================================================
+
+/**
+ * Verification canvas relationship with original canvas
+ * [Source: PRD Story 14.13 - 检验历史存储]
+ */
+export interface VerificationCanvasRelation {
+    /** Unique relationship ID */
+    id: string;
+    /** Original canvas file path */
+    originalCanvasPath: string;
+    /** Original canvas title */
+    originalCanvasTitle: string;
+    /** Generated verification canvas file path */
+    verificationCanvasPath: string;
+    /** Generated verification canvas title */
+    verificationCanvasTitle: string;
+    /** Generation date */
+    generatedDate: Date;
+    /** Review mode used for generation */
+    reviewMode: ReviewMode;
+    /** Current average score (1-5) */
+    currentScore?: number;
+    /** Completion rate (0-1) */
+    completionRate?: number;
+    /** Total number of review sessions */
+    sessionCount: number;
+    /** All review sessions for this verification canvas */
+    sessions: ReviewSession[];
+}
+
+/**
+ * Verification tab view state
+ */
+export interface VerificationViewState {
+    /** Verification canvas relations */
+    relations: VerificationCanvasRelation[];
+    /** Loading state */
+    loading: boolean;
+    /** Selected relation for details */
+    selectedRelationId?: string;
+}
+
+// ============================================================================
+// Cross-Canvas Learning Types (Epic 16 - 跨Canvas关联学习系统)
+// ============================================================================
+
+/**
+ * Canvas association relationship type
+ * [Source: PRD Epic 16 - 跨Canvas关联学习系统]
+ */
+export type CanvasRelationshipType = 'prerequisite' | 'related' | 'application';
+
+/**
+ * Cross-Canvas association between two canvas files
+ */
+export interface CrossCanvasAssociation {
+    /** Unique association ID */
+    id: string;
+    /** Source canvas file path (e.g., textbook canvas) */
+    sourceCanvasPath: string;
+    /** Source canvas title */
+    sourceCanvasTitle: string;
+    /** Target canvas file path (e.g., exercise canvas) */
+    targetCanvasPath: string;
+    /** Target canvas title */
+    targetCanvasTitle: string;
+    /** Common concepts found in both canvases */
+    commonConcepts: string[];
+    /** Type of relationship */
+    relationshipType: CanvasRelationshipType;
+    /** Confidence score (0-1) */
+    confidence: number;
+    /** Creation date */
+    createdDate: Date;
+    /** Last updated date */
+    updatedDate: Date;
+}
+
+/**
+ * Cross-Canvas concept search result
+ */
+export interface CrossCanvasSearchResult {
+    /** Concept name */
+    concept: string;
+    /** Canvas files containing this concept */
+    canvasOccurrences: {
+        canvasPath: string;
+        canvasTitle: string;
+        nodeId: string;
+        nodeText: string;
+        nodeColor: string;
+    }[];
+    /** Total occurrence count */
+    totalCount: number;
+}
+
+/**
+ * Knowledge path node for learning transfer visualization
+ */
+export interface KnowledgePathNode {
+    /** Canvas file path */
+    canvasPath: string;
+    /** Canvas title */
+    canvasTitle: string;
+    /** Order in learning sequence */
+    order: number;
+    /** Prerequisite concepts covered */
+    prerequisiteConcepts: string[];
+    /** Mastery level (0-1) */
+    masteryLevel: number;
+    /** Is completed */
+    isCompleted: boolean;
+}
+
+/**
+ * Knowledge transfer path
+ * [Source: PRD Epic 16 - 知识迁移路径]
+ */
+export interface KnowledgePath {
+    /** Path ID */
+    id: string;
+    /** Path name (e.g., "线性代数学习路径") */
+    name: string;
+    /** Path description */
+    description?: string;
+    /** Ordered nodes in the path */
+    nodes: KnowledgePathNode[];
+    /** Overall completion progress (0-1) */
+    completionProgress: number;
+    /** Recommended next canvas to study */
+    recommendedNext?: KnowledgePathNode;
+}
+
+/**
+ * Cross-Canvas tab view state
+ */
+export interface CrossCanvasViewState {
+    /** Canvas associations */
+    associations: CrossCanvasAssociation[];
+    /** Search results */
+    searchResults: CrossCanvasSearchResult[];
+    /** Knowledge paths */
+    knowledgePaths: KnowledgePath[];
+    /** Current search query */
+    searchQuery: string;
+    /** Loading state */
+    loading: boolean;
+    /** Selected association for details */
+    selectedAssociationId?: string;
+}

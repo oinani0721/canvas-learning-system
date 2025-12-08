@@ -7,6 +7,7 @@ Exports all routers for registration in main application.
 from .agents import router as agents_router
 from .canvas import router as canvas_router
 from .health import router as health_router
+from .memory import router as memory_router
 from .review import router as review_router
 
 __all__ = [
@@ -14,4 +15,5 @@ __all__ = [
     "canvas_router",
     "agents_router",
     "review_router",
+    "memory_router",
 ]

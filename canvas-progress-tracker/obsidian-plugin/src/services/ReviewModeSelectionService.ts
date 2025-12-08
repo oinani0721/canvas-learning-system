@@ -239,8 +239,8 @@ export class ReviewModeSelectionService {
                     dropdown.addOption(modeInfo.mode, `${modeInfo.icon} ${modeInfo.label}`);
                 }
                 dropdown.setValue(this.settings.defaultMode);
-                dropdown.onChange((value: ReviewMode) => {
-                    this.settings.defaultMode = value;
+                dropdown.onChange((value: string) => {
+                    this.settings.defaultMode = value as ReviewMode;
                     onSave();
                 });
             });

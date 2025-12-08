@@ -22,7 +22,7 @@ import type {
     TaskFilterOption,
     TaskSortOption,
 } from '../types/UITypes';
-import type { DatabaseManager } from '../database/DatabaseManager';
+import type { DataManager } from '../database/DataManager';
 import type { ReviewRecord } from '../types/DataTypes';
 
 /**
@@ -89,7 +89,7 @@ export type ContextMenuAction = 'start_review' | 'postpone_1d' | 'postpone_3d' |
  */
 export class TodayReviewListService {
     private app: App;
-    private dbManager: DatabaseManager | null = null;
+    private dbManager: DataManager | null = null;
     private cache: Map<string, TodayReviewItem[]> = new Map();
     private cacheTimestamp: number = 0;
     private readonly CACHE_TTL_MS = 60000; // 1 minute cache
@@ -99,10 +99,10 @@ export class TodayReviewListService {
     }
 
     /**
-     * Set database manager reference
+     * Set data manager reference
      */
-    setDatabaseManager(dbManager: DatabaseManager): void {
-        this.dbManager = dbManager;
+    setDataManager(dataManager: DataManager): void {
+        this.dbManager = dataManager;
         this.clearCache();
     }
 
@@ -189,7 +189,7 @@ export class TodayReviewListService {
                 const reviewRecordDAO = this.dbManager.getReviewRecordDAO();
                 const recordId = parseInt(item.id, 10);
                 if (!isNaN(recordId)) {
-                    await reviewRecordDAO.update(recordId, { status: 'in_progress' });
+                    await reviewRecordDAO.update(recordId, { status: 'scheduled' });
                 }
             }
 

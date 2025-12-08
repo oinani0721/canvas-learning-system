@@ -65,6 +65,7 @@ export interface SessionStatus {
     start_time: string;
     elapsed_seconds: number;
     message?: string;
+    node_results?: NodeResult[];
 }
 
 /**

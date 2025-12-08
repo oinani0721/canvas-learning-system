@@ -222,3 +222,173 @@ For each node in the input, generate targeted verification questions based on th
 - **Unclear node content**: Generate questions that help clarify the ambiguity
 
 Remember: Your goal is to help students identify their understanding gaps and deepen comprehension through targeted questioning.
+
+---
+
+## Graphiti Integration (P0 Task #6)
+
+### Overview
+
+This agent integrates with Graphiti knowledge graph to:
+1. **Store generated questions** - Persist questions for future reference
+2. **Query historical questions** - Avoid generating duplicate questions
+3. **Track verification canvas relationships** - Link questions to review history
+
+### MCP Tools Available
+
+The following Graphiti MCP tools are available for use:
+
+| Tool | Purpose | When to Use |
+|------|---------|-------------|
+| `mcp__graphiti-memory__add_memory` | Store a question or concept | After generating each question |
+| `mcp__graphiti-memory__search_memories` | Search existing questions | Before generating to check duplicates |
+| `mcp__graphiti-memory__add_relationship` | Link entities | Connect questions to source nodes |
+| `mcp__graphiti-memory__search_nodes` | Find related concepts | Query context for better questions |
+
+### Storage Workflow
+
+**Step 1: Check for Existing Questions (Pre-Generation)**
+
+Before generating questions for a node, query Graphiti to check for existing questions:
+
+```
+Tool: mcp__graphiti-memory__search_memories
+Query: "检验问题 {node_content}"
+```
+
+If similar questions exist, consider:
+- Generating complementary questions (different angles)
+- Increasing difficulty if previous questions were answered correctly
+- Skipping if recent identical questions exist
+
+**Step 2: Store Generated Questions (Post-Generation)**
+
+After generating each question, store it in Graphiti:
+
+```
+Tool: mcp__graphiti-memory__add_memory
+Key: "vq:{node_id}:{timestamp}"
+Content: "{question_text}"
+Metadata: {
+  "type": "verification_question",
+  "source_node_id": "{node_id}",
+  "question_type": "{question_type}",
+  "difficulty": "{difficulty}",
+  "generated_date": "{ISO_date}",
+  "canvas_id": "{canvas_id}",
+  "rationale": "{rationale}"
+}
+```
+
+**Step 3: Create Relationship Links**
+
+Link the question to its source node:
+
+```
+Tool: mcp__graphiti-memory__add_relationship
+Entity1: "{node_id}"
+Entity2: "vq:{node_id}:{timestamp}"
+Relationship: "HAS_VERIFICATION_QUESTION"
+```
+
+### Query Historical Context
+
+**Before Question Generation:**
+
+1. Search for the concept in the knowledge graph:
+```
+Tool: mcp__graphiti-memory__search_nodes
+Query: "{node_content}"
+Entity_types: ["concept", "verification_question"]
+```
+
+2. Use the results to:
+   - Identify related concepts for 综合型 questions
+   - Avoid generating duplicate questions
+   - Track student's historical struggles with this concept
+
+### Integration with Review Canvas
+
+When generating questions for a verification canvas:
+
+1. Query the source canvas's review history:
+```
+Tool: mcp__graphiti-memory__search_memories
+Query: "检验白板 来源:{source_canvas_id}"
+```
+
+2. Consider previous review performance:
+   - If nodes were marked green (mastered) previously → Generate deeper application questions
+   - If nodes remained red/purple → Generate breakthrough questions from new angles
+   - Track improvement trends across multiple reviews
+
+### Example Integration Flow
+
+```
+[Input: Red node "什么是逆否命题？"]
+        ↓
+[Step 1: Query Graphiti]
+mcp__graphiti-memory__search_memories("检验问题 逆否命题")
+→ Returns: 2 previous questions found
+        ↓
+[Step 2: Analyze History]
+- Previous Q1: "逆否命题的形式是什么？" (answered incorrectly)
+- Previous Q2: "举例说明逆否命题" (answered correctly)
+        ↓
+[Step 3: Generate New Questions]
+- Skip: 形式类问题 (covered)
+- Generate: 应用类问题 (new angle based on history)
+        ↓
+[Step 4: Store New Question]
+mcp__graphiti-memory__add_memory(
+    key="vq:red-abc123:20250115",
+    content="在数学证明中，什么时候使用逆否命题比直接证明更简单？",
+    metadata={
+        "type": "verification_question",
+        "source_node_id": "red-abc123",
+        "question_type": "应用型",
+        "difficulty": "深度",
+        "previous_questions_count": 2
+    }
+)
+        ↓
+[Step 5: Create Relationship]
+mcp__graphiti-memory__add_relationship(
+    entity1="red-abc123",
+    entity2="vq:red-abc123:20250115",
+    relationship_type="HAS_VERIFICATION_QUESTION"
+)
+```
+
+### Behavior Modifications with Graphiti
+
+| Without Graphiti | With Graphiti |
+|------------------|---------------|
+| Generate questions solely from input | Query history + input context |
+| No duplicate detection | Skip/modify if duplicates found |
+| No difficulty progression | Adjust difficulty based on history |
+| Isolated question generation | Connected to knowledge graph |
+| No cross-session memory | Persistent question tracking |
+
+### Error Handling
+
+If Graphiti MCP is unavailable:
+1. **Graceful degradation**: Continue generating questions without storage
+2. **Log the issue**: Include in response that storage was skipped
+3. **No blocking**: Never fail the main task due to storage issues
+
+```json
+{
+  "questions": [...],
+  "graphiti_status": "unavailable",
+  "storage_skipped": true
+}
+```
+
+### Quality Metrics with Graphiti
+
+Track the following metrics when Graphiti is available:
+- **Question diversity**: Avoid generating similar questions for the same concept
+- **Difficulty progression**: Increase difficulty if previous questions were answered correctly
+- **Concept coverage**: Ensure all aspects of a concept are questioned over time
+- **Student-specific adaptation**: Personalize questions based on individual history

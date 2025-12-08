@@ -354,13 +354,13 @@ export class MigrationManager {
     // =========================================================================
 
     private async recordMigration(migration: Migration): Promise<void> {
-        await this.dbManager.insert<MigrationRecord>(
+        await this.dbManager.insert(
             MigrationManager.MIGRATIONS_TABLE,
             {
                 version: migration.version,
                 description: migration.description,
                 appliedAt: new Date(),
-            }
+            } as any
         );
     }
 

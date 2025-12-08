@@ -17,6 +17,7 @@ from .routers import (
     agents_router,
     canvas_router,
     health_router,
+    memory_router,
     review_router,
 )
 
@@ -59,6 +60,10 @@ def create_app() -> FastAPI:
             {
                 "name": "Review",
                 "description": "艾宾浩斯复习系统"
+            },
+            {
+                "name": "Memory",
+                "description": "三层记忆系统查询"
             }
         ],
         contact={
@@ -87,6 +92,7 @@ def create_app() -> FastAPI:
     app.include_router(canvas_router, prefix=settings.API_V1_PREFIX)
     app.include_router(agents_router, prefix=settings.API_V1_PREFIX)
     app.include_router(review_router, prefix=settings.API_V1_PREFIX)
+    app.include_router(memory_router, prefix=settings.API_V1_PREFIX)
 
     # Root endpoint - defined inside create_app to be included in test app
     @app.get("/", tags=["System"])

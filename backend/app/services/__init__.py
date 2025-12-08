@@ -11,6 +11,7 @@ from app.services.metrics_collector import (
     get_metrics_summary,
     get_prometheus_metrics,
 )
+from app.services.question_generator import QuestionGenerator
 from app.services.resource_monitor import (
     RESOURCE_CPU_USAGE,
     RESOURCE_DISK_USAGE,
@@ -20,6 +21,7 @@ from app.services.resource_monitor import (
     get_resource_metrics_snapshot,
 )
 from app.services.review_service import ReviewProgress, ReviewService, ReviewStatus
+from app.services.topic_clustering import TopicClusterer
 
 __all__ = [
     # Core services
@@ -30,6 +32,8 @@ __all__ = [
     "ReviewService",
     "ReviewProgress",
     "ReviewStatus",
+    "QuestionGenerator",
+    "TopicClusterer",
     "BackgroundTaskManager",
     "TaskStatus",
     "TaskInfo",

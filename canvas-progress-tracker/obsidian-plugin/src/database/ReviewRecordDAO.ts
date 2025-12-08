@@ -186,6 +186,7 @@ export class ReviewRecordDAO {
             records.sort((a, b) => {
                 const aVal = a[options.orderBy!];
                 const bVal = b[options.orderBy!];
+                if (aVal === undefined || bVal === undefined) return 0;
                 if (aVal < bVal) return -1 * direction;
                 if (aVal > bVal) return 1 * direction;
                 return 0;

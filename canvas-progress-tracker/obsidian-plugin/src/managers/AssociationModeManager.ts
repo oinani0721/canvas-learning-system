@@ -244,9 +244,9 @@ export function createAssociationModeSettings(
     new Setting(containerEl)
         .setName('启用关联模式')
         .setDesc('启用后，Canvas节点将显示关联指示器，支持跨Canvas链接。推荐快捷键: Ctrl+Shift+L')
-        .addToggle(toggle => toggle
+        .addToggle((toggle: any) => toggle
             .setValue(manager.isEnabled())
-            .onChange(async (value) => {
+            .onChange(async (value: boolean) => {
                 await manager.setMode(value);
             })
         );

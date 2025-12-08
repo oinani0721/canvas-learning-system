@@ -19,24 +19,24 @@ import type {
     ReviewMode,
 } from '../types/UITypes';
 import { DEFAULT_HISTORY_STATE } from '../types/UITypes';
-import type { DatabaseManager } from '../database/DatabaseManager';
+import type { DataManager } from '../database/DataManager';
 
 /**
  * Service for managing review history and trend analysis
  */
 export class HistoryService {
     private app: App;
-    private dbManager: DatabaseManager | null = null;
+    private dbManager: DataManager | null = null;
 
     constructor(app: App) {
         this.app = app;
     }
 
     /**
-     * Set database manager reference
+     * Set data manager reference
      */
-    setDatabaseManager(dbManager: DatabaseManager): void {
-        this.dbManager = dbManager;
+    setDataManager(dataManager: DataManager): void {
+        this.dbManager = dataManager;
     }
 
     /**

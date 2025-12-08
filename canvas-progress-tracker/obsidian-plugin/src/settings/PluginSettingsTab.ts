@@ -185,6 +185,9 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             case 'advanced':
                 this.displayAdvancedSettings(this.contentContainer);
                 break;
+            case 'memory':
+                this.displayMemorySettings(this.contentContainer);
+                break;
         }
     }
 
@@ -845,6 +848,341 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             .addButton(button => button
                 .setButtonText('运行诊断')
                 .onClick(() => this.runDiagnostics()));
+    }
+
+    /**
+     * Display Memory System settings (P1 Task #8)
+     * Configures three-layer memory architecture: Neo4j/LanceDB/Graphiti
+     */
+    private displayMemorySettings(container: HTMLElement): void {
+        const settings = this.plugin.settings;
+
+        // ========== Neo4j Configuration ==========
+        this.createSettingGroup(container, 'Neo4j 知识图谱');
+
+        // Neo4j Enable Toggle
+        new Setting(container)
+            .setName('启用 Neo4j')
+            .setDesc('启用 Neo4j 知识图谱存储（用于概念关系和学习路径）')
+            .addToggle(toggle => toggle
+                .setValue(settings.neo4jEnabled)
+                .onChange(async (value) => {
+                    settings.neo4jEnabled = value;
+                    await this.plugin.saveSettings();
+                    // Refresh to show/hide dependent settings
+                    this.displaySection('memory');
+                }));
+
+        // Only show Neo4j settings if enabled
+        if (settings.neo4jEnabled) {
+            // Neo4j URI
+            new Setting(container)
+                .setName('Neo4j 连接地址')
+                .setDesc('Neo4j 数据库连接地址（例如: bolt://localhost:7687）')
+                .addText(text => text
+                    .setPlaceholder('bolt://localhost:7687')
+                    .setValue(settings.neo4jUri)
+                    .onChange(async (value) => {
+                        settings.neo4jUri = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Neo4j User
+            new Setting(container)
+                .setName('Neo4j 用户名')
+                .setDesc('Neo4j 数据库用户名')
+                .addText(text => text
+                    .setPlaceholder('neo4j')
+                    .setValue(settings.neo4jUser)
+                    .onChange(async (value) => {
+                        settings.neo4jUser = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Neo4j Password
+            new Setting(container)
+                .setName('Neo4j 密码')
+                .setDesc('Neo4j 数据库密码')
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.setPlaceholder('输入密码')
+                        .setValue(settings.neo4jPassword)
+                        .onChange(async (value) => {
+                            settings.neo4jPassword = value;
+                            await this.plugin.saveSettings();
+                        });
+                });
+
+            // Test Neo4j Connection
+            new Setting(container)
+                .setName('测试连接')
+                .setDesc('测试 Neo4j 数据库连接')
+                .addButton(button => button
+                    .setButtonText('测试连接')
+                    .onClick(() => this.testNeo4jConnection()));
+        }
+
+        // ========== LanceDB Configuration ==========
+        this.createSettingGroup(container, 'LanceDB 语义向量');
+
+        // LanceDB Enable Toggle
+        new Setting(container)
+            .setName('启用 LanceDB')
+            .setDesc('启用 LanceDB 语义向量存储（用于文档嵌入和相似度搜索）')
+            .addToggle(toggle => toggle
+                .setValue(settings.lancedbEnabled)
+                .onChange(async (value) => {
+                    settings.lancedbEnabled = value;
+                    await this.plugin.saveSettings();
+                    this.displaySection('memory');
+                }));
+
+        // Only show LanceDB settings if enabled
+        if (settings.lancedbEnabled) {
+            // LanceDB Path
+            new Setting(container)
+                .setName('LanceDB 数据路径')
+                .setDesc('LanceDB 数据库存储路径（留空使用默认路径）')
+                .addText(text => text
+                    .setPlaceholder('留空使用默认路径')
+                    .setValue(settings.lancedbPath)
+                    .onChange(async (value) => {
+                        settings.lancedbPath = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // CUDA Acceleration
+            new Setting(container)
+                .setName('CUDA 加速')
+                .setDesc('启用 GPU 加速（需要 NVIDIA 显卡和 CUDA 环境）')
+                .addToggle(toggle => toggle
+                    .setValue(settings.lancedbCudaEnabled)
+                    .onChange(async (value) => {
+                        settings.lancedbCudaEnabled = value;
+                        await this.plugin.saveSettings();
+                        if (value) {
+                            new Notice('⚠️ CUDA 加速已启用，请确保已安装 CUDA 环境');
+                        }
+                    }));
+        }
+
+        // ========== Graphiti MCP Configuration ==========
+        this.createSettingGroup(container, 'Graphiti 时序记忆');
+
+        // Graphiti Enable Toggle
+        new Setting(container)
+            .setName('启用 Graphiti MCP')
+            .setDesc('启用 Graphiti MCP 服务（用于时序知识图谱和学习历程追踪）')
+            .addToggle(toggle => toggle
+                .setValue(settings.graphitiEnabled)
+                .onChange(async (value) => {
+                    settings.graphitiEnabled = value;
+                    await this.plugin.saveSettings();
+                    this.displaySection('memory');
+                }));
+
+        // Only show Graphiti settings if enabled
+        if (settings.graphitiEnabled) {
+            // OpenAI API Key (Required for Graphiti)
+            new Setting(container)
+                .setName('OpenAI API Key')
+                .setDesc('Graphiti 知识图谱提取必需（用于 gpt-4o-mini 模型）')
+                .addText(text => {
+                    text.inputEl.type = 'password';
+                    text.inputEl.style.width = '300px';
+                    text.setPlaceholder('sk-...')
+                        .setValue(settings.openaiApiKey)
+                        .onChange(async (value) => {
+                            settings.openaiApiKey = value;
+                            await this.plugin.saveSettings();
+                        });
+                });
+
+            // Embedding Model Selection
+            new Setting(container)
+                .setName('嵌入模型')
+                .setDesc('用于知识图谱向量嵌入')
+                .addDropdown(dropdown => dropdown
+                    .addOption('text-embedding-3-small', 'text-embedding-3-small (推荐)')
+                    .addOption('text-embedding-3-large', 'text-embedding-3-large (高精度)')
+                    .addOption('text-embedding-ada-002', 'text-embedding-ada-002 (旧版)')
+                    .setValue(settings.embeddingModel)
+                    .onChange(async (value) => {
+                        settings.embeddingModel = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Graphiti MCP URL
+            new Setting(container)
+                .setName('Graphiti MCP 地址')
+                .setDesc('Graphiti MCP 服务地址（例如: http://localhost:8000/sse）')
+                .addText(text => text
+                    .setPlaceholder('http://localhost:8000/sse')
+                    .setValue(settings.graphitiMcpUrl)
+                    .onChange(async (value) => {
+                        settings.graphitiMcpUrl = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Graphiti Group ID
+            new Setting(container)
+                .setName('Graphiti 分组 ID')
+                .setDesc('用于隔离不同项目的记忆数据')
+                .addText(text => text
+                    .setPlaceholder('canvas-learning-system')
+                    .setValue(settings.graphitiGroupId)
+                    .onChange(async (value) => {
+                        settings.graphitiGroupId = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Test Graphiti Connection
+            new Setting(container)
+                .setName('测试连接')
+                .setDesc('测试 Graphiti MCP 服务连接')
+                .addButton(button => button
+                    .setButtonText('测试连接')
+                    .onClick(() => this.testGraphitiConnection()));
+        }
+
+        // ========== Memory Status ==========
+        this.createSettingGroup(container, '记忆系统状态');
+
+        // Status Display
+        const statusContainer = container.createDiv('memory-status-container');
+        statusContainer.createEl('div', {
+            cls: 'memory-status-item',
+            text: `Neo4j: ${settings.neo4jEnabled ? '✅ 已启用' : '❌ 未启用'}`
+        });
+        statusContainer.createEl('div', {
+            cls: 'memory-status-item',
+            text: `LanceDB: ${settings.lancedbEnabled ? '✅ 已启用' : '❌ 未启用'}`
+        });
+        statusContainer.createEl('div', {
+            cls: 'memory-status-item',
+            text: `Graphiti: ${settings.graphitiEnabled ? '✅ 已启用' : '❌ 未启用'}`
+        });
+
+        // Refresh Status Button
+        new Setting(container)
+            .setName('刷新状态')
+            .setDesc('检查所有记忆系统的连接状态')
+            .addButton(button => button
+                .setButtonText('刷新状态')
+                .onClick(() => this.refreshMemoryStatus()));
+    }
+
+    /**
+     * Test Neo4j connection
+     */
+    private async testNeo4jConnection(): Promise<void> {
+        const settings = this.plugin.settings;
+        if (!settings.neo4jUri) {
+            new Notice('❌ 请先配置 Neo4j 连接地址');
+            return;
+        }
+
+        new Notice('⏳ 正在测试 Neo4j 连接...');
+
+        try {
+            // Use the backend API to test Neo4j connection
+            const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/neo4j`, {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (response.ok) {
+                new Notice('✅ Neo4j 连接成功！');
+            } else {
+                new Notice(`❌ Neo4j 连接失败: HTTP ${response.status}`);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : '未知错误';
+            new Notice(`❌ Neo4j 连接测试失败: ${message}`);
+        }
+    }
+
+    /**
+     * Test Graphiti MCP connection
+     */
+    private async testGraphitiConnection(): Promise<void> {
+        const settings = this.plugin.settings;
+        if (!settings.graphitiMcpUrl) {
+            new Notice('❌ 请先配置 Graphiti MCP 地址');
+            return;
+        }
+
+        new Notice('⏳ 正在测试 Graphiti 连接...');
+
+        try {
+            // Use the backend API to test Graphiti connection
+            const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/graphiti`, {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (response.ok) {
+                new Notice('✅ Graphiti MCP 连接成功！');
+            } else {
+                new Notice(`❌ Graphiti 连接失败: HTTP ${response.status}`);
+            }
+        } catch (error) {
+            const message = error instanceof Error ? error.message : '未知错误';
+            new Notice(`❌ Graphiti 连接测试失败: ${message}`);
+        }
+    }
+
+    /**
+     * Refresh memory system status
+     */
+    private async refreshMemoryStatus(): Promise<void> {
+        new Notice('⏳ 正在检查记忆系统状态...');
+
+        const settings = this.plugin.settings;
+        const results: string[] = [];
+
+        // Check Neo4j
+        if (settings.neo4jEnabled) {
+            try {
+                const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/neo4j`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+                results.push(response.ok ? '✅ Neo4j: 连接正常' : '❌ Neo4j: 连接失败');
+            } catch {
+                results.push('❌ Neo4j: 连接超时');
+            }
+        } else {
+            results.push('⚪ Neo4j: 未启用');
+        }
+
+        // Check LanceDB (local, just check if path is configured)
+        if (settings.lancedbEnabled) {
+            results.push(settings.lancedbPath ? '✅ LanceDB: 已配置' : '⚠️ LanceDB: 使用默认路径');
+        } else {
+            results.push('⚪ LanceDB: 未启用');
+        }
+
+        // Check Graphiti
+        if (settings.graphitiEnabled) {
+            try {
+                const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/graphiti`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+                results.push(response.ok ? '✅ Graphiti: 连接正常' : '❌ Graphiti: 连接失败');
+            } catch {
+                results.push('❌ Graphiti: 连接超时');
+            }
+        } else {
+            results.push('⚪ Graphiti: 未启用');
+        }
+
+        // Refresh display
+        this.displaySection('memory');
+
+        // Show summary
+        new Notice(`记忆系统状态:\n${results.join('\n')}`);
     }
 
     /**

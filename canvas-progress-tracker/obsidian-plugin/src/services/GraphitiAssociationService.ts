@@ -277,8 +277,8 @@ export class GraphitiAssociationService {
                 )
             ]);
 
-            const nodes = nodesResponse.status === 200 ? await nodesResponse.json : [];
-            const edges = factsResponse.status === 200 ? await factsResponse.json : [];
+            const nodes = nodesResponse.status === 200 ? await nodesResponse.json as GraphNode[] : [];
+            const edges = factsResponse.status === 200 ? await factsResponse.json as GraphEdge[] : [];
 
             const result: SearchResult = { nodes, edges };
             this.setCache(cacheKey, result);

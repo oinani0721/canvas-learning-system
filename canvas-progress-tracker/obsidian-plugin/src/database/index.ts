@@ -9,7 +9,8 @@
  */
 
 // Core Managers
-export { DatabaseManager, DEFAULT_DATABASE_CONFIG } from './DatabaseManager';
+export { DatabaseManager } from './DatabaseManager';
+export { DEFAULT_DATABASE_CONFIG } from '../types/DataTypes';
 export { MigrationManager, DEFAULT_MIGRATION_CONFIG } from './MigrationManager';
 export { BackupManager } from './BackupManager';
 export { DataManager, DEFAULT_DATA_CONFIG } from './DataManager';

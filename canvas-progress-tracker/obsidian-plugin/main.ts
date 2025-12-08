@@ -33,9 +33,11 @@ import { NotificationService, createNotificationService } from './src/services/N
 import { GroupPreviewModal, CanvasNode, NodeGroup } from './src/modals/GroupPreviewModal';
 import { ProgressMonitorModal, ProgressMonitorCallbacks, SessionStatus } from './src/modals/ProgressMonitorModal';
 import { ResultSummaryModal, ResultSummaryCallbacks } from './src/modals/ResultSummaryModal';
-import { ContextMenuManager, MenuContext } from './src/managers/ContextMenuManager';
+import { ContextMenuManager } from './src/managers/ContextMenuManager';
+import type { MenuContext } from './src/types/menu';
 import { BackupProtectionManager } from './src/managers/BackupProtectionManager';
 import { ApiClient } from './src/api/ApiClient';
+import { CanvasDataImporterService } from './src/services/CanvasDataImporterService';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -69,6 +71,9 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** API Client - HTTP communication with backend (Story 13.3) */
     private apiClient: ApiClient | null = null;
+
+    /** Canvas Data Importer - Scans vault for Canvas files and imports nodes (P0 Task #3) */
+    private canvasDataImporter: CanvasDataImporterService | null = null;
 
     /**
      * Plugin load lifecycle method
@@ -210,8 +215,14 @@ export default class CanvasReviewPlugin extends Plugin {
 
             await this.dataManager.initialize();
 
+            // Initialize CanvasDataImporter and inject DataManager (P0 Task #3)
+            // Source: Plan - P0 Task #3: 在main.ts初始化时导入Canvas数据
+            this.canvasDataImporter = new CanvasDataImporterService(this.app);
+            this.canvasDataImporter.setDataManager(this.dataManager);
+
             if (this.settings.debugMode) {
                 console.log('Canvas Review System: DataManager initialized');
+                console.log('Canvas Review System: CanvasDataImporter initialized');
             }
         } catch (error) {
             console.error('Canvas Review System: Failed to initialize DataManager:', error);
@@ -269,8 +280,8 @@ export default class CanvasReviewPlugin extends Plugin {
                     try {
                         new Notice('正在拆解节点...');
                         const result = await this.apiClient.decomposeBasic({
-                            concept: context.selectedText || context.nodeId || '未知概念',
-                            canvas_path: context.filePath || '',
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
                         });
                         new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
                     } catch (error) {
@@ -287,8 +298,8 @@ export default class CanvasReviewPlugin extends Plugin {
                     try {
                         new Notice('正在生成口语化解释...');
                         const result = await this.apiClient.explainOral({
-                            concept: context.selectedText || context.nodeId || '未知概念',
-                            canvas_path: context.filePath || '',
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
                         });
                         new Notice('口语化解释生成完成');
                     } catch (error) {
@@ -305,8 +316,8 @@ export default class CanvasReviewPlugin extends Plugin {
                     try {
                         new Notice('正在生成四层次解释...');
                         const result = await this.apiClient.explainFourLevel({
-                            concept: context.selectedText || context.nodeId || '未知概念',
-                            canvas_path: context.filePath || '',
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
                         });
                         new Notice('四层次解释生成完成');
                     } catch (error) {
@@ -322,8 +333,8 @@ export default class CanvasReviewPlugin extends Plugin {
                     }
                     try {
                         new Notice('正在评分节点...');
-                        const result = await this.apiClient.scoreNodes({
-                            canvas_path: context.filePath || '',
+                        const result = await this.apiClient.scoreUnderstanding({
+                            canvas_name: context.filePath || '',
                             node_ids: context.nodeId ? [context.nodeId] : [],
                         });
                         new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
@@ -552,6 +563,21 @@ export default class CanvasReviewPlugin extends Plugin {
                     return true;
                 }
                 return false;
+            }
+        });
+
+        // Register "Import Canvas Data" command (P0 Task #3)
+        // Source: Plan - P0 Task #3: 在main.ts初始化时导入Canvas数据
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with callback)
+        this.addCommand({
+            id: 'import-canvas-data',
+            name: 'Import Canvas Review Items (导入Canvas复习项)',
+            callback: async () => {
+                if (this.canvasDataImporter) {
+                    await this.canvasDataImporter.quickImport();
+                } else {
+                    new Notice('❌ Canvas Data Importer not initialized');
+                }
             }
         });
 

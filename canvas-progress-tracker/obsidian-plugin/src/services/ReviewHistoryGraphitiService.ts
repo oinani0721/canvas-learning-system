@@ -120,7 +120,7 @@ export class ReviewHistoryGraphitiService {
     private app: App;
     private settings: ReviewHistoryGraphitiSettings;
     private cache: Map<string, { data: any; timestamp: number }>;
-    private syncInterval: NodeJS.Timer | null = null;
+    private syncInterval: ReturnType<typeof setInterval> | null = null;
     private pendingWrites: ReviewCanvasRelationship[] = [];
 
     constructor(app: App, settings: Partial<ReviewHistoryGraphitiSettings> = {}) {

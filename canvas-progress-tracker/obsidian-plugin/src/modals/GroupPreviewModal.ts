@@ -208,8 +208,8 @@ export class GroupPreviewModal extends Modal {
                     const errorData = await response.json().catch(() => ({}));
                     throw new NetworkError(
                         errorData.message || `HTTP ${response.status}: ${response.statusText}`,
-                        'GROUPING_API',
-                        response.status
+                        response.status,
+                        { endpoint: 'GROUPING_API' }
                     );
                 }
 

@@ -343,11 +343,14 @@ export function toPluginError(
         }
 
         // Generic error conversion
+        const errorMessage = error.message || defaultMessage;
+        const errorName = error.name;
+        const errorStack = error.stack;
         return new class extends PluginError {
             constructor() {
-                super(error.message || defaultMessage, 'warning', {
-                    originalError: error.name,
-                    originalStack: error.stack
+                super(errorMessage, 'warning', {
+                    originalError: errorName,
+                    originalStack: errorStack
                 });
                 this.name = 'WrappedError';
             }

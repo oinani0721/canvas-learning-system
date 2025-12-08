@@ -29,3 +29,4 @@ nul
 
 # Personal Obsidian vault (not part of project)
 笔记库/
+.claude/compact-snapshot-*.md

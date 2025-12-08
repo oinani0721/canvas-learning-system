@@ -28,8 +28,10 @@ export { CommandCache } from './cache/CommandCache';
 // ============================================================================
 // Manager Exports
 // ============================================================================
-export { CanvasFileManager, CanvasOperationResult } from './managers/CanvasFileManager';
-export { CanvasBackupManager, BackupConfig } from './managers/CanvasBackupManager';
+export { CanvasFileManager } from './managers/CanvasFileManager';
+export type { CanvasOperationResult } from './managers/CanvasFileManager';
+export { CanvasBackupManager } from './managers/CanvasBackupManager';
+export type { BackupConfig } from './managers/CanvasBackupManager';
 export {
   CommandWrapper,
   createCommandWrapper,

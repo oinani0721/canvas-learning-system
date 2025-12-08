@@ -1,9 +1,9 @@
 ---
 <!-- TEMP_COMPACT_SNAPSHOT_START -->
-# Context Snapshot [2025-12-06 16:00:35]
+# Context Snapshot [2025-12-07 23:03:05]
 
-**Snapshot File**: .claude/compact-snapshot-20251206160035.md
-**Snapshot Time**: 2025-12-06 16:00:35
+**Snapshot File**: .claude/compact-snapshot-20251207230305.md
+**Snapshot Time**: 2025-12-07 23:03:05
 **Valid For**: 2 hours (auto-cleanup after expiration)
 
 **Note**:
@@ -270,6 +270,61 @@
 ---
 ---
 ---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+---
+
+## 📁 User Environment
+
+**Obsidian笔记库路径**: `C:\Users\ROG\托福\Canvas\笔记库`
+**插件安装目录**: `C:\Users\ROG\托福\Canvas\笔记库\.obsidian\plugins\canvas-review-system\`
+**插件源码路径**: `C:\Users\ROG\托福\Canvas\canvas-progress-tracker\obsidian-plugin\`
+
+**部署命令** (编译后复制到插件目录):
+```bash
+cd canvas-progress-tracker/obsidian-plugin && npm run build
+# 然后复制 main.js, styles.css, manifest.json 到插件安装目录
+```
+
 ---
 
 ## 📖 Documentation Structure

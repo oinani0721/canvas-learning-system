@@ -10,7 +10,7 @@
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (ItemView Class)
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, Menu } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Menu, TFile } from 'obsidian';
 import type CanvasReviewPlugin from '../../main';
 import {
     ReviewTask,
@@ -26,8 +26,16 @@ import {
     DailyStatItem,
     CanvasReviewTrend,
     DEFAULT_HISTORY_STATE,
+    DEFAULT_VERIFICATION_STATE,
+    DEFAULT_CROSS_CANVAS_STATE,
+    VerificationCanvasRelation,
+    CrossCanvasAssociation,
+    CrossCanvasSearchResult,
+    KnowledgePath,
 } from '../types/UITypes';
 import { HistoryService } from '../services/HistoryService';
+import { VerificationHistoryService, createVerificationHistoryService } from '../services/VerificationHistoryService';
+import { CrossCanvasService, createCrossCanvasService } from '../services/CrossCanvasService';
 
 export const VIEW_TYPE_REVIEW_DASHBOARD = 'canvas-review-dashboard';
 
@@ -41,12 +49,16 @@ export class ReviewDashboardView extends ItemView {
     private state: DashboardViewState;
     private refreshInterval: number | null = null;
     private historyService: HistoryService;
+    private verificationService: VerificationHistoryService;
+    private crossCanvasService: CrossCanvasService;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasReviewPlugin) {
         super(leaf);
         this.plugin = plugin;
         this.state = { ...DEFAULT_DASHBOARD_STATE };
         this.historyService = new HistoryService(this.app);
+        this.verificationService = createVerificationHistoryService(this.app);
+        this.crossCanvasService = createCrossCanvasService(this.app);
     }
 
     getViewType(): string {
@@ -93,7 +105,7 @@ export class ReviewDashboardView extends ItemView {
     // =========================================================================
 
     private async loadData(): Promise<void> {
-        this.setState({ loading: true, error: null });
+        this.updateViewState({ loading: true, error: null });
 
         try {
             const dataManager = this.plugin.getDataManager();
@@ -125,7 +137,7 @@ export class ReviewDashboardView extends ItemView {
             // Calculate dashboard statistics
             const statistics = this.calculateStatistics(tasks, dailyStats);
 
-            this.setState({
+            this.updateViewState({
                 tasks,
                 statistics,
                 loading: false,
@@ -133,7 +145,7 @@ export class ReviewDashboardView extends ItemView {
             });
         } catch (error) {
             console.error('ReviewDashboard: Failed to load data:', error);
-            this.setState({
+            this.updateViewState({
                 loading: false,
                 error: (error as Error).message,
             });
@@ -204,7 +216,7 @@ export class ReviewDashboardView extends ItemView {
     // State Management
     // =========================================================================
 
-    private setState(updates: Partial<DashboardViewState>): void {
+    private updateViewState(updates: Partial<DashboardViewState>): void {
         this.state = { ...this.state, ...updates };
         this.render();
     }
@@ -237,6 +249,12 @@ export class ReviewDashboardView extends ItemView {
         if (this.state.currentTab === 'history') {
             // History view (Story 14.6)
             this.renderHistoryContent(content);
+        } else if (this.state.currentTab === 'verification') {
+            // Verification canvas view (Story 14.13)
+            this.renderVerificationContent(content);
+        } else if (this.state.currentTab === 'cross-canvas') {
+            // Cross-Canvas learning view (Epic 16)
+            this.renderCrossCanvasContent(content);
         } else {
             // Task list (left side)
             const taskListContainer = content.createDiv({ cls: 'task-list-container' });
@@ -250,7 +268,8 @@ export class ReviewDashboardView extends ItemView {
     }
 
     /**
-     * Render tab navigation (Story 14.6)
+     * Render tab navigation (Story 14.6 + Story 14.13 + Epic 16)
+     * Extended to include verification canvas and cross-canvas learning tabs
      */
     private renderTabNavigation(container: HTMLElement): void {
         const tabNav = container.createDiv({ cls: 'dashboard-tabs' });
@@ -262,7 +281,10 @@ export class ReviewDashboardView extends ItemView {
         const tasksIcon = tasksTab.createSpan({ cls: 'tab-icon' });
         setIcon(tasksIcon, 'list-checks');
         tasksTab.createSpan({ text: '今日任务', cls: 'tab-label' });
-        tasksTab.onclick = () => this.switchTab('tasks');
+        tasksTab.addEventListener('click', () => {
+            console.log('[ReviewDashboard] Tasks tab clicked');
+            this.switchTab('tasks');
+        });
 
         // History tab
         const historyTab = tabNav.createDiv({
@@ -271,19 +293,51 @@ export class ReviewDashboardView extends ItemView {
         const historyIcon = historyTab.createSpan({ cls: 'tab-icon' });
         setIcon(historyIcon, 'history');
         historyTab.createSpan({ text: '历史记录', cls: 'tab-label' });
-        historyTab.onclick = () => this.switchTab('history');
+        historyTab.addEventListener('click', () => {
+            console.log('[ReviewDashboard] History tab clicked');
+            this.switchTab('history');
+        });
+
+        // Verification tab (Story 14.13)
+        const verificationTab = tabNav.createDiv({
+            cls: `dashboard-tab ${this.state.currentTab === 'verification' ? 'active' : ''}`,
+        });
+        const verificationIcon = verificationTab.createSpan({ cls: 'tab-icon' });
+        setIcon(verificationIcon, 'clipboard-check');
+        verificationTab.createSpan({ text: '检验白板', cls: 'tab-label' });
+        verificationTab.addEventListener('click', () => {
+            console.log('[ReviewDashboard] Verification tab clicked');
+            this.switchTab('verification');
+        });
+
+        // Cross-Canvas tab (Epic 16)
+        const crossCanvasTab = tabNav.createDiv({
+            cls: `dashboard-tab ${this.state.currentTab === 'cross-canvas' ? 'active' : ''}`,
+        });
+        const crossCanvasIcon = crossCanvasTab.createSpan({ cls: 'tab-icon' });
+        setIcon(crossCanvasIcon, 'git-branch');
+        crossCanvasTab.createSpan({ text: '跨Canvas学习', cls: 'tab-label' });
+        crossCanvasTab.addEventListener('click', () => {
+            console.log('[ReviewDashboard] Cross-Canvas tab clicked');
+            this.switchTab('cross-canvas');
+        });
     }
 
     /**
-     * Switch between tabs (Story 14.6)
+     * Switch between tabs (Story 14.6 + Story 14.13 + Epic 16)
      */
     private async switchTab(tab: DashboardTab): Promise<void> {
+        console.log('[ReviewDashboard] switchTab called with:', tab);
         if (this.state.currentTab === tab) return;
 
-        this.setState({ currentTab: tab });
+        this.updateViewState({ currentTab: tab });
 
         if (tab === 'history') {
             await this.loadHistoryData();
+        } else if (tab === 'verification') {
+            await this.loadVerificationData();
+        } else if (tab === 'cross-canvas') {
+            await this.loadCrossCanvasData();
         }
     }
 
@@ -292,25 +346,77 @@ export class ReviewDashboardView extends ItemView {
      */
     private async loadHistoryData(): Promise<void> {
         const historyState = { ...this.state.historyState, loading: true };
-        this.setState({ historyState });
+        this.updateViewState({ historyState });
 
         try {
             const dataManager = this.plugin.getDataManager();
             if (dataManager) {
-                this.historyService.setDatabaseManager(dataManager);
+                this.historyService.setDataManager(dataManager);
             }
 
             const newHistoryState = await this.historyService.loadHistoryState(
                 this.state.historyState.timeRange
             );
 
-            this.setState({ historyState: newHistoryState });
+            this.updateViewState({ historyState: newHistoryState });
         } catch (error) {
             console.error('[ReviewDashboard] Failed to load history:', error);
-            this.setState({
+            this.updateViewState({
                 historyState: {
                     ...DEFAULT_HISTORY_STATE,
                     timeRange: this.state.historyState.timeRange,
+                    loading: false,
+                },
+            });
+        }
+    }
+
+    /**
+     * Load verification data (Story 14.13)
+     */
+    private async loadVerificationData(): Promise<void> {
+        const verificationState = { ...this.state.verificationState, loading: true };
+        this.updateViewState({ verificationState });
+
+        try {
+            const dataManager = this.plugin.getDataManager();
+            if (dataManager) {
+                this.verificationService.setDataManager(dataManager);
+            }
+
+            const viewState = await this.verificationService.getViewState();
+            this.updateViewState({ verificationState: viewState });
+        } catch (error) {
+            console.error('[ReviewDashboard] Failed to load verification data:', error);
+            this.updateViewState({
+                verificationState: {
+                    ...DEFAULT_VERIFICATION_STATE,
+                    loading: false,
+                },
+            });
+        }
+    }
+
+    /**
+     * Load cross-canvas data (Epic 16)
+     */
+    private async loadCrossCanvasData(): Promise<void> {
+        const crossCanvasState = { ...this.state.crossCanvasState, loading: true };
+        this.updateViewState({ crossCanvasState });
+
+        try {
+            const dataManager = this.plugin.getDataManager();
+            if (dataManager) {
+                this.crossCanvasService.setDataManager(dataManager);
+            }
+
+            const viewState = await this.crossCanvasService.getViewState();
+            this.updateViewState({ crossCanvasState: viewState });
+        } catch (error) {
+            console.error('[ReviewDashboard] Failed to load cross-canvas data:', error);
+            this.updateViewState({
+                crossCanvasState: {
+                    ...DEFAULT_CROSS_CANVAS_STATE,
                     loading: false,
                 },
             });
@@ -352,9 +458,9 @@ export class ReviewDashboardView extends ItemView {
                 text: range.label,
                 cls: `time-range-btn ${this.state.historyState.timeRange === range.value ? 'active' : ''}`,
             });
-            btn.onclick = async () => {
+            btn.addEventListener('click', async () => {
                 if (this.state.historyState.timeRange !== range.value) {
-                    this.setState({
+                    this.updateViewState({
                         historyState: {
                             ...this.state.historyState,
                             timeRange: range.value,
@@ -362,7 +468,7 @@ export class ReviewDashboardView extends ItemView {
                     });
                     await this.loadHistoryData();
                 }
-            };
+            });
         });
     }
 
@@ -553,11 +659,11 @@ export class ReviewDashboardView extends ItemView {
         strengthBar.style.width = `${entry.memoryStrength * 100}%`;
 
         // Click to open canvas
-        entryEl.onclick = () => {
+        entryEl.addEventListener('click', () => {
             if (entry.canvasPath) {
                 this.app.workspace.openLinkText(entry.canvasPath, '', false);
             }
-        };
+        });
     }
 
     /**
@@ -579,6 +685,603 @@ export class ReviewDashboardView extends ItemView {
         });
 
         return grouped;
+    }
+
+    // =========================================================================
+    // Verification Canvas Tab (Story 14.13)
+    // =========================================================================
+
+    /**
+     * Render verification canvas content (Story 14.13)
+     */
+    private renderVerificationContent(container: HTMLElement): void {
+        const verificationContainer = container.createDiv({ cls: 'verification-container' });
+
+        // Loading state
+        if (this.state.verificationState.loading) {
+            verificationContainer.createDiv({ text: '加载中...', cls: 'verification-loading' });
+            return;
+        }
+
+        // Header section
+        this.renderVerificationHeader(verificationContainer);
+
+        // Recent verification canvases list
+        this.renderVerificationList(verificationContainer);
+
+        // Multi-review comparison chart
+        this.renderVerificationChart(verificationContainer);
+
+        // Generate new verification canvas button
+        this.renderVerificationActions(verificationContainer);
+    }
+
+    /**
+     * Render verification header (Story 14.13)
+     */
+    private renderVerificationHeader(container: HTMLElement): void {
+        const header = container.createDiv({ cls: 'verification-header' });
+        header.createEl('h3', { text: '📋 检验白板', cls: 'verification-title' });
+
+        const stats = this.state.verificationState.relations;
+        const statsContainer = header.createDiv({ cls: 'verification-stats' });
+        statsContainer.createSpan({
+            text: `共 ${stats.length} 个检验白板`,
+            cls: 'verification-stat',
+        });
+    }
+
+    /**
+     * Render verification canvas list (Story 14.13)
+     */
+    private renderVerificationList(container: HTMLElement): void {
+        const listContainer = container.createDiv({ cls: 'verification-list-section' });
+        listContainer.createEl('h4', { text: '🔄 最近检验白板', cls: 'section-title' });
+
+        const { relations } = this.state.verificationState;
+
+        if (relations.length === 0) {
+            listContainer.createDiv({
+                text: '暂无检验白板，点击下方按钮生成',
+                cls: 'verification-empty',
+            });
+            return;
+        }
+
+        const list = listContainer.createDiv({ cls: 'verification-list' });
+
+        relations.slice(0, 5).forEach((relation) => {
+            this.renderVerificationItem(list, relation);
+        });
+    }
+
+    /**
+     * Render single verification canvas item (Story 14.13)
+     */
+    private renderVerificationItem(container: HTMLElement, relation: VerificationCanvasRelation): void {
+        const item = container.createDiv({ cls: 'verification-item' });
+
+        // Canvas info
+        const info = item.createDiv({ cls: 'verification-item-info' });
+        info.createSpan({
+            text: relation.verificationCanvasTitle,
+            cls: 'verification-item-title',
+        });
+
+        // Mode badge
+        const modeBadge = info.createSpan({
+            text: relation.reviewMode === 'fresh' ? '全新检验' : '针对性复习',
+            cls: `mode-badge mode-${relation.reviewMode}`,
+        });
+
+        // Original canvas reference
+        info.createDiv({
+            text: `原始Canvas: ${relation.originalCanvasTitle}`,
+            cls: 'verification-item-source',
+        });
+
+        // Stats
+        const stats = item.createDiv({ cls: 'verification-item-stats' });
+
+        // Completion rate
+        const completion = Math.round((relation.completionRate || 0) * 100);
+        stats.createSpan({
+            text: `完成度: ${completion}%`,
+            cls: 'verification-stat-item',
+        });
+
+        // Session count
+        stats.createSpan({
+            text: `${relation.sessionCount}次复习`,
+            cls: 'verification-stat-item',
+        });
+
+        // Score
+        if (relation.currentScore !== undefined) {
+            stats.createSpan({
+                text: `平均分: ${relation.currentScore.toFixed(1)}/5`,
+                cls: 'verification-stat-item',
+            });
+        }
+
+        // Date
+        const dateStr = relation.generatedDate.toLocaleDateString('zh-CN', {
+            month: 'short',
+            day: 'numeric',
+        });
+        stats.createSpan({
+            text: dateStr,
+            cls: 'verification-stat-date',
+        });
+
+        // Click to open
+        item.addEventListener('click', () => {
+            if (relation.verificationCanvasPath) {
+                this.app.workspace.openLinkText(relation.verificationCanvasPath, '', false);
+            }
+        });
+    }
+
+    /**
+     * Render verification comparison chart (Story 14.13)
+     */
+    private renderVerificationChart(container: HTMLElement): void {
+        const chartContainer = container.createDiv({ cls: 'verification-chart-section' });
+        chartContainer.createEl('h4', { text: '📊 多次检验对比', cls: 'section-title' });
+
+        const { relations } = this.state.verificationState;
+
+        if (relations.length === 0 || relations.every((r) => r.sessions.length === 0)) {
+            chartContainer.createDiv({
+                text: '完成至少一次检验后显示趋势图',
+                cls: 'verification-chart-empty',
+            });
+            return;
+        }
+
+        // Simple bar chart for recent sessions
+        const chartArea = chartContainer.createDiv({ cls: 'verification-chart' });
+
+        relations.slice(0, 3).forEach((relation) => {
+            if (relation.sessions.length > 0) {
+                const relChart = chartArea.createDiv({ cls: 'relation-chart' });
+                relChart.createDiv({
+                    text: relation.verificationCanvasTitle,
+                    cls: 'relation-chart-label',
+                });
+
+                const bars = relChart.createDiv({ cls: 'relation-chart-bars' });
+                relation.sessions.slice(-5).forEach((session) => {
+                    const bar = bars.createDiv({ cls: 'session-bar' });
+                    bar.style.height = `${session.passRate * 100}%`;
+                    bar.setAttribute('title', `通过率: ${Math.round(session.passRate * 100)}%`);
+                });
+            }
+        });
+    }
+
+    /**
+     * Render verification actions (Story 14.13)
+     */
+    private renderVerificationActions(container: HTMLElement): void {
+        const actionsContainer = container.createDiv({ cls: 'verification-actions' });
+
+        const generateBtn = actionsContainer.createEl('button', {
+            text: '➕ 生成新检验白板',
+            cls: 'mod-cta verification-generate-btn',
+        });
+
+        generateBtn.addEventListener('click', () => {
+            this.showReviewModeDialog();
+        });
+    }
+
+    // =========================================================================
+    // Cross-Canvas Learning Tab (Epic 16)
+    // =========================================================================
+
+    /**
+     * Render cross-canvas learning content (Epic 16)
+     */
+    private renderCrossCanvasContent(container: HTMLElement): void {
+        const crossCanvasContainer = container.createDiv({ cls: 'cross-canvas-container' });
+
+        // Loading state
+        if (this.state.crossCanvasState.loading) {
+            crossCanvasContainer.createDiv({ text: '加载中...', cls: 'cross-canvas-loading' });
+            return;
+        }
+
+        // Canvas association configuration
+        this.renderCanvasAssociationConfig(crossCanvasContainer);
+
+        // Knowledge graph search
+        this.renderKnowledgeGraphSearch(crossCanvasContainer);
+
+        // Knowledge transfer paths
+        this.renderKnowledgePaths(crossCanvasContainer);
+
+        // Existing associations list
+        this.renderAssociationsList(crossCanvasContainer);
+    }
+
+    /**
+     * Render canvas association configuration (Epic 16)
+     */
+    private renderCanvasAssociationConfig(container: HTMLElement): void {
+        const configSection = container.createDiv({ cls: 'cross-canvas-config' });
+        configSection.createEl('h3', { text: '📚 Canvas关联配置', cls: 'section-title' });
+
+        // Canvas selector row
+        const selectorRow = configSection.createDiv({ cls: 'canvas-selector-row' });
+
+        // Source canvas selector
+        const sourceGroup = selectorRow.createDiv({ cls: 'canvas-selector-group' });
+        sourceGroup.createSpan({ text: '选择教材Canvas:', cls: 'selector-label' });
+        const sourceSelect = sourceGroup.createEl('select', { cls: 'canvas-select source-canvas' });
+        sourceSelect.createEl('option', { text: '-- 选择Canvas --', value: '' });
+
+        // Target canvas selector
+        const targetGroup = selectorRow.createDiv({ cls: 'canvas-selector-group' });
+        targetGroup.createSpan({ text: '选择习题Canvas:', cls: 'selector-label' });
+        const targetSelect = targetGroup.createEl('select', { cls: 'canvas-select target-canvas' });
+        targetSelect.createEl('option', { text: '-- 选择Canvas --', value: '' });
+
+        // Load canvas files
+        this.loadCanvasFilesIntoSelectors(sourceSelect, targetSelect);
+
+        // Relationship type
+        const relationRow = configSection.createDiv({ cls: 'relation-type-row' });
+        relationRow.createSpan({ text: '关联类型:', cls: 'relation-label' });
+
+        const relationTypes = [
+            { value: 'prerequisite', label: '前置概念' },
+            { value: 'related', label: '相关主题' },
+            { value: 'application', label: '应用练习' },
+        ];
+
+        relationTypes.forEach((type, index) => {
+            const radioWrapper = relationRow.createDiv({ cls: 'radio-wrapper' });
+            const radio = radioWrapper.createEl('input', {
+                type: 'radio',
+                attr: { name: 'relationshipType', value: type.value, id: `rel-${type.value}` },
+            });
+            if (index === 0) radio.checked = true;
+            radioWrapper.createEl('label', {
+                text: type.label,
+                attr: { for: `rel-${type.value}` },
+            });
+        });
+
+        // Create association button
+        const createBtn = configSection.createEl('button', {
+            text: '创建关联',
+            cls: 'mod-cta create-association-btn',
+        });
+
+        createBtn.addEventListener('click', async () => {
+            const sourceValue = (sourceSelect as HTMLSelectElement).value;
+            const targetValue = (targetSelect as HTMLSelectElement).value;
+            const relationTypeEl = configSection.querySelector(
+                'input[name="relationshipType"]:checked'
+            ) as HTMLInputElement;
+            const relationType = relationTypeEl?.value || 'related';
+
+            if (!sourceValue || !targetValue) {
+                new Notice('请选择两个Canvas文件');
+                return;
+            }
+
+            if (sourceValue === targetValue) {
+                new Notice('请选择不同的Canvas文件');
+                return;
+            }
+
+            try {
+                await this.crossCanvasService.createCanvasAssociation(
+                    sourceValue,
+                    targetValue,
+                    relationType as 'prerequisite' | 'related' | 'application'
+                );
+                new Notice('✅ Canvas关联创建成功');
+                await this.loadCrossCanvasData();
+            } catch (error) {
+                new Notice('❌ 创建关联失败');
+                console.error('[ReviewDashboard] Failed to create association:', error);
+            }
+        });
+    }
+
+    /**
+     * Load canvas files into selectors
+     */
+    private async loadCanvasFilesIntoSelectors(
+        sourceSelect: HTMLSelectElement,
+        targetSelect: HTMLSelectElement
+    ): Promise<void> {
+        try {
+            const canvasFiles = await this.crossCanvasService.getAllCanvasFiles();
+
+            canvasFiles.forEach((file) => {
+                const title = file.basename;
+                sourceSelect.createEl('option', { text: title, value: file.path });
+                targetSelect.createEl('option', { text: title, value: file.path });
+            });
+        } catch (error) {
+            console.error('[ReviewDashboard] Failed to load canvas files:', error);
+        }
+    }
+
+    /**
+     * Render knowledge graph search (Epic 16)
+     */
+    private renderKnowledgeGraphSearch(container: HTMLElement): void {
+        const searchSection = container.createDiv({ cls: 'cross-canvas-search' });
+        searchSection.createEl('h3', { text: '🔍 知识图谱查询', cls: 'section-title' });
+
+        // Search input
+        const searchRow = searchSection.createDiv({ cls: 'search-row' });
+        const searchInput = searchRow.createEl('input', {
+            type: 'text',
+            placeholder: '输入概念名称...',
+            cls: 'concept-search-input',
+        });
+
+        const searchBtn = searchRow.createEl('button', {
+            text: '搜索',
+            cls: 'search-btn',
+        });
+
+        // Results container
+        const resultsContainer = searchSection.createDiv({ cls: 'search-results' });
+
+        // Show existing search results
+        const { searchResults, searchQuery } = this.state.crossCanvasState;
+        if (searchQuery && searchResults.length > 0) {
+            this.renderSearchResults(resultsContainer, searchResults);
+        } else if (searchQuery && searchResults.length === 0) {
+            resultsContainer.createDiv({
+                text: `未找到与"${searchQuery}"相关的概念`,
+                cls: 'search-empty',
+            });
+        }
+
+        // Search handler
+        searchBtn.addEventListener('click', async () => {
+            const query = (searchInput as HTMLInputElement).value.trim();
+            if (!query) {
+                new Notice('请输入搜索内容');
+                return;
+            }
+
+            try {
+                const results = await this.crossCanvasService.searchConceptAcrossCanvas(query);
+                this.updateViewState({
+                    crossCanvasState: {
+                        ...this.state.crossCanvasState,
+                        searchQuery: query,
+                        searchResults: results,
+                    },
+                });
+            } catch (error) {
+                console.error('[ReviewDashboard] Search failed:', error);
+                new Notice('搜索失败');
+            }
+        });
+
+        // Enter key handler
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                searchBtn.click();
+            }
+        });
+    }
+
+    /**
+     * Render search results (Epic 16)
+     */
+    private renderSearchResults(container: HTMLElement, results: CrossCanvasSearchResult[]): void {
+        container.empty();
+
+        results.forEach((result) => {
+            const resultItem = container.createDiv({ cls: 'search-result-item' });
+
+            // Concept header
+            const header = resultItem.createDiv({ cls: 'result-header' });
+            header.createSpan({ text: result.concept, cls: 'result-concept' });
+            header.createSpan({
+                text: `在 ${result.totalCount} 个Canvas中找到`,
+                cls: 'result-count',
+            });
+
+            // Occurrences
+            const occurrences = resultItem.createDiv({ cls: 'result-occurrences' });
+            result.canvasOccurrences.slice(0, 3).forEach((occ) => {
+                const occItem = occurrences.createDiv({ cls: 'occurrence-item' });
+                occItem.createSpan({ text: occ.canvasTitle, cls: 'occ-canvas' });
+                occItem.createDiv({
+                    text: occ.nodeText.substring(0, 100) + '...',
+                    cls: 'occ-preview',
+                });
+
+                occItem.addEventListener('click', () => {
+                    this.app.workspace.openLinkText(occ.canvasPath, '', false);
+                });
+            });
+
+            if (result.canvasOccurrences.length > 3) {
+                occurrences.createDiv({
+                    text: `还有 ${result.canvasOccurrences.length - 3} 个结果...`,
+                    cls: 'more-results',
+                });
+            }
+        });
+    }
+
+    /**
+     * Render knowledge paths (Epic 16)
+     */
+    private renderKnowledgePaths(container: HTMLElement): void {
+        const pathsSection = container.createDiv({ cls: 'knowledge-paths-section' });
+        pathsSection.createEl('h3', { text: '🗺️ 知识迁移路径', cls: 'section-title' });
+
+        const { knowledgePaths } = this.state.crossCanvasState;
+
+        if (knowledgePaths.length === 0) {
+            const emptyMsg = pathsSection.createDiv({ cls: 'paths-empty' });
+            emptyMsg.createSpan({ text: '暂无知识路径，' });
+
+            const createLink = emptyMsg.createEl('a', { text: '点击创建' });
+            createLink.addEventListener('click', () => {
+                this.showCreatePathDialog();
+            });
+
+            return;
+        }
+
+        const pathsList = pathsSection.createDiv({ cls: 'paths-list' });
+
+        knowledgePaths.forEach((path) => {
+            this.renderKnowledgePath(pathsList, path);
+        });
+    }
+
+    /**
+     * Render single knowledge path (Epic 16)
+     */
+    private renderKnowledgePath(container: HTMLElement, path: KnowledgePath): void {
+        const pathItem = container.createDiv({ cls: 'path-item' });
+
+        // Path header
+        const header = pathItem.createDiv({ cls: 'path-header' });
+        header.createSpan({ text: path.name, cls: 'path-name' });
+
+        // Progress bar
+        const progress = Math.round(path.completionProgress * 100);
+        const progressBar = header.createDiv({ cls: 'path-progress' });
+        const progressFill = progressBar.createDiv({ cls: 'progress-fill' });
+        progressFill.style.width = `${progress}%`;
+        header.createSpan({ text: `${progress}%`, cls: 'progress-text' });
+
+        // Path nodes (sequence)
+        const nodesContainer = pathItem.createDiv({ cls: 'path-nodes' });
+
+        path.nodes.forEach((node, index) => {
+            const nodeEl = nodesContainer.createDiv({
+                cls: `path-node ${node.isCompleted ? 'completed' : ''}`,
+            });
+
+            nodeEl.createSpan({ text: node.canvasTitle, cls: 'node-title' });
+
+            if (index < path.nodes.length - 1) {
+                nodesContainer.createSpan({ text: '→', cls: 'path-arrow' });
+            }
+
+            nodeEl.addEventListener('click', () => {
+                this.app.workspace.openLinkText(node.canvasPath, '', false);
+            });
+        });
+
+        // Recommended next
+        if (path.recommendedNext && !path.recommendedNext.isCompleted) {
+            const recommendedEl = pathItem.createDiv({ cls: 'recommended-next' });
+            recommendedEl.createSpan({ text: '建议下一步: ' });
+            const nextLink = recommendedEl.createEl('a', {
+                text: path.recommendedNext.canvasTitle,
+            });
+            nextLink.addEventListener('click', () => {
+                this.app.workspace.openLinkText(path.recommendedNext!.canvasPath, '', false);
+            });
+        }
+    }
+
+    /**
+     * Render associations list (Epic 16)
+     */
+    private renderAssociationsList(container: HTMLElement): void {
+        const listSection = container.createDiv({ cls: 'associations-list-section' });
+        listSection.createEl('h3', { text: '🔗 已建立的关联', cls: 'section-title' });
+
+        const { associations } = this.state.crossCanvasState;
+
+        if (associations.length === 0) {
+            listSection.createDiv({
+                text: '暂无Canvas关联',
+                cls: 'associations-empty',
+            });
+            return;
+        }
+
+        const list = listSection.createDiv({ cls: 'associations-list' });
+
+        associations.forEach((assoc) => {
+            this.renderAssociationItem(list, assoc);
+        });
+    }
+
+    /**
+     * Render single association item (Epic 16)
+     */
+    private renderAssociationItem(container: HTMLElement, assoc: CrossCanvasAssociation): void {
+        const item = container.createDiv({ cls: 'association-item' });
+
+        // Canvas pair
+        const pair = item.createDiv({ cls: 'association-pair' });
+        pair.createSpan({ text: assoc.sourceCanvasTitle, cls: 'source-canvas' });
+
+        const relationLabel =
+            assoc.relationshipType === 'prerequisite'
+                ? '→ 前置 →'
+                : assoc.relationshipType === 'related'
+                  ? '↔ 相关 ↔'
+                  : '→ 应用 →';
+        pair.createSpan({ text: relationLabel, cls: 'relation-arrow' });
+        pair.createSpan({ text: assoc.targetCanvasTitle, cls: 'target-canvas' });
+
+        // Common concepts
+        if (assoc.commonConcepts.length > 0) {
+            const concepts = item.createDiv({ cls: 'common-concepts' });
+            concepts.createSpan({ text: '共同概念: ' });
+            concepts.createSpan({
+                text: assoc.commonConcepts.slice(0, 3).join(', '),
+                cls: 'concept-tags',
+            });
+            if (assoc.commonConcepts.length > 3) {
+                concepts.createSpan({
+                    text: ` +${assoc.commonConcepts.length - 3}`,
+                    cls: 'more-concepts',
+                });
+            }
+        }
+
+        // Confidence
+        const confidence = item.createDiv({ cls: 'association-confidence' });
+        confidence.createSpan({
+            text: `置信度: ${Math.round(assoc.confidence * 100)}%`,
+        });
+
+        // Delete button
+        const deleteBtn = item.createEl('button', { cls: 'delete-association-btn' });
+        setIcon(deleteBtn, 'trash-2');
+        deleteBtn.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            try {
+                await this.crossCanvasService.deleteAssociation(assoc.id);
+                new Notice('关联已删除');
+                await this.loadCrossCanvasData();
+            } catch (error) {
+                console.error('[ReviewDashboard] Failed to delete association:', error);
+                new Notice('删除失败');
+            }
+        });
+    }
+
+    /**
+     * Show dialog to create knowledge path
+     */
+    private showCreatePathDialog(): void {
+        new Notice('知识路径创建功能开发中...');
+        // TODO: Implement path creation dialog
     }
 
     private renderHeader(container: HTMLElement): void {
@@ -617,7 +1320,7 @@ export class ReviewDashboardView extends ItemView {
         if (this.state.loading) {
             refreshBtn.addClass('spinning');
         }
-        refreshBtn.onclick = () => this.loadData();
+        refreshBtn.addEventListener('click', () => this.loadData());
     }
 
     private createStatItem(
@@ -644,7 +1347,7 @@ export class ReviewDashboardView extends ItemView {
         this.createFilterOptions(filterSelect);
         filterSelect.value = this.state.filterBy;
         filterSelect.onchange = () => {
-            this.setState({ filterBy: filterSelect.value as TaskFilterOption });
+            this.updateViewState({ filterBy: filterSelect.value as TaskFilterOption });
         };
 
         // Sort dropdown
@@ -654,7 +1357,7 @@ export class ReviewDashboardView extends ItemView {
         this.createSortOptions(sortSelect);
         sortSelect.value = this.state.sortBy;
         sortSelect.onchange = () => {
-            this.setState({ sortBy: sortSelect.value as TaskSortOption });
+            this.updateViewState({ sortBy: sortSelect.value as TaskSortOption });
         };
 
         // Task list
@@ -858,10 +1561,10 @@ export class ReviewDashboardView extends ItemView {
             const startIcon = startBtn.createSpan();
             setIcon(startIcon, task.status === 'in_progress' ? 'play-circle' : 'play');
             startBtn.createSpan({ text: task.status === 'in_progress' ? '继续' : '开始' });
-            startBtn.onclick = (e) => {
+            startBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.handleTaskStart(task);
-            };
+            });
         }
 
         const completeBtn = primaryActions.createEl('button', {
@@ -871,10 +1574,10 @@ export class ReviewDashboardView extends ItemView {
         const completeIcon = completeBtn.createSpan();
         setIcon(completeIcon, 'check');
         completeBtn.createSpan({ text: '完成' });
-        completeBtn.onclick = (e) => {
+        completeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showCompleteDialog(task);
-        };
+        });
 
         // Secondary actions
         const secondaryActions = actions.createDiv({ cls: 'secondary-actions' });
@@ -884,20 +1587,20 @@ export class ReviewDashboardView extends ItemView {
             attr: { 'aria-label': '推迟复习' },
         });
         setIcon(postponeBtn, 'clock');
-        postponeBtn.onclick = (e) => {
+        postponeBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.showPostponeDialog(task);
-        };
+        });
 
         const detailsBtn = secondaryActions.createEl('button', {
             cls: 'task-action-btn secondary',
             attr: { 'aria-label': '查看详情' },
         });
         setIcon(detailsBtn, 'info');
-        detailsBtn.onclick = (e) => {
+        detailsBtn.addEventListener('click', (e) => {
             e.stopPropagation();
             this.handleTaskDetails(task);
-        };
+        });
 
         // Status indicator
         const statusIndicator = actions.createDiv({
@@ -908,22 +1611,22 @@ export class ReviewDashboardView extends ItemView {
         statusIndicator.createSpan({ text: this.getStatusText(task.status) });
 
         // Card click handler
-        card.onclick = () => this.handleTaskClick(task);
+        card.addEventListener('click', () => this.handleTaskClick(task));
         card.setAttribute('tabindex', '0');
-        card.onkeydown = (e) => {
+        card.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 this.handleTaskClick(task);
             }
-        };
+        });
 
         // Right-click context menu (Story 14.4: AC4)
         // ✅ Verified from Context7: /obsidianmd/obsidian-api (Menu.showAtMouseEvent)
-        card.oncontextmenu = (e) => {
+        card.addEventListener('contextmenu', (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.showTaskContextMenu(e, task);
-        };
+        });
     }
 
     /**
@@ -1205,7 +1908,7 @@ export class ReviewDashboardView extends ItemView {
         const startIcon = startBtn.createSpan({ cls: 'button-icon' });
         setIcon(startIcon, 'play');
         startBtn.prepend(startIcon);
-        startBtn.onclick = () => this.handleStartReview();
+        startBtn.addEventListener('click', () => this.handleStartReview());
 
         // Generate plan button
         const planBtn = actions.createEl('button', {
@@ -1215,7 +1918,7 @@ export class ReviewDashboardView extends ItemView {
         const planIcon = planBtn.createSpan({ cls: 'button-icon' });
         setIcon(planIcon, 'calendar-plus');
         planBtn.prepend(planIcon);
-        planBtn.onclick = () => this.handleGeneratePlan();
+        planBtn.addEventListener('click', () => this.handleGeneratePlan());
 
         // View calendar button
         const calendarBtn = actions.createEl('button', {
@@ -1225,7 +1928,7 @@ export class ReviewDashboardView extends ItemView {
         const calendarIcon = calendarBtn.createSpan({ cls: 'button-icon' });
         setIcon(calendarIcon, 'calendar');
         calendarBtn.prepend(calendarIcon);
-        calendarBtn.onclick = () => this.handleViewCalendar();
+        calendarBtn.addEventListener('click', () => this.handleViewCalendar());
 
         // Generate review canvas button (Story 14.5)
         const generateCanvasBtn = actions.createEl('button', {
@@ -1235,7 +1938,7 @@ export class ReviewDashboardView extends ItemView {
         const generateIcon = generateCanvasBtn.createSpan({ cls: 'button-icon' });
         setIcon(generateIcon, 'file-plus');
         generateCanvasBtn.prepend(generateIcon);
-        generateCanvasBtn.onclick = () => this.showReviewModeDialog();
+        generateCanvasBtn.addEventListener('click', async () => await this.showReviewModeDialog());
 
         // Settings button
         const settingsBtn = actions.createEl('button', {
@@ -1245,7 +1948,7 @@ export class ReviewDashboardView extends ItemView {
         const settingsIcon = settingsBtn.createSpan({ cls: 'button-icon' });
         setIcon(settingsIcon, 'settings');
         settingsBtn.prepend(settingsIcon);
-        settingsBtn.onclick = () => this.handleOpenSettings();
+        settingsBtn.addEventListener('click', () => this.handleOpenSettings());
     }
 
     private renderLoadingState(container: HTMLElement): void {
@@ -1264,7 +1967,7 @@ export class ReviewDashboardView extends ItemView {
             cls: 'retry-button',
             text: '重试',
         });
-        retryBtn.onclick = () => this.loadData();
+        retryBtn.addEventListener('click', () => this.loadData());
     }
 
     private renderEmptyState(container: HTMLElement): void {
@@ -1288,7 +1991,7 @@ export class ReviewDashboardView extends ItemView {
         header.createEl('h3', { text: '完成复习', cls: 'dialog-title' });
         const closeBtn = header.createEl('button', { cls: 'dialog-close' });
         setIcon(closeBtn, 'x');
-        closeBtn.onclick = () => overlay.remove();
+        closeBtn.addEventListener('click', () => overlay.remove());
 
         // Body
         const body = dialog.createDiv({ cls: 'dialog-body' });
@@ -1312,13 +2015,13 @@ export class ReviewDashboardView extends ItemView {
             });
             btn.createSpan({ text: String(score.value), cls: 'score-value' });
             btn.createSpan({ text: score.label, cls: 'score-label' });
-            btn.onclick = () => {
+            btn.addEventListener('click', () => {
                 scoreSelector.querySelectorAll('.score-btn').forEach((el) => {
                     el.removeClass('selected');
                 });
                 btn.addClass('selected');
                 selectedScore = score.value;
-            };
+            });
         });
 
         // Actions
@@ -1328,23 +2031,23 @@ export class ReviewDashboardView extends ItemView {
             cls: 'task-action-btn secondary',
             text: '取消',
         });
-        cancelBtn.onclick = () => overlay.remove();
+        cancelBtn.addEventListener('click', () => overlay.remove());
 
         const confirmBtn = actions.createEl('button', {
             cls: 'task-action-btn primary',
             text: '确认完成',
         });
-        confirmBtn.onclick = async () => {
+        confirmBtn.addEventListener('click', async () => {
             await this.handleTaskComplete(task, selectedScore);
             overlay.remove();
-        };
+        });
 
         // Close on overlay click
-        overlay.onclick = (e) => {
+        overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.remove();
             }
-        };
+        });
     }
 
     private showPostponeDialog(task: ReviewTask): void {
@@ -1356,7 +2059,7 @@ export class ReviewDashboardView extends ItemView {
         header.createEl('h3', { text: '推迟复习', cls: 'dialog-title' });
         const closeBtn = header.createEl('button', { cls: 'dialog-close' });
         setIcon(closeBtn, 'x');
-        closeBtn.onclick = () => overlay.remove();
+        closeBtn.addEventListener('click', () => overlay.remove());
 
         // Body
         const body = dialog.createDiv({ cls: 'dialog-body' });
@@ -1374,10 +2077,10 @@ export class ReviewDashboardView extends ItemView {
             const btn = options.createDiv({ cls: 'postpone-btn' });
             btn.createSpan({ text: String(delay.days), cls: 'days' });
             btn.createSpan({ text: delay.label, cls: 'label' });
-            btn.onclick = async () => {
+            btn.addEventListener('click', async () => {
                 await this.handleTaskPostpone(task, delay.days);
                 overlay.remove();
-            };
+            });
         });
 
         // Actions
@@ -1387,24 +2090,77 @@ export class ReviewDashboardView extends ItemView {
             cls: 'task-action-btn secondary',
             text: '取消',
         });
-        cancelBtn.onclick = () => overlay.remove();
+        cancelBtn.addEventListener('click', () => overlay.remove());
 
         // Close on overlay click
-        overlay.onclick = (e) => {
+        overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.remove();
             }
-        };
+        });
+    }
+
+    /**
+     * Get the current active canvas file path
+     * Returns null if no canvas is currently open
+     */
+    private getCurrentCanvasPath(): string | null {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (activeFile && activeFile.path.endsWith('.canvas')) {
+            return activeFile.path;
+        }
+        return null;
+    }
+
+    /**
+     * Check if a canvas file has red or purple nodes that need review
+     * PRD F8: 红色(color="1") + 紫色(color="3")节点需要复习
+     */
+    private async canvasHasReviewNodes(canvasPath: string): Promise<{ hasNodes: boolean; count: number; canvasName: string }> {
+        try {
+            const file = this.app.vault.getAbstractFileByPath(canvasPath);
+            if (!(file instanceof TFile)) {
+                return { hasNodes: false, count: 0, canvasName: '' };
+            }
+
+            const content = await this.app.vault.read(file);
+            const canvasData = JSON.parse(content);
+            const nodes = canvasData.nodes || [];
+
+            // PRD F8: 红色(color="1") + 紫色(color="3")
+            const reviewColors = new Set(['1', '3']);
+            const reviewNodes = nodes.filter((n: { type: string; color: string }) =>
+                n.type === 'text' && reviewColors.has(n.color)
+            );
+
+            const canvasName = file.basename;
+            return { hasNodes: reviewNodes.length > 0, count: reviewNodes.length, canvasName };
+        } catch (e) {
+            console.error('Error reading canvas:', e);
+            return { hasNodes: false, count: 0, canvasName: '' };
+        }
     }
 
     /**
      * Story 14.5: AC2 - Review mode selection dialog
      * Shows dialog for selecting review mode: "fresh" or "targeted"
+     * ✅ FIXED: Now checks canvas nodes instead of pending tasks
      */
-    private showReviewModeDialog(): void {
-        const pendingTasks = this.state.tasks.filter((t) => t.status === 'pending');
-        if (pendingTasks.length === 0) {
-            new Notice('🎉 当前没有待复习的任务，无需生成检验白板');
+    private async showReviewModeDialog(): Promise<void> {
+        // ✅ FIXED: Check current canvas for red/purple nodes instead of pending tasks
+        // PRD F8: Extract red (color="1") + purple (color="3") nodes
+
+        // Step 1: Check if a canvas is currently open
+        const canvasPath = this.getCurrentCanvasPath();
+        if (!canvasPath) {
+            new Notice('⚠️ 请先打开一个Canvas文件');
+            return;
+        }
+
+        // Step 2: Check if canvas has red/purple nodes
+        const { hasNodes, count, canvasName } = await this.canvasHasReviewNodes(canvasPath);
+        if (!hasNodes) {
+            new Notice('📋 当前Canvas中没有需要复习的节点（红色或紫色）');
             return;
         }
 
@@ -1416,7 +2172,7 @@ export class ReviewDashboardView extends ItemView {
         header.createEl('h3', { text: '生成检验白板', cls: 'dialog-title' });
         const closeBtn = header.createEl('button', { cls: 'dialog-close' });
         setIcon(closeBtn, 'x');
-        closeBtn.onclick = () => overlay.remove();
+        closeBtn.addEventListener('click', () => overlay.remove());
 
         // Body
         const body = dialog.createDiv({ cls: 'dialog-body' });
@@ -1446,32 +2202,27 @@ export class ReviewDashboardView extends ItemView {
         let selectedMode: 'fresh' | 'targeted' = 'fresh';
 
         // Mode selection handlers
-        freshOption.onclick = () => {
+        freshOption.addEventListener('click', () => {
             modeOptions.querySelectorAll('.mode-option').forEach((el) => el.removeClass('selected'));
             freshOption.addClass('selected');
             selectedMode = 'fresh';
-        };
+        });
 
-        targetedOption.onclick = () => {
+        targetedOption.addEventListener('click', () => {
             modeOptions.querySelectorAll('.mode-option').forEach((el) => el.removeClass('selected'));
             targetedOption.addClass('selected');
             selectedMode = 'targeted';
-        };
-
-        // Task selection
-        const taskSection = body.createDiv({ cls: 'task-selection' });
-        taskSection.createEl('p', { text: `将为 ${pendingTasks.length} 个待复习概念生成检验白板：` });
-
-        const taskList = taskSection.createDiv({ cls: 'task-list-preview' });
-        pendingTasks.slice(0, 5).forEach((task) => {
-            const taskItem = taskList.createDiv({ cls: 'task-preview-item' });
-            const icon = taskItem.createSpan({ cls: 'task-icon' });
-            setIcon(icon, 'circle');
-            taskItem.createSpan({ text: task.conceptName });
         });
-        if (pendingTasks.length > 5) {
-            taskList.createDiv({ cls: 'task-more', text: `...还有 ${pendingTasks.length - 5} 个` });
-        }
+
+        // Canvas info section (replaced task selection)
+        const canvasSection = body.createDiv({ cls: 'task-selection' });
+        canvasSection.createEl('p', { text: `将为Canvas "${canvasName}" 中的 ${count} 个节点生成检验白板` });
+
+        const infoList = canvasSection.createDiv({ cls: 'task-list-preview' });
+        const canvasItem = infoList.createDiv({ cls: 'task-preview-item' });
+        const canvasIcon = canvasItem.createSpan({ cls: 'task-icon' });
+        setIcon(canvasIcon, 'file-text');
+        canvasItem.createSpan({ text: `${canvasName}.canvas (${count} 个红色/紫色节点)` });
 
         // Actions
         const actions = dialog.createDiv({ cls: 'dialog-actions' });
@@ -1480,23 +2231,74 @@ export class ReviewDashboardView extends ItemView {
             cls: 'task-action-btn secondary',
             text: '取消',
         });
-        cancelBtn.onclick = () => overlay.remove();
+        cancelBtn.addEventListener('click', () => overlay.remove());
 
         const generateBtn = actions.createEl('button', {
             cls: 'task-action-btn primary',
             text: '生成检验白板',
         });
-        generateBtn.onclick = async () => {
+        generateBtn.addEventListener('click', async () => {
             overlay.remove();
-            await this.handleGenerateReviewCanvases(pendingTasks, selectedMode);
-        };
+            // ✅ FIXED: Use canvas-based generation instead of task-based
+            await this.handleGenerateCanvasReview(canvasPath, canvasName, selectedMode);
+        });
 
         // Close on overlay click
-        overlay.onclick = (e) => {
+        overlay.addEventListener('click', (e) => {
             if (e.target === overlay) {
                 overlay.remove();
             }
-        };
+        });
+    }
+
+    /**
+     * Handle canvas-based verification canvas generation
+     * ✅ NEW: Calls backend API with canvas path instead of task list
+     * PRD F8: Generate verification canvas from red/purple nodes
+     */
+    private async handleGenerateCanvasReview(
+        canvasPath: string,
+        canvasName: string,
+        mode: 'fresh' | 'targeted'
+    ): Promise<void> {
+        const modeLabel = mode === 'fresh' ? '全新检验' : '针对性复习';
+        new Notice(`🔄 正在为 "${canvasName}" 生成检验白板 (${modeLabel})...`);
+
+        try {
+            // Call backend API to generate verification canvas
+            const response = await fetch('http://localhost:8000/api/v1/review/generate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    source_canvas: canvasName,
+                    review_mode: mode,
+                }),
+            });
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const result = await response.json();
+
+            if (result.node_count > 0) {
+                new Notice(`✅ 已生成检验白板: ${result.verification_canvas_name} (${result.node_count} 个节点)`);
+
+                // Open the generated canvas
+                const generatedPath = `${result.verification_canvas_name}.canvas`;
+                const file = this.app.vault.getAbstractFileByPath(generatedPath);
+                if (file instanceof TFile) {
+                    await this.app.workspace.getLeaf().openFile(file);
+                }
+            } else {
+                new Notice('⚠️ 没有找到可生成的节点');
+            }
+        } catch (error) {
+            console.error('Failed to generate verification canvas:', error);
+            new Notice(`❌ 生成失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        }
     }
 
     /**
@@ -1774,7 +2576,7 @@ export class ReviewDashboardView extends ItemView {
 
             // Call the plugin's canvas generation method
             // This integrates with the existing canvas learning system
-            const canvasGenerator = this.plugin.getCanvasGenerator?.();
+            const canvasGenerator = (this.plugin as any).getCanvasGenerator?.();
 
             if (canvasGenerator && typeof canvasGenerator.generateReviewCanvas === 'function') {
                 const reviewCanvasPath = await canvasGenerator.generateReviewCanvas(

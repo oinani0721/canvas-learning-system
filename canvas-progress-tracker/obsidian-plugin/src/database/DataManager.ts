@@ -161,6 +161,14 @@ export class DataManager {
         return this.initialized;
     }
 
+    /**
+     * Get the underlying DatabaseManager instance
+     * Used by services that need direct database access
+     */
+    getDatabaseManager(): DatabaseManager {
+        return this.dbManager;
+    }
+
     // =========================================================================
     // Review Records API
     // =========================================================================

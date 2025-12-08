@@ -339,7 +339,7 @@ export class BehaviorMonitorService {
             if (bothFailed) {
                 // If both errors are the same, use simplified message
                 if (weaknessResult.error === staleResult.error) {
-                    combinedError = weaknessResult.error;
+                    combinedError = weaknessResult.error ?? undefined;
                 } else {
                     combinedError = `weakness: ${weaknessResult.error}; stale: ${staleResult.error}`;
                 }

@@ -171,19 +171,21 @@ export class ProgressTrackerView extends ItemView {
 
     private async loadData(): Promise<void> {
         if (!this.state.canvasPath || !this.state.originalCanvasPath) {
-            this.setState({
+            this.updateViewState({
                 loading: false,
                 error: '请选择要追踪的检验白板',
             });
             return;
         }
 
-        this.setState({ loading: true, error: null });
+        this.updateViewState({ loading: true, error: null });
 
         try {
             // Load current progress
+            // ✅ P1 Task #9: Use settings.claudeCodeUrl instead of hardcoded URL
+            const baseUrl = this.plugin.settings.claudeCodeUrl || 'http://localhost:8001';
             const progressResponse = await fetch(
-                `http://localhost:8001/api/v1/progress/analyze?` +
+                `${baseUrl}/api/v1/progress/analyze?` +
                 `review_canvas=${encodeURIComponent(this.state.canvasPath)}&` +
                 `original_canvas=${encodeURIComponent(this.state.originalCanvasPath)}`
             );
@@ -195,8 +197,9 @@ export class ProgressTrackerView extends ItemView {
             const currentProgress: SingleReviewProgress = await progressResponse.json();
 
             // Load multi-review history
+            // ✅ P1 Task #9: Use settings.claudeCodeUrl instead of hardcoded URL
             const historyResponse = await fetch(
-                `http://localhost:8001/api/v1/progress/history?` +
+                `${baseUrl}/api/v1/progress/history?` +
                 `original_canvas=${encodeURIComponent(this.state.originalCanvasPath)}`
             );
 
@@ -205,7 +208,7 @@ export class ProgressTrackerView extends ItemView {
                 multiReviewData = await historyResponse.json();
             }
 
-            this.setState({
+            this.updateViewState({
                 currentProgress,
                 multiReviewData,
                 loading: false,
@@ -213,7 +216,7 @@ export class ProgressTrackerView extends ItemView {
             });
         } catch (error) {
             console.error('[ProgressTracker] Failed to load data:', error);
-            this.setState({
+            this.updateViewState({
                 loading: false,
                 error: (error as Error).message,
             });
@@ -224,7 +227,7 @@ export class ProgressTrackerView extends ItemView {
     // State Management
     // =========================================================================
 
-    private setState(updates: Partial<ProgressTrackerState>): void {
+    private updateViewState(updates: Partial<ProgressTrackerState>): void {
         this.state = { ...this.state, ...updates };
         this.render();
     }
@@ -304,7 +307,7 @@ export class ProgressTrackerView extends ItemView {
         // Refresh button
         const actions = header.createDiv({ cls: 'header-actions' });
         const refreshBtn = actions.createEl('button', {
-            cls: 'refresh-btn',
+            cls: 'refresh-button',
             attr: { 'aria-label': '刷新' },
         });
         setIcon(refreshBtn, 'refresh-cw');
@@ -319,7 +322,7 @@ export class ProgressTrackerView extends ItemView {
      * [Source: docs/prd/CANVAS-LEARNING-SYSTEM-OBSIDIAN-NATIVE-MIGRATION-PRD.md:2829-2865]
      */
     private renderTabNavigation(container: HTMLElement): void {
-        const tabNav = container.createDiv({ cls: 'tracker-tabs' });
+        const tabNav = container.createDiv({ cls: 'tab-navigation' });
 
         const tabs: { id: 'current' | 'history' | 'trends'; label: string; icon: string }[] = [
             { id: 'current', label: '当前进度', icon: 'target' },
@@ -329,7 +332,7 @@ export class ProgressTrackerView extends ItemView {
 
         tabs.forEach((tab) => {
             const tabEl = tabNav.createDiv({
-                cls: `tracker-tab ${this.state.currentTab === tab.id ? 'active' : ''}`,
+                cls: `tab-button ${this.state.currentTab === tab.id ? 'active' : ''}`,
             });
             const iconEl = tabEl.createSpan({ cls: 'tab-icon' });
             setIcon(iconEl, tab.icon);
@@ -343,7 +346,7 @@ export class ProgressTrackerView extends ItemView {
      */
     private switchTab(tab: 'current' | 'history' | 'trends'): void {
         if (this.state.currentTab !== tab) {
-            this.setState({ currentTab: tab });
+            this.updateViewState({ currentTab: tab });
         }
     }
 

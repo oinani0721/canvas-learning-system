@@ -311,7 +311,7 @@ export class StatisticsChartService {
                         borderColor: this.theme.grid,
                         borderWidth: 1,
                         callbacks: {
-                            label: (context) => `评分: ${context.parsed.y.toFixed(1)}`,
+                            label: (context) => `评分: ${(context.parsed.y ?? 0).toFixed(1)}`,
                         },
                     },
                 },

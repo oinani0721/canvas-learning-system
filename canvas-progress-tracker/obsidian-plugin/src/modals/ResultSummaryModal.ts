@@ -161,7 +161,7 @@ export class ResultSummaryModal extends Modal {
     private extractFailedNodes(): FailedNode[] {
         const failed: FailedNode[] = [];
 
-        for (const result of this.sessionStatus.node_results) {
+        for (const result of this.sessionStatus.node_results || []) {
             if (result.status === 'failed') {
                 // Find the group this node belongs to
                 const group = this.groups.find(g =>
@@ -188,7 +188,7 @@ export class ResultSummaryModal extends Modal {
         const stats: Map<string, number> = new Map();
 
         // Count successful results by agent type
-        for (const result of this.sessionStatus.node_results) {
+        for (const result of this.sessionStatus.node_results || []) {
             if (result.status === 'success') {
                 // Find the group this node belongs to
                 const group = this.groups.find(g =>
@@ -250,7 +250,7 @@ export class ResultSummaryModal extends Modal {
         }
 
         // Canvas update notice
-        const successCount = this.sessionStatus.node_results.filter(r => r.status === 'success').length;
+        const successCount = (this.sessionStatus.node_results || []).filter(r => r.status === 'success').length;
         if (successCount > 0) {
             const notice = contentEl.createEl('div', { cls: 'canvas-update-notice' });
             notice.createEl('p', {
@@ -270,8 +270,9 @@ export class ResultSummaryModal extends Modal {
         const statsGrid = contentEl.createEl('div', { cls: 'stats-grid' });
 
         // Total nodes
-        const totalNodes = this.sessionStatus.node_results.length;
-        const successNodes = this.sessionStatus.node_results.filter(r => r.status === 'success').length;
+        const nodeResults = this.sessionStatus.node_results || [];
+        const totalNodes = nodeResults.length;
+        const successNodes = nodeResults.filter(r => r.status === 'success').length;
         const failedNodes = this.failedNodes.length;
 
         // Success stat
@@ -298,7 +299,7 @@ export class ResultSummaryModal extends Modal {
 
         // Total time stat
         const timeCard = statsGrid.createEl('div', { cls: 'stat-card' });
-        const totalTime = this.formatTime(this.sessionStatus.elapsed_time_seconds || 0);
+        const totalTime = this.formatTime(this.sessionStatus.elapsed_seconds || 0);
         timeCard.createEl('div', {
             text: totalTime,
             cls: 'stat-value',
@@ -420,8 +421,8 @@ export class ResultSummaryModal extends Modal {
                         const errorData = await response.json().catch(() => ({}));
                         throw new NetworkError(
                             errorData.message || `HTTP ${response.status}`,
-                            'SINGLE_AGENT_API',
-                            response.status
+                            response.status,
+                            { endpoint: 'SINGLE_AGENT_API' }
                         );
                     }
                 };

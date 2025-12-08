@@ -56,6 +56,13 @@ class CanvasEnvConfig:
     neo4j_user: str = "neo4j"
     neo4j_password: Optional[str] = None
 
+    # Graphiti MCP 配置
+    # ✅ Verified from Graphiti Skill (SKILL.md - MCP Server Configuration)
+    graphiti_mcp_enabled: bool = False
+    graphiti_mcp_url: str = "http://localhost:8000/sse"
+    graphiti_model_name: str = "gpt-4o-mini"
+    graphiti_group_id: str = "canvas-learning-system"
+
     # 应用配置
     project_name: str = "Canvas Learning System API"
     version: str = "1.0.0"
@@ -102,6 +109,11 @@ class CanvasEnvConfig:
     def is_cohere_configured(self) -> bool:
         """检查 Cohere API Key 是否已配置"""
         return bool(self.cohere_api_key and not self.cohere_api_key.startswith("在此填入"))
+
+    def is_graphiti_mcp_configured(self) -> bool:
+        """检查 Graphiti MCP 是否已配置并可用"""
+        # ✅ Verified from Graphiti Skill (SKILL.md - MCP Server Configuration)
+        return self.graphiti_mcp_enabled and self.is_neo4j_configured()
 
 
 # 全局配置实例
@@ -194,6 +206,13 @@ def load_config(force_reload: bool = False) -> CanvasEnvConfig:
         # LangSmith
         langsmith_tracing=os.environ.get("LANGCHAIN_TRACING_V2", "false").lower() in ("true", "1", "yes"),
         langsmith_project=os.environ.get("LANGCHAIN_PROJECT", "canvas-learning-system"),
+
+        # Graphiti MCP
+        # ✅ Verified from Graphiti Skill (SKILL.md - MCP Server Configuration)
+        graphiti_mcp_enabled=os.environ.get("GRAPHITI_MCP_ENABLED", "false").lower() in ("true", "1", "yes"),
+        graphiti_mcp_url=os.environ.get("GRAPHITI_MCP_URL", "http://localhost:8000/sse"),
+        graphiti_model_name=os.environ.get("GRAPHITI_MODEL_NAME", "gpt-4o-mini"),
+        graphiti_group_id=os.environ.get("GRAPHITI_GROUP_ID", "canvas-learning-system"),
     )
 
     return _config
@@ -249,6 +268,7 @@ def print_config_status():
     print(f"  OpenAI:    {'✅ 已配置' if config.is_openai_configured() else '❌ 未配置'}")
     print(f"  Cohere:    {'✅ 已配置' if config.is_cohere_configured() else '⚠️ 未配置 (可选)'}")
     print(f"  Neo4j:     {'✅ 已配置' if config.is_neo4j_configured() else '⚠️ 未配置 (可选)'}")
+    print(f"  Graphiti:  {'✅ 已配置' if config.is_graphiti_mcp_configured() else '⚠️ 未配置 (可选)'}")
     print()
     print("Agentic RAG:")
     print(f"  融合策略:    {config.fusion_strategy}")

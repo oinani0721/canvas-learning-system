@@ -119,7 +119,7 @@ export class ContextMenuManager {
     // Register editor-menu event
     // ✅ Verified from @obsidian-canvas Skill (Plugin Development - Event Registration)
     if (this.settings.enableEditorMenu) {
-      const editorMenuRef = this.app.workspace.on(
+      const editorMenuRef = (this.app.workspace as any).on(
         'editor-menu',
         (menu: Menu, editor: Editor, view: MarkdownView) => {
           this.handleEditorMenu(menu, editor, view);

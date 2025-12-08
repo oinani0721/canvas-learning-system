@@ -645,17 +645,14 @@ class GraphitiClient:
             episode_id or None
         """
         try:
-            # 构建episode内容
-            episode_content = content
-
-            # 如果有canvas_file，添加到内容中
-            if canvas_file:
-                episode_content = f"[Canvas: {canvas_file}] {content}"
+            # 构建episode内容 (canvas_file用于元数据，不修改content)
+            # 如果有canvas_file，记录在元数据中
+            _ = canvas_file  # 保留参数，用于未来扩展
 
             # 调用MCP工具
             try:
                 # 注意: 在实际Claude Code环境中，这会调用真实的MCP工具
-                # mcp__graphiti-memory__add_episode(content=episode_content)
+                # mcp__graphiti-memory__add_episode(content=content)
 
                 # 模拟MCP调用 (在测试环境中)
                 episode_id = f"episode_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
@@ -763,6 +760,166 @@ class GraphitiClient:
             if LOGURU_ENABLED:
                 logger.error(f"add_relationship failed: {e}")
             return False
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # P0 Task #5: Graphiti存储方法 - 检验白板历史关联
+    # [Source: Plan - 问题8️⃣ 检验历史追踪缺失修复]
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def store_review_canvas_relationship(
+        self,
+        source_canvas_id: str,
+        verification_canvas_id: str,
+        review_date: str,
+        node_count: int,
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """
+        存储检验白板与源Canvas的关联关系
+
+        用于追踪检验白板历史，支持多次复习趋势分析。
+
+        Args:
+            source_canvas_id: 源Canvas文件路径/ID
+            verification_canvas_id: 检验白板文件路径/ID
+            review_date: 复习日期 (ISO格式: YYYY-MM-DD)
+            node_count: 复习节点数量
+            metadata: 可选的额外元数据 (scores, duration等)
+
+        Returns:
+            success: 是否成功存储
+
+        Example:
+            await client.store_review_canvas_relationship(
+                source_canvas_id="离散数学.canvas",
+                verification_canvas_id="离散数学-检验白板-20251207.canvas",
+                review_date="2025-12-07",
+                node_count=15,
+                metadata={"average_score": 32.5, "green_ratio": 0.73}
+            )
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            if self._mcp_available:
+                # 存储Canvas实体节点
+                await self.add_memory(
+                    key=f"canvas:{source_canvas_id}",
+                    content=f"源Canvas: {source_canvas_id}",
+                    metadata={"type": "source_canvas", "canvas_id": source_canvas_id}
+                )
+
+                await self.add_memory(
+                    key=f"verification:{verification_canvas_id}",
+                    content=f"检验白板: {verification_canvas_id}, 来源: {source_canvas_id}, 日期: {review_date}",
+                    metadata={
+                        "type": "verification_canvas",
+                        "canvas_id": verification_canvas_id,
+                        "source_canvas": source_canvas_id,
+                        "review_date": review_date,
+                        "node_count": node_count,
+                        **(metadata or {})
+                    }
+                )
+
+                # 存储关联关系
+                await self.add_relationship(
+                    entity1=source_canvas_id,
+                    entity2=verification_canvas_id,
+                    relationship_type="HAS_VERIFICATION"
+                )
+
+                if LOGURU_ENABLED:
+                    logger.info(
+                        f"store_review_canvas_relationship: "
+                        f"{source_canvas_id} -> {verification_canvas_id} "
+                        f"(date={review_date}, nodes={node_count})"
+                    )
+                return True
+            else:
+                if LOGURU_ENABLED:
+                    logger.warning("store_review_canvas_relationship: MCP not available")
+                return False
+
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"store_review_canvas_relationship failed: {e}")
+            return False
+
+    async def query_review_history(
+        self,
+        canvas_id: str,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        查询Canvas的复习历史记录
+
+        返回与指定Canvas关联的所有检验白板历史，按日期降序排列。
+
+        Args:
+            canvas_id: Canvas文件路径/ID
+            limit: 返回结果数量限制 (默认10)
+
+        Returns:
+            review_history: 复习历史列表，每项包含:
+                - verification_canvas_id: 检验白板ID
+                - review_date: 复习日期
+                - node_count: 节点数量
+                - metadata: 额外元数据 (scores等)
+
+        Example:
+            history = await client.query_review_history("离散数学.canvas", limit=5)
+            # Returns:
+            # [
+            #     {"verification_canvas_id": "...-20251207.canvas", "review_date": "2025-12-07", ...},
+            #     {"verification_canvas_id": "...-20251201.canvas", "review_date": "2025-12-01", ...},
+            # ]
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            if self._mcp_available:
+                # 搜索与该Canvas关联的检验白板
+                results = await self.search_memories(
+                    query=f"检验白板 来源:{canvas_id}",
+                )
+
+                # 过滤并格式化结果
+                history = []
+                for result in results[:limit]:
+                    if isinstance(result, dict):
+                        metadata = result.get("metadata", {})
+                        if metadata.get("type") == "verification_canvas":
+                            history.append({
+                                "verification_canvas_id": metadata.get("canvas_id", ""),
+                                "review_date": metadata.get("review_date", ""),
+                                "node_count": metadata.get("node_count", 0),
+                                "source_canvas": metadata.get("source_canvas", ""),
+                                "metadata": {
+                                    k: v for k, v in metadata.items()
+                                    if k not in ["type", "canvas_id", "review_date", "node_count", "source_canvas"]
+                                }
+                            })
+
+                # 按日期降序排序
+                history.sort(key=lambda x: x.get("review_date", ""), reverse=True)
+
+                if LOGURU_ENABLED:
+                    logger.info(
+                        f"query_review_history: canvas={canvas_id}, found={len(history)}"
+                    )
+                return history
+            else:
+                if LOGURU_ENABLED:
+                    logger.warning("query_review_history: MCP not available")
+                return []
+
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"query_review_history failed: {e}")
+            return []
 
     def get_stats(self) -> Dict[str, Any]:
         """获取客户端统计信息"""

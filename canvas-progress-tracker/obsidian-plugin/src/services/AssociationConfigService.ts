@@ -111,7 +111,7 @@ export class AssociationConfigService {
 
         // Update metadata
         config.metadata = {
-            ...config.metadata,
+            created_at: config.metadata?.created_at || new Date().toISOString(),
             updated_at: new Date().toISOString(),
             update_count: (config.metadata?.update_count || 0) + 1
         };
@@ -292,7 +292,9 @@ export class AssociationConfigService {
     async updateSettings(canvasPath: string, settings: Partial<CanvasLinksSettings>): Promise<void> {
         const config = await this.loadConfig(canvasPath);
         config.settings = {
-            ...config.settings,
+            auto_detect: config.settings?.auto_detect ?? true,
+            min_confidence: config.settings?.min_confidence ?? 0.5,
+            auto_sync: config.settings?.auto_sync ?? true,
             ...settings
         };
         await this.saveConfig(canvasPath, config);
