@@ -18,6 +18,14 @@ pydantic>=2.5.0
 pydantic-settings>=2.0.0
 python-dotenv>=1.0.0
 
+# AI/LLM
+# ✅ Verified from Context7:/googleapis/python-genai - Google Gen AI SDK for Gemini calls
+google-genai>=0.3.0
+
+# LangGraph (Phase 2: LangGraph桥接)
+# ✅ Required for src/agentic_rag StateGraph
+langgraph>=0.2.0
+
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0

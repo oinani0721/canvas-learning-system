@@ -11,6 +11,7 @@ backend API. Settings are loaded from environment variables and .env files.
 """
 
 import json
+import os
 from functools import lru_cache
 from typing import List
 
@@ -19,6 +20,12 @@ from pydantic import Field, field_validator
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings)
 # Source: "from pydantic_settings import BaseSettings, SettingsConfigDict"
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Calculate absolute project root path for reliable path resolution
+# This ensures paths work regardless of where the backend is started from
+_CONFIG_DIR = os.path.dirname(os.path.abspath(__file__))  # backend/app/
+_BACKEND_DIR = os.path.dirname(_CONFIG_DIR)  # backend/
+_PROJECT_ROOT = os.path.dirname(_BACKEND_DIR)  # Canvas/
 
 
 class Settings(BaseSettings):
@@ -82,9 +89,11 @@ class Settings(BaseSettings):
     # Canvas Settings
     # ═══════════════════════════════════════════════════════════════════════════
 
+    # FIX-4.0: Use absolute path to avoid encoding issues with Chinese characters
+    # The relative path "../笔记库" was causing 404 errors due to path resolution issues
     CANVAS_BASE_PATH: str = Field(
-        default="../笔记库",
-        description="Base path to Canvas files directory"
+        default=os.path.join(_PROJECT_ROOT, "笔记库"),
+        description="Absolute path to Canvas files directory"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -171,6 +180,66 @@ class Settings(BaseSettings):
     ROLLBACK_ENABLE_AUTO_BACKUP: bool = Field(
         default=True,
         description="Create backup snapshot before rollback operations"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # AI Model Configuration (Multi-Provider Support)
+    # Supports: google, openai, anthropic, openrouter, custom
+    # [Source: Multi-Provider AI Architecture - flexible model configuration]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    AI_PROVIDER: str = Field(
+        default="google",
+        description="AI provider: google, openai, anthropic, openrouter, custom"
+    )
+
+    AI_MODEL_NAME: str = Field(
+        default="gemini-2.0-flash-exp",
+        description="AI model name (e.g., gemini-2.0-flash-exp, gpt-4o, claude-3-5-sonnet)"
+    )
+
+    AI_BASE_URL: str = Field(
+        default="",
+        description="AI API base URL (leave empty to use provider's default)"
+    )
+
+    AI_API_KEY: str = Field(
+        default="",
+        description="AI API key for the selected provider"
+    )
+
+    AGENT_MAX_TOKENS: int = Field(
+        default=4000,
+        description="Maximum tokens per Agent response"
+    )
+
+    AGENT_PROMPT_PATH: str = Field(
+        default=os.path.join(_PROJECT_ROOT, ".claude", "agents"),
+        description="Path to Agent prompt templates directory (absolute path)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Legacy Settings (Deprecated - kept for backward compatibility)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    GEMINI_MODEL: str = Field(
+        default="gemini-2.0-flash-exp",
+        description="[DEPRECATED] Use AI_MODEL_NAME instead"
+    )
+
+    GOOGLE_API_KEY: str = Field(
+        default="",
+        description="[DEPRECATED] Use AI_API_KEY instead"
+    )
+
+    AGENT_MODEL: str = Field(
+        default="claude-sonnet-4-5-20250929",
+        description="[DEPRECATED] Use AI_MODEL_NAME instead"
+    )
+
+    ANTHROPIC_API_KEY: str = Field(
+        default="",
+        description="[DEPRECATED] Use AI_API_KEY instead"
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
