@@ -1,32 +1,109 @@
 # Canvas Learning System - Agents Router
 # Story 15.2: Routing System and APIRouter Configuration
+# Story 21.1: 统一位置信息提取 - 连接真实AgentService
 """
 Agent invocation router.
 
 Provides 9 endpoints for AI agent operations (decomposition, scoring, explanation).
 [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents]
+[Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md - Story 21.1]
 """
 
-from fastapi import APIRouter
+import logging
+from typing import Any, Dict, Tuple
 
+from fastapi import APIRouter, HTTPException
+
+from app.dependencies import AgentServiceDep, CanvasServiceDep
 from app.models import (
     DecomposeRequest,
     DecomposeResponse,
     ErrorResponse,
     ExplainRequest,
     ExplainResponse,
+    NodeRead,
     NodeScore,
     ScoreRequest,
     ScoreResponse,
 )
+
+logger = logging.getLogger(__name__)
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 # APIRouter(prefix, tags, responses) for modular routing
 agents_router = APIRouter(
     responses={
         400: {"model": ErrorResponse, "description": "Validation error"},
+        404: {"model": ErrorResponse, "description": "Canvas or node not found"},
+        500: {"model": ErrorResponse, "description": "Agent service error"},
     }
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.1: 统一位置信息提取函数
+# [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-1]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def extract_node_position(node: Dict[str, Any]) -> Tuple[int, int, int, int]:
+    """
+    统一提取节点位置信息。
+
+    所有Agent端点使用此函数确保位置提取逻辑一致。
+
+    Args:
+        node: Canvas节点数据字典
+
+    Returns:
+        Tuple[x, y, width, height] - 位置和尺寸信息
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-1]
+    """
+    x = int(node.get("x", 0))
+    y = int(node.get("y", 0))
+    width = int(node.get("width", 400))
+    height = int(node.get("height", 200))
+    return x, y, width, height
+
+
+async def get_node_from_canvas(
+    canvas_service: CanvasServiceDep,
+    canvas_name: str,
+    node_id: str
+) -> Dict[str, Any]:
+    """
+    从Canvas中获取指定节点。
+
+    Args:
+        canvas_service: Canvas服务实例
+        canvas_name: Canvas文件名
+        node_id: 目标节点ID
+
+    Returns:
+        节点数据字典
+
+    Raises:
+        HTTPException: Canvas或节点不存在时抛出404
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-1]
+    """
+    try:
+        canvas_data = await canvas_service.read_canvas(canvas_name)
+    except FileNotFoundError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Canvas not found: {canvas_name}"
+        ) from err
+
+    nodes = canvas_data.get("nodes", [])
+    for node in nodes:
+        if node.get("id") == node_id:
+            return node
+
+    raise HTTPException(
+        status_code=404,
+        detail=f"Node not found: {node_id} in canvas {canvas_name}"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -40,7 +117,11 @@ agents_router = APIRouter(
     summary="Basic concept decomposition",
     operation_id="decompose_basic",
 )
-async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
+async def decompose_basic(
+    request: DecomposeRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> DecomposeResponse:
     """
     Perform basic concept decomposition on a node.
 
@@ -49,16 +130,38 @@ async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1basic]
     [Source: specs/data/decompose-request.schema.json]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    return DecomposeResponse(
-        questions=[
-            "What is the basic definition?",
-            "What are the key components?",
-            "How does it relate to other concepts?",
-        ],
-        created_nodes=[],
-    )
+    # Story 21.1: 获取节点和位置信息
+    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
+    x, y, width, height = extract_node_position(node)
+
+    # 获取节点内容
+    content = node.get("text", "")
+    if not content and node.get("type") == "file":
+        # 文件节点需要读取文件内容
+        content = f"File: {node.get('file', 'unknown')}"
+
+    logger.info(f"decompose_basic: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y})")
+
+    try:
+        # 调用真实的AgentService
+        result = await agent_service.decompose_basic(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id,
+            content=content,
+            source_x=x,
+            source_y=y,
+        )
+
+        # 转换为响应模型
+        return DecomposeResponse(
+            questions=result.get("questions", []),
+            created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
+        )
+    except Exception as e:
+        logger.error(f"decompose_basic failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
 
 @agents_router.post(
@@ -67,7 +170,11 @@ async def decompose_basic(request: DecomposeRequest) -> DecomposeResponse:
     summary="Deep concept decomposition",
     operation_id="decompose_deep",
 )
-async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
+async def decompose_deep(
+    request: DecomposeRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> DecomposeResponse:
     """
     Perform deep concept decomposition on a node.
 
@@ -75,18 +182,35 @@ async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     - **node_id**: Target node ID for deep decomposition
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1deep]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    return DecomposeResponse(
-        questions=[
-            "What are the underlying principles?",
-            "How does this apply in edge cases?",
-            "What are common misconceptions?",
-            "How would you explain this to someone new?",
-            "What connections exist with advanced topics?",
-        ],
-        created_nodes=[],
-    )
+    # Story 21.1: 获取节点和位置信息
+    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
+    x, y, width, height = extract_node_position(node)
+
+    # 获取节点内容
+    content = node.get("text", "")
+    if not content and node.get("type") == "file":
+        content = f"File: {node.get('file', 'unknown')}"
+
+    logger.info(f"decompose_deep: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y})")
+
+    try:
+        result = await agent_service.decompose_deep(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id,
+            content=content,
+            source_x=x,
+            source_y=y,
+        )
+
+        return DecomposeResponse(
+            questions=result.get("questions", []),
+            created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
+        )
+    except Exception as e:
+        logger.error(f"decompose_deep failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -100,7 +224,11 @@ async def decompose_deep(request: DecomposeRequest) -> DecomposeResponse:
     summary="Score user understanding",
     operation_id="score_understanding",
 )
-async def score_understanding(request: ScoreRequest) -> ScoreResponse:
+async def score_understanding(
+    request: ScoreRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ScoreResponse:
     """
     Score user's understanding based on their explanations.
 
@@ -109,22 +237,32 @@ async def score_understanding(request: ScoreRequest) -> ScoreResponse:
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1score]
     [Source: specs/data/node-score.schema.json]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation - return mock scores
-    scores = []
-    for node_id in request.node_ids:
-        scores.append(
-            NodeScore(
-                node_id=node_id,
-                accuracy=8.0,
-                imagery=7.5,
-                completeness=8.5,
-                originality=7.0,
-                total=31.0,
-                new_color="3",  # Yellow (24-31 range)
-            )
+    logger.info(f"score_understanding: canvas={request.canvas_name}, nodes={request.node_ids}")
+
+    try:
+        result = await agent_service.score_node(
+            canvas_name=request.canvas_name,
+            node_ids=request.node_ids,
         )
-    return ScoreResponse(scores=scores)
+
+        # 转换为响应模型
+        scores = []
+        for score_data in result.get("scores", []):
+            scores.append(NodeScore(
+                node_id=score_data.get("node_id", ""),
+                accuracy=score_data.get("accuracy", 0.0),
+                imagery=score_data.get("imagery", 0.0),
+                completeness=score_data.get("completeness", 0.0),
+                originality=score_data.get("originality", 0.0),
+                total=score_data.get("total", 0.0),
+                new_color=score_data.get("new_color", "3"),
+            ))
+        return ScoreResponse(scores=scores)
+    except Exception as e:
+        logger.error(f"score_understanding failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -132,13 +270,62 @@ async def score_understanding(request: ScoreRequest) -> ScoreResponse:
 # [Source: specs/api/fastapi-backend-api.openapi.yml#Agent Endpoints]
 # ═══════════════════════════════════════════════════════════════════════════════
 
+async def _call_explanation(
+    request: ExplainRequest,
+    explanation_type: str,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
+    """
+    统一解释调用辅助函数。
+
+    [Story 21.1: 统一位置信息提取]
+    [Story 21.2: 使用ContextEnrichmentService获取邻居上下文]
+    """
+    # Story 21.1: 获取节点和位置信息
+    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
+    x, y, width, height = extract_node_position(node)
+
+    # 获取节点内容
+    content = node.get("text", "")
+    if not content and node.get("type") == "file":
+        content = f"File: {node.get('file', 'unknown')}"
+
+    logger.info(f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y},{width},{height})")
+
+    try:
+        # 调用真实的AgentService
+        result = await agent_service.generate_explanation(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id,
+            content=content,
+            explanation_type=explanation_type,
+            source_x=x,
+            source_y=y,
+            source_width=width,
+            source_height=height,
+        )
+
+        return ExplainResponse(
+            explanation=result.get("explanation", ""),
+            created_node_id=result.get("created_node_id", ""),
+        )
+    except Exception as e:
+        logger.error(f"explain_{explanation_type} failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+
+
 @agents_router.post(
     "/explain/oral",
     response_model=ExplainResponse,
     summary="Oral-style explanation",
     operation_id="explain_oral",
 )
-async def explain_oral(request: ExplainRequest) -> ExplainResponse:
+async def explain_oral(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate oral-style explanation for a concept.
 
@@ -146,13 +333,9 @@ async def explain_oral(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1oral]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation="This is a placeholder oral explanation...",
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "oral", agent_service, canvas_service)
 
 
 @agents_router.post(
@@ -161,7 +344,11 @@ async def explain_oral(request: ExplainRequest) -> ExplainResponse:
     summary="Clarification path generation",
     operation_id="explain_clarification",
 )
-async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
+async def explain_clarification(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate clarification path for a concept.
 
@@ -169,13 +356,9 @@ async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation="This is a placeholder clarification path...",
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "clarification", agent_service, canvas_service)
 
 
 @agents_router.post(
@@ -184,7 +367,11 @@ async def explain_clarification(request: ExplainRequest) -> ExplainResponse:
     summary="Comparison table generation",
     operation_id="explain_comparison",
 )
-async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
+async def explain_comparison(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate comparison table for a concept.
 
@@ -192,13 +379,9 @@ async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1comparison]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation="| Aspect | Concept A | Concept B |\n|--------|-----------|-----------|",
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "comparison", agent_service, canvas_service)
 
 
 @agents_router.post(
@@ -207,7 +390,11 @@ async def explain_comparison(request: ExplainRequest) -> ExplainResponse:
     summary="Memory anchor generation",
     operation_id="explain_memory",
 )
-async def explain_memory(request: ExplainRequest) -> ExplainResponse:
+async def explain_memory(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate memory anchor for a concept.
 
@@ -215,13 +402,9 @@ async def explain_memory(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1memory]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation="Memory anchor: Imagine a vivid story...",
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "memory", agent_service, canvas_service)
 
 
 @agents_router.post(
@@ -230,7 +413,11 @@ async def explain_memory(request: ExplainRequest) -> ExplainResponse:
     summary="Four-level explanation",
     operation_id="explain_four_level",
 )
-async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
+async def explain_four_level(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate four-level progressive explanation.
 
@@ -238,18 +425,9 @@ async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1four-level]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation=(
-            "Level 1 (Beginner): ...\n"
-            "Level 2 (Intermediate): ...\n"
-            "Level 3 (Advanced): ...\n"
-            "Level 4 (Expert): ..."
-        ),
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "four-level", agent_service, canvas_service)
 
 
 @agents_router.post(
@@ -258,7 +436,11 @@ async def explain_four_level(request: ExplainRequest) -> ExplainResponse:
     summary="Example-based teaching",
     operation_id="explain_example",
 )
-async def explain_example(request: ExplainRequest) -> ExplainResponse:
+async def explain_example(
+    request: ExplainRequest,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+) -> ExplainResponse:
     """
     Generate example-based teaching content.
 
@@ -266,10 +448,6 @@ async def explain_example(request: ExplainRequest) -> ExplainResponse:
     - **node_id**: Target node ID
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1example]
+    [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     """
-    # Placeholder implementation
-    import uuid
-    return ExplainResponse(
-        explanation="Example Problem:\n...\nSolution:\n...",
-        created_node_id=uuid.uuid4().hex[:16],
-    )
+    return await _call_explanation(request, "example", agent_service, canvas_service)

@@ -16,10 +16,12 @@ import json
 import logging
 import os
 import re
+import time
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 if TYPE_CHECKING:
     from app.clients.gemini_client import GeminiClient
@@ -83,6 +85,568 @@ class AgentResult:
             "duration_ms": self.duration_ms,
             "created_at": self.created_at.isoformat(),
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.3: 多重fallback文本提取和友好错误处理
+# [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def extract_explanation_text(response: Any) -> Tuple[str, bool]:
+    """
+    提取explanation_text，带多重fallback机制。
+
+    使用多个提取器按优先级尝试提取文本内容，确保即使
+    API响应格式不完全匹配也能尽最大努力提取有效内容。
+
+    Args:
+        response: AI API响应对象（可能是dict、对象或字符串）
+
+    Returns:
+        Tuple[str, bool]: (提取的文本, 是否成功)
+            - text: 提取的文本内容（去除首尾空白）
+            - success: True如果成功提取到非空文本
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+    """
+    if response is None:
+        logger.warning("extract_explanation_text: response is None")
+        return "", False
+
+    extractors = [
+        # 优先级1: response字段（Gemini常用格式）
+        ("response", lambda r: r.get("response") if isinstance(r, dict) else None),
+        # 优先级2: text属性（某些SDK的响应对象）
+        ("text_attr", lambda r: r.text if hasattr(r, "text") and r.text else None),
+        # 优先级3: dict的text字段
+        ("text_key", lambda r: r.get("text") if isinstance(r, dict) else None),
+        # 优先级4: dict的content字段
+        ("content", lambda r: r.get("content") if isinstance(r, dict) else None),
+        # 优先级5: dict的explanation字段
+        ("explanation", lambda r: r.get("explanation") if isinstance(r, dict) else None),
+        # 优先级6: dict的message字段
+        ("message", lambda r: r.get("message") if isinstance(r, dict) else None),
+        # 优先级7: dict的output字段
+        ("output", lambda r: r.get("output") if isinstance(r, dict) else None),
+        # 优先级8: 如果response本身是字符串
+        ("direct_str", lambda r: r if isinstance(r, str) else None),
+        # 优先级9: 字符串化（最终fallback）
+        ("stringify", lambda r: str(r) if r else None),
+    ]
+
+    for name, extractor in extractors:
+        try:
+            text = extractor(response)
+            if text and isinstance(text, str) and text.strip():
+                if name != "response" and name != "text_attr":
+                    logger.info(
+                        f"extract_explanation_text: Used fallback extractor '{name}' "
+                        f"for response type: {type(response).__name__}"
+                    )
+                return text.strip(), True
+        except Exception as e:
+            logger.debug(f"extract_explanation_text: Extractor '{name}' failed: {e}")
+
+    # 所有提取器都失败
+    logger.error(
+        f"extract_explanation_text: All extractors failed for response type: {type(response).__name__}",
+        extra={
+            "response_type": type(response).__name__,
+            "response_preview": str(response)[:500] if response else "None"
+        }
+    )
+    return "", False
+
+
+def create_error_response(
+    error_message: str,
+    source_node_id: str,
+    agent_type: str,
+    source_x: int = 0,
+    source_y: int = 0,
+    source_width: int = 400,
+    source_height: int = 200,
+) -> Dict[str, Any]:
+    """
+    创建友好的错误响应，在Canvas中显示错误提示节点。
+
+    当Agent处理失败时，创建一个红色错误节点而不是返回空结果，
+    让用户清楚地知道发生了什么问题。
+
+    Args:
+        error_message: 错误描述信息
+        source_node_id: 源节点ID
+        agent_type: Agent类型
+        source_x, source_y: 源节点位置
+        source_width, source_height: 源节点尺寸
+
+    Returns:
+        包含错误节点和元数据的响应字典
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+    """
+    error_node_id = f"error-{agent_type}-{uuid.uuid4().hex[:8]}"
+
+    # 位置在源节点右侧
+    error_x = source_x + source_width + 50
+    error_y = source_y
+
+    logger.warning(
+        f"create_error_response: Creating error node for {agent_type}",
+        extra={
+            "source_node_id": source_node_id,
+            "agent_type": agent_type,
+            "error_message": error_message
+        }
+    )
+
+    return {
+        "created_nodes": [{
+            "id": error_node_id,
+            "type": "text",
+            "text": f"⚠️ Agent处理失败\n\n**错误**: {error_message}\n\n**Agent类型**: {agent_type}\n\n请检查输入内容后重试。",
+            "color": "1",  # 红色表示错误
+            "x": error_x,
+            "y": error_y,
+            "width": 400,
+            "height": 200
+        }],
+        "created_edges": [{
+            "id": f"edge-error-{uuid.uuid4().hex[:8]}",
+            "fromNode": source_node_id,
+            "toNode": error_node_id,
+            "fromSide": "right",
+            "toSide": "left",
+            "label": "错误",
+            "color": "1"  # 红色
+        }],
+        "error": True,
+        "error_message": error_message,
+        "agent_type": agent_type,
+        "source_node_id": source_node_id
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.4: 结构化日志记录器
+# [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-4]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 日志配置（可通过环境变量覆盖）
+AGENT_LOG_TRUNCATE_LENGTH = int(os.getenv("AGENT_LOG_TRUNCATE_LENGTH", "500"))
+
+
+class AgentCallLogger:
+    """
+    Agent调用日志记录器。
+
+    提供结构化日志记录，追踪每次Agent调用的完整流程，
+    包括请求参数、响应内容、延迟时间和错误信息。
+
+    Attributes:
+        agent_type: Agent类型（如 "decompose_basic"）
+        node_id: 目标节点ID
+        canvas_name: Canvas文件名
+        start_time: 调用开始时间
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-4]
+    """
+
+    def __init__(self, agent_type: str, node_id: str, canvas_name: str = ""):
+        """初始化日志记录器。"""
+        self.agent_type = agent_type
+        self.node_id = node_id
+        self.canvas_name = canvas_name
+        self.start_time = time.time()
+        self.extra = {
+            "agent_type": agent_type,
+            "node_id": node_id,
+            "canvas_name": canvas_name,
+        }
+
+    def log_request(self, request_params: Dict[str, Any]) -> None:
+        """
+        记录请求信息。
+
+        Args:
+            request_params: 请求参数字典（自动截断长文本）
+        """
+        logger.info(
+            f"[Agent Call START] {self.agent_type} for node {self.node_id}",
+            extra={
+                **self.extra,
+                "event": "agent_call_start",
+                "request_params": self._summarize(request_params)
+            }
+        )
+
+    def log_response(
+        self,
+        response: Any,
+        success: bool,
+        response_length: int = 0
+    ) -> None:
+        """
+        记录响应信息。
+
+        Args:
+            response: API响应对象
+            success: 是否成功
+            response_length: 响应文本长度
+        """
+        latency_ms = int((time.time() - self.start_time) * 1000)
+
+        log_data = {
+            **self.extra,
+            "event": "agent_call_end",
+            "success": success,
+            "latency_ms": latency_ms,
+            "response_length": response_length
+        }
+
+        if success:
+            logger.info(
+                f"[Agent Call SUCCESS] {self.agent_type} completed in {latency_ms}ms",
+                extra=log_data
+            )
+        else:
+            # 失败时记录更多详情
+            log_data["response_preview"] = self._truncate(str(response))
+            logger.warning(
+                f"[Agent Call FAILED] {self.agent_type} failed after {latency_ms}ms",
+                extra=log_data
+            )
+
+    def log_error(self, error: Exception) -> None:
+        """
+        记录异常信息。
+
+        Args:
+            error: 捕获的异常对象
+        """
+        latency_ms = int((time.time() - self.start_time) * 1000)
+
+        logger.error(
+            f"[Agent Call ERROR] {self.agent_type} raised {type(error).__name__}",
+            extra={
+                **self.extra,
+                "event": "agent_call_error",
+                "latency_ms": latency_ms,
+                "error_type": type(error).__name__,
+                "error_message": str(error)[:500]
+            },
+            exc_info=True
+        )
+
+    @staticmethod
+    def _summarize(data: Dict[str, Any], max_length: int = 200) -> str:
+        """生成数据摘要。"""
+        summary = str(data)
+        if len(summary) > max_length:
+            return summary[:max_length] + "..."
+        return summary
+
+    @staticmethod
+    def _truncate(text: str, max_length: int = None) -> str:
+        """截断文本。"""
+        if max_length is None:
+            max_length = AGENT_LOG_TRUNCATE_LENGTH
+        if len(text) > max_length:
+            return text[:max_length] + "... [truncated]"
+        return text
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.5: 个人理解节点自动创建
+# [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# 配置常量（可通过环境变量覆盖）
+AUTO_CREATE_PERSONAL_NODE = os.getenv("AUTO_CREATE_PERSONAL_NODE", "true").lower() == "true"
+PERSONAL_NODE_VERTICAL_OFFSET = int(os.getenv("PERSONAL_NODE_VERTICAL_OFFSET", "50"))
+PERSONAL_NODE_PROMPT_TEXT = os.getenv(
+    "PERSONAL_NODE_PROMPT_TEXT",
+    "在此填写你的个人理解...\n\n💡 提示：用自己的话解释这个概念"
+)
+
+# 个人理解节点模板
+PERSONAL_UNDERSTANDING_TEMPLATE = {
+    "type": "text",
+    "text": PERSONAL_NODE_PROMPT_TEXT,
+    "width": 400,
+    "height": 150,
+    "color": "3"  # 黄色 - 表示待填写的个人理解区域
+}
+
+
+def create_personal_understanding_node(
+    explanation_node_id: str,
+    explanation_x: int,
+    explanation_y: int,
+    explanation_height: int,
+    vertical_offset: int = None,
+    custom_prompt: str = None
+) -> Tuple[Dict[str, Any], str]:
+    """
+    创建个人理解节点。
+
+    在解释节点下方创建一个黄色的个人理解区域，用于用户填写自己的理解，
+    践行费曼学习法"用自己的话解释"的核心原则。
+
+    Args:
+        explanation_node_id: 解释节点ID (用于命名和关联)
+        explanation_x: 解释节点X坐标
+        explanation_y: 解释节点Y坐标
+        explanation_height: 解释节点高度
+        vertical_offset: 垂直间距 (默认使用配置值)
+        custom_prompt: 自定义提示文字 (默认使用配置值)
+
+    Returns:
+        Tuple[node_dict, node_id]: 节点数据字典和节点ID
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
+    """
+    if vertical_offset is None:
+        vertical_offset = PERSONAL_NODE_VERTICAL_OFFSET
+
+    personal_node_id = f"personal-{explanation_node_id[:12]}-{uuid.uuid4().hex[:6]}"
+
+    node = {
+        "id": personal_node_id,
+        **PERSONAL_UNDERSTANDING_TEMPLATE,
+        "x": explanation_x,  # 与解释节点水平对齐
+        "y": explanation_y + explanation_height + vertical_offset  # 在解释节点下方
+    }
+
+    # 使用自定义提示文字
+    if custom_prompt:
+        node["text"] = custom_prompt
+
+    logger.debug(f"Created personal understanding node {personal_node_id} at ({node['x']}, {node['y']})")
+    return node, personal_node_id
+
+
+def create_personal_understanding_edge(
+    explanation_node_id: str,
+    personal_node_id: str,
+    label: str = "个人理解"
+) -> Dict[str, Any]:
+    """
+    创建解释节点到个人理解节点的Edge连接。
+
+    Args:
+        explanation_node_id: 解释节点ID (fromNode)
+        personal_node_id: 个人理解节点ID (toNode)
+        label: Edge标签 (默认"个人理解")
+
+    Returns:
+        Edge数据字典
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
+    """
+    edge = {
+        "id": f"edge-personal-{uuid.uuid4().hex[:8]}",
+        "fromNode": explanation_node_id,
+        "toNode": personal_node_id,
+        "fromSide": "bottom",
+        "toSide": "top",
+        "label": label,
+        "color": "3"  # 黄色，与个人理解节点匹配
+    }
+
+    logger.debug(f"Created personal understanding edge: {explanation_node_id} → {personal_node_id}")
+    return edge
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.6: Edge连接逻辑修复 - 统一Edge创建函数
+# [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class EdgeLabels:
+    """
+    Edge标签常量类。
+
+    定义所有Agent类型对应的Edge标签，确保一致性。
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+    """
+    BASIC_DECOMPOSE = "基础拆解"
+    DEEP_DECOMPOSE = "深度拆解"
+    ORAL_EXPLANATION = "口语解释"
+    FOUR_LEVEL = "四层解释"
+    CLARIFICATION = "澄清路径"
+    COMPARISON = "对比表格"
+    MEMORY_ANCHOR = "记忆锚点"
+    EXAMPLE = "例题教学"
+    PERSONAL_UNDERSTANDING = "个人理解"
+    QUESTION = "问题拆解"
+    VERIFICATION = "检验问题"
+
+    @classmethod
+    def get_label_for_type(cls, explanation_type: str) -> str:
+        """
+        根据解释类型获取对应的Edge标签。
+
+        Args:
+            explanation_type: Agent解释类型 (如 "oral", "four-level", "clarification")
+
+        Returns:
+            对应的中文Edge标签
+        """
+        type_label_map = {
+            "oral": cls.ORAL_EXPLANATION,
+            "four-level": cls.FOUR_LEVEL,
+            "four_level": cls.FOUR_LEVEL,
+            "four-level-explanation": cls.FOUR_LEVEL,
+            "clarification": cls.CLARIFICATION,
+            "comparison": cls.COMPARISON,
+            "memory": cls.MEMORY_ANCHOR,
+            "example": cls.EXAMPLE,
+            "basic": cls.BASIC_DECOMPOSE,
+            "deep": cls.DEEP_DECOMPOSE,
+            "question": cls.QUESTION,
+            "verification": cls.VERIFICATION,
+        }
+        return type_label_map.get(explanation_type.lower(), explanation_type)
+
+
+class EdgeColors:
+    """
+    Edge颜色常量类。
+
+    Obsidian Canvas颜色代码:
+    - "1": 红色 (错误/问题)
+    - "2": 橙色
+    - "3": 黄色 (待处理/个人理解)
+    - "4": 绿色 (解释/完成)
+    - "5": 蓝色 (默认)
+    - "6": 紫色 (部分理解)
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+    """
+    DEFAULT = "5"       # 蓝色 - 默认
+    EXPLANATION = "4"   # 绿色 - 解释类Edge
+    PERSONAL = "3"      # 黄色 - 个人理解Edge
+    ERROR = "1"         # 红色 - 错误/问题
+    PURPLE = "6"        # 紫色 - 部分理解
+
+
+def create_edge(
+    from_node_id: str,
+    to_node_id: str,
+    label: str = "",
+    color: str = EdgeColors.DEFAULT,
+    from_side: str = "right",
+    to_side: str = "left"
+) -> Dict[str, Any]:
+    """
+    统一的Edge创建函数。
+
+    创建符合Obsidian Canvas格式的Edge数据。
+
+    Args:
+        from_node_id: 源节点ID
+        to_node_id: 目标节点ID
+        label: Edge标签文字
+        color: Edge颜色代码 (使用EdgeColors常量)
+        from_side: 源节点连接点 ("top", "bottom", "left", "right")
+        to_side: 目标节点连接点 ("top", "bottom", "left", "right")
+
+    Returns:
+        Edge数据字典，可直接添加到Canvas的edges数组
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+    """
+    edge = {
+        "id": f"edge-{uuid.uuid4().hex[:8]}",
+        "fromNode": from_node_id,
+        "toNode": to_node_id,
+        "fromSide": from_side,
+        "toSide": to_side,
+    }
+
+    # 只在有值时添加可选字段
+    if label:
+        edge["label"] = label
+    if color and color != EdgeColors.DEFAULT:
+        edge["color"] = color
+
+    logger.debug(f"Created edge: {from_node_id} → {to_node_id} [{label}]")
+    return edge
+
+
+def edge_exists(
+    edges: List[Dict[str, Any]],
+    from_node_id: str,
+    to_node_id: str,
+    label: Optional[str] = None
+) -> bool:
+    """
+    检查Edge是否已存在。
+
+    用于避免创建重复的Edge连接。
+
+    Args:
+        edges: 现有Edge列表
+        from_node_id: 源节点ID
+        to_node_id: 目标节点ID
+        label: Edge标签 (可选，如果提供则同时检查标签匹配)
+
+    Returns:
+        True如果存在相同的Edge，False否则
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+    """
+    for edge in edges:
+        if (edge.get("fromNode") == from_node_id and
+            edge.get("toNode") == to_node_id):
+            # 如果不检查标签，或标签匹配，则认为存在
+            if label is None or edge.get("label") == label:
+                return True
+    return False
+
+
+def create_edge_if_not_exists(
+    existing_edges: List[Dict[str, Any]],
+    from_node_id: str,
+    to_node_id: str,
+    label: str = "",
+    color: str = EdgeColors.DEFAULT,
+    from_side: str = "right",
+    to_side: str = "left"
+) -> Optional[Dict[str, Any]]:
+    """
+    如果Edge不存在则创建。
+
+    防止重复Edge的安全创建函数。
+
+    Args:
+        existing_edges: 现有Edge列表
+        from_node_id: 源节点ID
+        to_node_id: 目标节点ID
+        label: Edge标签
+        color: Edge颜色
+        from_side: 源节点连接点
+        to_side: 目标节点连接点
+
+    Returns:
+        新创建的Edge数据字典，如果Edge已存在则返回None
+
+    [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-6]
+    """
+    if edge_exists(existing_edges, from_node_id, to_node_id, label if label else None):
+        logger.debug(f"Edge already exists: {from_node_id} → {to_node_id} [{label}], skipping")
+        return None
+
+    return create_edge(
+        from_node_id=from_node_id,
+        to_node_id=to_node_id,
+        label=label,
+        color=color,
+        from_side=from_side,
+        to_side=to_side
+    )
 
 
 class AgentService:
@@ -947,8 +1511,8 @@ class AgentService:
         [Source: FIX-2.1 实现Claude Vision多模态支持]
         [Source: FIX-3.0 返回created_nodes数组用于Canvas写入]
         """
-        import uuid
         import json as json_module  # Avoid conflict with local variables
+        import uuid
 
         context_len = len(adjacent_context) if adjacent_context else 0
         images_count = len(images) if images else 0
@@ -991,21 +1555,29 @@ class AgentService:
             content, explanation_type, context=enhanced_context, images=images
         )
 
-        # ✅ FIX: Extract explanation text from AI response
-        # [Source: unified-knitting-crane.md - Root Cause: ExplainResponse validation failed]
-        # The AI returns Markdown text directly in result.data["response"]
-        explanation_text = ""
-        if result.data:
-            if isinstance(result.data, dict):
-                # AI response is in "response" field as Markdown text
-                explanation_text = result.data.get("response", "")
-                if not explanation_text:
-                    # Fallback: try "explanation" key or stringify the dict
-                    explanation_text = result.data.get("explanation", str(result.data))
-            elif isinstance(result.data, str):
-                explanation_text = result.data
-            else:
-                explanation_text = str(result.data)
+        # ✅ Story 21.3: Use multi-fallback extraction with friendly error handling
+        # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+        explanation_text, extraction_success = extract_explanation_text(result.data)
+
+        if not extraction_success or not explanation_text:
+            logger.error(
+                f"generate_explanation: Failed to extract text for {explanation_type}",
+                extra={
+                    "node_id": node_id,
+                    "explanation_type": explanation_type,
+                    "result_data_type": type(result.data).__name__ if result.data else "None"
+                }
+            )
+            # Return error response instead of empty result
+            return create_error_response(
+                error_message="无法从AI响应中提取有效内容",
+                source_node_id=node_id,
+                agent_type=explanation_type,
+                source_x=source_x,
+                source_y=source_y,
+                source_width=source_width,
+                source_height=source_height,
+            )
 
         # ✅ FIX: Generate created_node_id (required by ExplainResponse)
         created_node_id = f"explain-{explanation_type}-{node_id}-{uuid.uuid4().hex[:8]}"
@@ -1016,9 +1588,9 @@ class AgentService:
         created_edges = []
 
         # ✅ FIX-4.3: Calculate explanations directory path
-        from app.config import settings
         from datetime import datetime
-        import re
+
+        from app.config import settings
 
         vault_path = settings.CANVAS_BASE_PATH  # e.g., "C:/Users/ROG/托福/Canvas/笔记库"
         # canvas_name is relative path like "Canvas/Math53/Lecture5.canvas"
@@ -1076,22 +1648,7 @@ class AgentService:
                 })
                 logger.info(f"[FIX-4.8] Created four-level file node {explain_node_id}")
 
-                # ✅ FIX-4.9: Create ONE yellow understanding node
-                yellow_node_id = f"understand-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
-                yellow_y = node_y + node_height + gap_y
-                created_nodes.append({
-                    "id": yellow_node_id,
-                    "type": "text",
-                    "text": "# 💡 我的理解\n\n[请在此填写你对四层次解释的整体理解...]\n\n## 新手层理解\n\n\n## 进阶层理解\n\n\n## 专家层理解\n\n\n## 创新层理解\n\n",
-                    "x": node_x,
-                    "y": yellow_y,
-                    "width": node_width,
-                    "height": yellow_height,
-                    "color": "6",  # ✅ FIX-4.11: Purple (matches user's reference node)
-                })
-                logger.info(f"[FIX-4.11] Created PURPLE understanding node {yellow_node_id}")
-
-                # Create edges: Source → Explanation → Yellow
+                # Create edge: Source → Explanation
                 edge1_id = f"edge-src-explain-{uuid.uuid4().hex[:8]}"
                 created_edges.append({
                     "id": edge1_id,
@@ -1102,19 +1659,40 @@ class AgentService:
                     "label": "四层次解释",
                 })
 
-                edge2_id = f"edge-explain-yellow-{uuid.uuid4().hex[:8]}"
-                created_edges.append({
-                    "id": edge2_id,
-                    "fromNode": explain_node_id,
-                    "toNode": yellow_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                    "label": "个人理解",  # ✅ FIX-4.10: Add edge label
-                    "color": "6",  # ✅ Purple edge (matches user's reference)
-                })
+                # ✅ Story 21.5: Conditionally create personal understanding node
+                # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
+                if AUTO_CREATE_PERSONAL_NODE:
+                    # ✅ FIX-4.9: Create ONE yellow understanding node
+                    yellow_node_id = f"understand-four-level-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                    yellow_y = node_y + node_height + gap_y
+                    created_nodes.append({
+                        "id": yellow_node_id,
+                        "type": "text",
+                        "text": "# 💡 我的理解\n\n[请在此填写你对四层次解释的整体理解...]\n\n## 新手层理解\n\n\n## 进阶层理解\n\n\n## 专家层理解\n\n\n## 创新层理解\n\n",
+                        "x": node_x,
+                        "y": yellow_y,
+                        "width": node_width,
+                        "height": yellow_height,
+                        "color": "6",  # ✅ FIX-4.11: Purple (matches user's reference node)
+                    })
+                    logger.info(f"[Story 21.5] Created PURPLE understanding node {yellow_node_id}")
+
+                    # Create edge: Explanation → Personal Understanding
+                    edge2_id = f"edge-explain-yellow-{uuid.uuid4().hex[:8]}"
+                    created_edges.append({
+                        "id": edge2_id,
+                        "fromNode": explain_node_id,
+                        "toNode": yellow_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": "个人理解",  # ✅ FIX-4.10: Add edge label
+                        "color": "6",  # ✅ Purple edge (matches user's reference)
+                    })
+                else:
+                    logger.debug("[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node")
 
                 created_node_id = explain_node_id
-                logger.info(f"[FIX-4.8/4.9] Four-level explanation complete: 1 file, 1 yellow node, 2 edges")
+                logger.info("[FIX-4.8/4.9] Four-level explanation complete: 1 file, 1 yellow node, 2 edges")
 
             else:
                 # ✅ FIX-4.3: Standard single-node explanation (oral, basic, etc.) - create .md files
@@ -1149,22 +1727,7 @@ class AgentService:
                 })
                 logger.info(f"[FIX-4.3] Created explanation file node {created_node_id} at ({node_x}, {node_y})")
 
-                # ✅ FIX-4.5: Create text type yellow understanding node (directly editable in Canvas)
-                yellow_node_id = f"understand-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
-                yellow_y = node_y + node_height + 30
-                created_nodes.append({
-                    "id": yellow_node_id,
-                    "type": "text",
-                    "text": "# 💡 我的理解\n\n[请在此填写你的个人理解...]",
-                    "x": node_x,
-                    "y": yellow_y,
-                    "width": node_width,
-                    "height": 120,
-                    "color": "3",  # Yellow
-                })
-                logger.info(f"[FIX-4.5] Created yellow text node {yellow_node_id}")
-
-                # Create edges: Source → Explanation → Yellow
+                # Create edge: Source → Explanation
                 edge1_id = f"edge-{node_id[:8]}-{created_node_id[:8]}-{uuid.uuid4().hex[:4]}"
                 created_edges.append({
                     "id": edge1_id,
@@ -1175,16 +1738,38 @@ class AgentService:
                     "label": explanation_type,
                 })
 
-                edge2_id = f"edge-{created_node_id[:8]}-{yellow_node_id[:8]}-{uuid.uuid4().hex[:4]}"
-                created_edges.append({
-                    "id": edge2_id,
-                    "fromNode": created_node_id,
-                    "toNode": yellow_node_id,
-                    "fromSide": "bottom",
-                    "toSide": "top",
-                })
+                # ✅ Story 21.5: Conditionally create personal understanding node
+                # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-5]
+                if AUTO_CREATE_PERSONAL_NODE:
+                    # ✅ FIX-4.5: Create text type yellow understanding node (directly editable in Canvas)
+                    yellow_node_id = f"understand-{node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                    yellow_y = node_y + node_height + PERSONAL_NODE_VERTICAL_OFFSET
+                    created_nodes.append({
+                        "id": yellow_node_id,
+                        "type": "text",
+                        "text": PERSONAL_NODE_PROMPT_TEXT,  # ✅ Story 21.5: Use configurable prompt
+                        "x": node_x,
+                        "y": yellow_y,
+                        "width": node_width,
+                        "height": 120,
+                        "color": "3",  # Yellow - 待填写的个人理解区域
+                    })
+                    logger.info(f"[Story 21.5] Created yellow text node {yellow_node_id}")
 
-                logger.info(f"[FIX-4.3] Created edges for standard explanation")
+                    # Create edge: Explanation → Personal Understanding
+                    edge2_id = f"edge-{created_node_id[:8]}-{yellow_node_id[:8]}-{uuid.uuid4().hex[:4]}"
+                    created_edges.append({
+                        "id": edge2_id,
+                        "fromNode": created_node_id,
+                        "toNode": yellow_node_id,
+                        "fromSide": "bottom",
+                        "toSide": "top",
+                        "label": "个人理解",  # ✅ Story 21.5: Add edge label
+                        "color": "3",  # Yellow edge matches node
+                    })
+                    logger.info("[Story 21.5] Created edges for standard explanation with personal node")
+                else:
+                    logger.debug("[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node")
 
         return {
             "node_id": node_id,
