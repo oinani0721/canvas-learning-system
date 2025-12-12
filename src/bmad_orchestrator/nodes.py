@@ -48,6 +48,10 @@ from .state import (
     StoryDraft,
 )
 
+# ✅ Verified from Project Code (src/bmad_orchestrator/commit_gate.py)
+# Commit Gate v2 - 零幻觉强制验证机制
+from .commit_gate import CommitGate, CommitGateError
+
 # ============================================================================
 # PostProcessHook 导入 (用于 Story 文件更新和 QA Gate 生成)
 # ============================================================================
@@ -79,6 +83,54 @@ def _ensure_post_process_hook():
 DEFAULT_MAX_TURNS = 200
 DEFAULT_ULTRATHINK = True
 DEFAULT_TIMEOUT = 3600  # 1 hour
+
+
+# ============================================================================
+# Epic 文件查找辅助函数
+# ============================================================================
+
+def find_epic_file(base_path: Path, epic_id: str) -> str:
+    """
+    查找 Epic 文件，支持多种命名模式。
+
+    搜索顺序:
+    1. docs/prd/epic-{epic_id}.md (小写)
+    2. docs/prd/EPIC-{epic_id}.md (大写无后缀)
+    3. docs/prd/EPIC-{epic_id}-*.md (大写带后缀，如 EPIC-20-BACKEND-STABILITY-MULTI-PROVIDER.md)
+    4. docs/prd/epics/epic-{epic_id}.md
+    5. docs/prd/epics/EPIC-{epic_id}*.md
+
+    Args:
+        base_path: 项目根目录
+        epic_id: Epic 编号 (如 "20")
+
+    Returns:
+        Epic 文件的相对路径，如果未找到则返回默认路径
+    """
+    import glob
+
+    # 可能的模式列表
+    patterns = [
+        f"docs/prd/epic-{epic_id}.md",
+        f"docs/prd/EPIC-{epic_id}.md",
+        f"docs/prd/EPIC-{epic_id}-*.md",
+        f"docs/prd/epics/epic-{epic_id}.md",
+        f"docs/prd/epics/EPIC-{epic_id}*.md",
+    ]
+
+    for pattern in patterns:
+        full_pattern = str(base_path / pattern)
+        matches = glob.glob(full_pattern)
+        if matches:
+            # 返回相对路径
+            match_path = Path(matches[0])
+            try:
+                return str(match_path.relative_to(base_path))
+            except ValueError:
+                return matches[0]
+
+    # 未找到，返回默认路径（让 SM Agent 报告未找到）
+    return f"docs/prd/epic-{epic_id}.md"
 
 
 # ============================================================================
@@ -259,27 +311,83 @@ async def create_worktree(
 
     Returns:
         Worktree 路径
+
+    Raises:
+        RuntimeError: 如果 worktree 创建失败
     """
+    import shutil
+
     if branch_name is None:
         branch_name = f"develop-{story_id}"
 
     worktree_path = worktree_base / f"Canvas-{branch_name}"
+    print(f"[Worktree] Creating worktree: {worktree_path} (branch: {branch_name})")
 
-    # 如果已存在，先清理
+    # 如果目录已存在，先清理
     if worktree_path.exists():
-        proc = await asyncio.create_subprocess_exec(
-            'git', 'worktree', 'remove', str(worktree_path), '--force',
-            cwd=str(base_path),
-        )
-        await proc.wait()
+        git_file = worktree_path / ".git"
+        if git_file.exists():
+            # 是有效的 git worktree，使用 git 命令移除
+            print(f"[Worktree] Removing existing worktree: {worktree_path}")
+            proc = await asyncio.create_subprocess_exec(
+                'git', 'worktree', 'remove', str(worktree_path), '--force',
+                cwd=str(base_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, stderr = await proc.communicate()
+            if proc.returncode != 0:
+                print(f"[Worktree] WARN: git worktree remove failed: {stderr.decode()}")
+                # 回退到 shutil
+                shutil.rmtree(worktree_path, ignore_errors=True)
+        else:
+            # 孤立目录（不是有效 worktree），直接删除
+            print(f"[Worktree] Removing orphaned directory: {worktree_path}")
+            shutil.rmtree(worktree_path, ignore_errors=True)
+
+    # 检查分支是否已存在
+    proc = await asyncio.create_subprocess_exec(
+        'git', 'branch', '--list', branch_name,
+        cwd=str(base_path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+    branch_exists = bool(stdout.decode().strip())
 
     # 创建新 worktree
-    proc = await asyncio.create_subprocess_exec(
-        'git', 'worktree', 'add', '-b', branch_name, str(worktree_path),
-        cwd=str(base_path),
-    )
-    await proc.wait()
+    if branch_exists:
+        # 分支已存在，不使用 -b
+        print(f"[Worktree] Branch '{branch_name}' exists, creating worktree without -b")
+        proc = await asyncio.create_subprocess_exec(
+            'git', 'worktree', 'add', str(worktree_path), branch_name,
+            cwd=str(base_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    else:
+        # 分支不存在，使用 -b 创建新分支
+        print(f"[Worktree] Creating new branch '{branch_name}'")
+        proc = await asyncio.create_subprocess_exec(
+            'git', 'worktree', 'add', '-b', branch_name, str(worktree_path),
+            cwd=str(base_path),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
 
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        error_msg = stderr.decode() if stderr else "Unknown error"
+        print(f"[Worktree] ERROR: git worktree add failed: {error_msg}")
+        raise RuntimeError(f"Failed to create worktree: {error_msg}")
+
+    # 验证 worktree 创建成功
+    git_file = worktree_path / ".git"
+    if not git_file.exists():
+        raise RuntimeError(f"Worktree created but .git file missing: {worktree_path}")
+
+    print(f"[Worktree] SUCCESS: Created worktree at {worktree_path}")
     return worktree_path
 
 
@@ -543,8 +651,9 @@ async def sm_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     story_ids = state["story_ids"]
     epic_id = state["epic_id"]
 
-    # 获取 Epic 文件路径
-    epic_file = f"docs/prd/epic-{epic_id}.md"
+    # 获取 Epic 文件路径 (支持多种命名模式)
+    epic_file = find_epic_file(base_path, epic_id)
+    print(f"[SM Node] Found Epic file: {epic_file}")
 
     spawner = BmadSessionSpawner(
         max_turns=state.get("max_turns", DEFAULT_MAX_TURNS),
@@ -1373,6 +1482,9 @@ async def dev_node(state: BmadOrchestratorState) -> Dict[str, Any]:
             outcome: DevOutcome = {
                 "story_id": story_id,
                 "outcome": "ERROR",
+                "status": "real_execution",  # 🔒 G5: 真实执行标记 (异常也是真实执行)
+                "synthetic": False,           # 🔒 G5: 非合成结果
+                "skipped": False,             # 🔒 G5: 未跳过
                 "tests_passed": False,
                 "test_count": 0,
                 "test_coverage": None,
@@ -1460,6 +1572,9 @@ async def _run_dev_session(
         outcome: DevOutcome = {
             "story_id": story_id,
             "outcome": "DEV_BLOCKED",
+            "status": "real_execution",  # 🔒 G5: 真实执行标记 (文件查找是真实操作)
+            "synthetic": False,           # 🔒 G5: 非合成结果
+            "skipped": False,             # 🔒 G5: 未跳过
             "tests_passed": False,
             "test_count": 0,
             "test_coverage": None,
@@ -1495,6 +1610,9 @@ async def _run_dev_session(
             outcome: DevOutcome = {
                 "story_id": story_id,
                 "outcome": result.outcome,
+                "status": "real_execution",  # 🔒 G5: 真实执行标记
+                "synthetic": False,           # 🔒 G5: 非合成结果
+                "skipped": False,             # 🔒 G5: 未跳过
                 "tests_passed": result.tests_passed,
                 "test_count": result.test_count,
                 "test_coverage": result.test_coverage,
@@ -1510,6 +1628,9 @@ async def _run_dev_session(
             outcome: DevOutcome = {
                 "story_id": story_id,
                 "outcome": "ERROR",
+                "status": "real_execution",  # 🔒 G5: 真实执行标记
+                "synthetic": False,           # 🔒 G5: 非合成结果
+                "skipped": False,             # 🔒 G5: 未跳过
                 "tests_passed": False,
                 "test_count": 0,
                 "test_coverage": None,
@@ -1528,6 +1649,9 @@ async def _run_dev_session(
         outcome: DevOutcome = {
             "story_id": story_id,
             "outcome": "TIMEOUT",
+            "status": "real_execution",  # 🔒 G5: 真实执行标记 (超时也是真实执行)
+            "synthetic": False,           # 🔒 G5: 非合成结果
+            "skipped": False,             # 🔒 G5: 未跳过
             "tests_passed": False,
             "test_count": 0,
             "test_coverage": None,
@@ -1983,21 +2107,28 @@ async def sdd_validation_node(state: BmadOrchestratorState) -> Dict[str, Any]:
 
 async def merge_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     """
-    Merge 节点 - Worktree 合并
+    Merge 节点 - Worktree 合并 (集成 Commit Gate v2)
 
     功能:
-    1. 将完成 QA 的 worktrees 合并到主分支
-    2. 处理合并冲突
-    3. 清理 worktrees
+    1. 🔒 执行 Commit Gate v2 验证 (G1-G10) - 硬性指标
+    2. 将完成 QA 的 worktrees 合并到主分支
+    3. 处理合并冲突
+    4. 清理 worktrees
+
+    ⚠️ Commit Gate 是硬性指标:
+    - 任何检查失败都会阻止 merge
+    - Gate 失败的 Story 会被路由回 DEV/QA
+    - 所有验证结果记录到审计日志
 
     Args:
         state: 当前编排状态
 
     Returns:
         State 更新:
-        - merge_status: "completed" | "conflict_detected" | "failed"
+        - merge_status: "completed" | "conflict_detected" | "failed" | "gate_blocked"
         - merge_conflicts: List[Dict]
-        - current_phase: "COMMIT" | "HALT"
+        - gate_results: List[Dict] - Commit Gate 验证结果
+        - current_phase: "COMMIT" | "HALT" | "DEV"
     """
     print("[Merge Node] Starting merge phase")
 
@@ -2018,6 +2149,89 @@ async def merge_node(state: BmadOrchestratorState) -> Dict[str, Any]:
         }
 
     print(f"[Merge Node] Stories to merge: {passed_stories}")
+
+    # ========================================
+    # 🔒 Commit Gate v2 - 零幻觉强制验证
+    # ========================================
+    print("[Merge Node] 🔒 Executing Commit Gate v2 (G1-G10 verification)")
+
+    gate_results: List[Dict[str, Any]] = []
+    gate_passed_stories: List[str] = []
+    gate_failed_stories: List[str] = []
+
+    # 获取 dev_outcomes 和 story_drafts 用于 Gate 验证
+    dev_outcomes = state.get("dev_outcomes", [])
+    story_drafts = state.get("story_drafts", [])
+
+    # 构建 story_id → outcome 映射
+    dev_outcome_map = {o["story_id"]: o for o in dev_outcomes}
+    qa_outcome_map = {o["story_id"]: o for o in qa_outcomes}
+    story_draft_map = {d["story_id"]: d for d in story_drafts}
+
+    for story_id in passed_stories:
+        worktree_path = worktree_paths.get(story_id)
+        if not worktree_path:
+            continue
+
+        # 获取该 Story 的 dev/qa outcome
+        dev_outcome = dev_outcome_map.get(story_id, {})
+        qa_outcome = qa_outcome_map.get(story_id, {})
+        story_draft = story_draft_map.get(story_id)
+
+        try:
+            # 🔒 执行 Commit Gate v2 验证 (G1-G10)
+            gate = CommitGate(story_id, worktree_path, base_path=base_path)
+            await gate.execute_gate(
+                dev_outcome=dev_outcome,
+                qa_outcome=qa_outcome,
+                story_draft=story_draft,
+            )
+
+            # Gate 通过
+            gate_results.append({
+                "story_id": story_id,
+                "gate_passed": True,
+                "checks_passed": gate.results,
+                "timestamp": datetime.now().isoformat(),
+            })
+            gate_passed_stories.append(story_id)
+            print(f"[Merge Node] [GATE PASS] Story {story_id}")
+
+        except CommitGateError as e:
+            # Gate 失败 - 记录失败原因
+            gate_results.append({
+                "story_id": story_id,
+                "gate_passed": False,
+                "error": str(e),
+                "failed_checks": e.failed_checks if hasattr(e, 'failed_checks') else [],
+                "timestamp": datetime.now().isoformat(),
+            })
+            gate_failed_stories.append(story_id)
+            print(f"[Merge Node] [GATE FAIL] Story {story_id}: {str(e)[:100]}")
+
+        except Exception as e:
+            # 其他异常也视为 Gate 失败
+            gate_results.append({
+                "story_id": story_id,
+                "gate_passed": False,
+                "error": f"Unexpected error: {str(e)}",
+                "timestamp": datetime.now().isoformat(),
+            })
+            gate_failed_stories.append(story_id)
+            print(f"[Merge Node] [GATE ERROR] Story {story_id}: {str(e)[:100]}")
+
+    # 如果有 Gate 失败的 Story，阻止 merge 并路由回 DEV
+    if gate_failed_stories:
+        print(f"[Merge Node] 🔒 GATE BLOCKED: {len(gate_failed_stories)} stories failed verification")
+        return {
+            "merge_status": "gate_blocked",
+            "gate_results": gate_results,
+            "gate_failed_stories": gate_failed_stories,
+            "current_phase": "DEV",  # 路由回 DEV 修复
+        }
+
+    # 所有 Gate 通过，继续合并
+    print(f"[Merge Node] ✅ All {len(gate_passed_stories)} stories passed Commit Gate")
 
     merge_conflicts: List[Dict[str, str]] = []
 
@@ -2092,6 +2306,7 @@ async def merge_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     return {
         "merge_status": merge_status,
         "merge_conflicts": merge_conflicts,
+        "gate_results": gate_results,  # 🔒 Commit Gate 验证结果
         "current_phase": next_phase,
     }
 

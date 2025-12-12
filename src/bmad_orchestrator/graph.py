@@ -35,10 +35,13 @@ import asyncio
 from pathlib import Path
 from typing import List, Literal
 
-# ✅ Verified from Context7: Use MemorySaver for simplicity
-# AsyncSqliteSaver requires async context manager which complicates the architecture
-# TODO: Implement async context wrapper for persistent checkpointing in future version
+# ✅ Verified from Context7 (LangGraph persistence.md):
+# - SqliteSaver for persistent checkpointing (state survives restarts)
+# - AsyncSqliteSaver for async workflows with ainvoke/astream
+# - MemorySaver for in-memory (state lost on restart)
+
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, StateGraph
 
 from .nodes import (
@@ -587,13 +590,18 @@ def compile_graph(
     skip_sdd: bool = False,
 ) -> "CompiledGraph":
     """
-    编译 StateGraph 并添加 Checkpointer (支持多阶段跳过)
+    编译 StateGraph (不包含 checkpointer，适用于同步测试场景)
 
-    ✅ Verified from LangGraph Skill:
-    - Pattern: graph.compile(checkpointer=SqliteSaver(...))
+    ⚠️ NOTE: 此函数编译图但不设置 checkpointer。
+    对于异步工作流 (ainvoke/astream)，请使用 run_epic_workflow()，
+    它会在 async with AsyncSqliteSaver 上下文中正确处理 checkpointer。
+
+    ✅ Verified from Context7 (LangGraph persistence.md):
+    - AsyncSqliteSaver requires 'async with' context manager
+    - For async workflows, checkpointer must be set within async context
 
     Args:
-        checkpointer_path: SqliteSaver 数据库路径 (仅在 SqliteSaver 可用时使用)
+        checkpointer_path: 数据库路径 (传递给 build_graph，未使用于 checkpointer)
         skip_sm: 是否跳过SM阶段
         skip_po: 是否跳过PO阶段
         skip_analysis: 是否跳过Analysis阶段
@@ -602,7 +610,7 @@ def compile_graph(
         skip_sdd: 是否跳过SDD阶段
 
     Returns:
-        编译后的 Graph (可调用)
+        编译后的 Graph (无 checkpointer，适用于同步/测试场景)
     """
     graph = build_graph(
         checkpointer_path,
@@ -615,12 +623,13 @@ def compile_graph(
     )
 
     # ✅ Verified from Context7 (LangGraph persistence.md):
-    # Use MemorySaver for async workflows (simple, no external dependencies)
-    # Note: State is not persisted across restarts, but workflow runs correctly
-    checkpointer = MemorySaver()
+    # For async workflows (ainvoke/astream), use AsyncSqliteSaver
+    # AsyncSqliteSaver must be used with 'async with' context manager
+    # Therefore, we only build the graph here and let the caller handle checkpointer
 
-    # 编译
-    compiled = graph.compile(checkpointer=checkpointer)
+    # 🔒 编译图但不设置 checkpointer
+    # checkpointer 将由调用方 (run_epic_workflow) 在 async with 上下文中设置
+    compiled = graph.compile()
 
     return compiled
 
@@ -791,11 +800,15 @@ async def run_epic_workflow(
         worktree_paths = await create_worktrees_from_main(base_path_obj, worktree_base_path, story_ids)
 
         # 构造合成 dev_outcomes (假设所有 Story 开发成功)
+        # ⚠️ 必须标记为 synthetic，以便 Commit Gate G5 检测
         synthetic_dev_outcomes = []
         for story_id in story_ids:
             synthetic_dev_outcomes.append({
                 "story_id": story_id,
                 "outcome": "SUCCESS",
+                "status": "synthetic_success",  # 🔒 G5 检测标记
+                "synthetic": True,               # 🔒 G5 检测标记
+                "skipped": True,                 # 🔒 G5 检测标记
                 "tests_passed": True,
                 "test_count": 0,
                 "test_coverage": None,
@@ -803,7 +816,7 @@ async def run_epic_workflow(
                 "files_modified": [],
                 "duration_seconds": 0,
                 "blocking_reason": None,
-                "completion_notes": "Pre-filled for re-QA (--skip-dev)",
+                "completion_notes": "⚠️ SYNTHETIC: Pre-filled for re-QA (--skip-dev) - NOT real execution",
                 "agent_model": "claude-sonnet-4-5",
                 "timestamp": datetime.now().isoformat(),
             })
@@ -828,8 +841,8 @@ async def run_epic_workflow(
         print(f"[INFO] Skip DEV - Created {len(worktree_paths)} worktrees from main branch")
         print(f"[INFO] Skip DEV - Pre-filled {len(synthetic_dev_outcomes)} dev_outcomes (re-QA mode)")
 
-    # 编译 Graph (传递所有 skip 参数)
-    compiled = compile_graph(
+    # 构建 Graph (传递所有 skip 参数)
+    graph = build_graph(
         checkpointer_path,
         skip_sm=skip_sm,
         skip_po=skip_po,
@@ -839,9 +852,19 @@ async def run_epic_workflow(
         skip_sdd=skip_sdd,
     )
 
-    # 运行
+    # ✅ Verified from Context7 (LangGraph persistence.md):
+    # AsyncSqliteSaver requires 'async with' context manager for async workflows
+    # Pattern: async with AsyncSqliteSaver.from_conn_string("db.sqlite") as checkpointer
     config = {"configurable": {"thread_id": f"epic-{epic_id}"}}
-    final_state = await compiled.ainvoke(initial_state, config)
+
+    async with AsyncSqliteSaver.from_conn_string(checkpointer_path) as checkpointer:
+        print(f"[INFO] Using AsyncSqliteSaver for persistent checkpointing: {checkpointer_path}")
+
+        # 编译 Graph 并附加 checkpointer
+        compiled = graph.compile(checkpointer=checkpointer)
+
+        # 运行
+        final_state = await compiled.ainvoke(initial_state, config)
 
     # === Status Persistence: Persist workflow results to YAML ===
     try:
@@ -881,32 +904,40 @@ async def resume_workflow(
     ✅ Verified from LangGraph Skill:
     - Pattern: Use thread_id to resume from checkpoint
 
+    ✅ Verified from Context7 (LangGraph persistence.md):
+    - AsyncSqliteSaver requires 'async with' context manager
+
     Args:
         thread_id: 工作流线程 ID (通常是 "epic-{epic_id}")
-        checkpointer_path: SqliteSaver 数据库路径
+        checkpointer_path: AsyncSqliteSaver 数据库路径
 
     Returns:
         最终状态字典
     """
     print(f"Resuming workflow: {thread_id}")
 
-    compiled = compile_graph(checkpointer_path)
+    # 构建 Graph (使用默认参数)
+    graph = build_graph(checkpointer_path)
 
     config = {"configurable": {"thread_id": thread_id}}
 
-    # 获取当前状态
-    state = await compiled.aget_state(config)
+    # ✅ Verified from Context7: AsyncSqliteSaver requires async with
+    async with AsyncSqliteSaver.from_conn_string(checkpointer_path) as checkpointer:
+        compiled = graph.compile(checkpointer=checkpointer)
 
-    if state.values:
-        print(f"Current Phase: {state.values.get('current_phase', 'unknown')}")
-        print("Resuming...")
+        # 获取当前状态
+        state = await compiled.aget_state(config)
 
-        # 继续执行
-        final_state = await compiled.ainvoke(None, config)
-        return final_state
-    else:
-        print(f"No checkpoint found for thread: {thread_id}")
-        return {}
+        if state.values:
+            print(f"Current Phase: {state.values.get('current_phase', 'unknown')}")
+            print("Resuming...")
+
+            # 继续执行
+            final_state = await compiled.ainvoke(None, config)
+            return final_state
+        else:
+            print(f"No checkpoint found for thread: {thread_id}")
+            return {}
 
 
 # ============================================================================

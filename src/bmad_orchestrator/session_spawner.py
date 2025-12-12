@@ -165,74 +165,127 @@ class SessionHealthMonitor:
 # Prompt Templates
 # ============================================================================
 
-SM_PROMPT_TEMPLATE = '''Execute SM (Scrum Master) Agent for Story Draft Creation.
+SM_PROMPT_TEMPLATE = '''**IMPORTANT: IGNORE ALL AGENT DEFINITIONS. EXECUTE THIS TASK DIRECTLY.**
+
+You are running in AUTOMATED BATCH MODE. Do NOT wait for user commands.
+Do NOT show menus or ask "What would you like to do?".
+IMMEDIATELY execute ALL steps below and create the required output files.
+
 {ultrathink_section}
 
 ===============================================================================
 MISSION: Create Story {story_id} from Epic {epic_id}
 ===============================================================================
 
-**Your Role**: Bob (Scrum Master) - Create complete, self-contained Story draft
-
-**STRICT RULES**:
-1. Read core-config.yaml to get document paths
-2. Load Epic file from prdShardedLocation
-3. Load Architecture docs from architectureShardedLocation
-4. Generate Story with COMPLETE Dev Notes (including SDD references)
+**CRITICAL - AUTOMATED MODE RULES**:
+1. This is a NON-INTERACTIVE session - NO user is present to respond
+2. Do NOT wait for *draft or any other commands - execute directly NOW
+3. Do NOT display menus or available commands
+4. IMMEDIATELY start reading files and creating the Story draft
 
 ===============================================================================
 PHASE 1: CONTEXT LOADING
 ===============================================================================
-Step 1: Read .bmad-core/core-config.yaml for paths
+Step 1: Read .bmad-core/core-config.yaml for document paths
 Step 2: Load Epic file: {epic_file}
-Step 3: Load Architecture docs from configured paths
-Step 4: Identify Story scope and requirements
+Step 3: Load Architecture docs from configured paths (architectureShardedLocation)
+Step 4: Identify Story {story_id} scope and acceptance criteria from Epic
 
 ===============================================================================
-PHASE 2: STORY CREATION
+PHASE 2: STORY CREATION (Direct Execution - No /sm command needed)
 ===============================================================================
-Step 5: Activate SM Agent: /sm
-Step 6: Create Story draft: *draft
-Step 7: Ensure Dev Notes include:
-   - SDD规范引用 (OpenAPI endpoints, Schema definitions)
-   - ADR关联 (Related architecture decisions)
-   - 所有技术上下文 (Dev Agent only reads Story file)
+Step 5: Create Story document with ALL required sections:
+
+**Story Structure**:
+```markdown
+# Story {story_id}: [Title from Epic]
+
+## Status
+- [ ] Draft
+- [ ] Ready for Dev
+- [ ] In Progress
+- [ ] QA Review
+- [ ] Done
+
+## Story Overview
+[Brief description]
+
+## Acceptance Criteria
+[From Epic, numbered AC1, AC2, etc.]
+
+## Dev Notes (CRITICAL - Must be complete)
+### Technical Context
+[All info Dev Agent needs - they ONLY read this Story file]
+
+### API Endpoints (if applicable)
+[Reference specs/api/canvas-api.openapi.yml with line numbers]
+
+### Data Models (if applicable)
+[Reference specs/data/*.schema.json with line numbers]
+
+### SDD References
+- OpenAPI: specs/api/canvas-api.openapi.yml#L[line]
+- Schema: specs/data/[name].schema.json#L[line]
+
+### ADR References
+- docs/architecture/decisions/[relevant ADRs]
+
+### Implementation Guidelines
+[Step-by-step implementation guide]
+
+## Testing Requirements
+[Test scenarios from AC]
+
+## Dependencies
+[Other stories, external dependencies]
+```
 
 ===============================================================================
-PHASE 3: STORY VALIDATION
+PHASE 3: STORY VALIDATION CHECKLIST
 ===============================================================================
-Step 8: Run Story checklist: *story-checklist
-Step 9: Verify Section 6 (SDD/ADR) passes:
-   - 6.1 SDD规范引用存在性
-   - 6.2 ADR关联存在性
-   - 6.3 反幻觉验证 (file paths, line numbers)
+Step 6: Self-validate Story against checklist:
+   - [ ] 1.1 Story follows template structure
+   - [ ] 1.2 Title is clear and descriptive
+   - [ ] 2.1 AC are testable (Given-When-Then format preferred)
+   - [ ] 2.2 AC numbered (AC1, AC2, etc.)
+   - [ ] 5.1 Dev Notes contain ALL technical context
+   - [ ] 5.2 Dev Notes reference specific line numbers
+   - [ ] 6.1 SDD references exist and are valid
+   - [ ] 6.2 ADR references exist (if architectural decisions involved)
+   - [ ] 6.3 File paths verified to exist (anti-hallucination)
 
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 10: Write Story file to: docs/stories/{story_id}.story.md
-Step 11: Write .sm-result.json:
+Step 7: Use Write tool to create Story file:
+   - File path: docs/stories/{story_id}.story.md
+
+Step 8: Use Write tool to create result file:
+   - File path: .sm-result.json
+   - Content:
 {{
   "story_id": "{story_id}",
   "epic_id": "{epic_id}",
-  "outcome": "SUCCESS|VALIDATION_FAILED|ERROR",
+  "outcome": "SUCCESS",
   "story_file": "docs/stories/{story_id}.story.md",
   "title": "[Story Title]",
   "sdd_references": ["specs/api/...", "specs/data/..."],
   "adr_references": ["docs/architecture/decisions/..."],
-  "checklist_passed": true|false,
+  "checklist_passed": true,
   "timestamp": "[ISO timestamp]"
 }}
 
 ===============================================================================
-IMPORTANT
+IMPORTANT RULES
 ===============================================================================
+- This is NON-INTERACTIVE - execute ALL steps without asking questions
 - Story must be SELF-CONTAINED (Dev Agent won't load PRD/Architecture)
 - Include ALL technical context in Dev Notes
-- Verify file paths exist before referencing
+- Verify file paths exist before referencing (use Glob/Grep)
+- MUST create both .story.md and .sm-result.json files
 '''
 
-PO_PROMPT_TEMPLATE = '''Execute PO (Product Owner) Agent for Story Validation.
+PO_PROMPT_TEMPLATE = '''You are Sarah, the Product Owner (PO) Agent. Your mission is to validate a Story.
 {ultrathink_section}
 
 ===============================================================================
@@ -241,71 +294,58 @@ MISSION: Validate Story {story_id} with SoT Hierarchy
 
 **Your Role**: Sarah (Product Owner) - Validate Story against PRD and Specs
 
-**STRICT RULES**:
-1. Check Story aligns with PRD requirements
-2. Verify SDD references are valid
-3. Detect and auto-resolve SoT conflicts using hierarchy
+**CRITICAL**: This is a NON-INTERACTIVE session. Do NOT ask questions.
+Execute ALL steps below and produce the required outputs.
 
 **SoT Hierarchy** (highest to lowest):
-1. PRD (Level 1) - WHAT
-2. Architecture (Level 2) - HOW
+1. PRD (Level 1) - WHAT: Functional requirements
+2. Architecture (Level 2) - HOW: System design
 3. JSON Schema (Level 3) - Data contracts
 4. OpenAPI Spec (Level 4) - API contracts
 5. Story (Level 5) - Implementation details
 6. Code (Level 6) - Must comply with all above
 
 ===============================================================================
-PHASE 1: STORY REVIEW
+PHASE 1: STORY REVIEW (Direct Execution - No /po command needed)
 ===============================================================================
 Step 1: Read Story file: {story_file}
-Step 2: Activate PO Agent: /po
-Step 3: Validate Story: *validate-story-draft {story_id}
+Step 2: Extract SDD references from Story's Dev Notes section
+Step 3: Load PRD sections related to Story scope
 
 ===============================================================================
 PHASE 2: SoT CONFLICT DETECTION
 ===============================================================================
-Step 4: Load PRD sections related to Story scope
-Step 5: Load OpenAPI specs referenced in Story
-Step 6: Load JSON Schemas referenced in Story
-Step 7: Detect any conflicts between documents
+Step 4: Load OpenAPI specs referenced in Story (verify they exist)
+Step 5: Load JSON Schemas referenced in Story (verify they exist)
+Step 6: Compare Story requirements against:
+   - PRD functional requirements
+   - OpenAPI endpoint definitions
+   - Schema data structures
+Step 7: Document any conflicts found
 
 ===============================================================================
 PHASE 3: AUTO-RESOLUTION (if conflicts found)
 ===============================================================================
-Step 8: Apply SoT Hierarchy:
-   - Higher level document wins
-   - Auto-resolve Phase 4 conflicts (OpenAPI > Story)
-   - Record all resolutions
+Step 8: Apply SoT Hierarchy for conflict resolution:
+   - Higher level document ALWAYS wins
+   - PRD > Architecture > Schema > OpenAPI > Story > Code
+   - Record all resolutions with justification
 
 Step 9: Update Story if needed (to match higher-level docs)
 
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 10: **MUST** use the Write tool to create `.po-result.json` file.
-
-**IMPORTANT**: You MUST actually execute the Write tool to create the file.
-Do NOT just output the JSON content - you must USE the Write tool.
-
-Use Write tool with file_path=".po-result.json" and content:
+Step 10: Use Write tool to create result file:
+   - File path: .po-result.json
+   - Content:
 {{
   "story_id": "{story_id}",
   "outcome": "APPROVED|REJECTED|AUTO_RESOLVED",
   "validation_passed": true|false,
   "sot_conflicts_found": 0,
-  "sot_resolutions": [
-    {{
-      "conflict_type": "PRD_VS_OPENAPI|SCHEMA_VS_OPENAPI|...",
-      "source_a": "docs/prd/section-2.md#L45",
-      "source_b": "specs/api/canvas-api.openapi.yml#L156",
-      "field_name": "response_format",
-      "value_a": "JSON",
-      "value_b": "MessagePack",
-      "resolution": "JSON (PRD wins)",
-      "sot_level_applied": "PRD"
-    }}
-  ],
-  "rejection_reason": null|"[reason]",
+  "sot_resolutions": [],
+  "rejection_reason": null,
   "timestamp": "[ISO timestamp]"
 }}
 
@@ -315,9 +355,16 @@ DECISION LOGIC
 - APPROVED: Story aligns with PRD, SDD valid, no conflicts
 - AUTO_RESOLVED: Conflicts found but auto-resolved via hierarchy
 - REJECTED: Critical issues that cannot be auto-resolved
+
+===============================================================================
+IMPORTANT RULES
+===============================================================================
+- This is NON-INTERACTIVE - execute ALL steps without asking questions
+- MUST create .po-result.json file using Write tool
+- Verify all file references exist before approving
 '''
 
-DEV_PROMPT_TEMPLATE = '''Execute Dev (Developer) Agent for Story Implementation.
+DEV_PROMPT_TEMPLATE = '''You are James, the Developer (Dev) Agent. Your mission is to implement a Story.
 {ultrathink_section}
 
 ===============================================================================
@@ -326,74 +373,85 @@ MISSION: Implement Story {story_id}
 
 **Your Role**: James (Developer) - Implement Story with tests
 
-**STRICT RULES**:
-1. ONLY read Story file - it contains ALL needed context
-2. Follow devLoadAlwaysFiles for coding standards
-3. Write tests BEFORE proceeding to QA
-4. Update .worktree-status.yaml at each decision point
+**CRITICAL**: This is a NON-INTERACTIVE session. Do NOT ask questions.
+Execute ALL steps below and produce the required outputs.
 
 ===============================================================================
 PHASE 1: CONTEXT LOADING
 ===============================================================================
 Step 1: Read Story file: {story_file}
-Step 2: Read devLoadAlwaysFiles from core-config.yaml:
-   - docs/architecture/coding-standards.md
+   - Extract Acceptance Criteria (AC1, AC2, etc.)
+   - Extract Dev Notes with technical context
+   - Note SDD references (OpenAPI, Schema paths)
+
+Step 2: Read coding standards from:
+   - docs/architecture/coding-standards.md (if exists)
+   - .bmad-core/core-config.yaml for devLoadAlwaysFiles
+
+Step 3: Verify SDD references from Story:
    - specs/api/canvas-api.openapi.yml
    - specs/data/*.schema.json
 
 ===============================================================================
-PHASE 2: IMPLEMENTATION
+PHASE 2: IMPLEMENTATION (Direct Execution - No /dev command needed)
 ===============================================================================
-Step 3: Activate Dev Agent: /dev
-Step 4: Implement Story: *develop-story {story_id}
-Step 5: Follow Dev Notes in Story for:
-   - API endpoint implementation
-   - Data model implementation
-   - Integration points
+Step 4: Implement Story requirements:
+   - Follow Dev Notes in Story exactly
+   - Create/modify files as specified
+   - Follow existing code patterns in codebase
+
+Step 5: Implementation checklist:
+   - [ ] API endpoints match OpenAPI spec
+   - [ ] Data models match JSON Schema
+   - [ ] Error handling implemented
+   - [ ] Logging added for key operations
 
 ===============================================================================
 PHASE 3: TESTING
 ===============================================================================
-Step 6: Run tests: *run-tests
-Step 7: Ensure test coverage ≥ 80%
+Step 6: Write unit tests for new code
+   - Test each Acceptance Criteria
+   - Target coverage ≥ 80%
+
+Step 7: Run tests using Bash tool:
+   - Python: python -m pytest tests/ -v
+   - TypeScript: npm test
 
 **DECISION POINT - TEST RESULTS**:
-- If ALL tests PASS:
-  - Update .worktree-status.yaml: status="dev-complete", tests_passed=true
-  - PROCEED to output
-- If ANY test FAILS:
-  - Update .worktree-status.yaml: status="dev-blocked", tests_passed=false
-  - Write .dev-result.json with outcome="DEV_BLOCKED"
-  - HALT WORKFLOW HERE
+- If ALL tests PASS: outcome="SUCCESS"
+- If ANY test FAILS: outcome="DEV_BLOCKED", document failing tests
 
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 8: Write .dev-result.json:
+Step 8: Use Write tool to create result file:
+   - File path: .dev-result.json
+   - Content:
 {{
   "story_id": "{story_id}",
-  "outcome": "SUCCESS|DEV_BLOCKED|TIMEOUT|ERROR",
+  "outcome": "SUCCESS|DEV_BLOCKED|ERROR",
   "tests_passed": true|false,
-  "test_count": [number],
-  "test_coverage": [percentage],
-  "files_created": ["path/to/new.py", ...],
-  "files_modified": ["path/to/existing.py", ...],
-  "duration_seconds": [seconds],
-  "blocking_reason": null|"[reason]",
-  "completion_notes": "[summary]",
-  "agent_model": "claude-sonnet-4-5",
+  "test_count": 0,
+  "test_coverage": 0.0,
+  "files_created": [],
+  "files_modified": [],
+  "duration_seconds": 0,
+  "blocking_reason": null,
+  "completion_notes": "[summary of implementation]",
   "timestamp": "[ISO timestamp]"
 }}
 
 ===============================================================================
-IMPORTANT
+IMPORTANT RULES
 ===============================================================================
+- This is NON-INTERACTIVE - execute ALL steps without asking questions
 - Do NOT load PRD or Architecture (Story has all context)
 - Follow SDD references in Dev Notes exactly
+- MUST create .dev-result.json file using Write tool
 - Write production-ready code with proper error handling
 '''
 
-QA_PROMPT_TEMPLATE = '''Execute QA (Quality Assurance) Agent for Story Review.
+QA_PROMPT_TEMPLATE = '''You are Quinn, the QA (Quality Assurance) Agent. Your mission is to review a Story implementation.
 {ultrathink_section}
 
 ===============================================================================
@@ -402,68 +460,80 @@ MISSION: QA Review for Story {story_id}
 
 **Your Role**: Quinn (Test Architect) - Comprehensive QA review
 
-**STRICT RULES**:
-1. Run full QA sequence: trace → nfr-assess → review → gate
-2. Generate quality gate decision
-3. Only PASS/WAIVED allows proceeding to commit
+**CRITICAL**: This is a NON-INTERACTIVE session. Do NOT ask questions.
+Execute ALL steps below and produce the required outputs.
 
 ===============================================================================
-PHASE 1: QA REVIEW
+PHASE 1: CONTEXT LOADING
 ===============================================================================
-Step 1: Activate QA Agent: /qa
-Step 2: Trace requirements: *trace {story_id}
-Step 3: NFR assessment: *nfr-assess {story_id}
-Step 4: Code review: *review {story_id}
+Step 1: Read Story file to understand requirements and AC
+Step 2: Read .dev-result.json to see what was implemented
+Step 3: List files created/modified during development
 
 ===============================================================================
-PHASE 2: QUALITY GATE
+PHASE 2: QA REVIEW (Direct Execution - No /qa command needed)
 ===============================================================================
-Step 5: Gate decision: *gate {story_id}
+Step 4: Requirements Traceability
+   - For each AC (AC1, AC2, etc.), verify:
+     - Implementation exists
+     - Test coverage exists
+     - Evidence documented
+
+Step 5: Non-Functional Requirements (NFR) Assessment
+   - Performance: No obvious bottlenecks
+   - Security: No hardcoded secrets, SQL injection, XSS
+   - Maintainability: Code is readable and documented
+   - Error handling: Proper try/catch, logging
+
+Step 6: Code Review
+   - Code follows project coding standards
+   - No obvious bugs or logic errors
+   - Proper typing (Python type hints, TypeScript types)
+
+===============================================================================
+PHASE 3: QUALITY GATE DECISION
+===============================================================================
+Step 7: Determine quality gate result:
 
 **DECISION LOGIC**:
-- **PASS**: All critical requirements met, proceed to commit
-- **CONCERNS**: Non-critical issues, attempt 1 fix cycle
-- **FAIL**: Critical issues (security, P0 tests missing), HALT
-- **WAIVED**: Issues acknowledged but accepted, proceed
+- **PASS**: All AC covered, no critical issues, tests passing
+- **CONCERNS**: Minor issues found, can be addressed later
+- **FAIL**: Critical issues (security, missing tests, broken logic)
+- **WAIVED**: Issues acknowledged but accepted (document reason)
 
-===============================================================================
-PHASE 3: FIX CYCLE (if CONCERNS)
-===============================================================================
-If gate = CONCERNS:
-  Step 6: Document issues to fix
-  Step 7: Re-run gate: *gate {story_id}
-  Step 8: If still CONCERNS after 1 attempt, record and HALT
+**Auto-FAIL conditions**:
+- Security vulnerabilities detected
+- Missing tests for P0 functionality
+- Implementation doesn't match AC
 
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 9: Write .qa-result.json:
+Step 8: Use Write tool to create result file:
+   - File path: .qa-result.json
+   - Content:
 {{
   "story_id": "{story_id}",
   "qa_gate": "PASS|CONCERNS|FAIL|WAIVED",
-  "quality_score": [0-100],
-  "ac_coverage": {{
-    "AC1": {{"status": "PASS|FAIL", "evidence": "[test or file]"}},
-    "AC2": {{"status": "PASS|FAIL", "evidence": "[test or file]"}}
-  }},
-  "issues_found": [
-    {{"severity": "low|medium|high", "description": "[issue]", "location": "[file:line]"}}
-  ],
-  "recommendations": ["[recommendation 1]", "[recommendation 2]"],
-  "adr_compliance": true|false,
-  "fix_attempts": 0|1,
-  "duration_seconds": [seconds],
-  "reviewer_model": "claude-sonnet-4-5",
+  "quality_score": 0,
+  "ac_coverage": {{}},
+  "issues_found": [],
+  "recommendations": [],
+  "adr_compliance": true,
+  "fix_attempts": 0,
+  "duration_seconds": 0,
   "timestamp": "[ISO timestamp]"
 }}
 
 ===============================================================================
-IMPORTANT
+IMPORTANT RULES
 ===============================================================================
+- This is NON-INTERACTIVE - execute ALL steps without asking questions
 - Be rigorous but fair in assessment
-- Document all issues with specific locations
+- Document all issues with specific file:line locations
 - Security issues = automatic FAIL
 - Missing P0 tests = automatic FAIL
+- MUST create .qa-result.json file using Write tool
 '''
 
 # UltraThink section template
@@ -721,6 +791,19 @@ class BmadSessionSpawner:
         if result_file.exists():
             result_file.unlink()
 
+        # ✅ FIX v14: Disable BMad agents to prevent Claude from loading interactive definitions
+        # Claude Code loads .bmad-core/agents/*.md which override our automated prompt
+        # Solution: Temporarily rename the agents directory before starting the session
+        import shutil
+        bmad_agents_dir = worktree_path / '.bmad-core' / 'agents'
+        bmad_agents_disabled = worktree_path / '.bmad-core' / 'agents.disabled'
+        if bmad_agents_dir.exists() and not bmad_agents_disabled.exists():
+            try:
+                bmad_agents_dir.rename(bmad_agents_disabled)
+                print(f"[Session] Disabled BMad agents for automated session: {bmad_agents_dir}")
+            except Exception as e:
+                print(f"[Session] Warning: Could not disable BMad agents: {e}")
+
         # Build Claude CLI command
         # ✅ FIX v5: Do NOT pass prompt as command-line argument
         # Windows has issues with long/complex prompts as CLI args (causes hanging)
@@ -762,18 +845,21 @@ class BmadSessionSpawner:
             import subprocess as sp
             import threading
 
-            # Write prompt to worktree for debugging
-            debug_prompt_file = worktree_path / '.bmad-prompt.txt'
+            # Write prompt to file for debugging and for passing to Claude
+            # ✅ FIX v15: Use file-based prompt passing to avoid Windows command line issues
+            # Windows has command line length limit (~8191 chars) and special char issues
+            prompt_file = worktree_path / '.bmad-prompt.txt'
             try:
-                with open(debug_prompt_file, 'w', encoding='utf-8') as f:
+                with open(prompt_file, 'w', encoding='utf-8') as f:
                     f.write(prompt)
-            except Exception:
-                pass  # Ignore errors writing debug file
+                print(f"[Session] Wrote prompt to file: {prompt_file} ({len(prompt)} chars)")
+            except Exception as e:
+                print(f"[Session] ERROR: Failed to write prompt file: {e}")
+                raise
 
-            # Build command with prompt as the last argument
-            # -p mode accepts prompt as positional argument
-            full_cmd = cmd + [prompt]
-            cmd_str = ' '.join(f'"{arg}"' if ' ' in arg or '\n' in arg else arg for arg in full_cmd)
+            # ✅ FIX v15: Use subprocess with stdin PIPE to pass prompt
+            # This avoids command line length limits and special character issues
+            # Claude CLI reads prompt from stdin when -p is used without a prompt argument
 
             # Set UTF-8 environment
             env = os.environ.copy()
@@ -782,17 +868,26 @@ class BmadSessionSpawner:
             # Open log file for writing output from reader threads
             log_handle = open(str(log_file), 'a', encoding='utf-8', buffering=1)
 
-            # Start process with PIPE for stdout/stderr
+            # Start process with PIPE for stdin/stdout/stderr
+            # ✅ FIX v15: Use list instead of shell=True for better handling
             popen_process = sp.Popen(
-                cmd_str,
-                shell=True,
+                cmd,  # Use cmd list directly, prompt will be passed via stdin
+                shell=False,  # ✅ FIX v15: Don't use shell
                 cwd=str(worktree_path),
-                stdin=sp.DEVNULL,
-                stdout=sp.PIPE,  # ✅ FIX v13: Use PIPE instead of file redirect
-                stderr=sp.PIPE,  # ✅ FIX v13: Separate stderr for debugging
+                stdin=sp.PIPE,  # ✅ FIX v15: Use PIPE for stdin to pass prompt
+                stdout=sp.PIPE,
+                stderr=sp.PIPE,
                 creationflags=subprocess.CREATE_NEW_PROCESS_GROUP,
                 env=env,
             )
+
+            # ✅ FIX v15: Write prompt to stdin
+            try:
+                popen_process.stdin.write(prompt.encode('utf-8'))
+                popen_process.stdin.close()
+                print(f"[Session] Sent prompt via stdin ({len(prompt)} chars)")
+            except Exception as e:
+                print(f"[Session] ERROR: Failed to send prompt via stdin: {e}")
 
             # Threaded reader function that writes to log file
             def pipe_reader(pipe, log_handle, name):

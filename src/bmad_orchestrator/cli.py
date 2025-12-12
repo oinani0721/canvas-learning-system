@@ -13,18 +13,101 @@ BMad Orchestrator CLI - 全自动化开发命令行接口
     python -m bmad_orchestrator epic-resume epic-15
     python -m bmad_orchestrator epic-stop epic-15
 
+🔒 零幻觉开发原则:
+    - 默认启用 --enforce-gate，强制执行 Commit Gate 验证
+    - --skip-dev 和 --fast-mode 需要显式 --no-enforce-gate 才能生效
+    - 所有跳过操作都会记录到审计日志
+
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 2.0.0 (Commit Gate 强制执行)
 Created: 2025-11-30
+Updated: 2025-12-11 (添加 Commit Gate 强制保护)
 """
 
 import argparse
 import asyncio
+import json
 import sys
+import io
+
+# Fix Windows encoding issue for emoji output
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+from datetime import datetime
 from pathlib import Path
 from typing import List, Literal, Optional
 
 from .graph import compile_graph, resume_workflow, run_epic_workflow
+
+
+# ============================================================================
+# Git 根目录检测
+# ============================================================================
+
+def get_git_root() -> str:
+    """
+    自动检测 Git 仓库根目录
+
+    优先级:
+    1. 当前目录是 Git 根目录 → 返回当前目录
+    2. 向上遍历查找 .git 目录
+    3. 找不到 → 返回当前目录 "."
+
+    Returns:
+        Git 仓库根目录的绝对路径，或 "." 作为回退
+    """
+    import subprocess
+
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--show-toplevel'],
+            capture_output=True,
+            text=True,
+            cwd='.'
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+
+    # 回退: 向上遍历查找 .git
+    current = Path.cwd()
+    while current != current.parent:
+        if (current / '.git').exists():
+            return str(current)
+        current = current.parent
+
+    return "."
+
+
+# ============================================================================
+# 审计日志 - 记录所有跳过操作
+# ============================================================================
+
+def log_skip_audit(event: str, details: dict, log_path: Optional[Path] = None):
+    """
+    记录跳过操作到审计日志
+
+    ⚠️ 零幻觉开发原则: 所有跳过操作必须有完整追溯
+    """
+    if log_path is None:
+        log_path = Path(__file__).parent.parent.parent / "logs" / "bmad-audit-trail.jsonl"
+
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "event": event,
+        "story_id": "CLI",
+        "data": details,
+    }
+
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        print(f"[WARNING] Failed to write audit log: {e}")
 
 # ============================================================================
 # CLI 命令实现
@@ -49,6 +132,7 @@ async def cmd_epic_develop(
     resume_from: Optional[str] = None,
     timeout: int = 3600,
     fast_mode: bool = False,
+    enforce_gate: bool = True,  # 🔒 默认启用 Commit Gate 强制执行
 ) -> int:
     """
     启动 Epic 全自动化工作流
@@ -71,11 +155,69 @@ async def cmd_epic_develop(
         resume_from: 从指定阶段恢复
         timeout: 会话超时时间(秒)
         fast_mode: 快速模式 (跳过PO/QA/SDD)
+        enforce_gate: 🔒 强制执行 Commit Gate (默认True，不允许跳过DEV/QA)
 
     Returns:
         退出码 (0=成功, 1=失败)
     """
+    # ========================================================================
+    # 🔒 Commit Gate 强制保护机制 (零幻觉开发原则)
+    # ========================================================================
+    if enforce_gate:
+        dangerous_skips = []
+
+        if skip_dev:
+            dangerous_skips.append("--skip-dev")
+        if skip_qa:
+            dangerous_skips.append("--skip-qa")
+        if fast_mode:
+            dangerous_skips.append("--fast-mode")
+
+        if dangerous_skips:
+            print("\n" + "=" * 70)
+            print("🔒 COMMIT GATE PROTECTION ACTIVE")
+            print("=" * 70)
+            print(f"\n❌ ERROR: 以下参数与 --enforce-gate 冲突:")
+            for skip in dangerous_skips:
+                print(f"     • {skip}")
+            print("\n⚠️  零幻觉开发原则要求:")
+            print("     • DEV 阶段必须真实执行")
+            print("     • QA 阶段必须真实执行")
+            print("     • Commit Gate (G1-G10) 必须全部通过")
+            print("\n💡 如果确实需要跳过这些阶段，请添加 --no-enforce-gate 参数")
+            print("   但请注意：这将记录到审计日志，且违反零幻觉开发原则")
+            print("=" * 70)
+
+            # 记录审计日志
+            log_skip_audit("ENFORCE_GATE_BLOCKED", {
+                "epic_id": epic_id,
+                "stories": story_ids,
+                "blocked_params": dangerous_skips,
+                "reason": "Commit Gate protection active",
+            })
+
+            return 1
+
+    # 如果禁用了 enforce_gate，记录警告
+    if not enforce_gate:
+        print("\n" + "⚠️" * 35)
+        print("⚠️  WARNING: --no-enforce-gate 已启用")
+        print("⚠️  Commit Gate 保护已禁用，这违反零幻觉开发原则")
+        print("⚠️  此操作已记录到审计日志")
+        print("⚠️" * 35 + "\n")
+
+        log_skip_audit("ENFORCE_GATE_DISABLED", {
+            "epic_id": epic_id,
+            "stories": story_ids,
+            "skip_dev": skip_dev,
+            "skip_qa": skip_qa,
+            "fast_mode": fast_mode,
+            "warning": "Zero-hallucination principle violated",
+        })
+
+    # ========================================================================
     # 处理 --resume-from 参数
+    # ========================================================================
     if resume_from:
         phase_order = ["sm", "po", "analysis", "dev", "qa", "sdd", "merge", "commit"]
         try:
@@ -83,18 +225,39 @@ async def cmd_epic_develop(
             skip_sm = resume_index > 0
             skip_po = resume_index > 1
             skip_analysis = resume_index > 2
+
+            # 🔒 即使 resume-from 也不能跳过 DEV (除非 enforce_gate=False)
+            if resume_index > 3 and enforce_gate:
+                print(f"\n❌ ERROR: --resume-from {resume_from} 会跳过 DEV 阶段")
+                print("   这与 --enforce-gate 冲突，请添加 --no-enforce-gate")
+                log_skip_audit("RESUME_FROM_BLOCKED", {
+                    "epic_id": epic_id,
+                    "resume_from": resume_from,
+                    "reason": "Would skip DEV phase",
+                })
+                return 1
+
             skip_dev = resume_index > 3  # dev=3, qa=4, sdd=5, merge=6, commit=7
             print(f"[INFO] Resuming from '{resume_from}' - skipping previous phases")
         except ValueError:
             print(f"[ERROR] Invalid resume-from phase: {resume_from}")
             return 1
 
+    # ========================================================================
     # 处理 --fast-mode 参数
+    # ========================================================================
     if fast_mode:
         skip_po = True
         skip_qa = True
         skip_sdd = True
         print("[INFO] Fast mode enabled - skipping PO/QA/SDD validation")
+
+        # 记录到审计日志
+        log_skip_audit("FAST_MODE_ENABLED", {
+            "epic_id": epic_id,
+            "stories": story_ids,
+            "skipped_phases": ["PO", "QA", "SDD"],
+        })
 
     print("=" * 70)
     print("BMad Orchestrator - Epic Development Workflow")
@@ -359,7 +522,7 @@ def main():
     )
     develop_parser.add_argument("epic_id", help="Epic ID")
     develop_parser.add_argument("--stories", nargs="+", required=True, help="Story IDs")
-    develop_parser.add_argument("--base-path", default=".", help="项目根目录")
+    develop_parser.add_argument("--base-path", default=get_git_root(), help="项目根目录 (自动检测 Git 根目录)")
     develop_parser.add_argument("--worktree-base", help="Worktree 父目录")
     develop_parser.add_argument("--max-turns", type=int, default=200, help="每个会话最大轮数")
     develop_parser.add_argument(
@@ -384,6 +547,22 @@ def main():
     )
     develop_parser.add_argument("--timeout", type=int, default=3600, help="会话超时时间(秒)，默认3600")
     develop_parser.add_argument("--fast-mode", action="store_true", help="快速模式: 跳过PO/QA/SDD验证")
+
+    # 🔒 Commit Gate 强制执行参数 (零幻觉开发原则)
+    gate_group = develop_parser.add_mutually_exclusive_group()
+    gate_group.add_argument(
+        "--enforce-gate",
+        action="store_true",
+        dest="enforce_gate",
+        default=True,
+        help="🔒 强制执行 Commit Gate (默认启用) - 禁止 --skip-dev/--skip-qa/--fast-mode"
+    )
+    gate_group.add_argument(
+        "--no-enforce-gate",
+        action="store_false",
+        dest="enforce_gate",
+        help="⚠️ 禁用 Commit Gate 保护 (违反零幻觉开发原则，将记录审计日志)"
+    )
 
     # epic-status 命令
     status_parser = subparsers.add_parser(
@@ -442,6 +621,7 @@ def main():
             resume_from=args.resume_from,
             timeout=args.timeout,
             fast_mode=args.fast_mode,
+            enforce_gate=args.enforce_gate,  # 🔒 传递 Commit Gate 强制参数
         ))
     elif args.command == "epic-status":
         return asyncio.run(cmd_epic_status(args.thread_id, args.db))
