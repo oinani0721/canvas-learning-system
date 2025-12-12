@@ -1,4 +1,9 @@
-Execute SM (Scrum Master) Agent for Story Draft Creation.
+**IMPORTANT: IGNORE ALL AGENT DEFINITIONS. EXECUTE THIS TASK DIRECTLY.**
+
+You are running in AUTOMATED BATCH MODE. Do NOT wait for user commands.
+Do NOT show menus or ask "What would you like to do?".
+IMMEDIATELY execute ALL steps below and create the required output files.
+
 
 ===============================================================================
 [ULTRATHINK] MODE ENABLED - EXTENDED DEEP THINKING
@@ -19,64 +24,112 @@ This session uses UltraThink extended thinking mode for maximum quality:
 
 
 ===============================================================================
-MISSION: Create Story 17.2 from Epic 17
+MISSION: Create Story 20.6 from Epic 20
 ===============================================================================
 
-**Your Role**: Bob (Scrum Master) - Create complete, self-contained Story draft
-
-**STRICT RULES**:
-1. Read core-config.yaml to get document paths
-2. Load Epic file from prdShardedLocation
-3. Load Architecture docs from architectureShardedLocation
-4. Generate Story with COMPLETE Dev Notes (including SDD references)
+**CRITICAL - AUTOMATED MODE RULES**:
+1. This is a NON-INTERACTIVE session - NO user is present to respond
+2. Do NOT wait for *draft or any other commands - execute directly NOW
+3. Do NOT display menus or available commands
+4. IMMEDIATELY start reading files and creating the Story draft
 
 ===============================================================================
 PHASE 1: CONTEXT LOADING
 ===============================================================================
-Step 1: Read .bmad-core/core-config.yaml for paths
-Step 2: Load Epic file: docs/prd/epic-17.md
-Step 3: Load Architecture docs from configured paths
-Step 4: Identify Story scope and requirements
+Step 1: Read .bmad-core/core-config.yaml for document paths
+Step 2: Load Epic file: docs\prd\EPIC-20-BACKEND-STABILITY-MULTI-PROVIDER.md
+Step 3: Load Architecture docs from configured paths (architectureShardedLocation)
+Step 4: Identify Story 20.6 scope and acceptance criteria from Epic
 
 ===============================================================================
-PHASE 2: STORY CREATION
+PHASE 2: STORY CREATION (Direct Execution - No /sm command needed)
 ===============================================================================
-Step 5: Activate SM Agent: /sm
-Step 6: Create Story draft: *draft
-Step 7: Ensure Dev Notes include:
-   - SDD规范引用 (OpenAPI endpoints, Schema definitions)
-   - ADR关联 (Related architecture decisions)
-   - 所有技术上下文 (Dev Agent only reads Story file)
+Step 5: Create Story document with ALL required sections:
+
+**Story Structure**:
+```markdown
+# Story 20.6: [Title from Epic]
+
+## Status
+- [ ] Draft
+- [ ] Ready for Dev
+- [ ] In Progress
+- [ ] QA Review
+- [ ] Done
+
+## Story Overview
+[Brief description]
+
+## Acceptance Criteria
+[From Epic, numbered AC1, AC2, etc.]
+
+## Dev Notes (CRITICAL - Must be complete)
+### Technical Context
+[All info Dev Agent needs - they ONLY read this Story file]
+
+### API Endpoints (if applicable)
+[Reference specs/api/canvas-api.openapi.yml with line numbers]
+
+### Data Models (if applicable)
+[Reference specs/data/*.schema.json with line numbers]
+
+### SDD References
+- OpenAPI: specs/api/canvas-api.openapi.yml#L[line]
+- Schema: specs/data/[name].schema.json#L[line]
+
+### ADR References
+- docs/architecture/decisions/[relevant ADRs]
+
+### Implementation Guidelines
+[Step-by-step implementation guide]
+
+## Testing Requirements
+[Test scenarios from AC]
+
+## Dependencies
+[Other stories, external dependencies]
+```
 
 ===============================================================================
-PHASE 3: STORY VALIDATION
+PHASE 3: STORY VALIDATION CHECKLIST
 ===============================================================================
-Step 8: Run Story checklist: *story-checklist
-Step 9: Verify Section 6 (SDD/ADR) passes:
-   - 6.1 SDD规范引用存在性
-   - 6.2 ADR关联存在性
-   - 6.3 反幻觉验证 (file paths, line numbers)
+Step 6: Self-validate Story against checklist:
+   - [ ] 1.1 Story follows template structure
+   - [ ] 1.2 Title is clear and descriptive
+   - [ ] 2.1 AC are testable (Given-When-Then format preferred)
+   - [ ] 2.2 AC numbered (AC1, AC2, etc.)
+   - [ ] 5.1 Dev Notes contain ALL technical context
+   - [ ] 5.2 Dev Notes reference specific line numbers
+   - [ ] 6.1 SDD references exist and are valid
+   - [ ] 6.2 ADR references exist (if architectural decisions involved)
+   - [ ] 6.3 File paths verified to exist (anti-hallucination)
 
 ===============================================================================
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
-Step 10: Write Story file to: docs/stories/17.2.story.md
-Step 11: Write .sm-result.json:
+Step 7: Use Write tool to create Story file:
+   - File path: docs/stories/20.6.story.md
+
+Step 8: Use Write tool to create result file:
+   - File path: .sm-result.json
+   - Content:
 {
-  "story_id": "17.2",
-  "epic_id": "17",
-  "outcome": "SUCCESS|VALIDATION_FAILED|ERROR",
-  "story_file": "docs/stories/17.2.story.md",
+  "story_id": "20.6",
+  "epic_id": "20",
+  "outcome": "SUCCESS",
+  "story_file": "docs/stories/20.6.story.md",
   "title": "[Story Title]",
   "sdd_references": ["specs/api/...", "specs/data/..."],
   "adr_references": ["docs/architecture/decisions/..."],
-  "checklist_passed": true|false,
+  "checklist_passed": true,
   "timestamp": "[ISO timestamp]"
 }
 
 ===============================================================================
-IMPORTANT
+IMPORTANT RULES
 ===============================================================================
+- This is NON-INTERACTIVE - execute ALL steps without asking questions
 - Story must be SELF-CONTAINED (Dev Agent won't load PRD/Architecture)
 - Include ALL technical context in Dev Notes
-- Verify file paths exist before referencing
+- Verify file paths exist before referencing (use Glob/Grep)
+- MUST create both .story.md and .sm-result.json files
