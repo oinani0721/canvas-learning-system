@@ -166,3 +166,176 @@ def review_service(canvas_service, task_manager):
     """Create a ReviewService instance for testing."""
     from app.services.review_service import ReviewService
     return ReviewService(canvas_service=canvas_service, task_manager=task_manager)
+
+
+# ============================================================================
+# Story 20.6 Fixtures - Multi-Provider Integration Tests
+# ============================================================================
+
+@pytest.fixture
+def mock_settings_multi_provider():
+    """
+    Mock settings with multi-provider configuration.
+
+    ✅ Verified from Story 20.1 - Multi-Provider Architecture
+    """
+    from unittest.mock import MagicMock
+
+    settings = MagicMock(spec=Settings)
+    settings.AI_PROVIDER = "google"
+    settings.AI_MODEL_NAME = "gemini-2.0-flash-exp"
+
+    # Provider 1: Google (primary)
+    settings.AI_PROVIDER_1_NAME = "google"
+    settings.AI_PROVIDER_1_API_KEY = "test-google-api-key"
+    settings.AI_PROVIDER_1_MODEL = "gemini-2.0-flash-exp"
+    settings.AI_PROVIDER_1_PRIORITY = "1"
+    settings.AI_PROVIDER_1_ENABLED = "true"
+
+    # Provider 2: OpenAI (backup 1)
+    settings.AI_PROVIDER_2_NAME = "openai"
+    settings.AI_PROVIDER_2_API_KEY = "test-openai-api-key"
+    settings.AI_PROVIDER_2_MODEL = "gpt-4o"
+    settings.AI_PROVIDER_2_PRIORITY = "2"
+    settings.AI_PROVIDER_2_ENABLED = "true"
+
+    # Provider 3: Anthropic (backup 2)
+    settings.AI_PROVIDER_3_NAME = "anthropic"
+    settings.AI_PROVIDER_3_API_KEY = "test-anthropic-api-key"
+    settings.AI_PROVIDER_3_MODEL = "claude-3-5-sonnet-20241022"
+    settings.AI_PROVIDER_3_PRIORITY = "3"
+    settings.AI_PROVIDER_3_ENABLED = "true"
+
+    # Direct provider keys
+    settings.GOOGLE_API_KEY = "test-google-api-key"
+    settings.OPENAI_API_KEY = "test-openai-api-key"
+    settings.ANTHROPIC_API_KEY = "test-anthropic-api-key"
+    settings.GEMINI_MODEL = "gemini-2.0-flash-exp"
+
+    return settings
+
+
+@pytest.fixture
+def mock_healthy_provider():
+    """
+    Mock healthy AI Provider.
+
+    ✅ Verified from Story 20.1 - base_provider.py interface
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.clients.base_provider import (
+        BaseProvider,
+        ProviderConfig,
+        ProviderHealth,
+        ProviderResponse,
+        ProviderStatus,
+    )
+
+    provider = MagicMock(spec=BaseProvider)
+    provider.name = "test-google"
+    provider.priority = 1
+    provider.is_enabled = True
+    provider.health = ProviderHealth(
+        status=ProviderStatus.HEALTHY,
+        latency_ms=100.0,
+        consecutive_failures=0
+    )
+    provider.is_available = True
+    provider.config = ProviderConfig(
+        name="test-google",
+        api_key="test-api-key",
+        model="gemini-2.0-flash-exp",
+        priority=1
+    )
+
+    # Mock async methods
+    provider.initialize = AsyncMock(return_value=True)
+    provider.health_check = AsyncMock(return_value=provider.health)
+    provider.complete = AsyncMock(return_value=ProviderResponse(
+        text="Test response",
+        model="gemini-2.0-flash-exp",
+        provider="test-google",
+        latency_ms=100.0
+    ))
+    provider.close = AsyncMock()
+
+    return provider
+
+
+@pytest.fixture
+def mock_unhealthy_provider():
+    """
+    Mock unhealthy AI Provider.
+
+    ✅ Verified from Story 20.1 - Provider failure scenarios
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    from app.clients.base_provider import (
+        BaseProvider,
+        ProviderConfig,
+        ProviderHealth,
+        ProviderStatus,
+    )
+
+    provider = MagicMock(spec=BaseProvider)
+    provider.name = "test-unhealthy"
+    provider.priority = 2
+    provider.is_enabled = True
+    provider.health = ProviderHealth(
+        status=ProviderStatus.UNHEALTHY,
+        latency_ms=None,
+        error_message="Connection timeout",
+        consecutive_failures=3
+    )
+    provider.is_available = False
+    provider.config = ProviderConfig(
+        name="test-unhealthy",
+        api_key="test-api-key",
+        model="gpt-4o",
+        priority=2
+    )
+
+    # Mock async methods - health_check fails
+    provider.initialize = AsyncMock(return_value=False)
+    provider.health_check = AsyncMock(return_value=provider.health)
+    provider.close = AsyncMock()
+
+    return provider
+
+
+@pytest.fixture
+async def async_client():
+    """
+    Async HTTP client for API testing.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: async testing)
+    """
+    from httpx import ASGITransport, AsyncClient
+
+    app.dependency_overrides[get_settings] = get_settings_override
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def provider_factory_clean():
+    """
+    Get a clean ProviderFactory instance for testing.
+
+    ✅ Verified from Story 20.2 - ProviderFactory singleton reset
+    """
+    from app.clients.provider_factory import ProviderFactory
+
+    # Reset singleton before test
+    ProviderFactory.reset_instance()
+
+    yield ProviderFactory
+
+    # Cleanup after test
+    ProviderFactory.reset_instance()

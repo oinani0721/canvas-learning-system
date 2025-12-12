@@ -1,39 +1,64 @@
 {
-  "story_id": "20.6",
+  "story_id": "20.5",
   "epic_id": "20",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/20.6.story.md",
-  "title": "集成测试与端到端验证 (Integration Testing & E2E Validation)",
+  "story_file": "docs/stories/20.5.story.md",
+  "title": "Multi-Provider Integration Testing & Epic Validation",
+  "description": "集成测试和性能验证Story，验证Epic 20所有组件协同工作，确保故障转移<2s和健康检查<500ms的性能指标",
   "sdd_references": [
-    "specs/api/fastapi-backend-api.openapi.yml#L49-L73",
-    "specs/data/health-check-response.schema.json"
+    "specs/api/canvas-api.openapi.yml"
   ],
   "adr_references": [
-    "docs/architecture/decisions/ADR-008-TESTING-FRAMEWORK-PYTEST-ECOSYSTEM.md",
-    "docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md"
+    "docs/architecture/decisions/0002-langgraph-agents.md"
   ],
-  "checklist_passed": true,
+  "verified_files": [
+    "backend/app/clients/__init__.py",
+    "backend/app/clients/base_provider.py",
+    "backend/app/clients/google_provider.py",
+    "backend/app/clients/openai_provider.py",
+    "backend/app/clients/anthropic_provider.py"
+  ],
+  "acceptance_criteria": [
+    "AC-20.5.1: 集成测试覆盖Provider切换流程 (故障转移 < 2秒)",
+    "AC-20.5.2: 健康检查性能测试通过 (响应 < 500ms)",
+    "AC-20.5.3: 故障转移集成测试通过 (连续3次失败触发)",
+    "AC-20.5.4: API密钥安全测试通过 (脱敏和gitignore)",
+    "AC-20.5.5: Epic级别验收标准全部通过 (AC-20.E1-E5)"
+  ],
+  "dependencies": {
+    "upstream": [
+      "Story 20.1: 多Provider架构设计",
+      "Story 20.2: Provider切换机制",
+      "Story 20.3: API密钥安全管理",
+      "Story 20.4: 健康检查与故障转移"
+    ],
+    "downstream": [
+      "Epic 21: Agent端到端流程",
+      "Epic 22: 记忆系统",
+      "Epic 23: RAG智能推理"
+    ]
+  },
   "checklist_results": {
-    "1.1_story_follows_template": true,
+    "1.1_story_template_structure": true,
     "1.2_title_clear_descriptive": true,
-    "2.1_ac_testable_given_when_then": true,
+    "2.1_ac_testable_gwt_format": true,
     "2.2_ac_numbered": true,
     "5.1_dev_notes_complete": true,
-    "5.2_dev_notes_line_numbers": true,
+    "5.2_dev_notes_references": true,
     "6.1_sdd_references_valid": true,
     "6.2_adr_references_exist": true,
     "6.3_file_paths_verified": true
   },
-  "acceptance_criteria_count": 10,
-  "tasks_count": 7,
-  "estimated_hours": 6,
-  "dependencies": {
-    "upstream": ["20.1", "20.2", "20.3", "20.4", "20.5"],
-    "downstream": []
-  },
-  "notes": {
-    "story_source": "Inferred from Epic 20 Test Plan section - Epic document explicitly defines Stories 20.1-20.4 only",
-    "recommendation": "Update Epic 20 document to explicitly include Story 20.5 (Provider Response Time Monitoring) and Story 20.6 (Integration Testing & E2E Validation)"
-  },
-  "timestamp": "2025-12-12T10:00:00Z"
+  "checklist_passed": true,
+  "estimated_hours": 4,
+  "priority": "P0",
+  "notes": [
+    "Story 20.5 is the validation/testing Story for Epic 20",
+    "No new feature code - focuses on integration testing and performance verification",
+    "All 5 Epic-level acceptance criteria (AC-20.E1-E5) will be validated",
+    "Finding: .env not explicitly in .gitignore - test should flag this"
+  ],
+  "timestamp": "2025-12-12T00:00:00Z",
+  "generator": "Claude Code UltraThink Mode",
+  "sm_agent": "Bob"
 }

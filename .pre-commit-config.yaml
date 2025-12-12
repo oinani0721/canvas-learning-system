@@ -6,6 +6,21 @@ repos:
   # Local hooks for SDD validation
   - repo: local
     hooks:
+      # ⭐ BMad Workflow Gate - CRITICAL
+      # Reference: docs/prd/plan-workflow-enforcer.md
+      # This hook MUST run first - blocks commits for incomplete workflow
+      - id: validate-workflow-gate
+        name: BMad Workflow Gate Validation
+        description: Ensure Story files follow complete BMad workflow (SM→PO→DEV→QA)
+        entry: python -X utf8 scripts/validate-workflow-gate.py
+        language: python
+        files: ^docs/stories/.*\.(story\.md|md)$
+        pass_filenames: false
+        stages: [pre-commit]
+        verbose: true
+        # Note: Epic 1-20 stories are skipped (legacy data)
+        # Epic 21+ stories MUST have status >= Review to commit
+
       # PRD-Spec Drift Detection
       - id: check-prd-spec-sync
         name: Check PRD-Spec Synchronization
