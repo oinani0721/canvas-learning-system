@@ -12,13 +12,62 @@ Story 12.5 AC 5.2:
 - ✅ 配置字段: retrieval_batch_size, fusion_strategy, reranking_strategy
 - ✅ quality_threshold, max_rewrite_iterations
 
+Story 23.2: LanceDB Embedding Pipeline Configuration
+- ✅ AC 4: 向量维度和模型可配置
+
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 1.1.0
 Created: 2025-11-29
+Updated: 2025-12-12 (Story 23.2 - LanceDB Embedding Config)
 """
 
-from typing import Literal, Optional
+import os
+from typing import Any, Dict, Literal, Optional
+
 from typing_extensions import TypedDict
+
+# ============================================================================
+# Story 23.2: LanceDB Embedding Configuration
+# ✅ Verified from specs/data/canvas-node.schema.json (Canvas node structure)
+# ✅ Verified from sentence-transformers documentation (embedding dimensions)
+# ============================================================================
+
+# Supported embedding models with their dimensions
+EMBEDDING_MODELS: Dict[str, int] = {
+    "sentence-transformers/all-MiniLM-L6-v2": 384,  # Default, fast
+    "sentence-transformers/all-mpnet-base-v2": 768,  # Higher quality
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,  # Multilingual
+}
+
+# ✅ Story 23.2 AC 4: 向量维度和模型可配置
+LANCEDB_CONFIG: Dict[str, Any] = {
+    "db_path": os.environ.get("LANCEDB_PATH", "backend/data/lancedb"),
+    "table_name": os.environ.get("LANCEDB_TABLE", "canvas_nodes"),
+    "embedding_model": os.environ.get(
+        "LANCEDB_EMBEDDING_MODEL",
+        "sentence-transformers/all-MiniLM-L6-v2"
+    ),
+    "embedding_dim": int(os.environ.get("LANCEDB_EMBEDDING_DIM", "384")),
+    "batch_size": int(os.environ.get("LANCEDB_BATCH_SIZE", "100")),
+    "timeout_ms": int(os.environ.get("LANCEDB_TIMEOUT_MS", "400")),
+}
+
+# LanceDB Canvas Nodes Table Schema
+# ✅ Story 23.2 AC 2: Canvas节点批量索引
+# ✅ Verified from specs/data/canvas-node.schema.json#/properties
+CANVAS_NODES_SCHEMA = {
+    "doc_id": str,           # 文档唯一ID
+    "content": str,          # 节点文本内容
+    "vector": list,          # embedding向量 (384/768维)
+    "canvas_file": str,      # Canvas文件路径
+    "node_id": str,          # 原始节点ID
+    "node_type": str,        # 节点类型 (text/file/group/link)
+    "color": str,            # 颜色代码 (1-6)
+    "x": int,                # X坐标
+    "y": int,                # Y坐标
+    "timestamp": str,        # 索引时间
+    "metadata_json": str,    # 其他元数据JSON
+}
 
 
 class CanvasRAGConfig(TypedDict, total=False):

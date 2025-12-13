@@ -7,17 +7,32 @@ Story 12.2: LanceDB POC验证
 - AC 2.3: 性能基准 (P95 < 400ms)
 - AC 2.4: 结果转换为SearchResult
 
+Story 23.2: LanceDB Embedding Pipeline
+- AC 1: 支持文本内容向量化 (embed方法)
+- AC 2: 支持Canvas节点批量索引 (index_canvas方法)
+- AC 3: 支持语义相似度查询 (search增强)
+- AC 4: 向量维度和模型可配置
+- AC 5: 索引持久化到本地文件
+
 ✅ Verified from LanceDB documentation:
 - lancedb.connect(path) - 连接数据库
 - table.search(query_vector).limit(n).to_list() - 向量搜索
 - 支持 metric="cosine" 或 "L2"
 
+✅ Verified from MultimodalVectorizer (src/agentic_rag/processors/multimodal_vectorizer.py):
+- vectorize_text(text) → VectorizedContent with .vector attribute
+- batch_vectorize(texts) → List[VectorizedContent]
+- DEFAULT_MODEL_NAME = "sentence-transformers/all-MiniLM-L6-v2"
+- DEFAULT_EMBEDDING_DIM = 384
+
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 1.1.0 (Story 23.2)
 Created: 2025-11-29
+Updated: 2025-12-12 (Story 23.2 - Embedding Pipeline)
 """
 
 import asyncio
+import json
 import os
 import time
 from datetime import datetime
@@ -57,40 +72,64 @@ class LanceDBClient:
     - AC 2.3: P95延迟 < 400ms
     - AC 2.4: 结果转换为SearchResult格式
 
+    ✅ Story 23.2: LanceDB Embedding Pipeline
+    - AC 1: embed(text) 方法支持文本向量化
+    - AC 2: index_canvas() 方法支持批量索引
+    - AC 3: search() 支持Canvas文件过滤
+    - AC 4: embedding_model 可配置
+    - AC 5: 索引持久化到本地文件
+
     Usage:
-        >>> client = LanceDBClient(db_path="~/.lancedb")
+        >>> client = LanceDBClient(db_path="backend/data/lancedb")
         >>> await client.initialize()
-        >>> results = await client.search("逆否命题", table_name="canvas_explanations")
+        >>> # Story 23.2 AC 1: 向量化文本
+        >>> vector = await client.embed("什么是逆否命题？")
+        >>> # Story 23.2 AC 2: 批量索引Canvas节点
+        >>> count = await client.index_canvas("离散数学.canvas")
+        >>> # Story 23.2 AC 3: 语义搜索
+        >>> results = await client.search("逆否命题", table_name="canvas_nodes")
         >>> print(results[0])
         {'doc_id': 'lancedb_doc_123', 'content': '...', 'score': 0.85, 'metadata': {...}}
     """
 
     # 默认表名
-    DEFAULT_TABLES = ["canvas_explanations", "canvas_concepts"]
+    DEFAULT_TABLES = ["canvas_explanations", "canvas_concepts", "canvas_nodes"]
 
-    # 默认嵌入维度 (OpenAI text-embedding-3-small)
-    DEFAULT_EMBEDDING_DIM = 1536
+    # ✅ Story 23.2 AC 4: 默认嵌入维度 (all-MiniLM-L6-v2)
+    DEFAULT_EMBEDDING_DIM = 384
+
+    # ✅ Story 23.2 AC 4: 支持的embedding模型
+    SUPPORTED_MODELS = {
+        "sentence-transformers/all-MiniLM-L6-v2": 384,
+        "sentence-transformers/all-mpnet-base-v2": 768,
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,
+    }
 
     def __init__(
         self,
-        db_path: str = "~/.lancedb",
+        db_path: str = "backend/data/lancedb",
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
+        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         timeout_ms: int = 400,
-        batch_size: int = 10,
+        batch_size: int = 100,
         enable_fallback: bool = True
     ):
         """
         初始化 LanceDBClient
 
+        ✅ Story 23.2 AC 4: 向量维度和模型可配置
+
         Args:
-            db_path: LanceDB数据库路径
-            embedding_dim: 嵌入向量维度
+            db_path: LanceDB数据库路径 (默认: backend/data/lancedb)
+            embedding_dim: 嵌入向量维度 (默认: 384 for all-MiniLM-L6-v2)
+            embedding_model: embedding模型名称 (默认: all-MiniLM-L6-v2)
             timeout_ms: 超时时间(毫秒), 默认400ms (Story 12.2 AC 2.3)
-            batch_size: 每次检索返回的最大结果数
+            batch_size: 批量处理大小 (默认: 100, Story 23.2 AC 2)
             enable_fallback: 启用降级(超时/错误时返回空结果)
         """
         self.db_path = os.path.expanduser(db_path)
         self.embedding_dim = embedding_dim
+        self.embedding_model = embedding_model
         self.timeout_ms = timeout_ms
         self.batch_size = batch_size
         self.enable_fallback = enable_fallback
@@ -99,6 +138,10 @@ class LanceDBClient:
         self._initialized = False
         self._tables_cache: Dict[str, Any] = {}
         self._embedder = None
+
+        # ✅ Story 23.2: MultimodalVectorizer for embedding
+        self._vectorizer = None
+        self._vectorizer_initialized = False
 
     async def initialize(self) -> bool:
         """
@@ -153,6 +196,215 @@ class LanceDBClient:
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Failed to cache tables: {e}")
+
+    # =========================================================================
+    # Story 23.2: Embedding Pipeline Methods
+    # =========================================================================
+
+    async def _init_vectorizer(self) -> bool:
+        """
+        懒加载embedding模型 (MultimodalVectorizer)
+
+        ✅ Story 23.2 AC 1: 支持文本内容向量化
+        ✅ Verified from MultimodalVectorizer (src/agentic_rag/processors/multimodal_vectorizer.py:162-200)
+
+        Returns:
+            bool: True if vectorizer initialized successfully
+        """
+        if self._vectorizer_initialized:
+            return self._vectorizer is not None
+
+        try:
+            # Import MultimodalVectorizer lazily
+            from agentic_rag.processors.multimodal_vectorizer import MultimodalVectorizer
+
+            self._vectorizer = MultimodalVectorizer(
+                model_name=self.embedding_model,
+                device="cpu"  # Can be configured for GPU
+            )
+            await self._vectorizer.initialize()
+            self._vectorizer_initialized = True
+
+            if LOGURU_ENABLED:
+                logger.info(
+                    f"Vectorizer initialized: model={self.embedding_model}, "
+                    f"dim={self._vectorizer.embedding_dim}"
+                )
+
+            return True
+
+        except ImportError as e:
+            if LOGURU_ENABLED:
+                logger.warning(f"MultimodalVectorizer not available: {e}")
+            self._vectorizer_initialized = True
+            return False
+
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Failed to initialize vectorizer: {e}")
+            self._vectorizer_initialized = True
+            return False
+
+    async def embed(self, text: str) -> List[float]:
+        """
+        文本向量化
+
+        ✅ Story 23.2 AC 1: 支持文本内容向量化
+        - 返回384维向量 (使用all-MiniLM-L6-v2)
+        - 或返回768维向量 (使用all-mpnet-base-v2)
+        - 响应时间 < 100ms/单条文本
+
+        ✅ Verified from MultimodalVectorizer.vectorize_text():
+        - Returns VectorizedContent with .vector attribute
+
+        Args:
+            text: 要向量化的文本
+
+        Returns:
+            List[float]: embedding向量 (384或768维)
+
+        Raises:
+            RuntimeError: 如果vectorizer初始化失败
+        """
+        await self._init_vectorizer()
+
+        if self._vectorizer is None:
+            raise RuntimeError(
+                "Vectorizer not available. Install sentence-transformers: "
+                "pip install sentence-transformers"
+            )
+
+        # ✅ Verified from MultimodalVectorizer.vectorize_text() (line 244-290)
+        result = await self._vectorizer.vectorize_text(text)
+        return result.vector
+
+    async def index_canvas(
+        self,
+        canvas_path: str,
+        nodes: Optional[List[Dict[str, Any]]] = None,
+        table_name: str = "canvas_nodes"
+    ) -> int:
+        """
+        批量索引Canvas节点
+
+        ✅ Story 23.2 AC 2: 支持Canvas节点批量索引
+        - 所有节点被索引到 canvas_nodes 表
+        - 每个节点记录包含: doc_id, content, vector, canvas_file, node_id, color, metadata
+        - 批量处理支持100+节点
+        - 处理速度 < 1秒/10节点
+
+        ✅ Verified from specs/data/canvas-node.schema.json:
+        - id: string (节点唯一标识)
+        - type: "text" | "file" | "group" | "link"
+        - text: string (文本内容)
+        - color: "1"-"6" (颜色代码)
+        - x, y: integer (位置坐标)
+
+        Args:
+            canvas_path: Canvas文件路径
+            nodes: 节点列表 (可选，不提供则从文件读取)
+            table_name: LanceDB表名 (默认: canvas_nodes)
+
+        Returns:
+            int: 索引的节点数量
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        await self._init_vectorizer()
+
+        if self._vectorizer is None:
+            if LOGURU_ENABLED:
+                logger.warning("Vectorizer not available, skipping index_canvas")
+            return 0
+
+        # 如果未提供nodes，从Canvas文件读取
+        if nodes is None:
+            nodes = self._read_canvas_nodes(canvas_path)
+
+        # 过滤出有文本内容的text类型节点
+        text_nodes = [
+            node for node in nodes
+            if node.get("type") == "text" and node.get("text", "").strip()
+        ]
+
+        if not text_nodes:
+            if LOGURU_ENABLED:
+                logger.info(f"No text nodes to index in {canvas_path}")
+            return 0
+
+        # 提取文本列表用于批量向量化
+        texts = [node.get("text", "") for node in text_nodes]
+
+        # ✅ Story 23.2 AC 2: 批量向量化 (batch_size=100)
+        # ✅ Verified from MultimodalVectorizer.batch_vectorize() (line 455-515)
+        try:
+            vectorized = await self._vectorizer.batch_vectorize(texts)
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Batch vectorization failed: {e}")
+            return 0
+
+        # 准备LanceDB文档
+        documents = []
+        for node, vec_result in zip(text_nodes, vectorized):
+            doc = {
+                "doc_id": f"canvas_{node['id']}",
+                "content": node.get("text", ""),
+                "vector": vec_result.vector,
+                "canvas_file": canvas_path,
+                "node_id": node.get("id", ""),
+                "node_type": node.get("type", "text"),
+                "color": node.get("color", ""),
+                "x": node.get("x", 0),
+                "y": node.get("y", 0),
+                "timestamp": datetime.now().isoformat(),
+                "metadata_json": json.dumps({
+                    "width": node.get("width"),
+                    "height": node.get("height"),
+                }, ensure_ascii=False)
+            }
+            documents.append(doc)
+
+        # 写入LanceDB
+        count = await self.add_documents(table_name, documents)
+
+        if LOGURU_ENABLED:
+            logger.info(
+                f"Indexed {count} nodes from {canvas_path} to {table_name}"
+            )
+
+        return count
+
+    def _read_canvas_nodes(self, canvas_path: str) -> List[Dict[str, Any]]:
+        """
+        从Canvas文件读取节点
+
+        ✅ Verified from specs/data/canvas-node.schema.json:
+        Canvas JSON格式: {"nodes": [...], "edges": [...]}
+
+        Args:
+            canvas_path: Canvas文件路径
+
+        Returns:
+            List[Dict]: 节点列表
+        """
+        try:
+            with open(canvas_path, 'r', encoding='utf-8') as f:
+                canvas_data = json.load(f)
+            return canvas_data.get("nodes", [])
+        except FileNotFoundError:
+            if LOGURU_ENABLED:
+                logger.error(f"Canvas file not found: {canvas_path}")
+            return []
+        except json.JSONDecodeError as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Invalid JSON in canvas file {canvas_path}: {e}")
+            return []
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Failed to read canvas file {canvas_path}: {e}")
+            return []
 
     async def search(
         self,
@@ -302,8 +554,10 @@ class LanceDBClient:
         """
         获取查询向量
 
+        ✅ Story 23.2: 使用embed()方法替换随机向量fallback
+
         如果query已经是向量，直接返回；
-        否则尝试使用embedder生成向量。
+        否则使用embed()方法生成向量。
 
         Args:
             query: 查询文本或向量
@@ -318,7 +572,7 @@ class LanceDBClient:
         if NUMPY_AVAILABLE and isinstance(query, np.ndarray):
             return query.tolist()
 
-        # 尝试使用embedder生成向量
+        # 尝试使用embedder生成向量 (legacy support)
         if self._embedder is not None:
             try:
                 return await self._embedder(query)
@@ -326,15 +580,20 @@ class LanceDBClient:
                 if LOGURU_ENABLED:
                     logger.error(f"Embedder failed: {e}")
 
-        # Fallback: 使用随机向量 (仅用于测试)
-        if NUMPY_AVAILABLE:
+        # ✅ Story 23.2: 使用embed()方法 (MultimodalVectorizer)
+        try:
+            return await self.embed(query)
+        except RuntimeError:
+            # Vectorizer not available - return None instead of random vector
             if LOGURU_ENABLED:
                 logger.warning(
-                    "Using random vector for search (embedder not configured)"
+                    "Vectorizer not available. Install sentence-transformers."
                 )
-            return np.random.rand(self.embedding_dim).tolist()
-
-        return None
+            return None
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Embedding failed: {e}")
+            return None
 
     def _convert_to_search_results(
         self,
