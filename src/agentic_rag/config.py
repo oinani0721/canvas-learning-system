@@ -138,6 +138,24 @@ class CanvasRAGConfig(TypedDict, total=False):
     timeout_seconds: float  # 检索超时时间 (默认10s)
     enable_caching: bool  # 是否启用缓存 (默认True)
 
+    # Story 23.4: 多源融合权重配置
+    # 各数据源的融合权重，用于加权融合算法
+    # 默认值: graphiti=0.25, lancedb=0.25, textbook=0.20, cross_canvas=0.15, multimodal=0.15
+    source_weights: Dict[str, float]  # 数据源权重配置
+
+    # Story 23.4: 时间衰减配置 (用于学习历史)
+    time_decay_factor: float  # 时间衰减因子 (默认0.05)
+
+
+# Story 23.4: 默认数据源权重配置
+# ✅ Verified from Story 23.4 Dev Notes: Data Sources Overview
+DEFAULT_SOURCE_WEIGHTS = {
+    "graphiti": 0.25,      # Graphiti知识图谱
+    "lancedb": 0.25,       # LanceDB向量检索
+    "textbook": 0.20,      # 教材上下文
+    "cross_canvas": 0.15,  # 跨Canvas关联
+    "multimodal": 0.15     # 多模态检索
+}
 
 # 默认配置
 DEFAULT_CONFIG = CanvasRAGConfig(
@@ -150,6 +168,9 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     enable_cost_monitoring=True,
     timeout_seconds=10.0,
     enable_caching=True,
+    # Story 23.4: 多源融合配置
+    source_weights=DEFAULT_SOURCE_WEIGHTS,
+    time_decay_factor=0.05,  # 时间衰减因子
 )
 
 

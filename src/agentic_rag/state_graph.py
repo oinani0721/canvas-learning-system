@@ -47,7 +47,12 @@ from agentic_rag.nodes import (  # noqa: E402
 )
 
 # Story 6.8: 导入多模态检索节点
-from agentic_rag.retrievers import multimodal_retrieval_node  # noqa: E402
+# Story 23.4: 导入教材和跨Canvas检索节点
+from agentic_rag.retrievers import (  # noqa: E402
+    cross_canvas_retrieval_node,
+    multimodal_retrieval_node,
+    textbook_retrieval_node,
+)
 from agentic_rag.state import CanvasRAGState  # noqa: E402
 
 # ========================================
@@ -69,21 +74,25 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     - Send objects specify target node and state
 
     Story 6.8 扩展: 添加多模态检索节点，三路并行检索
+    Story 23.4 扩展: 添加教材和跨Canvas检索节点，五路并行检索
 
     Returns:
         List[Send]: Send objects for parallel execution
     """
-    # ✅ Story 23.3 AC 2: 三路并行检索日志
-    logger.debug("[fan_out_retrieval] Dispatching to 3 parallel retrieval nodes")
+    # ✅ Story 23.3 AC 2: 五路并行检索日志 (Story 23.4 扩展)
+    logger.debug("[fan_out_retrieval] Dispatching to 5 parallel retrieval nodes")
 
-    # Send to Graphiti, LanceDB, and Multimodal in parallel (Story 6.8)
+    # Story 23.4: Send to all 5 retrieval sources in parallel
+    # ✅ Verified from LangGraph Skill: Send pattern for parallel execution
     sends = [
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
         Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
+        Send("retrieve_textbook", state),     # Story 23.4: 教材上下文
+        Send("retrieve_cross_canvas", state), # Story 23.4: 跨Canvas关联
     ]
 
-    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: retrieve_graphiti, retrieve_lancedb, retrieve_multimodal")
+    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: all 5 retrieval nodes")
     return sends
 
 
@@ -201,16 +210,18 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     - add_node, add_conditional_edges, add_edge
     - compile()
 
-    Graph Structure (Story 6.8 扩展):
+    Graph Structure (Story 23.4 扩展 - 五路并行检索):
     ```
     START
       ↓
     fan_out_retrieval (conditional edge)
       ├──→ retrieve_graphiti (parallel)
       ├──→ retrieve_lancedb (parallel)
-      └──→ retrieve_multimodal (parallel) [Story 6.8]
+      ├──→ retrieve_multimodal (parallel) [Story 6.8]
+      ├──→ retrieve_textbook (parallel) [Story 23.4]
+      └──→ retrieve_cross_canvas (parallel) [Story 23.4]
            ↓ (converge)
-         fuse_results
+         fuse_results (5-source weighted fusion)
            ↓
          rerank_results
            ↓
@@ -266,6 +277,28 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         )
     )
 
+    # Story 23.4: 教材上下文检索节点
+    builder.add_node(
+        "retrieve_textbook",
+        textbook_retrieval_node,
+        retry_policy=RetryPolicy(
+            retry_on=Exception,
+            max_attempts=2,
+            backoff_factor=1.5,
+        )
+    )
+
+    # Story 23.4: 跨Canvas关联检索节点
+    builder.add_node(
+        "retrieve_cross_canvas",
+        cross_canvas_retrieval_node,
+        retry_policy=RetryPolicy(
+            retry_on=Exception,
+            max_attempts=2,
+            backoff_factor=1.5,
+        )
+    )
+
     # Processing nodes
     builder.add_node("fuse_results", fuse_results)
     builder.add_node("rerank_results", rerank_results)
@@ -288,10 +321,14 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     # retrieve_graphiti → fuse_results
     # retrieve_lancedb → fuse_results
     # retrieve_multimodal → fuse_results (Story 6.8)
+    # retrieve_textbook → fuse_results (Story 23.4)
+    # retrieve_cross_canvas → fuse_results (Story 23.4)
     # (All parallel nodes converge to fuse_results automatically)
     builder.add_edge("retrieve_graphiti", "fuse_results")
     builder.add_edge("retrieve_lancedb", "fuse_results")
     builder.add_edge("retrieve_multimodal", "fuse_results")  # Story 6.8
+    builder.add_edge("retrieve_textbook", "fuse_results")     # Story 23.4
+    builder.add_edge("retrieve_cross_canvas", "fuse_results") # Story 23.4
 
     # fuse_results → rerank_results
     builder.add_edge("fuse_results", "rerank_results")
