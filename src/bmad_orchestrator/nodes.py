@@ -31,6 +31,9 @@ from typing import Any, Dict, List, Optional
 
 from langgraph.types import Send
 
+# ✅ Verified from Project Code (src/bmad_orchestrator/commit_gate.py)
+# Commit Gate v2 - 零幻觉强制验证机制
+from .commit_gate import CommitGate, CommitGateError
 from .session_spawner import (
     BmadSessionSpawner,
     DevResult,
@@ -47,10 +50,6 @@ from .state import (
     SoTResolution,
     StoryDraft,
 )
-
-# ✅ Verified from Project Code (src/bmad_orchestrator/commit_gate.py)
-# Commit Gate v2 - 零幻觉强制验证机制
-from .commit_gate import CommitGate, CommitGateError
 
 # ============================================================================
 # PostProcessHook 导入 (用于 Story 文件更新和 QA Gate 生成)
@@ -687,9 +686,11 @@ async def sm_node(state: BmadOrchestratorState) -> Dict[str, Any]:
             )
 
             # 等待完成（启用卡住检测）
+            # 使用 timeout 作为 stuck 检测阈值（默认 300 秒太短）
+            stuck_threshold = state.get("timeout", DEFAULT_TIMEOUT)
             log_file = worktree_path / "sm-output.log"
             returncode, partial = await spawner.wait_for_session(
-                session_id, log_file=log_file
+                session_id, log_file=log_file, stuck_threshold_seconds=stuck_threshold
             )
 
             # 获取结果
@@ -955,7 +956,7 @@ async def po_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     approved_stories: List[str] = []
     rejected_stories: List[Dict[str, str]] = []
     sot_resolutions: List[SoTResolution] = []
-    blockers: List[BlockerInfo] = []
+    # Note: blockers list removed as it was unused
 
     # 顺序执行 PO 验证
     for draft in story_drafts:
@@ -982,9 +983,11 @@ async def po_node(state: BmadOrchestratorState) -> Dict[str, Any]:
             )
 
             # 等待完成（启用卡住检测）
+            # 使用 timeout 作为 stuck 检测阈值（默认 300 秒太短）
+            stuck_threshold = state.get("timeout", DEFAULT_TIMEOUT)
             log_file = worktree_path / "po-output.log"
             returncode, partial = await spawner.wait_for_session(
-                session_id, log_file=log_file
+                session_id, log_file=log_file, stuck_threshold_seconds=stuck_threshold
             )
 
             # 获取结果
@@ -1281,14 +1284,13 @@ async def sdd_pre_validation_node(state: BmadOrchestratorState) -> Dict[str, Any
                     if output.strip():
                         result_data = json.loads(output)
                         coverage_percent = result_data.get("coverage_percent", 80)
-                except:
+                except (json.JSONDecodeError, UnicodeDecodeError, OSError):
                     coverage_percent = 80
                 print(f"[SDD Pre-Validation Node] [OK] Tier 1 passed - Coverage: {coverage_percent}%")
         else:
             # 脚本不存在，估算覆盖率
             print("[SDD Pre-Validation Node] [WARN] Coverage script not found, estimating...")
-            # 简单估算: OpenAPI + Schema 文件数 / PRD 章节数
-            prd_files = list(prd_path.glob("*.md"))
+            # 简单估算: OpenAPI + Schema 文件数 * 20
             estimated_coverage = min(100, (len(openapi_files) + len(schema_files)) * 20)
             coverage_percent = estimated_coverage
 
@@ -1329,7 +1331,7 @@ async def sdd_pre_validation_node(state: BmadOrchestratorState) -> Dict[str, Any
                     if 'x-source-verification' not in content and 'x-prd-reference' not in content:
                         source_verified = False
                         warnings.append(f"{openapi_file.name}: Missing source verification metadata")
-                except:
+                except (OSError, UnicodeDecodeError):
                     pass
 
             if not source_verified:
@@ -1463,6 +1465,8 @@ async def dev_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     blockers: List[BlockerInfo] = []
 
     # 并行创建 worktrees 和启动会话
+    # 获取 timeout 值传递给 dev 会话
+    dev_timeout = state.get("timeout", DEFAULT_TIMEOUT)
     tasks = []
     for story_id in current_batch:
         task = _run_dev_session(
@@ -1470,6 +1474,7 @@ async def dev_node(state: BmadOrchestratorState) -> Dict[str, Any]:
             story_id=story_id,
             base_path=base_path,
             worktree_base=worktree_base,
+            timeout=dev_timeout,
         )
         tasks.append(task)
 
@@ -1555,6 +1560,7 @@ async def _run_dev_session(
     story_id: str,
     base_path: Path,
     worktree_base: Path,
+    timeout: int = DEFAULT_TIMEOUT,
 ) -> tuple:
     """运行单个 Dev 会话"""
     # 创建 worktree
@@ -1598,9 +1604,10 @@ async def _run_dev_session(
         )
 
         # 等待完成（启用卡住检测）
+        # 使用 timeout 参数作为 stuck 检测阈值（默认 300 秒太短）
         log_file = worktree_path / "dev-output.log"
         returncode, partial = await spawner.wait_for_session(
-            session_id, log_file=log_file
+            session_id, log_file=log_file, stuck_threshold_seconds=timeout
         )
 
         # 获取结果（包含卡住时的部分结果）
@@ -1720,9 +1727,11 @@ async def qa_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     )
 
     qa_outcomes: List[QAOutcome] = []
-    blockers: List[BlockerInfo] = []
+    # Note: blockers list removed as it was unused
 
     # 并行运行 QA
+    # 获取 timeout 值传递给 QA 会话
+    qa_timeout = state.get("timeout", DEFAULT_TIMEOUT)
     tasks = []
     for story_id in successful_stories:
         worktree_path = worktree_paths.get(story_id)
@@ -1731,6 +1740,7 @@ async def qa_node(state: BmadOrchestratorState) -> Dict[str, Any]:
                 spawner=spawner,
                 story_id=story_id,
                 worktree_path=Path(worktree_path),
+                timeout=qa_timeout,
             )
             tasks.append(task)
 
@@ -1840,6 +1850,7 @@ async def _run_qa_session(
     spawner: BmadSessionSpawner,
     story_id: str,
     worktree_path: Path,
+    timeout: int = DEFAULT_TIMEOUT,
 ) -> QAOutcome:
     """运行单个 QA 会话"""
     try:
@@ -1850,9 +1861,10 @@ async def _run_qa_session(
         )
 
         # 等待完成（启用卡住检测）
+        # 使用 timeout 参数作为 stuck 检测阈值（默认 300 秒太短）
         log_file = worktree_path / "qa-output.log"
         returncode, partial = await spawner.wait_for_session(
-            session_id, log_file=log_file
+            session_id, log_file=log_file, stuck_threshold_seconds=timeout
         )
 
         result = await spawner.get_session_result("QA", worktree_path)
