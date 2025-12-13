@@ -794,7 +794,6 @@ class BmadSessionSpawner:
         # ✅ FIX v14: Disable BMad agents to prevent Claude from loading interactive definitions
         # Claude Code loads .bmad-core/agents/*.md which override our automated prompt
         # Solution: Temporarily rename the agents directory before starting the session
-        import shutil
         bmad_agents_dir = worktree_path / '.bmad-core' / 'agents'
         bmad_agents_disabled = worktree_path / '.bmad-core' / 'agents.disabled'
         if bmad_agents_dir.exists() and not bmad_agents_disabled.exists():
@@ -936,7 +935,7 @@ class BmadSessionSpawner:
                     # Close log handle after process ends
                     try:
                         self.log_handle.close()
-                    except:
+                    except Exception:
                         pass
                     return self.returncode
 
@@ -1121,14 +1120,35 @@ class BmadSessionSpawner:
                     raw_data=data,
                 )
             elif phase == "DEV":
+                # Map 'status' to 'outcome' if Claude used wrong field name
+                outcome = data.get("outcome")
+                if outcome is None:
+                    status = data.get("status", "")
+                    # Map common status values to expected outcome values
+                    status_to_outcome = {
+                        "completed": "SUCCESS",
+                        "success": "SUCCESS",
+                        "passed": "SUCCESS",
+                        "failed": "ERROR",
+                        "error": "ERROR",
+                        "blocked": "DEV_BLOCKED",
+                    }
+                    outcome = status_to_outcome.get(status.lower(), "ERROR") if status else "ERROR"
+
+                # Extract test_results if nested (Claude sometimes nests these)
+                test_results = data.get("test_results", {})
+                tests_passed = data.get("tests_passed", test_results.get("passed", 0) > 0 if test_results else False)
+                test_count = data.get("test_count", test_results.get("total", 0))
+                test_coverage = data.get("test_coverage", 0.0)
+
                 return DevResult(
                     story_id=data.get("story_id", ""),
-                    outcome=data.get("outcome", "ERROR"),
+                    outcome=outcome,
                     timestamp=data.get("timestamp", ""),
                     duration_seconds=data.get("duration_seconds", 0),
-                    tests_passed=data.get("tests_passed", False),
-                    test_count=data.get("test_count", 0),
-                    test_coverage=data.get("test_coverage", 0.0),
+                    tests_passed=tests_passed,
+                    test_count=test_count,
+                    test_coverage=test_coverage,
                     files_created=data.get("files_created", []),
                     files_modified=data.get("files_modified", []),
                     blocking_reason=data.get("blocking_reason"),
@@ -1136,12 +1156,30 @@ class BmadSessionSpawner:
                     raw_data=data,
                 )
             elif phase == "QA":
+                # Map 'status' to 'outcome' if Claude used wrong field name
+                outcome = data.get("outcome")
+                if outcome is None:
+                    status = data.get("status", "")
+                    status_to_outcome = {
+                        "passed": "PASS",
+                        "pass": "PASS",
+                        "approved": "PASS",
+                        "concerns": "CONCERNS",
+                        "failed": "FAIL",
+                        "fail": "FAIL",
+                        "rejected": "FAIL",
+                    }
+                    outcome = status_to_outcome.get(status.lower(), "ERROR") if status else "ERROR"
+
+                # Handle qa_gate being in different places
+                qa_gate = data.get("qa_gate") or data.get("gate") or data.get("decision") or outcome
+
                 return QAResult(
                     story_id=data.get("story_id", ""),
-                    outcome=data.get("outcome", "ERROR"),
+                    outcome=outcome,
                     timestamp=data.get("timestamp", ""),
                     duration_seconds=data.get("duration_seconds", 0),
-                    qa_gate=data.get("qa_gate"),
+                    qa_gate=qa_gate,
                     quality_score=data.get("quality_score", 0),
                     ac_coverage=data.get("ac_coverage", {}),
                     issues_found=data.get("issues_found", []),
@@ -1206,7 +1244,7 @@ class BmadSessionSpawner:
 
         # Close any remaining log handles
         if hasattr(self, '_log_handles'):
-            for session_id, handle in list(self._log_handles.items()):
+            for _session_id, handle in list(self._log_handles.items()):
                 try:
                     handle.close()
                 except Exception:
