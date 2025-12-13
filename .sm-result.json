@@ -1,64 +1,50 @@
 {
-  "story_id": "20.5",
-  "epic_id": "20",
+  "story_id": "23.1",
+  "epic_id": "23",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/20.5.story.md",
-  "title": "Multi-Provider Integration Testing & Epic Validation",
-  "description": "集成测试和性能验证Story，验证Epic 20所有组件协同工作，确保故障转移<2s和健康检查<500ms的性能指标",
+  "story_file": "docs/stories/23.1.story.md",
+  "title": "LangGraph导入问题修复",
+  "description": "修复src/agentic_rag模块的导入问题，确保LANGGRAPH_AVAILABLE = True，使RAG功能可用",
+  "priority": "P0",
+  "story_points": 2,
+  "acceptance_criteria": [
+    "AC 1: agentic_rag模块导入成功 - from agentic_rag import canvas_agentic_rag 无ImportError",
+    "AC 2: RAGService中LANGGRAPH_AVAILABLE为True",
+    "AC 3: 所有依赖版本记录在requirements.txt",
+    "AC 4: 导入诊断日志清晰记录失败原因"
+  ],
+  "key_files": [
+    "src/agentic_rag/__init__.py",
+    "src/agentic_rag/state_graph.py",
+    "backend/requirements.txt",
+    "backend/app/services/rag_service.py"
+  ],
   "sdd_references": [
-    "specs/api/canvas-api.openapi.yml"
+    "specs/data/langgraph-state.schema.json"
   ],
   "adr_references": [
-    "docs/architecture/decisions/0002-langgraph-agents.md"
-  ],
-  "verified_files": [
-    "backend/app/clients/__init__.py",
-    "backend/app/clients/base_provider.py",
-    "backend/app/clients/google_provider.py",
-    "backend/app/clients/openai_provider.py",
-    "backend/app/clients/anthropic_provider.py"
-  ],
-  "acceptance_criteria": [
-    "AC-20.5.1: 集成测试覆盖Provider切换流程 (故障转移 < 2秒)",
-    "AC-20.5.2: 健康检查性能测试通过 (响应 < 500ms)",
-    "AC-20.5.3: 故障转移集成测试通过 (连续3次失败触发)",
-    "AC-20.5.4: API密钥安全测试通过 (脱敏和gitignore)",
-    "AC-20.5.5: Epic级别验收标准全部通过 (AC-20.E1-E5)"
+    "docs/architecture/decisions/0002-langgraph-agents.md",
+    "docs/architecture/decisions/0003-graphiti-memory.md",
+    "docs/architecture/ADR-003-AGENTIC-RAG-ARCHITECTURE.md"
   ],
   "dependencies": {
-    "upstream": [
-      "Story 20.1: 多Provider架构设计",
-      "Story 20.2: Provider切换机制",
-      "Story 20.3: API密钥安全管理",
-      "Story 20.4: 健康检查与故障转移"
-    ],
-    "downstream": [
-      "Epic 21: Agent端到端流程",
-      "Epic 22: 记忆系统",
-      "Epic 23: RAG智能推理"
-    ]
+    "epic": ["EPIC-22"],
+    "story": []
   },
+  "blocked_by": [],
+  "blocks": ["23.2", "23.3", "23.4"],
+  "checklist_passed": true,
   "checklist_results": {
-    "1.1_story_template_structure": true,
-    "1.2_title_clear_descriptive": true,
-    "2.1_ac_testable_gwt_format": true,
+    "1.1_template_structure": true,
+    "1.2_clear_title": true,
+    "2.1_testable_ac": true,
     "2.2_ac_numbered": true,
-    "5.1_dev_notes_complete": true,
-    "5.2_dev_notes_references": true,
-    "6.1_sdd_references_valid": true,
-    "6.2_adr_references_exist": true,
+    "5.1_complete_dev_notes": true,
+    "5.2_line_number_refs": true,
+    "6.1_sdd_references": true,
+    "6.2_adr_references": true,
     "6.3_file_paths_verified": true
   },
-  "checklist_passed": true,
-  "estimated_hours": 4,
-  "priority": "P0",
-  "notes": [
-    "Story 20.5 is the validation/testing Story for Epic 20",
-    "No new feature code - focuses on integration testing and performance verification",
-    "All 5 Epic-level acceptance criteria (AC-20.E1-E5) will be validated",
-    "Finding: .env not explicitly in .gitignore - test should flag this"
-  ],
-  "timestamp": "2025-12-12T00:00:00Z",
-  "generator": "Claude Code UltraThink Mode",
-  "sm_agent": "Bob"
+  "timestamp": "2025-12-12T00:00:00.000Z",
+  "generated_by": "SM Agent (Automated Batch Mode)"
 }
