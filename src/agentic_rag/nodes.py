@@ -217,23 +217,37 @@ async def retrieve_lancedb(
 
 
 # ========================================
-# Node 3: 融合算法
+# Node 3: 融合算法 (Story 23.4 扩展为5源融合)
 # ========================================
+
+# Story 23.4: 默认权重配置
+DEFAULT_SOURCE_WEIGHTS = {
+    "graphiti": 0.25,
+    "lancedb": 0.25,
+    "textbook": 0.20,
+    "cross_canvas": 0.15,
+    "multimodal": 0.15
+}
+
 
 async def fuse_results(
     state: CanvasRAGState,
     runtime: Runtime[CanvasRAGConfig]
 ) -> Dict[str, Any]:
     """
-    融合算法节点
+    融合算法节点 (Story 23.4: 五源加权融合)
 
     根据fusion_strategy选择融合算法:
-    - rrf: Reciprocal Rank Fusion
-    - weighted: 加权融合 (检验白板: 70% Graphiti + 30% LanceDB)
-    - cascade: 级联融合 (Tier 1: Graphiti, Tier 2: LanceDB)
+    - rrf: Reciprocal Rank Fusion (5源)
+    - weighted: 加权融合 (使用source_weights配置)
+    - cascade: 级联融合 (Tier 1: Graphiti, Tier 2: others)
 
     ✅ Verified from LangGraph Skill:
     - Access runtime config: runtime.context["fusion_strategy"]
+
+    ✅ Story 23.4:
+    - AC 4: 支持数据源权重配置
+    - AC 5: 融合结果包含source标注
 
     Args:
         state: 当前状态
@@ -245,22 +259,39 @@ async def fuse_results(
     """
     start_time = time.perf_counter()
 
+    # Story 23.4: 获取5个数据源的结果
     graphiti_results = state.get("graphiti_results", [])
     lancedb_results = state.get("lancedb_results", [])
+    multimodal_results = state.get("multimodal_results", [])
+    textbook_results = state.get("textbook_results", [])
+    cross_canvas_results = state.get("cross_canvas_results", [])
 
+    # 获取配置
     fusion_strategy = runtime.context.get("fusion_strategy", "rrf")
+    source_weights = runtime.context.get("source_weights", DEFAULT_SOURCE_WEIGHTS)
+    time_decay_factor = runtime.context.get("time_decay_factor", 0.05)
+
+    # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
+    graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
+
+    # 构建5源结果字典
+    all_source_results = {
+        "graphiti": graphiti_results,
+        "lancedb": lancedb_results,
+        "multimodal": multimodal_results,
+        "textbook": textbook_results,
+        "cross_canvas": cross_canvas_results
+    }
 
     if fusion_strategy == "rrf":
         # RRF算法: score = Σ(1/(k+rank)), k=60
-        fused_results = _fuse_rrf(graphiti_results, lancedb_results)
+        fused_results = _fuse_rrf_multi_source(all_source_results)
     elif fusion_strategy == "weighted":
-        # Weighted融合: score = alpha * norm(graphiti) + beta * norm(lancedb)
-        alpha = 0.7 if state.get("is_review_canvas") else 0.5
-        beta = 1.0 - alpha
-        fused_results = _fuse_weighted(graphiti_results, lancedb_results, alpha, beta)
+        # Story 23.4 AC 4: Weighted融合使用source_weights
+        fused_results = _fuse_weighted_multi_source(all_source_results, source_weights)
     elif fusion_strategy == "cascade":
         # Cascade融合: Tier 1 → Tier 2
-        fused_results = _fuse_cascade(graphiti_results, lancedb_results)
+        fused_results = _fuse_cascade_multi_source(all_source_results)
     else:
         raise ValueError(f"Unknown fusion_strategy: {fusion_strategy}")
 
@@ -272,61 +303,233 @@ async def fuse_results(
     }
 
 
-def _fuse_rrf(
-    graphiti_results: List[SearchResult],
-    lancedb_results: List[SearchResult],
+def _apply_time_decay(
+    results: List[SearchResult],
+    decay_factor: float = 0.05
+) -> List[SearchResult]:
+    """
+    Story 23.4 AC 2: 对学习历史结果应用时间衰减
+
+    公式: weight = base_score * exp(-decay * days_ago)
+
+    Args:
+        results: 检索结果列表
+        decay_factor: 时间衰减因子 (默认0.05)
+
+    Returns:
+        应用时间衰减后的结果
+    """
+    import math
+    from datetime import datetime, timezone
+
+    decayed_results = []
+    now = datetime.now(timezone.utc)
+
+    for r in results:
+        result = dict(r)  # 创建副本
+        metadata = result.get("metadata", {})
+
+        # 获取时间戳 (如果有)
+        timestamp_str = metadata.get("timestamp") or metadata.get("created_at")
+        if timestamp_str:
+            try:
+                # 尝试解析ISO格式时间
+                if isinstance(timestamp_str, str):
+                    timestamp = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                else:
+                    timestamp = timestamp_str
+
+                # 计算天数差
+                delta = now - timestamp
+                days_ago = delta.days
+
+                # 应用衰减公式
+                original_score = result.get("score", 0.5)
+                decay_weight = math.exp(-decay_factor * days_ago)
+                result["score"] = original_score * decay_weight
+
+                # 记录衰减信息
+                if "metadata" not in result:
+                    result["metadata"] = {}
+                result["metadata"]["time_decay_applied"] = True
+                result["metadata"]["days_ago"] = days_ago
+                result["metadata"]["decay_weight"] = decay_weight
+
+            except (ValueError, TypeError):
+                # 解析失败，保持原分数
+                pass
+
+        decayed_results.append(result)
+
+    return decayed_results
+
+
+def _fuse_rrf_multi_source(
+    all_source_results: Dict[str, List[SearchResult]],
     k: int = 60
 ) -> List[SearchResult]:
     """
-    RRF (Reciprocal Rank Fusion) 算法
+    RRF (Reciprocal Rank Fusion) 多源算法
 
     score = Σ(1/(k+rank))
 
-    TODO: Story 12.7 完成详细实现
+    Story 23.4: 支持5个数据源
     """
-    # Placeholder: 简单合并并排序
-    all_results = graphiti_results + lancedb_results
-    all_results.sort(key=lambda x: x["score"], reverse=True)
-    return all_results[:10]
+    # 收集所有文档及其rank
+    doc_scores: Dict[str, float] = {}
+    doc_data: Dict[str, SearchResult] = {}
+
+    for source_name, results in all_source_results.items():
+        for rank, result in enumerate(results, start=1):
+            doc_id = result.get("doc_id", f"{source_name}_{rank}")
+
+            # RRF分数累加
+            rrf_score = 1.0 / (k + rank)
+            doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + rrf_score
+
+            # 保存文档数据 (首次出现)
+            if doc_id not in doc_data:
+                doc_data[doc_id] = dict(result)
+                # Story 23.4 AC 5: 确保source标注
+                if "metadata" not in doc_data[doc_id]:
+                    doc_data[doc_id]["metadata"] = {}
+                if "source" not in doc_data[doc_id]["metadata"]:
+                    doc_data[doc_id]["metadata"]["source"] = source_name
+
+    # 按RRF分数排序
+    sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+
+    # 构建最终结果
+    fused_results = []
+    for doc_id, rrf_score in sorted_docs[:10]:
+        result = doc_data[doc_id]
+        result["score"] = rrf_score  # 使用RRF分数
+        result["metadata"]["fusion_method"] = "rrf"
+        fused_results.append(result)
+
+    return fused_results
 
 
-def _fuse_weighted(
-    graphiti_results: List[SearchResult],
-    lancedb_results: List[SearchResult],
-    alpha: float,
-    beta: float
+def _fuse_weighted_multi_source(
+    all_source_results: Dict[str, List[SearchResult]],
+    source_weights: Dict[str, float]
 ) -> List[SearchResult]:
     """
-    Weighted融合算法
+    Story 23.4 AC 4: 加权融合算法 (多源)
 
-    score = alpha * norm(graphiti) + beta * norm(lancedb)
+    score = Σ(weight[source] * norm(score))
 
-    TODO: Story 12.7 完成详细实现
+    支持source_weights配置:
+    - graphiti: 0.25
+    - lancedb: 0.25
+    - textbook: 0.20
+    - cross_canvas: 0.15
+    - multimodal: 0.15
     """
-    # Placeholder: 简单合并并排序
-    all_results = graphiti_results + lancedb_results
-    all_results.sort(key=lambda x: x["score"], reverse=True)
-    return all_results[:10]
+    doc_scores: Dict[str, float] = {}
+    doc_data: Dict[str, SearchResult] = {}
+
+    for source_name, results in all_source_results.items():
+        weight = source_weights.get(source_name, 0.0)
+
+        # 归一化源内分数 (min-max归一化)
+        if results:
+            scores = [r.get("score", 0.0) for r in results]
+            min_score = min(scores)
+            max_score = max(scores)
+            score_range = max_score - min_score if max_score > min_score else 1.0
+
+            for result in results:
+                doc_id = result.get("doc_id", f"{source_name}_{id(result)}")
+
+                # 归一化分数
+                original_score = result.get("score", 0.0)
+                normalized_score = (original_score - min_score) / score_range
+
+                # 加权累加
+                weighted_score = weight * normalized_score
+                doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + weighted_score
+
+                # 保存文档数据
+                if doc_id not in doc_data:
+                    doc_data[doc_id] = dict(result)
+                    if "metadata" not in doc_data[doc_id]:
+                        doc_data[doc_id]["metadata"] = {}
+                    if "source" not in doc_data[doc_id]["metadata"]:
+                        doc_data[doc_id]["metadata"]["source"] = source_name
+
+    # 按加权分数排序
+    sorted_docs = sorted(doc_scores.items(), key=lambda x: x[1], reverse=True)
+
+    # 构建最终结果
+    fused_results = []
+    for doc_id, weighted_score in sorted_docs[:10]:
+        result = doc_data[doc_id]
+        result["score"] = weighted_score
+        result["metadata"]["fusion_method"] = "weighted"
+        fused_results.append(result)
+
+    return fused_results
 
 
-def _fuse_cascade(
-    graphiti_results: List[SearchResult],
-    lancedb_results: List[SearchResult],
+def _fuse_cascade_multi_source(
+    all_source_results: Dict[str, List[SearchResult]],
     tier1_threshold: int = 5,
     score_threshold: float = 0.7
 ) -> List[SearchResult]:
     """
-    Cascade融合算法
+    Cascade融合算法 (多源)
 
-    Tier 1: 仅Graphiti
+    Tier 1: Graphiti + Textbook (权威来源)
     Tier 2触发条件: len(Tier1) < 5 OR max(score) < 0.7
 
-    TODO: Story 12.7 完成详细实现
+    Story 23.4: 教材作为权威来源加入Tier1
     """
-    # Placeholder: 使用Graphiti结果
-    if len(graphiti_results) < tier1_threshold:
-        return (graphiti_results + lancedb_results)[:10]
-    return graphiti_results[:10]
+    # Tier 1: 权威来源 (Graphiti + Textbook)
+    tier1_results = []
+    for source in ["graphiti", "textbook"]:
+        results = all_source_results.get(source, [])
+        for r in results:
+            result = dict(r)
+            if "metadata" not in result:
+                result["metadata"] = {}
+            if "source" not in result["metadata"]:
+                result["metadata"]["source"] = source
+            result["metadata"]["fusion_tier"] = 1
+            tier1_results.append(result)
+
+    # 检查是否需要Tier 2
+    tier1_scores = [r.get("score", 0.0) for r in tier1_results]
+    max_tier1_score = max(tier1_scores) if tier1_scores else 0.0
+
+    if len(tier1_results) >= tier1_threshold and max_tier1_score >= score_threshold:
+        # Tier 1足够，直接返回
+        tier1_results.sort(key=lambda x: x["score"], reverse=True)
+        for r in tier1_results:
+            r["metadata"]["fusion_method"] = "cascade"
+        return tier1_results[:10]
+
+    # Tier 2: 补充来源 (LanceDB, Multimodal, CrossCanvas)
+    tier2_results = []
+    for source in ["lancedb", "multimodal", "cross_canvas"]:
+        results = all_source_results.get(source, [])
+        for r in results:
+            result = dict(r)
+            if "metadata" not in result:
+                result["metadata"] = {}
+            if "source" not in result["metadata"]:
+                result["metadata"]["source"] = source
+            result["metadata"]["fusion_tier"] = 2
+            tier2_results.append(result)
+
+    # 合并并排序
+    all_results = tier1_results + tier2_results
+    all_results.sort(key=lambda x: x["score"], reverse=True)
+
+    for r in all_results:
+        r["metadata"]["fusion_method"] = "cascade"
+
+    return all_results[:10]
 
 
 # ========================================
