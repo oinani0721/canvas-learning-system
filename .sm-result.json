@@ -1,68 +1,42 @@
 {
-  "story_id": "23.2",
+  "story_id": "23.3",
   "epic_id": "23",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/23.2.story.md",
-  "title": "LanceDB Embedding Pipeline",
-  "description": "Implement complete LanceDB vectorization pipeline for Canvas node semantic retrieval",
-  "priority": "P0",
-  "story_points": 3,
-  "acceptance_criteria": [
-    "AC 1: 支持文本内容向量化",
-    "AC 2: 支持Canvas节点批量索引",
-    "AC 3: 支持语义相似度查询",
-    "AC 4: 向量维度和模型可配置",
-    "AC 5: 索引持久化到本地文件"
-  ],
+  "story_file": "docs/stories/23.3.story.md",
+  "title": "StateGraph智能推理链配置",
   "sdd_references": [
-    "specs/data/canvas-node.schema.json",
-    "specs/data/langgraph-state.schema.json"
+    "specs/api/canvas-api.openapi.yml",
+    "specs/data/canvas-node.schema.json#L17-L74",
+    "specs/data/agent-response.schema.json"
   ],
   "adr_references": [
     "docs/architecture/decisions/0002-langgraph-agents.md",
-    "docs/architecture/decisions/0003-graphiti-memory.md"
+    "docs/architecture/decisions/0004-async-execution-engine.md"
   ],
-  "key_files_to_modify": [
-    "src/agentic_rag/clients/lancedb_client.py",
-    "src/agentic_rag/config.py",
-    "backend/data/lancedb/ (new directory)",
-    "src/tests/test_lancedb_embedding.py (new file)"
-  ],
-  "dependencies": {
-    "story_dependencies": ["Story 23.1 (LangGraph导入问题修复)"],
-    "technical_dependencies": [
-      "Python 3.9+",
-      "lancedb>=0.14.0",
-      "sentence-transformers>=2.2.0",
-      "numpy>=1.21.0"
-    ]
-  },
   "checklist_passed": true,
-  "checklist_results": {
+  "validation_results": {
     "1.1_story_follows_template": true,
-    "1.2_title_clear_descriptive": true,
-    "2.1_ac_testable_gwt_format": true,
+    "1.2_title_clear": true,
+    "2.1_ac_testable": true,
     "2.2_ac_numbered": true,
     "5.1_dev_notes_complete": true,
-    "5.2_dev_notes_line_numbers": true,
-    "6.1_sdd_references_valid": true,
-    "6.2_adr_references_exist": true,
+    "5.2_dev_notes_line_refs": true,
+    "6.1_sdd_refs_valid": true,
+    "6.2_adr_refs_exist": true,
     "6.3_file_paths_verified": true
   },
-  "anti_hallucination_verification": {
-    "verified_files": [
-      "src/agentic_rag/clients/lancedb_client.py",
-      "src/agentic_rag/processors/multimodal_vectorizer.py",
-      "src/agentic_rag/config.py",
-      "specs/data/canvas-node.schema.json"
-    ],
-    "verified_apis": [
-      "MultimodalVectorizer.vectorize_text()",
-      "MultimodalVectorizer.batch_vectorize()",
-      "LanceDBClient.search()",
-      "LanceDBClient.add_documents()"
-    ]
-  },
-  "timestamp": "2025-12-12T12:00:00Z",
-  "generated_by": "SM Agent (Bob) - Automated Batch Mode"
+  "key_files_verified": [
+    "src/agentic_rag/state_graph.py",
+    "src/agentic_rag/state.py",
+    "src/agentic_rag/nodes.py",
+    "docs/architecture/decisions/0002-langgraph-agents.md"
+  ],
+  "acceptance_criteria_count": 5,
+  "tasks_count": 7,
+  "subtasks_count": 35,
+  "dependencies": [
+    "Story 23.1 (LangGraph导入问题修复)",
+    "Story 23.2 (LanceDB Embedding Pipeline)"
+  ],
+  "timestamp": "2025-12-12T10:30:00Z"
 }
