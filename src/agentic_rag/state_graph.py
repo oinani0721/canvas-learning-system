@@ -17,18 +17,28 @@ Story 12.5 AC 5.4, 5.5:
 - ✅ StateGraph compile成功
 - ✅ 端到端运行测试
 
+Story 23.3 Update:
+- ✅ 添加DEBUG日志 (AC 1-5)
+- ✅ 验证三路并行检索
+- ✅ 验证质量控制循环
+
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 1.1.0
 Created: 2025-11-29
+Updated: 2025-12-12
 """
 
+import logging
 from typing import Literal
 
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import RetryPolicy, Send
 
-from agentic_rag.config import CanvasRAGConfig
-from agentic_rag.nodes import (
+# ✅ Story 23.3: 配置日志
+logger = logging.getLogger(__name__)
+
+from agentic_rag.config import CanvasRAGConfig  # noqa: E402
+from agentic_rag.nodes import (  # noqa: E402
     check_quality,
     fuse_results,
     rerank_results,
@@ -37,8 +47,8 @@ from agentic_rag.nodes import (
 )
 
 # Story 6.8: 导入多模态检索节点
-from agentic_rag.retrievers import multimodal_retrieval_node
-from agentic_rag.state import CanvasRAGState
+from agentic_rag.retrievers import multimodal_retrieval_node  # noqa: E402
+from agentic_rag.state import CanvasRAGState  # noqa: E402
 
 # ========================================
 # Conditional Edge: Fan-out to Parallel Retrieval
@@ -54,17 +64,27 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
         return [Send("generate_joke", {"subject": s}) for s in state['subjects']]
     ```
 
+    ✅ Verified from Context7 (langgraph - Dynamic Parallel Processing with Send):
+    - Conditional edges return list[Send] to enable parallel execution
+    - Send objects specify target node and state
+
     Story 6.8 扩展: 添加多模态检索节点，三路并行检索
 
     Returns:
         List[Send]: Send objects for parallel execution
     """
+    # ✅ Story 23.3 AC 2: 三路并行检索日志
+    logger.debug("[fan_out_retrieval] Dispatching to 3 parallel retrieval nodes")
+
     # Send to Graphiti, LanceDB, and Multimodal in parallel (Story 6.8)
-    return [
+    sends = [
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
         Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
     ]
+
+    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: retrieve_graphiti, retrieve_lancedb, retrieve_multimodal")
+    return sends
 
 
 # ========================================
@@ -93,11 +113,19 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
     rewrite_count = state.get("rewrite_count", 0)
     max_rewrite = 2  # TODO: 从runtime config获取
 
+    # ✅ Story 23.3 AC 4: 质量控制循环日志
+    logger.debug(f"[route_after_quality_check] quality={quality_grade}, rewrite_count={rewrite_count}, max={max_rewrite}")
+
     # Low quality且未超过重写次数限制
     if quality_grade == "low" and rewrite_count < max_rewrite:
+        logger.debug("[route_after_quality_check] → rewrite_query (low quality, can retry)")
         return "rewrite_query"
 
     # Medium/High quality 或 已达重写上限
+    if rewrite_count >= max_rewrite:
+        logger.debug(f"[route_after_quality_check] → END (max rewrite reached: {rewrite_count})")
+    else:
+        logger.debug(f"[route_after_quality_check] → END (quality acceptable: {quality_grade})")
     return END
 
 
@@ -122,6 +150,11 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
         - query_rewritten: True
         - rewrite_count: +1
     """
+    current_rewrite_count = state.get("rewrite_count", 0)
+
+    # ✅ Story 23.3 AC 4: 节点入口日志
+    logger.debug(f"[rewrite_query] START - rewrite_count={current_rewrite_count}")
+
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
@@ -132,11 +165,16 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     # Placeholder: 简单添加"请详细解释"
     rewritten_query = f"请详细解释: {original_query}"
 
+    new_rewrite_count = current_rewrite_count + 1
+
+    # ✅ Story 23.3 AC 4: 节点出口日志
+    logger.debug(f"[rewrite_query] END - new_rewrite_count={new_rewrite_count}, query='{rewritten_query[:50]}...'")
+
     # 更新state
     return {
         "messages": [{"role": "user", "content": rewritten_query}],
         "query_rewritten": True,
-        "rewrite_count": state.get("rewrite_count", 0) + 1,
+        "rewrite_count": new_rewrite_count,
     }
 
 

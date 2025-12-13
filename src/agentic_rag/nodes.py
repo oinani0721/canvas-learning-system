@@ -21,21 +21,30 @@ Story 12.1-12.4 Update:
 - ✅ 使用真实 TemporalClient (Story 12.4)
 - ✅ 移除 placeholder mock 数据
 
+Story 23.3 Update:
+- ✅ 添加DEBUG日志 (AC 1-5)
+- ✅ 节点入口/出口日志
+- ✅ 执行时间监控
+
 Author: Canvas Learning System Team
-Version: 1.2.0
+Version: 1.3.0
 Created: 2025-11-29
-Updated: 2025-11-29
+Updated: 2025-12-12
 """
 
+import logging
 import time
 from typing import Any, Dict, List, Optional
 
 from langgraph.runtime import Runtime
 
+# ✅ Story 23.3: 配置节点日志
+logger = logging.getLogger(__name__)
+
 # ✅ Story 12.1-12.4: 使用真实客户端
-from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient
-from agentic_rag.config import CanvasRAGConfig
-from agentic_rag.state import CanvasRAGState, SearchResult
+from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient  # noqa: E402
+from agentic_rag.config import CanvasRAGConfig  # noqa: E402
+from agentic_rag.state import CanvasRAGState, SearchResult  # noqa: E402
 
 # 全局客户端实例 (懒加载)
 _graphiti_client: Optional[GraphitiClient] = None
@@ -123,6 +132,9 @@ async def retrieve_graphiti(
     else:
         query = ""
 
+    # ✅ Story 23.3: 节点入口日志
+    logger.debug(f"[retrieve_graphiti] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
+
     # 获取配置
     batch_size = runtime.context.get("graphiti_batch_size") or runtime.context.get("retrieval_batch_size", 10)
     canvas_file = state.get("canvas_file")
@@ -135,11 +147,15 @@ async def retrieve_graphiti(
             canvas_file=canvas_file,
             num_results=batch_size
         )
-    except Exception:
+    except Exception as e:
         # Fallback: 返回空结果
+        logger.warning(f"[retrieve_graphiti] Fallback triggered: {e}")
         graphiti_results = []
 
     latency_ms = (time.perf_counter() - start_time) * 1000
+
+    # ✅ Story 23.3: 节点出口日志
+    logger.debug(f"[retrieve_graphiti] END - results={len(graphiti_results)}, latency={latency_ms:.2f}ms")
 
     return {
         "graphiti_results": graphiti_results,
@@ -186,6 +202,9 @@ async def retrieve_lancedb(
     else:
         query = ""
 
+    # ✅ Story 23.3: 节点入口日志
+    logger.debug(f"[retrieve_lancedb] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
+
     # 获取配置
     batch_size = runtime.context.get("lancedb_batch_size") or runtime.context.get("retrieval_batch_size", 10)
     canvas_file = state.get("canvas_file")
@@ -204,11 +223,15 @@ async def retrieve_lancedb(
         # 限制总结果数
         lancedb_results = lancedb_results[:batch_size]
 
-    except Exception:
+    except Exception as e:
         # Fallback: 返回空结果
+        logger.warning(f"[retrieve_lancedb] Fallback triggered: {e}")
         lancedb_results = []
 
     latency_ms = (time.perf_counter() - start_time) * 1000
+
+    # ✅ Story 23.3: 节点出口日志
+    logger.debug(f"[retrieve_lancedb] END - results={len(lancedb_results)}, latency={latency_ms:.2f}ms")
 
     return {
         "lancedb_results": lancedb_results,
@@ -247,24 +270,39 @@ async def fuse_results(
 
     graphiti_results = state.get("graphiti_results", [])
     lancedb_results = state.get("lancedb_results", [])
+    # ✅ Story 23.3: 获取多模态结果
+    multimodal_results = state.get("multimodal_results", [])
 
     fusion_strategy = runtime.context.get("fusion_strategy", "rrf")
 
+    # ✅ Story 23.3: 节点入口日志
+    logger.debug(
+        f"[fuse_results] START - strategy={fusion_strategy}, "
+        f"graphiti={len(graphiti_results)}, lancedb={len(lancedb_results)}, "
+        f"multimodal={len(multimodal_results)}"
+    )
+
+    # ✅ Story 23.3 AC 3: 合并多模态结果到融合输入
+    all_lancedb = lancedb_results + multimodal_results
+
     if fusion_strategy == "rrf":
         # RRF算法: score = Σ(1/(k+rank)), k=60
-        fused_results = _fuse_rrf(graphiti_results, lancedb_results)
+        fused_results = _fuse_rrf(graphiti_results, all_lancedb)
     elif fusion_strategy == "weighted":
         # Weighted融合: score = alpha * norm(graphiti) + beta * norm(lancedb)
         alpha = 0.7 if state.get("is_review_canvas") else 0.5
         beta = 1.0 - alpha
-        fused_results = _fuse_weighted(graphiti_results, lancedb_results, alpha, beta)
+        fused_results = _fuse_weighted(graphiti_results, all_lancedb, alpha, beta)
     elif fusion_strategy == "cascade":
         # Cascade融合: Tier 1 → Tier 2
-        fused_results = _fuse_cascade(graphiti_results, lancedb_results)
+        fused_results = _fuse_cascade(graphiti_results, all_lancedb)
     else:
         raise ValueError(f"Unknown fusion_strategy: {fusion_strategy}")
 
     latency_ms = (time.perf_counter() - start_time) * 1000
+
+    # ✅ Story 23.3: 节点出口日志
+    logger.debug(f"[fuse_results] END - strategy={fusion_strategy}, results={len(fused_results)}, latency={latency_ms:.2f}ms")
 
     return {
         "fused_results": fused_results,
@@ -361,12 +399,16 @@ async def rerank_results(
     fused_results = state.get("fused_results", [])
     reranking_strategy = runtime.context.get("reranking_strategy", "hybrid_auto")
 
+    # ✅ Story 23.3: 节点入口日志
+    logger.debug(f"[rerank_results] START - strategy={reranking_strategy}, input_count={len(fused_results)}")
+
     # 自动选择策略
     if reranking_strategy == "hybrid_auto":
         if state.get("is_review_canvas"):
             reranking_strategy = "cohere"
         else:
             reranking_strategy = "local"
+        logger.debug(f"[rerank_results] hybrid_auto resolved to: {reranking_strategy}")
 
     if reranking_strategy == "local":
         # Local Cross-Encoder reranking
@@ -378,6 +420,9 @@ async def rerank_results(
         raise ValueError(f"Unknown reranking_strategy: {reranking_strategy}")
 
     latency_ms = (time.perf_counter() - start_time) * 1000
+
+    # ✅ Story 23.3: 节点出口日志
+    logger.debug(f"[rerank_results] END - strategy={reranking_strategy}, results={len(reranked_results)}, latency={latency_ms:.2f}ms")
 
     return {
         "reranked_results": reranked_results,
@@ -439,8 +484,13 @@ async def check_quality(
         - quality_grade: Literal["high", "medium", "low"]
     """
     reranked_results = state.get("reranked_results", [])
+    rewrite_count = state.get("rewrite_count", 0)
+
+    # ✅ Story 23.3: 节点入口日志
+    logger.debug(f"[check_quality] START - results_count={len(reranked_results)}, rewrite_count={rewrite_count}")
 
     if not reranked_results:
+        logger.debug("[check_quality] END - empty results, grade=low")
         return {"quality_grade": "low"}
 
     # 计算Top-3平均分
@@ -456,6 +506,9 @@ async def check_quality(
         quality_grade = "medium"
     else:
         quality_grade = "low"
+
+    # ✅ Story 23.3: 节点出口日志
+    logger.debug(f"[check_quality] END - avg_score={avg_score:.3f}, grade={quality_grade}")
 
     return {"quality_grade": quality_grade}
 
