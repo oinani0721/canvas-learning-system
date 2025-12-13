@@ -1,10 +1,13 @@
 # Parallel Dev Orchestrator Agent
 
 **Agent Type**: System-Level Parallel Development Coordinator
-**Version**: 1.0.0
+**Version**: 2.0.0
 **Category**: BMad Phase 4 Parallel Development Management
 **Created**: 2025-11-20
+**Updated**: 2025-12-13
 **Status**: Active
+
+> ⚠️ **v2.0.0 更新**: 添加 BMad Workflow Enforcement (强制执行机制)
 
 ---
 
@@ -34,6 +37,80 @@ This is the **command center** for Phase 4 parallel development operations.
 | Dependency Analysis | affected_files field in Story |
 | Conflict Handling | Use existing *correct-course |
 | Intermediate Status | New 'dev-complete' status |
+
+---
+
+## 🔒 BMad Workflow Enforcement (v2.0.0)
+
+### 概述
+
+v2.0.0 引入了 **强制执行机制**，确保 `*epic-develop` 命令真正遵循 BMad 标准工作流：
+
+```
+SM Draft → PO Validation → DEV Development → QA Review → Merge → Commit
+```
+
+### 强制执行装饰器
+
+所有 StateGraph 节点函数都添加了 `@enforce_bmad_workflow` 装饰器：
+
+```python
+@enforce_bmad_workflow
+async def sm_node(state: BmadOrchestratorState) -> Dict[str, Any]:
+    ...
+```
+
+**功能**:
+- 🔴 检查 `bypass_bmad_workflow` 标志，阻止绕过
+- 📝 记录节点执行到 `executed_nodes` 列表
+- ⏱️ 记录开始/完成时间戳
+- ❌ 捕获并记录失败
+
+### Story 文件验证门禁
+
+DEV 节点入口添加了 Story 文件验证：
+
+```python
+def validate_story_files_exist(project_root: Path, story_ids: List[str]) -> Dict[str, Optional[Path]]:
+    """验证 Story 文件必须存在才能进入 DEV 阶段"""
+```
+
+**验证路径**:
+- `docs/stories/{story_id}.story.md`
+- `docs/stories/story-{story_id}.md`
+- `docs/stories/{story_id.replace('.', '-')}.story.md`
+
+### 执行审计日志
+
+每次 Epic 开发完成后，自动生成审计报告：
+
+**文件位置**: `logs/audit/epic-{id}-{timestamp}.md`
+
+**报告内容**:
+- 执行摘要 (executed/skipped/failed)
+- 工作流合规性检查
+- 详细执行记录
+
+### 合规性检查
+
+```python
+compliance = audit.check_workflow_compliance()
+# 检查项:
+# - required_nodes: sm_node, po_node, dev_node, qa_node, commit_node
+# - 执行顺序是否符合标准流程
+```
+
+### CLI 保护参数
+
+| 参数 | 描述 |
+|------|------|
+| `--enforce-gate` | 🔒 默认启用，强制执行 Commit Gate |
+| `--no-enforce-gate` | ⚠️ 禁用保护 (记录到审计日志) |
+
+**被阻止的参数组合** (当 `--enforce-gate` 启用时):
+- `--skip-dev`
+- `--skip-qa`
+- `--fast-mode`
 
 ---
 
@@ -518,5 +595,5 @@ parallel_dev:
 
 ---
 
-**Last Updated**: 2025-11-20
+**Last Updated**: 2025-12-13 (v2.0.0 - BMad Workflow Enforcement)
 **Maintainer**: Canvas Learning System Team

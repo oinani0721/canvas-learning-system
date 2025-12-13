@@ -291,6 +291,18 @@ class BmadOrchestratorState(MessagesState):
     re_qa_mode: Annotated[bool, "re-QA 模式 (--skip-dev 触发，跳过 DEV 阶段循环)"]
 
     # ========================================
+    # 工作流执行审计 (Phase 1: BMad 工作流强制机制)
+    # ========================================
+    executed_nodes: Annotated[
+        List[Dict[str, str]],
+        "执行审计记录: [{node, started_at, status, completed_at?, error?}]"
+    ]
+    bypass_bmad_workflow: Annotated[
+        bool,
+        "是否尝试绕过 BMad 工作流 (设为 True 会触发验证错误)"
+    ]
+
+    # ========================================
     # 输入配置
     # ========================================
     epic_id: Annotated[str, "正在开发的 Epic ID"]

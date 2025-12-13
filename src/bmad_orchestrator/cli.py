@@ -26,9 +26,9 @@ Updated: 2025-12-11 (添加 Commit Gate 强制保护)
 
 import argparse
 import asyncio
+import io
 import json
 import sys
-import io
 
 # Fix Windows encoding issue for emoji output
 if sys.platform == 'win32':
@@ -38,8 +38,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Literal, Optional
 
+from .audit import create_audit_log
 from .graph import compile_graph, resume_workflow, run_epic_workflow
-
 
 # ============================================================================
 # Git 根目录检测
@@ -177,7 +177,7 @@ async def cmd_epic_develop(
             print("\n" + "=" * 70)
             print("🔒 COMMIT GATE PROTECTION ACTIVE")
             print("=" * 70)
-            print(f"\n❌ ERROR: 以下参数与 --enforce-gate 冲突:")
+            print("\n❌ ERROR: 以下参数与 --enforce-gate 冲突:")
             for skip in dangerous_skips:
                 print(f"     • {skip}")
             print("\n⚠️  零幻觉开发原则要求:")
@@ -344,6 +344,58 @@ async def cmd_epic_develop(
         print("=" * 70)
         print(f"Final Status: {result.get('final_status', 'unknown')}")
         print(f"Summary: {result.get('completion_summary', 'N/A')}")
+
+        # ====================================================================
+        # 生成执行审计报告
+        # ====================================================================
+        audit = create_audit_log(epic_id=epic_id, story_ids=story_ids, project_root=Path(base_path))
+
+        # 从 result 中提取执行记录
+        executed_nodes = result.get("executed_nodes", [])
+        for node_entry in executed_nodes:
+            node_name = node_entry.get("node", "unknown")
+            status = node_entry.get("status", "unknown")
+            if status == "completed":
+                audit.log_execution(node_name, [], metadata=node_entry)
+            elif status == "failed":
+                audit.log_failure(node_name, node_entry.get("error", "Unknown error"))
+            elif status == "skipped":
+                audit.log_skip(node_name, node_entry.get("reason", "Skipped"))
+
+        # 记录跳过的阶段
+        if skip_sm:
+            audit.log_skip("sm_node", "CLI flag: --skip-sm")
+        if skip_po:
+            audit.log_skip("po_node", "CLI flag: --skip-po")
+        if skip_analysis:
+            audit.log_skip("analysis_node", "CLI flag: --skip-analysis")
+        if skip_dev:
+            audit.log_skip("dev_node", "CLI flag: --skip-dev")
+        if skip_qa:
+            audit.log_skip("qa_node", "CLI flag: --skip-qa")
+        if skip_sdd:
+            audit.log_skip("sdd_validation_node", "CLI flag: --skip-sdd")
+
+        audit.finalize()
+
+        # 保存审计报告
+        logs_dir = Path(base_path) / "logs" / "audit"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        audit.save(logs_dir / f"epic-{epic_id}-{timestamp}.json")
+        audit.save_markdown(logs_dir / f"epic-{epic_id}-{timestamp}.md")
+
+        # 检查工作流合规性
+        compliance = audit.check_workflow_compliance()
+        if compliance["compliant"]:
+            print("\n✅ 工作流合规性: 通过")
+        else:
+            print("\n⚠️ 工作流合规性: 存在问题")
+            if compliance["missing_required"]:
+                print(f"   缺失必要节点: {', '.join(compliance['missing_required'])}")
+            if compliance["order_violations"]:
+                print(f"   执行顺序问题: {len(compliance['order_violations'])} 个")
+
+        print(f"\n📋 审计报告已保存: {logs_dir / f'epic-{epic_id}-{timestamp}.md'}")
 
         # 详细统计
         dev_outcomes = result.get("dev_outcomes", [])

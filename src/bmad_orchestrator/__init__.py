@@ -10,6 +10,7 @@ BMad Orchestrator - 全自动化 24/7 开发系统
 - session_spawner.py: Claude CLI 会话生成器
 - dependency_analyzer.py: Story 依赖分析
 - cli.py: CLI 入口点
+- audit.py: 执行审计日志模块
 
 ✅ Verified from LangGraph Skill (Pattern: MessagesState extension)
 
@@ -18,6 +19,11 @@ Version: 1.0.0
 Created: 2025-11-30
 """
 
+from .audit import (
+    AuditEntry,
+    ExecutionAuditLog,
+    create_audit_log,
+)
 from .dependency_analyzer import (
     AnalysisResult,
     ConflictInfo,
@@ -137,6 +143,10 @@ __all__ = [
     "compile_graph",
     "run_epic_workflow",
     "resume_workflow",
+    # Audit (v2.0.0 - BMad Workflow Enforcement)
+    "AuditEntry",
+    "ExecutionAuditLog",
+    "create_audit_log",
 ]
 
-__version__ = "1.1.0"
+__version__ = "2.0.0"  # BMad Workflow Enforcement
