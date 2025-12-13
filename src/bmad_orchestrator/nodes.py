@@ -2525,12 +2525,14 @@ async def cleanup_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     Cleanup 节点 - 工作树清理
 
     此节点在工作流结束前 **总是** 执行，确保:
-    1. 清理所有 worktrees
+    1. 清理所有 worktrees (除非 gate_blocked 需要保留)
     2. 执行 git worktree prune (清理孤立引用)
     3. 设置 cleanup_completed 标志
 
     无论工作流成功 (COMMIT → CLEANUP → END) 还是失败 (HALT → CLEANUP → END)，
     cleanup_node 都会执行以确保资源被正确释放。
+
+    **特殊处理**: 当 merge_status == "gate_blocked" 时，保留 worktrees 以便用户手动修复。
 
     Args:
         state: 当前编排状态
@@ -2539,43 +2541,60 @@ async def cleanup_node(state: BmadOrchestratorState) -> Dict[str, Any]:
         State 更新:
         - cleanup_completed: True
         - current_phase: "CLEANUP"
+        - worktrees_preserved: bool (是否因 gate_blocked 保留了 worktrees)
     """
     print("[Cleanup Node] Starting cleanup")
 
     base_path = Path(state["base_path"])
     worktree_paths = state.get("worktree_paths", {})
+    merge_status = state.get("merge_status", "")
     cleanup_errors: List[str] = []
+    worktrees_preserved = False
 
-    # 1. 清理所有 worktrees
-    for story_id, worktree_path in worktree_paths.items():
+    # 检查是否因 Gate 失败需要保留 worktrees
+    if merge_status == "gate_blocked":
+        print("[Cleanup Node] ⚠️ Gate blocked - PRESERVING worktrees for manual fix")
+        print(f"[Cleanup Node] Preserved worktrees: {list(worktree_paths.keys())}")
+        for story_id, worktree_path in worktree_paths.items():
+            print(f"[Cleanup Node]   → {story_id}: {worktree_path}")
+        print("[Cleanup Node] To fix: Navigate to worktree, fix issues, commit changes")
+        worktrees_preserved = True
+    else:
+        # 正常清理: 删除所有 worktrees
+        for story_id, worktree_path in worktree_paths.items():
+            try:
+                success = await remove_worktree(base_path, Path(worktree_path))
+                if success:
+                    print(f"[Cleanup Node] [OK] Removed worktree for {story_id}")
+                else:
+                    print(f"[Cleanup Node] [WARN] Could not remove worktree for {story_id}")
+            except Exception as e:
+                cleanup_errors.append(f"{story_id}: {str(e)}")
+                print(f"[Cleanup Node] [ERROR] Failed to clean worktree for {story_id}: {e}")
+
+    # 2. 执行 git worktree prune (清理孤立引用) - 跳过如果 worktrees 被保留
+    if not worktrees_preserved:
         try:
-            success = await remove_worktree(base_path, Path(worktree_path))
-            if success:
-                print(f"[Cleanup Node] [OK] Removed worktree for {story_id}")
+            proc = await asyncio.create_subprocess_exec(
+                'git', 'worktree', 'prune',
+                cwd=str(base_path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await proc.communicate()
+            if proc.returncode == 0:
+                print("[Cleanup Node] [OK] Git worktree prune completed")
             else:
-                print(f"[Cleanup Node] [WARN] Could not remove worktree for {story_id}")
+                print(f"[Cleanup Node] [WARN] Git worktree prune failed: {stderr.decode()}")
         except Exception as e:
-            cleanup_errors.append(f"{story_id}: {str(e)}")
-            print(f"[Cleanup Node] [ERROR] Failed to clean worktree for {story_id}: {e}")
-
-    # 2. 执行 git worktree prune (清理孤立引用)
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            'git', 'worktree', 'prune',
-            cwd=str(base_path),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        _, stderr = await proc.communicate()
-        if proc.returncode == 0:
-            print("[Cleanup Node] [OK] Git worktree prune completed")
-        else:
-            print(f"[Cleanup Node] [WARN] Git worktree prune failed: {stderr.decode()}")
-    except Exception as e:
-        print(f"[Cleanup Node] [WARN] Git worktree prune exception: {e}")
+            print(f"[Cleanup Node] [WARN] Git worktree prune exception: {e}")
+    else:
+        print("[Cleanup Node] [SKIP] Git worktree prune skipped (worktrees preserved)")
 
     # 3. 生成清理摘要
-    if cleanup_errors:
+    if worktrees_preserved:
+        summary = f"Worktrees preserved for manual fix ({len(worktree_paths)} stories)"
+    elif cleanup_errors:
         summary = f"Cleanup completed with {len(cleanup_errors)} errors"
     else:
         summary = f"Cleanup completed successfully, removed {len(worktree_paths)} worktrees"
@@ -2585,4 +2604,5 @@ async def cleanup_node(state: BmadOrchestratorState) -> Dict[str, Any]:
     return {
         "cleanup_completed": True,
         "current_phase": "CLEANUP",
+        "worktrees_preserved": worktrees_preserved,
     }

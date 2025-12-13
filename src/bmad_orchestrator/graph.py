@@ -33,14 +33,12 @@ Updated: 2025-12-01 - Added cleanup_node, fail-forward design
 
 import asyncio
 from pathlib import Path
-from typing import List, Literal
+from typing import Any, List, Literal
 
 # ✅ Verified from Context7 (LangGraph persistence.md):
 # - SqliteSaver for persistent checkpointing (state survives restarts)
 # - AsyncSqliteSaver for async workflows with ainvoke/astream
 # - MemorySaver for in-memory (state lost on restart)
-
-from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, StateGraph
 
@@ -337,15 +335,20 @@ def route_after_merge(state: BmadOrchestratorState) -> Literal["commit_node", "h
 
     规则:
     - merge_status == "conflict_detected" → HALT
+    - merge_status == "gate_blocked" → HALT (preserve worktrees for manual fix)
     - 其他情况 (包括 "completed", "partial") → COMMIT
 
-    Fail-Forward: 只有明确的冲突才阻止，部分合并也继续
+    Fail-Forward: 只有明确的冲突和 Gate 阻塞才停止，部分合并继续
     """
     merge_status = state.get("merge_status", "unknown")
 
-    # 只有明确的冲突才 HALT
+    # 冲突和 Gate 阻塞都 HALT
     if merge_status == "conflict_detected":
         print(f"[Router] MERGE→HALT: merge_status={merge_status}")
+        return "halt_node"
+
+    if merge_status == "gate_blocked":
+        print(f"[Router] MERGE→HALT: merge_status={merge_status} (Commit Gate failed, preserving worktrees)")
         return "halt_node"
 
     # Fail-forward: 其他情况继续到 COMMIT
@@ -588,7 +591,7 @@ def compile_graph(
     skip_dev: bool = False,
     skip_qa: bool = False,
     skip_sdd: bool = False,
-) -> "CompiledGraph":
+) -> Any:
     """
     编译 StateGraph (不包含 checkpointer，适用于同步测试场景)
 
