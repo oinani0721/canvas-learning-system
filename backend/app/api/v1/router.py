@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import health
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
+from app.api.v1.endpoints.memory import memory_router
 from app.api.v1.endpoints.monitoring import monitoring_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
@@ -96,5 +97,22 @@ router.include_router(
     responses={
         404: {"description": "Operation/snapshot not found"},
         500: {"description": "Rollback service error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Memory Routes (Story 22.4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 22.4 - 学习历史存储与查询API
+# [Source: docs/stories/22.4.story.md - AC 1-6]
+# [Source: docs/prd/EPIC-22-MEMORY-SYSTEM-NEO4J-GRAPHITI.md#Story-22.4]
+router.include_router(
+    memory_router,
+    prefix="/memory",
+    tags=["Memory"],
+    responses={
+        404: {"description": "Episode/concept not found"},
+        500: {"description": "Memory service error"}
     }
 )
