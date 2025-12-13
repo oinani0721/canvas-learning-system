@@ -1,50 +1,68 @@
 {
-  "story_id": "23.1",
+  "story_id": "23.2",
   "epic_id": "23",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/23.1.story.md",
-  "title": "LangGraph导入问题修复",
-  "description": "修复src/agentic_rag模块的导入问题，确保LANGGRAPH_AVAILABLE = True，使RAG功能可用",
+  "story_file": "docs/stories/23.2.story.md",
+  "title": "LanceDB Embedding Pipeline",
+  "description": "Implement complete LanceDB vectorization pipeline for Canvas node semantic retrieval",
   "priority": "P0",
-  "story_points": 2,
+  "story_points": 3,
   "acceptance_criteria": [
-    "AC 1: agentic_rag模块导入成功 - from agentic_rag import canvas_agentic_rag 无ImportError",
-    "AC 2: RAGService中LANGGRAPH_AVAILABLE为True",
-    "AC 3: 所有依赖版本记录在requirements.txt",
-    "AC 4: 导入诊断日志清晰记录失败原因"
-  ],
-  "key_files": [
-    "src/agentic_rag/__init__.py",
-    "src/agentic_rag/state_graph.py",
-    "backend/requirements.txt",
-    "backend/app/services/rag_service.py"
+    "AC 1: 支持文本内容向量化",
+    "AC 2: 支持Canvas节点批量索引",
+    "AC 3: 支持语义相似度查询",
+    "AC 4: 向量维度和模型可配置",
+    "AC 5: 索引持久化到本地文件"
   ],
   "sdd_references": [
+    "specs/data/canvas-node.schema.json",
     "specs/data/langgraph-state.schema.json"
   ],
   "adr_references": [
     "docs/architecture/decisions/0002-langgraph-agents.md",
-    "docs/architecture/decisions/0003-graphiti-memory.md",
-    "docs/architecture/ADR-003-AGENTIC-RAG-ARCHITECTURE.md"
+    "docs/architecture/decisions/0003-graphiti-memory.md"
+  ],
+  "key_files_to_modify": [
+    "src/agentic_rag/clients/lancedb_client.py",
+    "src/agentic_rag/config.py",
+    "backend/data/lancedb/ (new directory)",
+    "src/tests/test_lancedb_embedding.py (new file)"
   ],
   "dependencies": {
-    "epic": ["EPIC-22"],
-    "story": []
+    "story_dependencies": ["Story 23.1 (LangGraph导入问题修复)"],
+    "technical_dependencies": [
+      "Python 3.9+",
+      "lancedb>=0.14.0",
+      "sentence-transformers>=2.2.0",
+      "numpy>=1.21.0"
+    ]
   },
-  "blocked_by": [],
-  "blocks": ["23.2", "23.3", "23.4"],
   "checklist_passed": true,
   "checklist_results": {
-    "1.1_template_structure": true,
-    "1.2_clear_title": true,
-    "2.1_testable_ac": true,
+    "1.1_story_follows_template": true,
+    "1.2_title_clear_descriptive": true,
+    "2.1_ac_testable_gwt_format": true,
     "2.2_ac_numbered": true,
-    "5.1_complete_dev_notes": true,
-    "5.2_line_number_refs": true,
-    "6.1_sdd_references": true,
-    "6.2_adr_references": true,
+    "5.1_dev_notes_complete": true,
+    "5.2_dev_notes_line_numbers": true,
+    "6.1_sdd_references_valid": true,
+    "6.2_adr_references_exist": true,
     "6.3_file_paths_verified": true
   },
-  "timestamp": "2025-12-12T00:00:00.000Z",
-  "generated_by": "SM Agent (Automated Batch Mode)"
+  "anti_hallucination_verification": {
+    "verified_files": [
+      "src/agentic_rag/clients/lancedb_client.py",
+      "src/agentic_rag/processors/multimodal_vectorizer.py",
+      "src/agentic_rag/config.py",
+      "specs/data/canvas-node.schema.json"
+    ],
+    "verified_apis": [
+      "MultimodalVectorizer.vectorize_text()",
+      "MultimodalVectorizer.batch_vectorize()",
+      "LanceDBClient.search()",
+      "LanceDBClient.add_documents()"
+    ]
+  },
+  "timestamp": "2025-12-12T12:00:00Z",
+  "generated_by": "SM Agent (Bob) - Automated Batch Mode"
 }
