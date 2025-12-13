@@ -24,7 +24,7 @@ This session uses UltraThink extended thinking mode for maximum quality:
 
 
 ===============================================================================
-MISSION: Create Story 23.3 from Epic 23
+MISSION: Create Story 23.4 from Epic 23
 ===============================================================================
 
 **CRITICAL - AUTOMATED MODE RULES**:
@@ -39,7 +39,7 @@ PHASE 1: CONTEXT LOADING
 Step 1: Read .bmad-core/core-config.yaml for document paths
 Step 2: Load Epic file: docs\prd\EPIC-23-RAG-INTELLIGENT-INFERENCE.md
 Step 3: Load Architecture docs from configured paths (architectureShardedLocation)
-Step 4: Identify Story 23.3 scope and acceptance criteria from Epic
+Step 4: Identify Story 23.4 scope and acceptance criteria from Epic
 
 ===============================================================================
 PHASE 2: STORY CREATION (Direct Execution - No /sm command needed)
@@ -48,7 +48,7 @@ Step 5: Create Story document with ALL required sections:
 
 **Story Structure**:
 ```markdown
-# Story 23.3: [Title from Epic]
+# Story 23.4: [Title from Epic]
 
 ## Status
 - [ ] Draft
@@ -108,16 +108,16 @@ Step 6: Self-validate Story against checklist:
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
 Step 7: Use Write tool to create Story file:
-   - File path: docs/stories/23.3.story.md
+   - File path: docs/stories/23.4.story.md
 
 Step 8: Use Write tool to create result file:
    - File path: .sm-result.json
    - Content:
 {
-  "story_id": "23.3",
+  "story_id": "23.4",
   "epic_id": "23",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/23.3.story.md",
+  "story_file": "docs/stories/23.4.story.md",
   "title": "[Story Title]",
   "sdd_references": ["specs/api/...", "specs/data/..."],
   "adr_references": ["docs/architecture/decisions/..."],

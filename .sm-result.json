@@ -1,42 +1,50 @@
 {
-  "story_id": "23.3",
+  "story_id": "23.4",
   "epic_id": "23",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/23.3.story.md",
-  "title": "StateGraph智能推理链配置",
+  "story_file": "docs/stories/23.4.story.md",
+  "title": "多源融合 (教材+历史+跨Canvas)",
+  "story_points": 4,
+  "priority": "P1",
+  "acceptance_criteria_count": 5,
+  "tasks_count": 7,
   "sdd_references": [
     "specs/api/canvas-api.openapi.yml",
-    "specs/data/canvas-node.schema.json#L17-L74",
+    "specs/data/canvas-node.schema.json",
     "specs/data/agent-response.schema.json"
   ],
   "adr_references": [
     "docs/architecture/decisions/0002-langgraph-agents.md",
+    "docs/architecture/decisions/0003-graphiti-memory.md",
     "docs/architecture/decisions/0004-async-execution-engine.md"
+  ],
+  "key_files_to_modify": [
+    "src/agentic_rag/state.py",
+    "src/agentic_rag/state_graph.py",
+    "src/agentic_rag/nodes.py",
+    "src/agentic_rag/config.py"
+  ],
+  "key_files_to_create": [
+    "backend/app/services/textbook_context_service.py",
+    "backend/app/services/cross_canvas_service.py",
+    "src/tests/test_multi_source_fusion.py"
+  ],
+  "dependencies": [
+    "Story 23.1 (LangGraph导入修复)",
+    "Story 23.2 (LanceDB Embedding Pipeline)",
+    "Story 23.3 (StateGraph智能推理链配置)"
   ],
   "checklist_passed": true,
   "validation_results": {
-    "1.1_story_follows_template": true,
-    "1.2_title_clear": true,
-    "2.1_ac_testable": true,
-    "2.2_ac_numbered": true,
-    "5.1_dev_notes_complete": true,
-    "5.2_dev_notes_line_refs": true,
-    "6.1_sdd_refs_valid": true,
-    "6.2_adr_refs_exist": true,
-    "6.3_file_paths_verified": true
+    "structure_valid": true,
+    "ac_testable": true,
+    "ac_numbered": true,
+    "dev_notes_complete": true,
+    "sdd_references_valid": true,
+    "adr_references_valid": true,
+    "anti_hallucination_verified": true
   },
-  "key_files_verified": [
-    "src/agentic_rag/state_graph.py",
-    "src/agentic_rag/state.py",
-    "src/agentic_rag/nodes.py",
-    "docs/architecture/decisions/0002-langgraph-agents.md"
-  ],
-  "acceptance_criteria_count": 5,
-  "tasks_count": 7,
-  "subtasks_count": 35,
-  "dependencies": [
-    "Story 23.1 (LangGraph导入问题修复)",
-    "Story 23.2 (LanceDB Embedding Pipeline)"
-  ],
-  "timestamp": "2025-12-12T10:30:00Z"
+  "timestamp": "2025-12-12T00:00:00.000Z",
+  "agent": "SM Agent (Bob)",
+  "mode": "automated_batch"
 }
