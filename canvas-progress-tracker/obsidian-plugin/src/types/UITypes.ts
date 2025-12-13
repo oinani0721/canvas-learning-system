@@ -431,8 +431,14 @@ export interface VerificationViewState {
 /**
  * Canvas association relationship type
  * [Source: PRD Epic 16 - 跨Canvas关联学习系统]
+ * [Source: Story 25.3 - Exercise-Lecture Canvas Association]
  */
-export type CanvasRelationshipType = 'prerequisite' | 'related' | 'application';
+export type CanvasRelationshipType =
+    | 'prerequisite'
+    | 'related'
+    | 'application'
+    | 'exercise_lecture'   // Story 25.3: 练习Canvas关联到讲座Canvas
+    | 'exercise_solution'; // Story 25.3: 练习Canvas关联到解答Canvas
 
 /**
  * Cross-Canvas association between two canvas files

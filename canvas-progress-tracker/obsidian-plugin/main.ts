@@ -29,6 +29,9 @@ import { CanvasReviewSettingsTab } from './src/settings/PluginSettingsTab';
 import { DataManager } from './src/database/DataManager';
 import { ReviewDashboardView, VIEW_TYPE_REVIEW_DASHBOARD } from './src/views/ReviewDashboardView';
 import { ProgressTrackerView, VIEW_TYPE_PROGRESS_TRACKER } from './src/views/ProgressTrackerView';
+import { CrossCanvasSidebarView, VIEW_TYPE_CROSS_CANVAS_SIDEBAR } from './src/views/CrossCanvasSidebar';
+import { CrossCanvasModal, createCrossCanvasModal } from './src/modals/CrossCanvasModal';
+import type { CrossCanvasAssociation } from './src/types/UITypes';
 import { NotificationService, createNotificationService } from './src/services/NotificationService';
 import { GroupPreviewModal, CanvasNode, NodeGroup } from './src/modals/GroupPreviewModal';
 import { ProgressMonitorModal, ProgressMonitorCallbacks, SessionStatus } from './src/modals/ProgressMonitorModal';
@@ -38,6 +41,7 @@ import type { MenuContext } from './src/types/menu';
 import { BackupProtectionManager } from './src/managers/BackupProtectionManager';
 import { ApiClient } from './src/api/ApiClient';
 import { CanvasDataImporterService } from './src/services/CanvasDataImporterService';
+import { CrossCanvasService } from './src/services/CrossCanvasService';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -74,6 +78,9 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Canvas Data Importer - Scans vault for Canvas files and imports nodes (P0 Task #3) */
     private canvasDataImporter: CanvasDataImporterService | null = null;
+
+    /** Cross-Canvas Service - Manages canvas associations (Story 25.1) */
+    private crossCanvasService: CrossCanvasService | null = null;
 
     /**
      * Plugin load lifecycle method
@@ -363,6 +370,35 @@ export default class CanvasReviewPlugin extends Plugin {
                 generateVerificationCanvas: async (context: MenuContext) => {
                     new Notice('生成检验白板功能开发中...');
                 },
+
+                // Story 25.1: Cross-Canvas UI Entry Points (AC1, AC2)
+                openCrossCanvasModal: async (context: MenuContext) => {
+                    const filePath = context.filePath;
+                    if (!filePath) {
+                        new Notice('无法获取Canvas文件路径');
+                        return;
+                    }
+                    const file = this.app.vault.getAbstractFileByPath(filePath);
+                    if (file instanceof TFile) {
+                        this.openCrossCanvasModal(file);
+                    } else {
+                        new Notice('无法找到Canvas文件');
+                    }
+                },
+
+                viewAssociatedCanvas: async (context: MenuContext) => {
+                    const filePath = context.filePath;
+                    if (!filePath) {
+                        new Notice('无法获取Canvas文件路径');
+                        return;
+                    }
+                    const file = this.app.vault.getAbstractFileByPath(filePath);
+                    if (file instanceof TFile) {
+                        this.showJumpToAssociatedCanvasModal(file);
+                    } else {
+                        new Notice('无法找到Canvas文件');
+                    }
+                },
             });
 
             if (this.settings.debugMode) {
@@ -452,6 +488,13 @@ export default class CanvasReviewPlugin extends Plugin {
         this.registerView(
             VIEW_TYPE_PROGRESS_TRACKER,
             (leaf) => new ProgressTrackerView(leaf, this)
+        );
+
+        // Register Cross-Canvas Sidebar View (Story 25.1 AC4)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (registerView)
+        this.registerView(
+            VIEW_TYPE_CROSS_CANVAS_SIDEBAR,
+            (leaf) => new CrossCanvasSidebarView(leaf, this)
         );
 
         if (this.settings.debugMode) {
@@ -578,6 +621,73 @@ export default class CanvasReviewPlugin extends Plugin {
                 } else {
                     new Notice('❌ Canvas Data Importer not initialized');
                 }
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════
+        // Story 25.1: Cross-Canvas UI Entry Points (AC3 - Command Palette)
+        // ══════════════════════════════════════════════════════════════════
+
+        // Register "Create Canvas Association" command (Story 25.1 AC3)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with checkCallback)
+        this.addCommand({
+            id: 'cross-canvas-create-association',
+            name: 'Canvas: 创建Canvas关联 (Create Canvas Association)',
+            icon: 'link',
+            checkCallback: (checking: boolean) => {
+                const activeFile = this.app.workspace.getActiveFile();
+                const isCanvasView = activeFile?.extension === 'canvas';
+
+                if (isCanvasView) {
+                    if (!checking) {
+                        this.openCrossCanvasModal(activeFile);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Register "View All Associations" command (Story 25.1 AC3)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with callback)
+        this.addCommand({
+            id: 'cross-canvas-view-associations',
+            name: 'Canvas: 查看所有关联 (View All Associations)',
+            icon: 'list',
+            callback: async () => {
+                await this.showCrossCanvasSidebar();
+            }
+        });
+
+        // Register "Jump to Associated Canvas" command (Story 25.1 AC3)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with checkCallback)
+        this.addCommand({
+            id: 'cross-canvas-jump-to-associated',
+            name: 'Canvas: 跳转到关联Canvas (Jump to Associated Canvas)',
+            icon: 'external-link',
+            checkCallback: (checking: boolean) => {
+                const activeFile = this.app.workspace.getActiveFile();
+                const isCanvasView = activeFile?.extension === 'canvas';
+
+                if (isCanvasView) {
+                    if (!checking) {
+                        this.showJumpToAssociatedCanvasModal(activeFile);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Register "Manage Canvas Associations" command (Story 25.1 AC3)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with callback)
+        this.addCommand({
+            id: 'cross-canvas-manage-associations',
+            name: 'Canvas: 管理Canvas关联 (Manage Canvas Associations)',
+            icon: 'settings',
+            callback: async () => {
+                await this.showCrossCanvasSidebar();
+                new Notice('Canvas关联管理面板已打开');
             }
         });
 
@@ -1093,5 +1203,155 @@ export default class CanvasReviewPlugin extends Plugin {
 
         // Restart auto-sync with new interval
         this.setupAutoSync();
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Story 25.1: Cross-Canvas UI Entry Points - Helper Methods
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Open Cross-Canvas Modal for creating associations (Story 25.1 AC1, AC3)
+     *
+     * Opens the CrossCanvasModal to allow user to create an association
+     * from the current Canvas to another Canvas file.
+     *
+     * @param canvasFile - The source Canvas file for the association
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (Modal.open)
+     */
+    private openCrossCanvasModal(canvasFile: TFile): void {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Opening CrossCanvasModal for:', canvasFile.path);
+        }
+
+        // ✅ Verified from CrossCanvasModal.ts (createCrossCanvasModal signature)
+        const modal = createCrossCanvasModal(
+            this.app,
+            canvasFile.path,
+            this.crossCanvasService || null,
+            (association: CrossCanvasAssociation) => {
+                new Notice(`Canvas关联创建成功: ${canvasFile.basename} → ${association.targetCanvasTitle}`);
+                // Refresh sidebar if open
+                this.refreshCrossCanvasSidebar();
+            }
+        );
+        modal.open();
+    }
+
+    /**
+     * Show Cross-Canvas Sidebar (Story 25.1 AC4)
+     *
+     * Opens the Cross-Canvas sidebar view in a right split panel.
+     * If already open, reveals the existing view.
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (workspace.getRightLeaf, setViewState)
+     */
+    private async showCrossCanvasSidebar(): Promise<void> {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: showCrossCanvasSidebar called');
+        }
+
+        const { workspace } = this.app;
+
+        // Check if sidebar is already open
+        const existingLeaves = workspace.getLeavesOfType(VIEW_TYPE_CROSS_CANVAS_SIDEBAR);
+        if (existingLeaves.length > 0) {
+            // Reveal existing view
+            workspace.revealLeaf(existingLeaves[0]);
+            return;
+        }
+
+        // Open new sidebar in right split
+        const leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({
+                type: VIEW_TYPE_CROSS_CANVAS_SIDEBAR,
+                active: true,
+            });
+            workspace.revealLeaf(leaf);
+        }
+    }
+
+    /**
+     * Refresh Cross-Canvas Sidebar if open (Story 25.1)
+     *
+     * Triggers a refresh of the Cross-Canvas sidebar view if it's currently open.
+     */
+    private refreshCrossCanvasSidebar(): void {
+        const existingLeaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_CROSS_CANVAS_SIDEBAR);
+        if (existingLeaves.length > 0) {
+            const view = existingLeaves[0].view as CrossCanvasSidebarView;
+            if (view && typeof view.refresh === 'function') {
+                view.refresh();
+            }
+        }
+    }
+
+    /**
+     * Show Jump to Associated Canvas Modal (Story 25.1 AC5)
+     *
+     * Opens a modal showing all associations for the current Canvas,
+     * allowing quick navigation to associated Canvas files.
+     *
+     * @param canvasFile - The current Canvas file
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (SuggestModal pattern)
+     */
+    private async showJumpToAssociatedCanvasModal(canvasFile: TFile): Promise<void> {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: showJumpToAssociatedCanvasModal for:', canvasFile.path);
+        }
+
+        const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8001';
+
+        try {
+            // Fetch associations for current Canvas
+            const response = await fetch(`${apiBaseUrl}/api/v1/cross-canvas/associations?canvas_path=${encodeURIComponent(canvasFile.path)}`);
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            const associations = await response.json();
+
+            if (!associations || associations.length === 0) {
+                new Notice('当前Canvas没有关联。使用 "创建Canvas关联" 命令添加关联。');
+                return;
+            }
+
+            // Create quick jump modal using Obsidian's SuggestModal pattern
+            const { FuzzySuggestModal } = await import('obsidian');
+
+            class JumpToCanvasModal extends FuzzySuggestModal<{ path: string; type: string; title: string }> {
+                constructor(app: App, private associations: any[]) {
+                    super(app);
+                    this.setPlaceholder('选择要跳转的Canvas...');
+                }
+
+                getItems(): { path: string; type: string; title: string }[] {
+                    return this.associations.map((a: any) => ({
+                        path: a.target_canvas_path || a.targetPath,
+                        type: a.association_type || a.type,
+                        title: (a.target_canvas_path || a.targetPath).split('/').pop()?.replace('.canvas', '') || 'Unknown',
+                    }));
+                }
+
+                getItemText(item: { path: string; type: string; title: string }): string {
+                    return `${item.title} (${item.type})`;
+                }
+
+                async onChooseItem(item: { path: string; type: string; title: string }): Promise<void> {
+                    await this.app.workspace.openLinkText(item.path, '', true);
+                }
+            }
+
+            const modal = new JumpToCanvasModal(this.app, associations);
+            modal.open();
+
+        } catch (error) {
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            new Notice(`获取Canvas关联失败: ${msg}`);
+            console.error('Canvas Review System: Failed to fetch associations:', error);
+        }
     }
 }

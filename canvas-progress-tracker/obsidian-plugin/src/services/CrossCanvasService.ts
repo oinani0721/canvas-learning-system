@@ -3,9 +3,10 @@
  *
  * Service for managing cross-Canvas associations and knowledge paths.
  * Implements Epic 16: 跨Canvas关联学习系统
+ * Extended by Story 25.3: Exercise-Lecture Canvas Association
  *
  * @module CrossCanvasService
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import type { App, TFile } from 'obsidian';
@@ -25,6 +26,25 @@ import type { DataManager } from '../database/DataManager';
  */
 const ASSOCIATIONS_STORAGE_KEY = 'canvas-cross-canvas-associations';
 const PATHS_STORAGE_KEY = 'canvas-knowledge-paths';
+
+/**
+ * Backend API base URL
+ * [Source: Story 25.3 - Exercise-Lecture Canvas Association]
+ */
+const BACKEND_API_BASE = 'http://localhost:8000';
+
+/**
+ * Suggestion from backend for canvas association
+ * [Source: Story 25.3 AC5 - Batch association suggestions]
+ */
+export interface CanvasAssociationSuggestion {
+    target_canvas_path: string;
+    target_canvas_title: string;
+    relation_type: CanvasRelationshipType;
+    confidence: number;
+    reason: string;
+    common_concepts: string[];
+}
 
 /**
  * Canvas node interface for internal use
@@ -297,6 +317,124 @@ export class CrossCanvasService {
         return this.associations.filter(
             (a) => a.sourceCanvasPath === canvasPath || a.targetCanvasPath === canvasPath
         );
+    }
+
+    // ============================================================================
+    // Intelligent Suggestions (Story 25.3)
+    // ============================================================================
+
+    /**
+     * Get intelligent association suggestions from backend
+     * [Source: Story 25.3 AC5 - Batch association suggestions]
+     *
+     * @param exerciseCanvasPath - Path to the exercise canvas
+     * @param concept - Optional concept to search for
+     * @returns Promise<CanvasAssociationSuggestion[]>
+     */
+    async getSuggestions(
+        exerciseCanvasPath: string,
+        concept?: string
+    ): Promise<CanvasAssociationSuggestion[]> {
+        try {
+            const requestBody: {
+                exercise_canvas_path: string;
+                concept?: string;
+            } = {
+                exercise_canvas_path: exerciseCanvasPath,
+            };
+
+            if (concept) {
+                requestBody.concept = concept;
+            }
+
+            const response = await fetch(`${BACKEND_API_BASE}/api/v1/cross-canvas/suggestions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody),
+            });
+
+            if (!response.ok) {
+                console.error(
+                    `[CrossCanvasService] Suggestions API error: ${response.status} ${response.statusText}`
+                );
+                // Fall back to local suggestions
+                return this.getLocalSuggestions(exerciseCanvasPath);
+            }
+
+            const data = await response.json();
+            return data.suggestions || [];
+        } catch (error) {
+            console.error('[CrossCanvasService] Failed to get suggestions from backend:', error);
+            // Fall back to local suggestions if backend is unavailable
+            return this.getLocalSuggestions(exerciseCanvasPath);
+        }
+    }
+
+    /**
+     * Get local suggestions based on file naming and existing associations
+     * Fallback when backend is unavailable
+     * [Source: Story 25.3 - Local fallback logic]
+     */
+    private async getLocalSuggestions(
+        exerciseCanvasPath: string
+    ): Promise<CanvasAssociationSuggestion[]> {
+        const suggestions: CanvasAssociationSuggestion[] = [];
+        const canvasFiles = await this.getAllCanvasFiles();
+
+        // Patterns that indicate lecture/textbook content
+        const lecturePatterns = ['讲座', '讲义', '笔记', '知识点', '概念', '定义', '教材', 'lecture', 'notes'];
+        const exercisePatterns = ['题目', '习题', '练习', '作业', '考试', '复习', '期末', 'exercise', 'problem'];
+
+        // Check if source is an exercise canvas
+        const sourceIsExercise = exercisePatterns.some(pattern =>
+            exerciseCanvasPath.toLowerCase().includes(pattern)
+        );
+
+        if (!sourceIsExercise) {
+            return []; // Only suggest for exercise canvases
+        }
+
+        // Find lecture canvases that might be related
+        for (const file of canvasFiles) {
+            if (file.path === exerciseCanvasPath) continue;
+
+            const fileName = file.basename.toLowerCase();
+            const isLecture = lecturePatterns.some(pattern => fileName.includes(pattern));
+
+            if (isLecture) {
+                // Check for name similarity
+                const exerciseName = this.extractCanvasTitle(exerciseCanvasPath).toLowerCase();
+                const lectureName = fileName;
+
+                // Simple similarity: check for common words
+                const exerciseWords = exerciseName.split(/[\s\-_]+/);
+                const lectureWords = lectureName.split(/[\s\-_]+/);
+                const commonWords = exerciseWords.filter(word =>
+                    lectureWords.some(lw => lw.includes(word) || word.includes(lw))
+                );
+
+                let confidence = 0.3; // Base confidence
+                if (commonWords.length > 0) {
+                    confidence += 0.2 * Math.min(commonWords.length, 3);
+                }
+
+                suggestions.push({
+                    target_canvas_path: file.path,
+                    target_canvas_title: file.basename,
+                    relation_type: 'exercise_lecture',
+                    confidence,
+                    reason: commonWords.length > 0
+                        ? `文件名包含相似词: ${commonWords.join(', ')}`
+                        : '检测到讲座/笔记Canvas',
+                    common_concepts: commonWords,
+                });
+            }
+        }
+
+        // Sort by confidence
+        return suggestions.sort((a, b) => b.confidence - a.confidence);
     }
 
     // ============================================================================

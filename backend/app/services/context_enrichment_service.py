@@ -1,6 +1,7 @@
 # Canvas Learning System - Context Enrichment Service
 # Phase 4.2: Option A - 相邻节点自动Enrichment
 # FIX-3.1: 集成教材上下文
+# Story 25.3: 集成跨Canvas上下文
 """
 Context Enrichment Service for Canvas nodes.
 
@@ -8,15 +9,18 @@ Provides multi-source context injection for AI agents:
 - 1-hop adjacent node content (parent/child nodes)
 - Edge label relationships
 - Textbook references (from .canvas-links.json associations)
+- Cross-Canvas lecture references (exercise-lecture associations)
 
 Features:
 - 1-hop adjacent node discovery (parent/child)
 - Edge label extraction for relationship context
 - Textbook context from associated Canvas files
+- Cross-Canvas context from lecture associations
 - Enriched prompt building for agents
 
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Phase-4-Context-Enhancement]
 [Source: FIX-3.1 集成教材上下文到后端]
+[Source: Story 25.3 - Exercise-Lecture Canvas Association]
 """
 
 import logging
@@ -62,6 +66,12 @@ class EnrichedContext:
         parent_nodes: Nodes connected via incoming edges
         child_nodes: Nodes connected via outgoing edges
         sibling_nodes: Nodes sharing the same parent
+
+    [Story 25.3: Cross-Canvas context fields]
+        cross_canvas_context: Optional cross-canvas lecture reference context
+        has_cross_canvas_refs: Whether cross-canvas references were found
+        lecture_canvas_path: Path to the associated lecture Canvas
+        lecture_canvas_title: Title of the associated lecture Canvas
     """
     target_node: Dict[str, Any]
     adjacent_nodes: List[AdjacentNode]
@@ -86,6 +96,12 @@ class EnrichedContext:
     child_nodes: Optional[List[Dict]] = None
     sibling_nodes: Optional[List[Dict]] = None
 
+    # Story 25.3: Cross-Canvas context
+    cross_canvas_context: Optional[str] = None
+    has_cross_canvas_refs: bool = False
+    lecture_canvas_path: Optional[str] = None
+    lecture_canvas_title: Optional[str] = None
+
 
 class ContextEnrichmentService:
     """
@@ -93,22 +109,28 @@ class ContextEnrichmentService:
 
     This service supports the "Option A" enhancement from the architecture:
     automatic injection of 1-hop adjacent node content when agents analyze nodes.
-    Also integrates textbook context from associated Canvas files.
+    Also integrates textbook context from associated Canvas files and
+    cross-Canvas lecture references from exercise-lecture associations.
 
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Phase-4-Context-Enhancement]
     [Source: FIX-3.1 集成教材上下文到后端]
+    [Source: Story 25.3 - Exercise-Lecture Canvas Association]
     """
 
-    def __init__(self, canvas_service, textbook_service=None):
+    def __init__(self, canvas_service, textbook_service=None, cross_canvas_service=None):
         """
         Initialize ContextEnrichmentService.
 
         Args:
             canvas_service: CanvasService instance for reading Canvas data
             textbook_service: Optional TextbookContextService for textbook references
+            cross_canvas_service: Optional CrossCanvasService for cross-Canvas associations
+
+        [Story 25.3: Added cross_canvas_service parameter]
         """
         self._canvas_service = canvas_service
         self._textbook_service = textbook_service
+        self._cross_canvas_service = cross_canvas_service
         logger.debug("ContextEnrichmentService initialized")
 
     async def enrich_with_adjacent_nodes(
@@ -235,19 +257,49 @@ class ContextEnrichmentService:
                 logger.warning(f"Failed to get textbook context: {e}")
                 # Continue without textbook context
 
-        # 6. Combine all context
+        # 6. Combine textbook context
         if textbook_context_str:
             enriched_context = f"{enriched_context}\n\n{textbook_context_str}"
+
+        # 7. Story 25.3: Get cross-canvas context (lecture references for exercise canvases)
+        cross_canvas_context_str = None
+        has_cross_canvas_refs = False
+        lecture_canvas_path = None
+        lecture_canvas_title = None
+
+        if self._cross_canvas_service:
+            try:
+                # Try to get associated lecture canvas
+                canvas_path = f"{canvas_name}.canvas"
+                cross_ctx = await self.get_cross_canvas_context(canvas_path)
+
+                if cross_ctx:
+                    has_cross_canvas_refs = True
+                    lecture_canvas_path = cross_ctx.get("lecture_canvas_path")
+                    lecture_canvas_title = cross_ctx.get("lecture_canvas_title")
+                    cross_canvas_context_str = self._format_cross_canvas_context(cross_ctx)
+                    logger.debug(
+                        f"Found cross-canvas ref: {lecture_canvas_title} "
+                        f"with {len(cross_ctx.get('relevant_nodes', []))} nodes"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to get cross-canvas context: {e}")
+                # Continue without cross-canvas context
+
+        # 8. Combine cross-canvas context
+        if cross_canvas_context_str:
+            enriched_context = f"{enriched_context}\n\n{cross_canvas_context_str}"
 
         logger.debug(
             f"Enriched context for {node_id}: "
             f"{len(adjacent_nodes)} adjacent nodes found, "
             f"textbook_refs={has_textbook_refs}, "
+            f"cross_canvas_refs={has_cross_canvas_refs}, "
             f"incoming={len(incoming_edges)}, outgoing={len(outgoing_edges)}, "
             f"siblings={len(sibling_nodes_list)}"
         )
 
-        # Story 21.2: Return EnrichedContext with all fields populated
+        # Story 21.2 + 25.3: Return EnrichedContext with all fields populated
         return EnrichedContext(
             target_node=target_node,
             adjacent_nodes=adjacent_nodes,
@@ -268,6 +320,11 @@ class ContextEnrichmentService:
             parent_nodes=parent_nodes_list,
             child_nodes=child_nodes_list,
             sibling_nodes=sibling_nodes_list,
+            # Story 25.3: Cross-Canvas context
+            cross_canvas_context=cross_canvas_context_str,
+            has_cross_canvas_refs=has_cross_canvas_refs,
+            lecture_canvas_path=lecture_canvas_path,
+            lecture_canvas_title=lecture_canvas_title,
         )
 
     def _find_adjacent_nodes(
@@ -425,6 +482,133 @@ class ContextEnrichmentService:
                 }
                 importance_str = importance_map.get(prereq.importance, '')
                 parts.append(f"[prerequisite|{importance_str}] {prereq.concept_name} ({display_name})")
+
+        return "\n".join(parts)
+
+    async def get_cross_canvas_context(
+        self,
+        canvas_path: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get cross-canvas context for an exercise canvas.
+
+        Retrieves the associated lecture canvas and extracts relevant
+        knowledge point nodes for context enrichment.
+
+        [Source: Story 25.3 AC2 - Auto-retrieve lecture content when solving problems]
+        [Source: Story 25.3 Task 4.1 - Add get_cross_canvas_context method]
+
+        Args:
+            canvas_path: Path to the exercise canvas (e.g., "习题-线性代数.canvas")
+
+        Returns:
+            Dict containing:
+                - lecture_canvas_path: Path to the lecture canvas
+                - lecture_canvas_title: Title of the lecture canvas
+                - relevant_nodes: List of relevant knowledge point nodes
+                - confidence: Association confidence score
+            Or None if no association found
+        """
+        if not self._cross_canvas_service:
+            return None
+
+        # Get the associated lecture canvas for this exercise
+        association = await self._cross_canvas_service.get_lecture_for_exercise(canvas_path)
+
+        if not association:
+            return None
+
+        # Read the lecture canvas to extract relevant nodes
+        lecture_path = association.target_canvas_path
+        lecture_title = association.target_canvas_title
+
+        try:
+            # Extract canvas name without extension
+            canvas_name = lecture_path.replace(".canvas", "")
+            lecture_data = await self._canvas_service.read_canvas(canvas_name)
+
+            # Extract text nodes from lecture canvas (knowledge points)
+            relevant_nodes = []
+            for node in lecture_data.get("nodes", []):
+                # Only include text nodes with content
+                if node.get("type") == "text" and node.get("text"):
+                    node_text = node.get("text", "")[:300]  # Limit to 300 chars
+                    node_color = node.get("color", "")
+                    relevant_nodes.append({
+                        "id": node.get("id"),
+                        "text": node_text,
+                        "color": node_color,
+                        "x": node.get("x", 0),
+                        "y": node.get("y", 0),
+                    })
+
+            # Limit to top 5 most relevant nodes (by position - earlier nodes first)
+            relevant_nodes.sort(key=lambda n: (n["y"], n["x"]))
+            relevant_nodes = relevant_nodes[:5]
+
+            return {
+                "lecture_canvas_path": lecture_path,
+                "lecture_canvas_title": lecture_title,
+                "relevant_nodes": relevant_nodes,
+                "confidence": association.confidence,
+                "common_concepts": association.common_concepts,
+            }
+
+        except Exception as e:
+            logger.warning(f"Failed to read lecture canvas {lecture_path}: {e}")
+            # Return basic info even if we can't read the lecture canvas
+            return {
+                "lecture_canvas_path": lecture_path,
+                "lecture_canvas_title": lecture_title,
+                "relevant_nodes": [],
+                "confidence": association.confidence,
+                "common_concepts": association.common_concepts,
+            }
+
+    def _format_cross_canvas_context(self, cross_ctx: Dict[str, Any]) -> str:
+        """
+        Format cross-canvas context for inclusion in enriched context.
+
+        Formats lecture references as "参见讲座: {name} > {node}" per AC3.
+
+        [Source: Story 25.3 AC3 - Agent prompt includes lecture knowledge point references]
+        [Source: Story 25.3 Task 4.3 - Format lecture references]
+
+        Args:
+            cross_ctx: Cross-canvas context dict from get_cross_canvas_context()
+
+        Returns:
+            Formatted cross-canvas context string
+        """
+        from pathlib import Path
+
+        lecture_title = cross_ctx.get("lecture_canvas_title", "未知讲座")
+        lecture_path = cross_ctx.get("lecture_canvas_path", "")
+        relevant_nodes = cross_ctx.get("relevant_nodes", [])
+        confidence = cross_ctx.get("confidence", 0.0)
+        common_concepts = cross_ctx.get("common_concepts", [])
+
+        # Format display name
+        display_name = Path(lecture_path).stem if lecture_path else lecture_title
+
+        parts = [f"--- 参见讲座: {display_name} (置信度: {confidence:.0%}) ---"]
+
+        # Add common concepts if available
+        if common_concepts:
+            concepts_str = ", ".join(common_concepts[:5])  # Limit to 5
+            parts.append(f"[共同概念] {concepts_str}")
+
+        # Add relevant knowledge point nodes
+        if relevant_nodes:
+            parts.append("\n--- 相关知识点 (Lecture Knowledge Points) ---")
+            for node in relevant_nodes:
+                node_text = node.get("text", "")
+                color = node.get("color", "")
+                color_desc = self._get_color_description(color)
+                # Format: 参见讲座: {name} > {node}
+                parts.append(f"[lecture|{display_name}]{color_desc} {node_text}")
+        else:
+            parts.append(f"[lecture|{display_name}] (暂无具体知识点信息)")
 
         return "\n".join(parts)
 

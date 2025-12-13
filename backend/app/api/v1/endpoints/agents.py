@@ -14,7 +14,7 @@ from typing import Any, Dict, Tuple
 
 from fastapi import APIRouter, HTTPException
 
-from app.dependencies import AgentServiceDep, CanvasServiceDep
+from app.dependencies import AgentServiceDep, CanvasServiceDep, ContextEnrichmentServiceDep
 from app.models import (
     DecomposeRequest,
     DecomposeResponse,
@@ -120,7 +120,7 @@ async def get_node_from_canvas(
 async def decompose_basic(
     request: DecomposeRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> DecomposeResponse:
     """
     Perform basic concept decomposition on a node.
@@ -131,27 +131,35 @@ async def decompose_basic(
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1basic]
     [Source: specs/data/decompose-request.schema.json]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    # Story 21.1: 获取节点和位置信息
-    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
-    x, y, width, height = extract_node_position(node)
+    try:
+        # Story 25.2: Get enriched context (includes textbook references)
+        enriched = await context_service.enrich_with_adjacent_nodes(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id
+        )
+    except ValueError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+        ) from err
 
-    # 获取节点内容
-    content = node.get("text", "")
-    if not content and node.get("type") == "file":
-        # 文件节点需要读取文件内容
-        content = f"File: {node.get('file', 'unknown')}"
-
-    logger.info(f"decompose_basic: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y})")
+    # Story 25.2 AC5: Log textbook context usage
+    logger.info(
+        f"decompose_basic: canvas={request.canvas_name}, node={request.node_id}, "
+        f"pos=({enriched.x},{enriched.y}), has_textbook_refs={enriched.has_textbook_refs}"
+    )
 
     try:
-        # 调用真实的AgentService
+        # Story 25.2: Pass enriched content with textbook context embedded
+        # TODO(Story 25.3): Add context parameter to decompose_basic for full AC3 compliance
         result = await agent_service.decompose_basic(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=content,
-            source_x=x,
-            source_y=y,
+            content=f"{enriched.target_content}\n\n{enriched.enriched_context}" if enriched.enriched_context else enriched.target_content,
+            source_x=enriched.x,
+            source_y=enriched.y,
         )
 
         # 转换为响应模型
@@ -173,7 +181,7 @@ async def decompose_basic(
 async def decompose_deep(
     request: DecomposeRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> DecomposeResponse:
     """
     Perform deep concept decomposition on a node.
@@ -183,25 +191,35 @@ async def decompose_deep(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1decompose~1deep]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    # Story 21.1: 获取节点和位置信息
-    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
-    x, y, width, height = extract_node_position(node)
+    try:
+        # Story 25.2: Get enriched context (includes textbook references)
+        enriched = await context_service.enrich_with_adjacent_nodes(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id
+        )
+    except ValueError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+        ) from err
 
-    # 获取节点内容
-    content = node.get("text", "")
-    if not content and node.get("type") == "file":
-        content = f"File: {node.get('file', 'unknown')}"
-
-    logger.info(f"decompose_deep: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y})")
+    # Story 25.2 AC5: Log textbook context usage
+    logger.info(
+        f"decompose_deep: canvas={request.canvas_name}, node={request.node_id}, "
+        f"pos=({enriched.x},{enriched.y}), has_textbook_refs={enriched.has_textbook_refs}"
+    )
 
     try:
+        # Story 25.2: Pass enriched content with textbook context embedded
+        # TODO(Story 25.3): Add context parameter to decompose_deep for full AC3 compliance
         result = await agent_service.decompose_deep(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=content,
-            source_x=x,
-            source_y=y,
+            content=f"{enriched.target_content}\n\n{enriched.enriched_context}" if enriched.enriched_context else enriched.target_content,
+            source_x=enriched.x,
+            source_y=enriched.y,
         )
 
         return DecomposeResponse(
@@ -274,36 +292,46 @@ async def _call_explanation(
     request: ExplainRequest,
     explanation_type: str,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     统一解释调用辅助函数。
 
     [Story 21.1: 统一位置信息提取]
     [Story 21.2: 使用ContextEnrichmentService获取邻居上下文]
+    [Story 25.2: TextbookContextService Integration]
     """
-    # Story 21.1: 获取节点和位置信息
-    node = await get_node_from_canvas(canvas_service, request.canvas_name, request.node_id)
-    x, y, width, height = extract_node_position(node)
+    # Story 25.2: Get enriched context (includes textbook references)
+    try:
+        enriched = await context_service.enrich_with_adjacent_nodes(
+            canvas_name=request.canvas_name,
+            node_id=request.node_id
+        )
+    except ValueError as err:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
+        ) from err
 
-    # 获取节点内容
-    content = node.get("text", "")
-    if not content and node.get("type") == "file":
-        content = f"File: {node.get('file', 'unknown')}"
-
-    logger.info(f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, pos=({x},{y},{width},{height})")
+    # Story 25.2 AC5: Log textbook context usage
+    logger.info(
+        f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, "
+        f"pos=({enriched.x},{enriched.y},{enriched.width},{enriched.height}), "
+        f"has_textbook_refs={enriched.has_textbook_refs}"
+    )
 
     try:
-        # 调用真实的AgentService
+        # Story 25.2: Pass enriched context to agent (includes textbook refs per AC3)
         result = await agent_service.generate_explanation(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=content,
+            content=enriched.target_content,
+            adjacent_context=enriched.enriched_context,  # Includes textbook refs per AC3
             explanation_type=explanation_type,
-            source_x=x,
-            source_y=y,
-            source_width=width,
-            source_height=height,
+            source_x=enriched.x,
+            source_y=enriched.y,
+            source_width=enriched.width,
+            source_height=enriched.height,
         )
 
         return ExplainResponse(
@@ -324,7 +352,7 @@ async def _call_explanation(
 async def explain_oral(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate oral-style explanation for a concept.
@@ -334,8 +362,9 @@ async def explain_oral(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1oral]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "oral", agent_service, canvas_service)
+    return await _call_explanation(request, "oral", agent_service, context_service)
 
 
 @agents_router.post(
@@ -347,7 +376,7 @@ async def explain_oral(
 async def explain_clarification(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate clarification path for a concept.
@@ -357,8 +386,9 @@ async def explain_clarification(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1clarification]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "clarification", agent_service, canvas_service)
+    return await _call_explanation(request, "clarification", agent_service, context_service)
 
 
 @agents_router.post(
@@ -370,7 +400,7 @@ async def explain_clarification(
 async def explain_comparison(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate comparison table for a concept.
@@ -380,8 +410,9 @@ async def explain_comparison(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1comparison]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "comparison", agent_service, canvas_service)
+    return await _call_explanation(request, "comparison", agent_service, context_service)
 
 
 @agents_router.post(
@@ -393,7 +424,7 @@ async def explain_comparison(
 async def explain_memory(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate memory anchor for a concept.
@@ -403,8 +434,9 @@ async def explain_memory(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1memory]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "memory", agent_service, canvas_service)
+    return await _call_explanation(request, "memory", agent_service, context_service)
 
 
 @agents_router.post(
@@ -416,7 +448,7 @@ async def explain_memory(
 async def explain_four_level(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate four-level progressive explanation.
@@ -426,8 +458,9 @@ async def explain_four_level(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1four-level]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "four-level", agent_service, canvas_service)
+    return await _call_explanation(request, "four-level", agent_service, context_service)
 
 
 @agents_router.post(
@@ -439,7 +472,7 @@ async def explain_four_level(
 async def explain_example(
     request: ExplainRequest,
     agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
+    context_service: ContextEnrichmentServiceDep,
 ) -> ExplainResponse:
     """
     Generate example-based teaching content.
@@ -449,5 +482,6 @@ async def explain_example(
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents~1explain~1example]
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
+    [Story 25.2: TextbookContextService Integration]
     """
-    return await _call_explanation(request, "example", agent_service, canvas_service)
+    return await _call_explanation(request, "example", agent_service, context_service)

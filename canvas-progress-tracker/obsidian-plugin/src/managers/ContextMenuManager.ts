@@ -65,6 +65,11 @@ export interface MenuActionRegistry {
   addToReviewPlan?: MenuActionCallback;
   /** Generate comparison table */
   generateComparisonTable?: MenuActionCallback;
+  // Story 25.1: Cross-Canvas UI Entry Points
+  /** Open Cross-Canvas association modal */
+  openCrossCanvasModal?: MenuActionCallback;
+  /** View associated Canvas files */
+  viewAssociatedCanvas?: MenuActionCallback;
 }
 
 // ============================================================================
@@ -338,6 +343,44 @@ export class ContextMenuManager {
         }
       },
     }, ['file'], 90);
+
+    // =========================================================================
+    // Story 25.1: Cross-Canvas UI Entry Points
+    // =========================================================================
+
+    // Cross-Canvas - Associate to Other Canvas
+    // AC1: Right-click menu "关联到其他Canvas"
+    this.registerMenuItem({
+      id: 'cross-canvas-associate',
+      title: '关联到其他Canvas 🔗',
+      icon: 'link',
+      section: 'utility',
+      description: '创建与其他Canvas的关联',
+      action: async () => {
+        if (this.actionRegistry.openCrossCanvasModal) {
+          await this.actionRegistry.openCrossCanvasModal(this.getCurrentContext());
+        } else {
+          new Notice('跨Canvas关联功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node', 'file'], 40);
+
+    // Cross-Canvas - View Associated Canvas
+    // AC2: Right-click menu "查看关联Canvas"
+    this.registerMenuItem({
+      id: 'view-associated-canvas',
+      title: '查看关联Canvas 📋',
+      icon: 'external-link',
+      section: 'utility',
+      description: '查看并跳转到关联的Canvas',
+      action: async () => {
+        if (this.actionRegistry.viewAssociatedCanvas) {
+          await this.actionRegistry.viewAssociatedCanvas(this.getCurrentContext());
+        } else {
+          new Notice('查看关联功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node', 'file'], 35);
 
     this.log('ContextMenuManager: Built-in menu items registered');
   }

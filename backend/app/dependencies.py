@@ -34,7 +34,10 @@ from .config import Settings
 from .services.agent_service import AgentService
 from .services.background_task_manager import BackgroundTaskManager
 from .services.canvas_service import CanvasService
+from .services.context_enrichment_service import ContextEnrichmentService
 from .services.review_service import ReviewService
+from .services.textbook_context_service import TextbookContextConfig, TextbookContextService
+from .services.cross_canvas_service import CrossCanvasService, get_cross_canvas_service
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +260,107 @@ ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
 # =============================================================================
+# ContextEnrichmentService Dependency (Story 25.2 + Story 25.3)
+# [Source: docs/stories/25.2.story.md#TextbookContextService-Integration]
+# [Source: docs/stories/25.3.story.md#Exercise-Lecture-Canvas-Association]
+# =============================================================================
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
+async def get_context_enrichment_service(
+    canvas_service: CanvasServiceDep,
+    settings: SettingsDep
+) -> AsyncGenerator[ContextEnrichmentService, None]:
+    """
+    Get ContextEnrichmentService instance with TextbookContextService and CrossCanvasService integration.
+
+    This is a chained dependency that combines Canvas service with textbook context
+    and cross-canvas lecture references.
+    Uses 3-second timeout for textbook queries per Story 25.2 AC4.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
+
+    Dependency Chain:
+        get_settings() → settings
+        get_canvas_service(settings) → canvas_service
+        get_cross_canvas_service() → cross_canvas_service
+        get_context_enrichment_service(canvas_service, settings) → context_enrichment_service
+
+    Args:
+        canvas_service: CanvasService instance (injected via Depends)
+        settings: Application settings (injected via Depends)
+
+    Yields:
+        ContextEnrichmentService: Context enrichment service with textbook and cross-canvas support
+
+    Example:
+        ```python
+        @router.post("/decompose/basic")
+        async def decompose_basic(
+            request: DecomposeRequest,
+            context_service: ContextEnrichmentService = Depends(get_context_enrichment_service)
+        ):
+            enriched = await context_service.enrich_with_adjacent_nodes(...)
+            return result
+        ```
+
+    [Source: docs/stories/25.2.story.md#Dev-Notes]
+    [Source: docs/stories/25.3.story.md#Task-4]
+    [AC4: Timeout fallback 3 seconds]
+    """
+    logger.debug("Creating ContextEnrichmentService instance with TextbookContextService and CrossCanvasService")
+
+    # AC4: 3-second timeout for textbook queries (Story 25.2)
+    textbook_config = TextbookContextConfig(timeout=3.0)
+    textbook_service = TextbookContextService(
+        canvas_base_path=settings.canvas_base_path,
+        config=textbook_config
+    )
+
+    # Story 25.3: Get CrossCanvasService singleton for cross-canvas context
+    cross_canvas_service = get_cross_canvas_service()
+
+    service = ContextEnrichmentService(
+        canvas_service=canvas_service,
+        textbook_service=textbook_service,
+        cross_canvas_service=cross_canvas_service
+    )
+
+    try:
+        yield service
+    finally:
+        logger.debug("ContextEnrichmentService cleanup completed")
+
+
+# Type alias for ContextEnrichmentService dependency
+ContextEnrichmentServiceDep = Annotated[ContextEnrichmentService, Depends(get_context_enrichment_service)]
+
+
+# =============================================================================
+# CrossCanvasService Dependency (Story 25.3)
+# [Source: docs/stories/25.3.story.md#Exercise-Lecture-Canvas-Association]
+# =============================================================================
+
+def get_cross_canvas_service_dep() -> CrossCanvasService:
+    """
+    Get CrossCanvasService singleton instance.
+
+    The CrossCanvasService uses a singleton pattern for in-memory storage,
+    ensuring consistent state across all requests.
+
+    [Source: Story 25.3 - Exercise-Lecture Canvas Association]
+
+    Returns:
+        CrossCanvasService: Singleton cross-canvas service instance
+    """
+    logger.debug("Getting CrossCanvasService instance")
+    return get_cross_canvas_service()
+
+
+# Type alias for CrossCanvasService dependency
+CrossCanvasServiceDep = Annotated[CrossCanvasService, Depends(get_cross_canvas_service_dep)]
+
+
+# =============================================================================
 # RollbackService Dependency (Story 18.5)
 # [Source: docs/architecture/rollback-recovery-architecture.md]
 # =============================================================================
@@ -331,6 +435,8 @@ __all__ = [
     "get_agent_service",
     "get_task_manager",
     "get_review_service",
+    "get_context_enrichment_service",
+    "get_cross_canvas_service_dep",
     "get_rollback_service",
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
@@ -338,4 +444,6 @@ __all__ = [
     "AgentServiceDep",
     "TaskManagerDep",
     "ReviewServiceDep",
+    "ContextEnrichmentServiceDep",
+    "CrossCanvasServiceDep",
 ]
