@@ -16,29 +16,27 @@ Created: 2025-11-29
 Test Count: 20 tests
 """
 
-import pytest
-import asyncio
-from typing import Dict, Any
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import MagicMock
 
-from agentic_rag.state import CanvasRAGState, SearchResult
-from agentic_rag.config import CanvasRAGConfig, DEFAULT_CONFIG, merge_config
-from agentic_rag.nodes import (
-    retrieve_graphiti,
-    retrieve_lancedb,
-    fuse_results,
-    rerank_results,
-    check_quality,
-)
-from agentic_rag.state_graph import (
-    canvas_agentic_rag,
-    build_canvas_agentic_rag_graph,
-    fan_out_retrieval,
-    route_after_quality_check,
-    rewrite_query,
-)
+import pytest
 from langgraph.runtime import Runtime
 
+from agentic_rag.config import DEFAULT_CONFIG, CanvasRAGConfig, merge_config
+from agentic_rag.nodes import (
+    check_quality,
+    fuse_results,
+    rerank_results,
+    retrieve_graphiti,
+    retrieve_lancedb,
+)
+from agentic_rag.state import CanvasRAGState
+from agentic_rag.state_graph import (
+    build_canvas_agentic_rag_graph,
+    canvas_agentic_rag,
+    fan_out_retrieval,
+    rewrite_query,
+    route_after_quality_check,
+)
 
 # ========================================
 # Test Group 1: State and Config Schema (AC 5.1, 5.2)
@@ -272,11 +270,15 @@ class TestStateGraphConstruction:
         assert graph is not None
 
     def test_fan_out_retrieval_returns_send_objects(self):
-        """Test AC 5.4.4: fan_out_retrieval返回Send对象"""
+        """Test AC 5.4.4: fan_out_retrieval返回Send对象
+
+        ✅ Story 23.3 AC 2: 验证三路并行检索 (Graphiti + LanceDB + Multimodal)
+        """
         mock_state: CanvasRAGState = {
             "messages": [],
             "graphiti_results": [],
             "lancedb_results": [],
+            "multimodal_results": [],  # ✅ Story 23.3: 添加multimodal字段
             "fused_results": [],
             "reranked_results": [],
             "fusion_strategy": "rrf",
@@ -287,13 +289,16 @@ class TestStateGraphConstruction:
             "canvas_file": None,
             "is_review_canvas": False,
             "original_query": None,
-            "retrieval_latency_ms": None,
+            "graphiti_latency_ms": None,
+            "lancedb_latency_ms": None,
+            "multimodal_latency_ms": None,  # ✅ Story 23.3: 添加multimodal延迟字段
         }
 
         sends = fan_out_retrieval(mock_state)
 
         assert isinstance(sends, list)
-        assert len(sends) == 2  # Graphiti + LanceDB
+        # ✅ Story 23.3 AC 2: 三路并行检索 (Graphiti + LanceDB + Multimodal)
+        assert len(sends) == 3, f"Expected 3 Send objects for parallel retrieval, got {len(sends)}"
 
     def test_route_after_quality_check_to_rewrite(self):
         """Test AC 5.4.5: route_after_quality_check路由到rewrite_query"""
