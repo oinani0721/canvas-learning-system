@@ -22,11 +22,36 @@ python-dotenv>=1.0.0
 # ✅ Verified from Context7:/googleapis/python-genai - Google Gen AI SDK for Gemini calls
 google-genai>=0.3.0
 
-# LangGraph (Phase 2: LangGraph桥接)
-# ✅ Required for src/agentic_rag StateGraph
-langgraph>=0.2.0
+# ==========================================================
+# Agentic RAG Dependencies (Story 23.1)
+# ✅ Required for src/agentic_rag module import
+# ==========================================================
 
+# Core LangGraph (Story 12.5)
+# ✅ Verified from LangGraph Skill - StateGraph, Send, RetryPolicy
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# Vector Database (Story 12.2)
+# ✅ Verified from ADR-002: LanceDB selected for vector storage
+lancedb>=0.14.0
+
+# Reranking (Story 12.8)
+# ✅ For local cross-encoder reranking with bge-reranker-base
+sentence-transformers>=2.2.0
+
+# Knowledge Graph (Story 12.1, 22.x)
+# ✅ Verified from ADR-003: Neo4j for Graphiti knowledge graph
+neo4j>=5.0.0
+graphiti-core>=0.6.0
+
+# Embedding Models
+# ✅ For OpenAI embeddings (optional, can use local models)
+openai>=1.0.0
+
+# ==========================================================
 # Testing
+# ==========================================================
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 httpx>=0.25.0

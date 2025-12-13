@@ -12,6 +12,7 @@ from app.services.metrics_collector import (
     get_prometheus_metrics,
 )
 from app.services.question_generator import QuestionGenerator
+from app.services.rag_service import LANGGRAPH_AVAILABLE, RAGService, get_rag_service
 from app.services.resource_monitor import (
     RESOURCE_CPU_USAGE,
     RESOURCE_DISK_USAGE,
@@ -37,6 +38,10 @@ __all__ = [
     "BackgroundTaskManager",
     "TaskStatus",
     "TaskInfo",
+    # RAG Service (Story 23.1)
+    "RAGService",
+    "get_rag_service",
+    "LANGGRAPH_AVAILABLE",
     # Resource monitoring
     "ResourceMonitor",
     "get_resource_metrics_snapshot",
