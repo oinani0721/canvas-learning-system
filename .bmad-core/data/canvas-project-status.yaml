@@ -3,7 +3,7 @@ project:
   version: v1.3
   current_phase: implementation
   bmad_integration_status: aligned
-  last_updated: '2025-12-03'
+  last_updated: '2025-12-14'
 epics:
   epic-1:
     name: Basic Learning System
@@ -335,6 +335,36 @@ epics:
     - LearningHeatmap (GitHub风格)
     - BehaviorMonitorService
     - WebSocket实时推送
+  epic-21.5:
+    name: Agent端点可靠性修复
+    status: completed
+    started_date: 2025-12-14
+    completion_date: 2025-12-14
+    stories:
+    - 21.5.1
+    - 21.5.2
+    - 21.5.3
+    - 21.5.4
+    - 21.5.5
+    - 21.5.6
+    description: Agent端点可靠性修复（CORS异常处理、AI配置验证、Bug追踪日志、健康检查增强、插件错误显示、测试验证流程）
+    prd_source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md
+    priority: P0
+    key_achievement: 修复所有Agent端点500错误，完整诊断工具链
+    verification_source: 'QA Gate: docs/qa/gates/21.5.6-incremental-test-validation.yml'
+    substories:
+      21.5.1: CORS异常处理修复 ✅
+      21.5.2: AI Provider配置验证 ✅
+      21.5.3: Bug追踪日志系统 ✅
+      21.5.4: 健康检查端点增强 ✅
+      21.5.5: 插件错误显示改进 ✅
+      21.5.6: 增量测试验证流程 ✅
+    key_features:
+    - 全局异常处理器（确保500错误返回CORS头）
+    - AI配置启动验证
+    - Bug追踪日志系统
+    - 健康检查端点（/health, /health/ai, /health/agents, /health/full）
+    - 端点测试脚本（scripts/test-agent-endpoint.py）
 scp_006:
   name: 多模态文件关联
   status: completed
@@ -371,6 +401,7 @@ next_actions:
 - ✅ Epic 17 已完成 (6个Stories, 143+测试, ~7,500 LOC)
 - ✅ Epic 18 已完成 (5个Stories, 92测试, 完整回滚系统)
 - ✅ Epic 19 已完成 (5个Stories, 163测试, 进度追踪系统)
+- ✅ Epic 21.5 已完成 (6个Stories, Agent端点可靠性修复)
 - ⏳ SCP-006: 多模态支持 (可选)
 blocked_items: []
 technical_debt:
@@ -396,8 +427,8 @@ devload_always_files:
 - docs/architecture/canvas-layer-architecture.md
 - CANVAS_ERROR_LOG.md
 stats:
-  total_epics: 15
-  completed_epics: 15
+  total_epics: 16
+  completed_epics: 16
   in_progress_epics: 0
   pending_epics: 5
   total_agents: 14

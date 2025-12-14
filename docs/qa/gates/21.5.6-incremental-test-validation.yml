@@ -1,0 +1,90 @@
+# <!-- Powered by BMAD™ Core -->
+# Quality Gate: Story 21.5.6 - 增量测试验证流程
+
+schema: 1
+story: "21.5.6"
+story_title: "增量测试验证流程"
+gate: "PASS"
+status_reason: "Implementation exceeds requirements with 11 agent endpoints (vs 5 specified), full ADR-008/ADR-009 compliance, and production-quality code structure."
+reviewer: "Quinn (Test Architect)"
+updated: "2025-12-14T02:14:00Z"
+
+waiver: { active: false }
+
+top_issues: []
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor: []
+
+# ============ Requirements Traceability ============
+evidence:
+  tests_reviewed: 5
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+# ============ AC Verification ============
+acceptance_criteria:
+  - id: "AC-21.5.6.1"
+    requirement: "每个Story完成后可使用测试脚本立即测试"
+    verification: "--all flag tests all endpoints; --endpoint tests single"
+    status: PASS
+
+  - id: "AC-21.5.6.2"
+    requirement: "测试结果清晰显示成功(✅)/失败(❌)状态"
+    verification: "Lines 174, 224: print(f'  ✅ {name}: {message}')"
+    status: PASS
+
+  - id: "AC-21.5.6.3"
+    requirement: "失败时显示具体错误信息(HTTP状态码、错误详情)"
+    verification: "Lines 136-138: msg = f'FAILED ({status_code})' + bug_id"
+    status: PASS
+
+  - id: "AC-21.5.6.4"
+    requirement: "支持测试单个端点或全部端点"
+    verification: "Mutually exclusive group: --endpoint, --all, --health-only"
+    status: PASS
+
+  - id: "AC-21.5.6.5"
+    requirement: "支持自定义base URL和verbose模式"
+    verification: "Lines 326-336: --base-url and --verbose arguments"
+    status: PASS
+
+# ============ ADR Compliance ============
+adr_compliance:
+  - adr: "ADR-008"
+    decision: "Use httpx for HTTP client"
+    implementation: "import httpx (line 43), httpx.Client (line 356)"
+    status: PASS
+
+  - adr: "ADR-008"
+    decision: "30s timeout for agent calls"
+    implementation: "DEFAULT_TIMEOUT = 30.0 (line 81)"
+    status: PASS
+
+  - adr: "ADR-009"
+    decision: "Error code classification"
+    implementation: "Parses error_type, bug_id from response (lines 134-138)"
+    status: PASS
+
+# ============ NFR Validation ============
+nfr_validation:
+  security: { status: PASS, notes: "No sensitive data handling, read-only operations" }
+  performance: { status: PASS, notes: "30s timeout appropriate for LLM-backed agents" }
+  reliability: { status: PASS, notes: "Robust error handling with connection/timeout distinction" }
+  maintainability: { status: PASS, notes: "Clean code with type hints, docstrings, source comments" }
+
+# ============ Quality Metrics ============
+quality_score: 95
+
+# ============ Recommendations ============
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider adding JSON output mode for CI integration"
+      refs: ["scripts/test-agent-endpoint.py"]
+      priority: low
