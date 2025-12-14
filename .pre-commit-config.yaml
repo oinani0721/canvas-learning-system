@@ -18,6 +18,7 @@ repos:
         pass_filenames: false
         stages: [pre-commit]
         verbose: true
+        additional_dependencies: [pyyaml>=6.0]
         # Note: Epic 1-20 stories are skipped (legacy data)
         # Epic 21+ stories MUST have status >= Review to commit
 
