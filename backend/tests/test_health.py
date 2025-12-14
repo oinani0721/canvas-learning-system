@@ -317,3 +317,312 @@ class TestMetricsSummaryEndpoint:
         # Should be parseable as ISO 8601
         parsed = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
         assert parsed is not None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 21.5.4: Agent Health Check Endpoints Tests
+# [Source: docs/stories/21.5.4.story.md]
+# [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-4]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAgentsHealthEndpoint:
+    """Test suite for GET /api/v1/health/agents endpoint.
+
+    [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+    """
+
+    def test_health_agents_returns_200(self, client: TestClient):
+        """
+        Test that /health/agents endpoint returns HTTP 200 OK.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+        """
+        response = client.get("/api/v1/health/agents")
+        assert response.status_code == 200
+
+    def test_health_agents_response_structure(self, client: TestClient):
+        """
+        Test that /health/agents response has correct structure.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+        """
+        response = client.get("/api/v1/health/agents")
+        data = response.json()
+
+        # Verify all required fields are present
+        assert "status" in data
+        assert "agents" in data
+        assert "total_agents" in data
+        assert "available_count" in data
+
+    def test_health_agents_status_is_ok(self, client: TestClient):
+        """
+        Test that /health/agents returns "ok" status.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+        """
+        response = client.get("/api/v1/health/agents")
+        data = response.json()
+
+        assert data["status"] == "ok"
+
+    def test_health_agents_returns_all_endpoints(self, client: TestClient):
+        """
+        Test that /health/agents returns all Agent endpoint statuses.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+        """
+        response = client.get("/api/v1/health/agents")
+        data = response.json()
+
+        # Should have at least 10 agents (per Story requirement)
+        assert data["total_agents"] >= 10
+        assert len(data["agents"]) >= 10
+
+        # Check that expected agents are present
+        expected_agents = [
+            "decompose_basic",
+            "decompose_deep",
+            "explain_oral",
+            "scoring",
+            "verification",
+        ]
+        for agent in expected_agents:
+            assert agent in data["agents"], f"Agent {agent} not found"
+
+    def test_health_agents_all_available(self, client: TestClient):
+        """
+        Test that all agents are marked as available.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.1]
+        """
+        response = client.get("/api/v1/health/agents")
+        data = response.json()
+
+        # All agents should be "available"
+        for agent_name, status in data["agents"].items():
+            assert status == "available", f"Agent {agent_name} is not available"
+
+        # available_count should match total_agents
+        assert data["available_count"] == data["total_agents"]
+
+    def test_health_agents_content_type(self, client: TestClient):
+        """Test that /health/agents returns JSON content type."""
+        response = client.get("/api/v1/health/agents")
+        assert response.headers["content-type"] == "application/json"
+
+
+class TestAIHealthEndpoint:
+    """Test suite for GET /api/v1/health/ai endpoint.
+
+    [Source: docs/stories/21.5.4.story.md#AC-21.5.4.2]
+    """
+
+    def test_health_ai_returns_valid_status(self, client: TestClient):
+        """
+        Test that /health/ai endpoint returns valid HTTP status.
+
+        Returns 200 if AI configured, 503 if not configured.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.2]
+        """
+        response = client.get("/api/v1/health/ai")
+        # 200 = AI working, 503 = AI not configured (valid in test environment)
+        assert response.status_code in [200, 503]
+
+    def test_health_ai_response_structure(self, client: TestClient):
+        """
+        Test that /health/ai response has required fields.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.2]
+        """
+        response = client.get("/api/v1/health/ai")
+        data = response.json()
+
+        # Must have status field
+        assert "status" in data
+        assert data["status"] in ["ok", "error"]
+
+        # Must have model and provider info
+        assert "model" in data
+        assert "provider" in data
+
+    def test_health_ai_error_has_error_field(self, client: TestClient):
+        """
+        Test that /health/ai error response includes error details.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.2]
+        Note: In test environment without API key, status will be "error"
+        """
+        response = client.get("/api/v1/health/ai")
+        data = response.json()
+
+        # In test environment, API is not configured
+        if data["status"] == "error":
+            assert "error" in data
+            # Error code should be present for categorization
+            assert "error_code" in data
+
+    def test_health_ai_content_type(self, client: TestClient):
+        """Test that /health/ai returns JSON content type."""
+        response = client.get("/api/v1/health/ai")
+        assert response.headers["content-type"] == "application/json"
+
+
+class TestFullHealthEndpoint:
+    """Test suite for GET /api/v1/health/full endpoint.
+
+    [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+    """
+
+    def test_health_full_returns_200(self, client: TestClient):
+        """
+        Test that /health/full endpoint returns HTTP 200 OK.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+        """
+        response = client.get("/api/v1/health/full")
+        assert response.status_code == 200
+
+    def test_health_full_response_structure(self, client: TestClient):
+        """
+        Test that /health/full response has correct structure.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3, AC-21.5.4.4]
+        """
+        response = client.get("/api/v1/health/full")
+        data = response.json()
+
+        # Verify all required top-level fields
+        assert "status" in data
+        assert "components" in data
+        assert "config" in data
+        assert "timestamp" in data
+
+    def test_health_full_status_value(self, client: TestClient):
+        """
+        Test that /health/full returns valid status.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+        """
+        response = client.get("/api/v1/health/full")
+        data = response.json()
+
+        # Status should be "ok" or "degraded"
+        assert data["status"] in ["ok", "degraded"]
+
+    def test_health_full_components_structure(self, client: TestClient):
+        """
+        Test that /health/full components section has correct structure.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3, AC-21.5.4.4]
+        """
+        response = client.get("/api/v1/health/full")
+        data = response.json()
+
+        components = data["components"]
+        # Should have all service components
+        assert "api" in components
+        assert "ai_provider" in components
+        assert "canvas_service" in components
+
+        # api and canvas_service should be "ok"
+        assert components["api"] == "ok"
+        assert components["canvas_service"] == "ok"
+
+        # ai_provider should be a dict with status
+        assert isinstance(components["ai_provider"], dict)
+        assert "status" in components["ai_provider"]
+
+    def test_health_full_config_structure(self, client: TestClient):
+        """
+        Test that /health/full config section has correct structure.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+        """
+        response = client.get("/api/v1/health/full")
+        data = response.json()
+
+        config = data["config"]
+        # Should have AI configuration info
+        assert "ai_model" in config
+        assert "ai_provider" in config
+        assert "cors_origins" in config
+
+        # cors_origins should be a list
+        assert isinstance(config["cors_origins"], list)
+
+    def test_health_full_timestamp_format(self, client: TestClient):
+        """
+        Test that /health/full returns valid ISO 8601 timestamp.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+        """
+        response = client.get("/api/v1/health/full")
+        data = response.json()
+
+        timestamp_str = data["timestamp"]
+        # Should be parseable as ISO 8601
+        parsed = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+        assert parsed is not None
+
+    def test_health_full_content_type(self, client: TestClient):
+        """Test that /health/full returns JSON content type."""
+        response = client.get("/api/v1/health/full")
+        assert response.headers["content-type"] == "application/json"
+
+
+class TestHealthEndpointsPerformance:
+    """Test suite for health endpoints performance requirements.
+
+    [Source: docs/stories/21.5.4.story.md#AC-21.5.4.5 (NFR-3)]
+    """
+
+    def test_health_agents_response_time(self, client: TestClient):
+        """
+        Test that /health/agents responds within 500ms.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.5 (NFR-3)]
+        """
+        import time
+
+        start = time.time()
+        response = client.get("/api/v1/health/agents")
+        elapsed_ms = (time.time() - start) * 1000
+
+        assert response.status_code == 200
+        assert elapsed_ms < 500, f"Response time {elapsed_ms:.2f}ms exceeds 500ms limit"
+
+    def test_health_ai_response_time(self, client: TestClient):
+        """
+        Test that /health/ai responds within 500ms (without network call).
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.5 (NFR-3)]
+        Note: In test env without API key, returns 503 fast path
+        """
+        import time
+
+        start = time.time()
+        response = client.get("/api/v1/health/ai")
+        elapsed_ms = (time.time() - start) * 1000
+
+        # 200 = AI working, 503 = AI not configured (both valid)
+        assert response.status_code in [200, 503]
+        # In test environment (no API call), should be very fast
+        assert elapsed_ms < 500, f"Response time {elapsed_ms:.2f}ms exceeds 500ms limit"
+
+    def test_health_full_response_time(self, client: TestClient):
+        """
+        Test that /health/full responds within 500ms.
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.5 (NFR-3)]
+        """
+        import time
+
+        start = time.time()
+        response = client.get("/api/v1/health/full")
+        elapsed_ms = (time.time() - start) * 1000
+
+        assert response.status_code == 200
+        assert elapsed_ms < 500, f"Response time {elapsed_ms:.2f}ms exceeds 500ms limit"

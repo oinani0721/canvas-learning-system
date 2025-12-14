@@ -1837,6 +1837,139 @@ class AgentService:
             logger.warning(f"Failed to record learning episode: {e}")
             return False
 
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 21.5.4: AI Connection Health Check
+    # [Source: docs/stories/21.5.4.story.md]
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def test_ai_connection(self) -> Dict[str, Any]:
+        """
+        Test AI API connection with a minimal request.
+
+        Sends a simple test prompt to verify:
+        1. API key is valid
+        2. Network connectivity is working
+        3. Model is available
+
+        Returns:
+            Dict with connection status:
+            - status: "ok" or "error"
+            - model: Current model name
+            - provider: Current provider (google/anthropic/openai/custom)
+            - latency_ms: Response time (if successful)
+            - error: Error message (if failed)
+            - error_code: Error code for diagnosis
+
+        [Source: docs/stories/21.5.4.story.md#AC-21.5.4.2]
+        [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-4]
+        """
+        import time
+
+        from app.config import settings
+
+        # Get current AI configuration
+        provider = getattr(settings, 'AI_PROVIDER', 'google')
+        model = getattr(settings, 'AI_MODEL_NAME', 'gemini-2.0-flash-exp')
+
+        # Check if client is configured
+        if not self._use_real_api or not self._gemini_client:
+            return {
+                "status": "error",
+                "model": model,
+                "provider": provider,
+                "error": "AI client not configured. Check API key settings.",
+                "error_code": "LLM_AUTH_FAILED"
+            }
+
+        start_time = time.time()
+
+        # P0 Fix: Add 400ms timeout to prevent NFR-3 (<500ms) violation
+        # [Source: docs/qa/gates/21.5.4-agent-health-check-enhancement.yml#PERF-001]
+        AI_HEALTH_CHECK_TIMEOUT = 0.4  # 400ms timeout, leaving 100ms buffer for response
+
+        try:
+            # Send minimal test request with timeout
+            # ✅ Verified from Context7:/googleapis/python-genai (topic: async generate content)
+            # ✅ Verified from Python docs: asyncio.wait_for() for Python 3.9+ timeout
+            response = await asyncio.wait_for(
+                self._gemini_client.generate(
+                    agent_type="basic-decomposition",  # Use simplest agent
+                    prompt="Reply with exactly: OK",
+                    context=None
+                ),
+                timeout=AI_HEALTH_CHECK_TIMEOUT
+            )
+
+            latency_ms = (time.time() - start_time) * 1000
+
+            # Check if we got a valid response
+            if response and (response.get("response") or response.get("text")):
+                logger.info(
+                    f"AI connection test successful: provider={provider}, "
+                    f"model={model}, latency={latency_ms:.0f}ms"
+                )
+                return {
+                    "status": "ok",
+                    "model": model,
+                    "provider": provider,
+                    "latency_ms": round(latency_ms, 2)
+                }
+            else:
+                return {
+                    "status": "error",
+                    "model": model,
+                    "provider": provider,
+                    "error": "Empty response from AI API",
+                    "error_code": "LLM_EMPTY_RESPONSE"
+                }
+
+        except asyncio.TimeoutError:
+            # P0 Fix: Explicit timeout handling for NFR-3 compliance
+            # [Source: docs/qa/gates/21.5.4-agent-health-check-enhancement.yml#PERF-001]
+            latency_ms = (time.time() - start_time) * 1000
+            logger.warning(
+                f"AI connection test timeout: provider={provider}, "
+                f"model={model}, timeout={AI_HEALTH_CHECK_TIMEOUT}s, "
+                f"latency={latency_ms:.0f}ms"
+            )
+            return {
+                "status": "error",
+                "model": model,
+                "provider": provider,
+                "error": f"AI health check timeout ({AI_HEALTH_CHECK_TIMEOUT}s exceeded)",
+                "error_code": "LLM_TIMEOUT",
+                "latency_ms": round(latency_ms, 2)
+            }
+
+        except Exception as e:
+            latency_ms = (time.time() - start_time) * 1000
+            error_message = str(e)
+
+            # Classify error type
+            error_code = "LLM_UNKNOWN_ERROR"
+            if "api key" in error_message.lower() or "authentication" in error_message.lower():
+                error_code = "LLM_AUTH_FAILED"
+            elif "timeout" in error_message.lower():
+                error_code = "LLM_TIMEOUT"
+            elif "rate limit" in error_message.lower():
+                error_code = "LLM_RATE_LIMITED"
+            elif "quota" in error_message.lower():
+                error_code = "LLM_QUOTA_EXCEEDED"
+
+            logger.warning(
+                f"AI connection test failed: provider={provider}, "
+                f"model={model}, error={error_message}, code={error_code}"
+            )
+
+            return {
+                "status": "error",
+                "model": model,
+                "provider": provider,
+                "error": error_message,
+                "error_code": error_code,
+                "latency_ms": round(latency_ms, 2)
+            }
+
     async def cleanup(self) -> None:
         """
         Cleanup resources when service is no longer needed.
