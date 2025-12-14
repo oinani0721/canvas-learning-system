@@ -13,7 +13,7 @@ that can be mounted on the main FastAPI application.
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health
+from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.memory import memory_router
@@ -114,5 +114,22 @@ router.include_router(
     responses={
         404: {"description": "Episode/concept not found"},
         500: {"description": "Memory service error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Debug Routes (Story 21.5.3)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 21.5.3 - Bug追踪日志系统
+# [Source: docs/stories/21.5.3.story.md - AC 3-5]
+# [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-3]
+router.include_router(
+    debug.router,
+    prefix="/debug",
+    tags=["Debug"],
+    responses={
+        404: {"description": "Bug not found"},
+        500: {"description": "Debug service error"}
     }
 )

@@ -27,39 +27,83 @@ export type ErrorType =
 /**
  * Custom API Error class
  * @source Story 13.3 Dev Notes - ApiError类设计
+ * @source Story 21.5.5 - 增强错误属性 (bugId, backendErrorType)
  */
 export class ApiError extends Error {
+  /**
+   * Bug tracking ID from backend (format: BUG-XXXXXXXX)
+   * @source Story 21.5.3 - Bug追踪日志系统
+   */
+  public bugId?: string;
+
+  /**
+   * Backend error type name (e.g., AIProviderError, ConfigurationError)
+   * @source Story 21.5.5 - 后端错误类型映射
+   */
+  public backendErrorType?: string;
+
   constructor(
     message: string,
     public type: ErrorType,
     public statusCode?: number,
-    public details?: Record<string, unknown>
+    public details?: Record<string, unknown>,
+    bugId?: string,
+    backendErrorType?: string
   ) {
     super(message);
     this.name = 'ApiError';
+    this.bugId = bugId;
+    this.backendErrorType = backendErrorType;
     // Maintain prototype chain for instanceof checks
     Object.setPrototypeOf(this, ApiError.prototype);
   }
 
   /**
+   * Check if this error is retryable
+   * @source Story 21.5.5 - AC 3: 可重试错误提供重试按钮
+   * @source ADR-009: RETRYABLE_ERROR_TYPES
+   */
+  get isRetryable(): boolean {
+    return ['NetworkError', 'TimeoutError', 'HttpError5xx'].includes(this.type);
+  }
+
+  /**
    * Get user-friendly error message based on error type
    * @source Story 13.3 Dev Notes - 错误处理策略表
+   * @source Story 21.5.5 - 增强错误消息显示
    */
   getUserFriendlyMessage(): string {
+    // 如果有后端错误类型，优先使用
+    const typePrefix = this.backendErrorType
+      ? `[${this.backendErrorType}] `
+      : '';
+
     switch (this.type) {
       case 'NetworkError':
         return '无法连接到服务器，请检查网络连接';
       case 'TimeoutError':
         return '请求超时，请重试';
       case 'HttpError4xx':
-        return `请求参数错误: ${this.message}`;
+        return `${typePrefix}请求参数错误: ${this.message}`;
       case 'HttpError5xx':
-        return '服务器错误，正在重试...';
+        return `${typePrefix}服务器错误: ${this.message}`;
       case 'ValidationError':
         return `数据验证失败: ${JSON.stringify(this.details)}`;
       default:
-        return `未知错误: ${this.message}`;
+        return `${typePrefix}未知错误: ${this.message}`;
     }
+  }
+
+  /**
+   * Get formatted error string including bug_id if available
+   * @source Story 21.5.5 - AC 1: Agent调用错误显示bug_id
+   */
+  getFormattedMessage(): string {
+    let msg = this.getUserFriendlyMessage();
+    if (this.bugId) {
+      msg += `\n[Bug ID: ${this.bugId}]`;
+    }
+    return msg;
   }
 }
 

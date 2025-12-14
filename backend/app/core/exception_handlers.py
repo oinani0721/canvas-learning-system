@@ -23,6 +23,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
+from app.core.bug_tracker import bug_tracker
 from app.exceptions import CanvasException
 
 # Get logger instance
@@ -210,27 +211,54 @@ async def generic_exception_handler(
         exc: The unhandled exception
 
     Returns:
-        JSONResponse with generic error payload
+        JSONResponse with generic error payload including bug_id for tracking
 
     # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: handling-errors)
 
     [Source: specs/data/error-response.schema.json]
+    [Source: docs/stories/21.5.3.story.md - AC-1, AC-2]
     """
     request_id = getattr(request.state, "request_id", "unknown")
+
+    # ✅ Story 21.5.3 AC-1: 自动记录500错误到bug_log.jsonl
+    # 收集请求参数用于bug追踪
+    request_params: Dict[str, Any] = {
+        "path": str(request.url.path),
+        "method": request.method,
+        "query_params": dict(request.query_params),
+    }
+
+    # 尝试获取请求体（如果可用）
+    try:
+        # 注意：request.body()是async的，但此处我们使用state缓存的body
+        if hasattr(request.state, "body"):
+            request_params["body"] = request.state.body
+    except Exception:
+        pass  # 忽略body获取失败
+
+    # 记录bug到JSONL文件
+    bug_id = bug_tracker.log_error(
+        endpoint=str(request.url.path),
+        error=exc,
+        request_params=request_params,
+    )
 
     logger.error(
         "unhandled_exception",
         request_id=request_id,
+        bug_id=bug_id,
         error_type=type(exc).__name__,
         error_message=str(exc),
         path=str(request.url.path),
         exc_info=True,  # Include stack trace in logs
     )
 
-    # Generic error response - don't expose internal details
+    # ✅ Story 21.5.3 AC-2: 返回响应包含bug_id
+    # Generic error response - don't expose internal details, but include bug_id
     body: Dict[str, Any] = {
         "code": 500,
         "message": "Internal server error",
+        "bug_id": bug_id,  # 用于用户反馈和问题追踪
     }
 
     return JSONResponse(

@@ -38,6 +38,34 @@ export interface PluginSettings {
     apiKey: string;
 
     /**
+     * AI Provider selection
+     * Determines which AI service to use for model inference
+     * @default 'google'
+     */
+    aiProvider: 'google' | 'openai' | 'anthropic' | 'openrouter' | 'custom';
+
+    /**
+     * AI Model name
+     * The specific model to use for AI inference
+     * @default 'gemini-2.0-flash-exp'
+     */
+    aiModelName: string;
+
+    /**
+     * AI API Base URL
+     * Base URL for AI API requests (required for custom provider)
+     * @default ''
+     */
+    aiBaseUrl: string;
+
+    /**
+     * AI API Key
+     * API key for AI model authentication
+     * @default ''
+     */
+    aiApiKey: string;
+
+    /**
      * Command execution timeout in milliseconds
      * Maximum time to wait for a command to complete
      * @default 30000
@@ -365,6 +393,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     // Connection Settings
     claudeCodeUrl: 'http://localhost:8001',
     apiKey: '',
+    aiProvider: 'google',
+    aiModelName: 'gemini-2.0-flash-exp',
+    aiBaseUrl: '',
+    aiApiKey: '',
     commandTimeout: 30000,
     retryCount: 3,
     enableCache: true,
@@ -439,8 +471,9 @@ export const DEFAULT_SETTINGS: PluginSettings = {
 
 /**
  * Settings section identifiers
+ * @source Story 21.5.5 - 添加 errorHistory 部分
  */
-export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced' | 'memory';
+export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced' | 'memory' | 'errorHistory';
 
 /**
  * Settings section metadata
@@ -491,6 +524,12 @@ export const SETTINGS_SECTIONS: SettingsSectionInfo[] = [
         name: '🧠 记忆系统',
         description: 'Neo4j/LanceDB/Graphiti三层记忆配置',
         icon: '🧠'
+    },
+    {
+        id: 'errorHistory',
+        name: '🐛 错误历史',
+        description: 'Agent调用错误记录和追踪',
+        icon: '🐛'
     }
 ];
 

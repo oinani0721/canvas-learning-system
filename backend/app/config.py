@@ -11,6 +11,7 @@ backend API. Settings are loaded from environment variables and .env files.
 """
 
 import json
+import logging
 import os
 from functools import lru_cache
 from typing import List
@@ -20,6 +21,10 @@ from pydantic import Field, field_validator
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings)
 # Source: "from pydantic_settings import BaseSettings, SettingsConfigDict"
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Logger for config validation warnings
+# [Source: docs/stories/21.5.2.story.md - AC-1]
+logger = logging.getLogger(__name__)
 
 # Calculate absolute project root path for reliable path resolution
 # This ensures paths work regardless of where the backend is started from
@@ -136,6 +141,39 @@ class Settings(BaseSettings):
 
         # Fallback: return default if path is completely invalid
         return "/api/v1"
+
+    # ✅ Verified from Context7:/websites/pydantic_dev (topic: field_validator)
+    # [Source: docs/stories/21.5.2.story.md - AC-1, AC-2]
+    @field_validator("AI_MODEL_NAME")
+    @classmethod
+    def validate_model_name(cls, v: str) -> str:
+        """
+        检测并清理AI模型名称中的异常前缀。
+
+        某些终端或配置工具可能会在模型名称前添加前缀（如 [K1], [K2]），
+        这会导致 API 调用失败。此验证器自动检测并清理这些前缀。
+
+        异常前缀示例: [K1], [K2], [TEST]
+
+        Args:
+            v: 原始 AI_MODEL_NAME 值
+
+        Returns:
+            清理后的模型名称
+
+        [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-2]
+        """
+        # 检测方括号前缀模式
+        if v.startswith("[") and "]" in v:
+            bracket_end = v.index("]") + 1
+            prefix = v[:bracket_end]
+            clean_name = v[bracket_end:]
+            logger.warning(
+                f"AI_MODEL_NAME contains abnormal prefix '{prefix}', "
+                f"auto-cleaned to '{clean_name}'"
+            )
+            return clean_name
+        return v
 
     MAX_CONCURRENT_REQUESTS: int = Field(
         default=100,

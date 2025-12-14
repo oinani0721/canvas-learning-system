@@ -70,6 +70,17 @@ export interface MenuActionRegistry {
   openCrossCanvasModal?: MenuActionCallback;
   /** View associated Canvas files */
   viewAssociatedCanvas?: MenuActionCallback;
+  // 5 Additional Learning Agents
+  /** Execute deep decomposition */
+  executeDeepDecomposition?: MenuActionCallback;
+  /** Execute clarification path */
+  executeClarificationPath?: MenuActionCallback;
+  /** Execute example teaching */
+  executeExampleTeaching?: MenuActionCallback;
+  /** Execute memory anchor */
+  executeMemoryAnchor?: MenuActionCallback;
+  /** Generate verification questions */
+  generateVerificationQuestions?: MenuActionCallback;
 }
 
 // ============================================================================
@@ -186,6 +197,14 @@ export class ContextMenuManager {
   }
 
   /**
+   * Get action registry for retry callbacks
+   * @source Story 21.5.5 - AC 3: 可重试错误提供重试按钮
+   */
+  getActionRegistry(): MenuActionRegistry {
+    return this.actionRegistry;
+  }
+
+  /**
    * Enable/disable debug mode
    */
   setDebugMode(enabled: boolean): void {
@@ -248,6 +267,38 @@ export class ContextMenuManager {
       },
     }, ['editor', 'canvas-node'], 85);
 
+    // Primary actions - Deep Decomposition
+    this.registerMenuItem({
+      id: 'deep-decomposition',
+      title: '深度拆解 🔥',
+      icon: 'flame',
+      section: 'primary',
+      description: '对复杂概念进行深度拆解分析',
+      action: async () => {
+        if (this.actionRegistry.executeDeepDecomposition) {
+          await this.actionRegistry.executeDeepDecomposition(this.getCurrentContext());
+        } else {
+          new Notice('深度拆解功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 95);
+
+    // Primary actions - Clarification Path
+    this.registerMenuItem({
+      id: 'clarification-path',
+      title: '澄清路径 📈',
+      icon: 'trending-up',
+      section: 'primary',
+      description: '生成系统化澄清路径',
+      action: async () => {
+        if (this.actionRegistry.executeClarificationPath) {
+          await this.actionRegistry.executeClarificationPath(this.getCurrentContext());
+        } else {
+          new Notice('澄清路径功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 82);
+
     // Secondary actions - Scoring
     this.registerMenuItem({
       id: 'score-node',
@@ -279,6 +330,54 @@ export class ContextMenuManager {
         }
       },
     }, ['editor', 'canvas-node'], 75);
+
+    // Secondary actions - Example Teaching
+    this.registerMenuItem({
+      id: 'example-teaching',
+      title: '例题教学 📝',
+      icon: 'book-open',
+      section: 'secondary',
+      description: '生成例题和详细解答',
+      action: async () => {
+        if (this.actionRegistry.executeExampleTeaching) {
+          await this.actionRegistry.executeExampleTeaching(this.getCurrentContext());
+        } else {
+          new Notice('例题教学功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 72);
+
+    // Secondary actions - Memory Anchor
+    this.registerMenuItem({
+      id: 'memory-anchor',
+      title: '记忆锚点 🎯',
+      icon: 'anchor',
+      section: 'secondary',
+      description: '生成生动类比和记忆法',
+      action: async () => {
+        if (this.actionRegistry.executeMemoryAnchor) {
+          await this.actionRegistry.executeMemoryAnchor(this.getCurrentContext());
+        } else {
+          new Notice('记忆锚点功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 70);
+
+    // Secondary actions - Verification Questions
+    this.registerMenuItem({
+      id: 'verification-questions',
+      title: '生成检验问题 ❓',
+      icon: 'help-circle',
+      section: 'secondary',
+      description: '生成深度检验问题测试理解',
+      action: async () => {
+        if (this.actionRegistry.generateVerificationQuestions) {
+          await this.actionRegistry.generateVerificationQuestions(this.getCurrentContext());
+        } else {
+          new Notice('检验问题功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 68);
 
     // Utility actions - Node History
     this.registerMenuItem({

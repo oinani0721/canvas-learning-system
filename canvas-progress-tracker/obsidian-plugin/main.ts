@@ -42,6 +42,9 @@ import { BackupProtectionManager } from './src/managers/BackupProtectionManager'
 import { ApiClient } from './src/api/ApiClient';
 import { CanvasDataImporterService } from './src/services/CanvasDataImporterService';
 import { CrossCanvasService } from './src/services/CrossCanvasService';
+import { ErrorHistoryManager } from './src/managers/ErrorHistoryManager';
+import { ErrorNotificationService } from './src/services/ErrorNotificationService';
+import { ApiError } from './src/api/types';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -81,6 +84,12 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Cross-Canvas Service - Manages canvas associations (Story 25.1) */
     private crossCanvasService: CrossCanvasService | null = null;
+
+    /** Error History Manager - Tracks API errors for debugging (Story 21.5.5) */
+    public errorHistoryManager: ErrorHistoryManager | null = null;
+
+    /** Error Notification Service - Shows enhanced error notices (Story 21.5.5) */
+    private errorNotificationService: ErrorNotificationService | null = null;
 
     /**
      * Plugin load lifecycle method
@@ -292,8 +301,10 @@ export default class CanvasReviewPlugin extends Plugin {
                         });
                         new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
                     } catch (error) {
-                        const msg = error instanceof Error ? error.message : '未知错误';
-                        new Notice(`拆解失败: ${msg}`);
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'decompose_basic', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeDecomposition?.(context)
+                        );
                     }
                 },
 
@@ -310,8 +321,10 @@ export default class CanvasReviewPlugin extends Plugin {
                         });
                         new Notice('口语化解释生成完成');
                     } catch (error) {
-                        const msg = error instanceof Error ? error.message : '未知错误';
-                        new Notice(`生成失败: ${msg}`);
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'explain_oral', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeOralExplanation?.(context)
+                        );
                     }
                 },
 
@@ -328,8 +341,10 @@ export default class CanvasReviewPlugin extends Plugin {
                         });
                         new Notice('四层次解释生成完成');
                     } catch (error) {
-                        const msg = error instanceof Error ? error.message : '未知错误';
-                        new Notice(`生成失败: ${msg}`);
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'explain_four_level', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeFourLevelExplanation?.(context)
+                        );
                     }
                 },
 
@@ -346,8 +361,10 @@ export default class CanvasReviewPlugin extends Plugin {
                         });
                         new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
                     } catch (error) {
-                        const msg = error instanceof Error ? error.message : '未知错误';
-                        new Notice(`评分失败: ${msg}`);
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'score_understanding', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeScoring?.(context)
+                        );
                     }
                 },
 
@@ -399,6 +416,108 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('无法找到Canvas文件');
                     }
                 },
+
+                // 5 Additional Learning Agent Callbacks
+                executeDeepDecomposition: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在进行深度拆解...');
+                        const result = await this.apiClient.decomposeDeep({
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
+                        });
+                        new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题`);
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'decompose_deep', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeDeepDecomposition?.(context)
+                        );
+                    }
+                },
+
+                executeClarificationPath: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在生成澄清路径...');
+                        const result = await this.apiClient.explainClarification({
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
+                        });
+                        new Notice('澄清路径生成完成');
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'explain_clarification', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeClarificationPath?.(context)
+                        );
+                    }
+                },
+
+                executeExampleTeaching: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在生成例题教学...');
+                        const result = await this.apiClient.explainExample({
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
+                        });
+                        new Notice('例题教学生成完成');
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'explain_example', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeExampleTeaching?.(context)
+                        );
+                    }
+                },
+
+                executeMemoryAnchor: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在生成记忆锚点...');
+                        const result = await this.apiClient.explainMemory({
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
+                        });
+                        new Notice('记忆锚点生成完成');
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'explain_memory', () =>
+                            this.contextMenuManager?.getActionRegistry()?.executeMemoryAnchor?.(context)
+                        );
+                    }
+                },
+
+                generateVerificationQuestions: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在生成检验问题...');
+                        // Use decomposeDeep which generates verification questions
+                        const result = await this.apiClient.decomposeDeep({
+                            node_id: context.nodeId || '',
+                            canvas_name: context.filePath || '',
+                        });
+                        new Notice(`检验问题生成完成: 生成了 ${result.questions?.length || 0} 个问题`);
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'generate_verification_questions', () =>
+                            this.contextMenuManager?.getActionRegistry()?.generateVerificationQuestions?.(context)
+                        );
+                    }
+                },
             });
 
             if (this.settings.debugMode) {
@@ -412,6 +531,22 @@ export default class CanvasReviewPlugin extends Plugin {
         // Story 13.3 - ApiClient initialized above
         // TODO: Story 13.4+ - Initialize UIManager
         // TODO: Story 13.5+ - Initialize SyncManager
+
+        // Initialize ErrorHistoryManager and ErrorNotificationService (Story 21.5.5)
+        // @source Story 21.5.5 - AC 4, 5: 错误历史管理
+        try {
+            this.errorHistoryManager = new ErrorHistoryManager(this);
+            await this.errorHistoryManager.load();
+
+            this.errorNotificationService = new ErrorNotificationService();
+
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: ErrorHistoryManager initialized');
+                console.log('Canvas Review System: ErrorNotificationService initialized');
+            }
+        } catch (error) {
+            console.error('Canvas Review System: Failed to initialize error tracking:', error);
+        }
     }
 
     /**
@@ -1352,6 +1487,55 @@ export default class CanvasReviewPlugin extends Plugin {
             const msg = error instanceof Error ? error.message : 'Unknown error';
             new Notice(`获取Canvas关联失败: ${msg}`);
             console.error('Canvas Review System: Failed to fetch associations:', error);
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Story 21.5.5: Enhanced Error Handling - Helper Methods
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Handle Agent API error with enhanced notification and history tracking
+     *
+     * @param error - The caught error (may be ApiError or generic Error)
+     * @param operation - Name of the operation that failed (e.g., 'decompose_basic')
+     * @param onRetry - Optional retry callback for retryable errors
+     *
+     * @source Story 21.5.5 - AC 1, 2, 3: 增强错误显示
+     */
+    private handleAgentError(
+        error: unknown,
+        operation: string,
+        onRetry?: () => void | Promise<void>
+    ): void {
+        // Convert to ApiError if it isn't already
+        let apiError: ApiError;
+
+        if (error instanceof ApiError) {
+            apiError = error;
+        } else {
+            // Wrap generic error in ApiError
+            const msg = error instanceof Error ? error.message : 'Unknown error';
+            apiError = new ApiError(msg, 'UnknownError');
+        }
+
+        // Log the error
+        console.error(`Canvas Review System: ${operation} failed:`, apiError);
+
+        // Record in error history
+        if (this.errorHistoryManager) {
+            this.errorHistoryManager.addError(apiError, operation);
+        }
+
+        // Show enhanced notification
+        if (this.errorNotificationService) {
+            this.errorNotificationService.showAgentError(apiError, {
+                operation,
+                onRetry,
+            });
+        } else {
+            // Fallback to basic Notice if service not initialized
+            new Notice(`${operation} 失败: ${apiError.getFormattedMessage()}`);
         }
     }
 }

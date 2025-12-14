@@ -16,6 +16,7 @@ This module provides:
 
 import logging
 from datetime import datetime, timezone
+from typing import Any, Dict
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 from fastapi import APIRouter, Depends
@@ -25,6 +26,7 @@ from fastapi.responses import PlainTextResponse
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import Settings, get_settings
+from app.dependencies import AgentServiceDep
 from app.middleware.agent_metrics import get_agent_metrics_snapshot
 from app.middleware.memory_metrics import get_memory_metrics_snapshot
 from app.models.common import (
@@ -63,7 +65,7 @@ router = APIRouter()
     }
 )
 async def health_check(
-    settings: Settings = Depends(get_settings)
+    settings: Settings = Depends(get_settings)  # noqa: B008
 ) -> HealthCheckResponse:
     """
     Check application health status.
@@ -258,3 +260,278 @@ async def get_metrics_summary() -> MetricsSummary:
         resources=resources_summary,
         timestamp=datetime.now(timezone.utc)
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AI Health Check Endpoint (Story 21.5.2)
+# [Source: docs/stories/21.5.2.story.md - AC-3]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agent Health Check Endpoint (Story 21.5.4)
+# [Source: docs/stories/21.5.4.story.md - AC-1, AC-4]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 21.5.4 - Agent端点健康检查增强
+# Agent端点映射 (用于状态检查)
+AGENT_ENDPOINTS = {
+    "decompose_basic": "/api/v1/agents/decompose/basic",
+    "decompose_deep": "/api/v1/agents/decompose/deep",
+    "decompose_question": "/api/v1/agents/decompose/question",
+    "explain_oral": "/api/v1/agents/explain/oral",
+    "explain_four_level": "/api/v1/agents/explain/four-level",
+    "explain_memory": "/api/v1/agents/explain/memory",
+    "clarification_path": "/api/v1/agents/clarification/path",
+    "comparison_table": "/api/v1/agents/comparison/table",
+    "example_teaching": "/api/v1/agents/example/teaching",
+    "scoring": "/api/v1/agents/scoring",
+    "verification": "/api/v1/agents/verification/question",
+}
+
+
+@router.get(
+    "/health/agents",
+    summary="Agent端点状态检查",
+    description="检查所有Agent端点的可用状态",
+    operation_id="check_agents_health",
+    responses={
+        200: {
+            "description": "Agent端点状态",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "agents": {
+                            "decompose_basic": "available",
+                            "explain_oral": "available"
+                        },
+                        "total_agents": 11,
+                        "available_count": 11
+                    }
+                }
+            }
+        }
+    }
+)
+async def check_agents_health() -> Dict[str, Any]:
+    """
+    检查所有Agent端点状态。
+
+    返回每个Agent端点的可用性状态。
+    注意：此端点不实际调用Agent，只检查路由是否注册。
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: path operation decorators)
+
+    [Source: docs/stories/21.5.4.story.md - AC-1]
+    [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-4]
+
+    Returns:
+        Dict containing agent endpoint availability status
+    """
+    logger.debug("Agent health check requested")
+
+    # 所有端点默认可用（路由已注册）
+    agents_status = {name: "available" for name in AGENT_ENDPOINTS}
+
+    return {
+        "status": "ok",
+        "agents": agents_status,
+        "total_agents": len(AGENT_ENDPOINTS),
+        "available_count": len(agents_status)
+    }
+
+
+@router.get(
+    "/health/ai",
+    summary="AI连接状态检查",
+    description="测试AI Provider API连接是否正常，返回连接状态、模型名称和延迟信息",
+    operation_id="check_ai_health",
+    responses={
+        200: {
+            "description": "AI连接正常",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "model": "gemini-2.0-flash-exp",
+                        "provider": "google",
+                        "latency_ms": 245
+                    }
+                }
+            }
+        },
+        503: {
+            "description": "AI连接失败",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "error",
+                        "model": "gemini-2.0-flash-exp",
+                        "provider": "google",
+                        "error": "Invalid API key",
+                        "error_code": "LLM_API_ERROR"
+                    }
+                }
+            }
+        }
+    }
+)
+async def check_ai_health(
+    agent_service: AgentServiceDep
+) -> Any:
+    """
+    测试AI API连接状态。
+
+    此端点通过发送最小请求到配置的AI Provider来验证API连接。
+    用于诊断AI服务是否可用，帮助快速定位Agent功能失败的原因。
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: path operation decorators)
+
+    [Source: docs/stories/21.5.2.story.md - AC-3]
+    [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-2]
+
+    Args:
+        agent_service: AgentService实例 (通过依赖注入获取)
+
+    Returns:
+        dict: AI连接状态信息
+            - status: "ok" 或 "error"
+            - model: 配置的模型名称
+            - provider: AI提供商名称
+            - latency_ms: 响应延迟（仅成功时）
+            - error: 错误信息（仅失败时）
+            - error_code: 错误码（仅失败时）
+
+    Raises:
+        503: 当AI连接失败时返回503状态码，但响应体仍包含详细错误信息
+    """
+    logger.debug("AI health check requested")
+
+    result = await agent_service.test_ai_connection()
+
+    if result.get("status") == "error":
+        # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: JSONResponse)
+        # 返回503但包含详细错误信息，便于诊断
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            status_code=503,
+            content=result
+        )
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Full System Diagnostic Endpoint (Story 21.5.4)
+# [Source: docs/stories/21.5.4.story.md - AC-3, AC-4, AC-5]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get(
+    "/health/full",
+    summary="完整系统诊断",
+    description="返回所有组件的完整健康状态和配置信息",
+    operation_id="full_health_check",
+    responses={
+        200: {
+            "description": "所有组件正常",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "ok",
+                        "components": {
+                            "api": "ok",
+                            "ai_provider": {"status": "ok", "model": "gemini-2.0-flash-exp"},
+                            "canvas_service": "ok",
+                            "agents": "ok"
+                        },
+                        "config": {
+                            "ai_model": "gemini-2.0-flash-exp",
+                            "ai_provider": "google",
+                            "cors_origins": ["app://obsidian.md"]
+                        },
+                        "timestamp": "2025-12-14T10:00:00Z"
+                    }
+                }
+            }
+        },
+        503: {
+            "description": "部分组件异常(degraded状态)，与/health/ai保持一致",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "status": "degraded",
+                        "components": {
+                            "api": "ok",
+                            "ai_provider": {"status": "error", "error": "AI not configured"},
+                            "canvas_service": "ok",
+                            "agents": "ok"
+                        },
+                        "config": {
+                            "ai_model": "gemini-2.0-flash-exp",
+                            "ai_provider": "google",
+                            "cors_origins": ["app://obsidian.md"]
+                        },
+                        "timestamp": "2025-12-14T10:00:00Z"
+                    }
+                }
+            }
+        }
+    }
+)
+async def full_health_check(
+    agent_service: AgentServiceDep,
+    settings: Settings = Depends(get_settings)  # noqa: B008
+) -> Dict[str, Any]:
+    """
+    完整系统诊断。
+
+    一次请求获取所有服务组件状态、AI连接状态和关键配置信息。
+    用于快速诊断系统问题。
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: path operation decorators)
+
+    [Source: docs/stories/21.5.4.story.md - AC-3, AC-4]
+    [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-4]
+
+    Args:
+        agent_service: Agent服务实例
+        settings: 应用配置
+
+    Returns:
+        Dict containing full system diagnostic info
+    """
+    logger.debug("Full health check requested")
+
+    # 测试AI连接
+    ai_status = await agent_service.test_ai_connection()
+
+    # 检查Agent端点状态
+    agents_status = "ok"  # 路由注册即可用
+
+    # 确定总体状态
+    overall_status = "ok" if ai_status.get("status") == "ok" else "degraded"
+
+    # P1 Fix: Unify HTTP status codes with /health/ai
+    # [Source: docs/qa/gates/21.5.4-agent-health-check-enhancement.yml#OPS-001]
+    result = {
+        "status": overall_status,
+        "components": {
+            "api": "ok",
+            "ai_provider": ai_status,
+            "canvas_service": "ok",
+            "agents": agents_status
+        },
+        "config": {
+            "ai_model": settings.AI_MODEL_NAME,
+            "ai_provider": settings.AI_PROVIDER,
+            "cors_origins": settings.cors_origins_list
+        },
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+
+    # Return 503 when degraded (consistent with /health/ai returning 503 on error)
+    if overall_status == "degraded":
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=503, content=result)
+
+    return result

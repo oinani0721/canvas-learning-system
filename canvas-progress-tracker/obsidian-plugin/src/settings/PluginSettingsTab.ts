@@ -34,6 +34,7 @@ import {
     importSettings,
     migrateSettings
 } from '../types/settings';
+import type { ErrorRecord } from '../managers/ErrorHistoryManager';
 
 /**
  * Plugin Settings Tab
@@ -188,6 +189,9 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             case 'memory':
                 this.displayMemorySettings(this.contentContainer);
                 break;
+            case 'errorHistory':
+                this.displayErrorHistorySettings(this.contentContainer);
+                break;
         }
     }
 
@@ -231,6 +235,115 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 });
             });
+
+        // ========== AI Model Configuration ==========
+        this.createSettingGroup(container, 'AI模型配置');
+
+        // AI Provider Selection
+        const providerUrls: Record<string, string> = {
+            'google': 'https://aistudio.google.com/apikey',
+            'openai': 'https://platform.openai.com/api-keys',
+            'anthropic': 'https://console.anthropic.com/settings/keys',
+            'openrouter': 'https://openrouter.ai/keys',
+            'custom': ''
+        };
+
+        const providerPlaceholders: Record<string, string> = {
+            'google': 'AIza...',
+            'openai': 'sk-...',
+            'anthropic': 'sk-ant-...',
+            'openrouter': 'sk-or-...',
+            'custom': '输入API密钥'
+        };
+
+        const defaultModels: Record<string, string> = {
+            'google': 'gemini-2.0-flash-exp',
+            'openai': 'gpt-4o',
+            'anthropic': 'claude-3-5-sonnet-20241022',
+            'openrouter': 'anthropic/claude-3.5-sonnet',
+            'custom': ''
+        };
+
+        const defaultBaseUrls: Record<string, string> = {
+            'google': 'https://generativelanguage.googleapis.com/v1beta',
+            'openai': 'https://api.openai.com/v1',
+            'anthropic': 'https://api.anthropic.com/v1',
+            'openrouter': 'https://openrouter.ai/api/v1',
+            'custom': ''
+        };
+
+        // AI Provider Dropdown
+        new Setting(container)
+            .setName('AI提供商')
+            .setDesc('选择AI模型服务提供商')
+            .addDropdown(dropdown => dropdown
+                .addOption('google', 'Google (Gemini)')
+                .addOption('openai', 'OpenAI (GPT)')
+                .addOption('anthropic', 'Anthropic (Claude)')
+                .addOption('openrouter', 'OpenRouter')
+                .addOption('custom', '自定义 (Custom)')
+                .setValue(settings.aiProvider)
+                .onChange(async (value: string) => {
+                    const provider = value as 'google' | 'openai' | 'anthropic' | 'openrouter' | 'custom';
+                    settings.aiProvider = provider;
+                    // Auto-fill default model and base URL when provider changes
+                    if (!settings.aiModelName || Object.values(defaultModels).includes(settings.aiModelName)) {
+                        settings.aiModelName = defaultModels[provider];
+                    }
+                    if (!settings.aiBaseUrl || Object.values(defaultBaseUrls).includes(settings.aiBaseUrl)) {
+                        settings.aiBaseUrl = defaultBaseUrls[provider];
+                    }
+                    await this.plugin.saveSettings();
+                    this.displaySection('connection');  // Refresh to update placeholders
+                }));
+
+        // AI Model Name
+        new Setting(container)
+            .setName('模型名称')
+            .setDesc('指定要使用的AI模型（如 gemini-2.0-flash-exp, gpt-4o, claude-3-5-sonnet）')
+            .addText(text => text
+                .setPlaceholder(defaultModels[settings.aiProvider] || '输入模型名称')
+                .setValue(settings.aiModelName)
+                .onChange(async (value) => {
+                    settings.aiModelName = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // AI Base URL
+        new Setting(container)
+            .setName('API基础URL')
+            .setDesc('API请求的基础URL（留空使用默认值，自定义提供商必填）')
+            .addText(text => text
+                .setPlaceholder(defaultBaseUrls[settings.aiProvider] || 'https://api.example.com/v1')
+                .setValue(settings.aiBaseUrl)
+                .onChange(async (value) => {
+                    settings.aiBaseUrl = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // AI API Key
+        new Setting(container)
+            .setName('API密钥')
+            .setDesc('用于AI模型调用的API密钥（必需）')
+            .addText(text => {
+                text.setPlaceholder(providerPlaceholders[settings.aiProvider] || '输入API密钥')
+                    .setValue(settings.aiApiKey)
+                    .inputEl.type = 'password';
+                text.onChange(async (value) => {
+                    settings.aiApiKey = value;
+                    await this.plugin.saveSettings();
+                });
+                return text;
+            })
+            .addExtraButton(button => button
+                .setIcon('external-link')
+                .setTooltip('获取API Key')
+                .onClick(() => {
+                    const url = providerUrls[settings.aiProvider];
+                    if (url) {
+                        window.open(url, '_blank');
+                    }
+                }));
 
         // Command Timeout
         // ✅ Verified from Context7: /obsidianmd/obsidian-api (Setting.addSlider)
@@ -1311,6 +1424,172 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         } catch (error) {
             new Notice('❌ 设置重置失败');
         }
+    }
+
+    /**
+     * Displays error history settings section
+     *
+     * @source Story 21.5.5 - AC 4: 错误历史在设置面板可见
+     */
+    private displayErrorHistorySettings(container: HTMLElement): void {
+        // Get error history manager from plugin
+        const errorHistoryManager = this.plugin.errorHistoryManager;
+
+        if (!errorHistoryManager) {
+            container.createEl('p', {
+                text: '错误历史管理器未初始化',
+                cls: 'error-history-unavailable'
+            });
+            return;
+        }
+
+        // Statistics Section
+        const stats = errorHistoryManager.getStats();
+        const statsGroup = container.createDiv('settings-group');
+        statsGroup.createEl('h4', { text: '📊 错误统计' });
+
+        new Setting(statsGroup)
+            .setName('错误总数')
+            .setDesc('当前存储的错误记录数量')
+            .addText(text => text
+                .setValue(String(stats.total))
+                .setDisabled(true));
+
+        if (stats.newestTimestamp) {
+            new Setting(statsGroup)
+                .setName('最近错误时间')
+                .setDesc('最近一次错误发生的时间')
+                .addText(text => text
+                    .setValue(new Date(stats.newestTimestamp!).toLocaleString('zh-CN'))
+                    .setDisabled(true));
+        }
+
+        // Error Type Breakdown
+        if (Object.keys(stats.byType).length > 0) {
+            const typeBreakdown = statsGroup.createDiv('error-type-breakdown');
+            typeBreakdown.createEl('h5', { text: '按错误类型分布:' });
+            const typeList = typeBreakdown.createEl('ul');
+            for (const [type, count] of Object.entries(stats.byType)) {
+                typeList.createEl('li', { text: `${type}: ${count}` });
+            }
+        }
+
+        // Actions Section
+        const actionsGroup = container.createDiv('settings-group');
+        actionsGroup.createEl('h4', { text: '🔧 操作' });
+
+        new Setting(actionsGroup)
+            .setName('清空所有错误记录')
+            .setDesc('删除所有存储的错误历史（此操作不可撤销）')
+            .addButton(button => button
+                .setButtonText('清空')
+                .setWarning()
+                .onClick(async () => {
+                    const confirmed = confirm('确定要清空所有错误记录吗？此操作不可撤销。');
+                    if (!confirmed) return;
+
+                    const cleared = await errorHistoryManager.clearAll();
+                    new Notice(`已清空 ${cleared} 条错误记录`);
+                    this.displaySection('errorHistory');
+                }));
+
+        new Setting(actionsGroup)
+            .setName('手动清理过期记录')
+            .setDesc('删除超过7天的错误记录')
+            .addButton(button => button
+                .setButtonText('清理')
+                .onClick(async () => {
+                    const removed = await errorHistoryManager.cleanup();
+                    new Notice(`已清理 ${removed} 条过期记录`);
+                    this.displaySection('errorHistory');
+                }));
+
+        // Recent Errors List Section
+        const recentErrors = errorHistoryManager.getRecent(20);
+        const listGroup = container.createDiv('settings-group');
+        listGroup.createEl('h4', { text: '📋 最近错误记录 (最多20条)' });
+
+        if (recentErrors.length === 0) {
+            listGroup.createEl('p', {
+                text: '暂无错误记录',
+                cls: 'error-history-empty'
+            });
+        } else {
+            const errorList = listGroup.createDiv('error-history-list');
+
+            for (const record of recentErrors) {
+                this.renderErrorRecord(errorList, record);
+            }
+        }
+    }
+
+    /**
+     * Renders a single error record
+     *
+     * @source Story 21.5.5 - AC 4: 显示最近20条错误记录
+     */
+    private renderErrorRecord(container: HTMLElement, record: ErrorRecord): void {
+        const recordEl = container.createDiv('error-record');
+
+        // Header: Type + Timestamp
+        const headerEl = recordEl.createDiv('error-record-header');
+        const typeEl = headerEl.createSpan({
+            text: record.backendErrorType || record.errorType,
+            cls: `error-type error-type-${record.errorType.toLowerCase().replace(/\d+/g, '')}`
+        });
+
+        const timeEl = headerEl.createSpan({
+            text: new Date(record.timestamp).toLocaleString('zh-CN'),
+            cls: 'error-timestamp'
+        });
+
+        // Operation
+        const operationEl = recordEl.createDiv('error-operation');
+        operationEl.createSpan({ text: '操作: ', cls: 'label' });
+        operationEl.createSpan({ text: record.operation });
+
+        // Message
+        const messageEl = recordEl.createDiv('error-message');
+        messageEl.createSpan({ text: record.message });
+
+        // Bug ID (if present)
+        if (record.bugId) {
+            const bugIdEl = recordEl.createDiv('error-bug-id');
+            bugIdEl.createSpan({ text: 'Bug ID: ', cls: 'label' });
+            const bugIdCode = bugIdEl.createEl('code', {
+                text: record.bugId,
+                cls: 'bug-id-code clickable'
+            });
+            bugIdCode.setAttribute('title', '点击复制');
+            bugIdCode.addEventListener('click', () => {
+                navigator.clipboard.writeText(record.bugId!);
+                new Notice('Bug ID 已复制到剪贴板');
+            });
+        }
+
+        // Status Code (if present)
+        if (record.statusCode) {
+            const statusEl = recordEl.createDiv('error-status');
+            statusEl.createSpan({ text: 'HTTP状态: ', cls: 'label' });
+            statusEl.createSpan({
+                text: String(record.statusCode),
+                cls: `status-code status-${Math.floor(record.statusCode / 100)}xx`
+            });
+        }
+
+        // Delete button
+        const actionsEl = recordEl.createDiv('error-record-actions');
+        const deleteBtn = actionsEl.createEl('button', {
+            text: '删除',
+            cls: 'error-delete-btn'
+        });
+        deleteBtn.addEventListener('click', async () => {
+            const deleted = await this.plugin.errorHistoryManager?.deleteRecord(record.id);
+            if (deleted) {
+                new Notice('错误记录已删除');
+                this.displaySection('errorHistory');
+            }
+        });
     }
 
     /**
