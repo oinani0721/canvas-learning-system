@@ -1,17 +1,17 @@
 {
-  "story_id": "23.4",
-  "epic_id": "23",
+  "story_id": "24.1",
+  "epic_id": "24",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/23.4.story.md",
-  "title": "多源融合 (教材+历史+跨Canvas)",
-  "story_points": 4,
-  "priority": "P1",
-  "acceptance_criteria_count": 5,
-  "tasks_count": 7,
+  "story_file": "docs/stories/24.1.story.md",
+  "title": "Verification Canvas Generation Engine with Mode Support",
+  "description": "Implements dual review mode (fresh/targeted) capability for verification canvas generation with Graphiti integration for history tracking",
+  "acceptance_criteria_count": 6,
   "sdd_references": [
-    "specs/api/canvas-api.openapi.yml",
-    "specs/data/canvas-node.schema.json",
-    "specs/data/agent-response.schema.json"
+    "specs/api/review-api.openapi.yml#L215-249",
+    "specs/api/review-api.openapi.yml#L75-112",
+    "specs/data/review-generate-request.schema.json#L14-32",
+    "specs/data/review-generate-response.schema.json#L14-41",
+    "specs/data/canvas-node.schema.json"
   ],
   "adr_references": [
     "docs/architecture/decisions/0002-langgraph-agents.md",
@@ -19,32 +19,35 @@
     "docs/architecture/decisions/0004-async-execution-engine.md"
   ],
   "key_files_to_modify": [
-    "src/agentic_rag/state.py",
-    "src/agentic_rag/state_graph.py",
-    "src/agentic_rag/nodes.py",
-    "src/agentic_rag/config.py"
+    "backend/app/models/schemas.py",
+    "backend/app/services/review_service.py",
+    "backend/app/api/v1/endpoints/review.py",
+    "specs/data/review-generate-request.schema.json",
+    "specs/data/review-generate-response.schema.json"
   ],
-  "key_files_to_create": [
-    "backend/app/services/textbook_context_service.py",
-    "backend/app/services/cross_canvas_service.py",
-    "src/tests/test_multi_source_fusion.py"
-  ],
-  "dependencies": [
-    "Story 23.1 (LangGraph导入修复)",
-    "Story 23.2 (LanceDB Embedding Pipeline)",
-    "Story 23.3 (StateGraph智能推理链配置)"
-  ],
-  "checklist_passed": true,
-  "validation_results": {
-    "structure_valid": true,
-    "ac_testable": true,
-    "ac_numbered": true,
-    "dev_notes_complete": true,
-    "sdd_references_valid": true,
-    "adr_references_valid": true,
-    "anti_hallucination_verified": true
+  "checklist_validation": {
+    "1.1_template_structure": true,
+    "1.2_clear_title": true,
+    "2.1_testable_ac": true,
+    "2.2_numbered_ac": true,
+    "5.1_complete_dev_notes": true,
+    "5.2_line_number_refs": true,
+    "6.1_sdd_refs_valid": true,
+    "6.2_adr_refs_exist": true,
+    "6.3_file_paths_verified": true
   },
-  "timestamp": "2025-12-12T00:00:00.000Z",
-  "agent": "SM Agent (Bob)",
-  "mode": "automated_batch"
+  "checklist_passed": true,
+  "epic_context": {
+    "epic_title": "Verification Canvas Redesign",
+    "epic_objective": "Redesign verification canvas system to support dual review modes and integrate with Graphiti for history tracking",
+    "epic_file_note": "Epic 24 file does not exist as standalone document - Epic defined through this Story"
+  },
+  "dependencies": {
+    "story_dependencies": [],
+    "epic_dependencies": ["Epic 22 (Memory System)", "Epic 23 (RAG Intelligent Inference)"]
+  },
+  "estimated_points": 5,
+  "priority": "P0",
+  "timestamp": "2025-12-13T00:00:00.000Z",
+  "generated_by": "SM Agent - Automated Batch Mode"
 }
