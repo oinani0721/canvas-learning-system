@@ -18,12 +18,15 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: FastAPI CORSMiddleware)
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.v1.endpoints.monitoring import set_alert_manager
 from app.api.v1.router import router as api_v1_router
 from app.config import settings
+from app.core.bug_tracker import bug_tracker
 from app.core.logging import setup_logging
 from app.middleware.metrics import MetricsMiddleware
 from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
@@ -130,6 +133,84 @@ app = FastAPI(
 # ═══════════════════════════════════════════════════════════════════════════════
 # Middleware Configuration
 # ═══════════════════════════════════════════════════════════════════════════════
+
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BaseHTTPMiddleware)
+# [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md - Story 21.5.1]
+# [Source: specs/data/error-response.schema.json]
+class CORSExceptionMiddleware(BaseHTTPMiddleware):
+    """
+    确保500错误也返回CORS头的中间件。
+
+    当未处理的异常发生时，CORSMiddleware 不会被执行，导致 500 响应没有 CORS 头。
+    此中间件在 CORSMiddleware 之前捕获异常，确保异常响应也包含 CORS 头。
+
+    [Source: docs/stories/21.5.1.story.md - AC-1, AC-2]
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """
+        处理请求，捕获异常并返回带 CORS 头的响应。
+
+        Args:
+            request: HTTP 请求对象
+            call_next: 下一个中间件或路由处理函数
+
+        Returns:
+            Response: HTTP 响应，包含 CORS 头
+        """
+        try:
+            response = await call_next(request)
+            return response
+        except Exception as e:
+            # ✅ SDD Aligned: specs/data/error-response.schema.json
+            # 获取请求的 Origin 头，用于动态设置 CORS
+            origin = request.headers.get("origin", "")
+
+            # 检查 origin 是否在允许列表中
+            allowed_origin = origin if origin in settings.cors_origins_list else ""
+
+            # 如果没有匹配的 origin，使用默认值 (app://obsidian.md)
+            if not allowed_origin and "app://obsidian.md" in settings.cors_origins_list:
+                allowed_origin = "app://obsidian.md"
+
+            # ✅ Story 21.5.3 AC-1, AC-2: 生成 bug_id 并记录到 bug_log.jsonl
+            # [Source: docs/stories/21.5.3.story.md]
+            request_params = {
+                "path": str(request.url.path),
+                "method": request.method,
+                "query_params": dict(request.query_params),
+            }
+            bug_id = bug_tracker.log_error(
+                endpoint=str(request.url.path),
+                error=e,
+                request_params=request_params,
+            )
+
+            logger.error(
+                f"Unhandled exception caught by CORSExceptionMiddleware: {type(e).__name__}: {e} [bug_id={bug_id}]",
+                exc_info=True
+            )
+
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "code": 500,                    # Required by JSON Schema
+                    "message": str(e),              # Required by JSON Schema
+                    "error_type": type(e).__name__, # Extension field
+                    "bug_id": bug_id,               # ✅ Story 21.5.5 AC-1: 返回 bug_id
+                },
+                headers={
+                    "Access-Control-Allow-Origin": allowed_origin,
+                    "Access-Control-Allow-Credentials": "true",
+                }
+            )
+
+
+# ⚠️ 中间件注册顺序: CORSExceptionMiddleware → CORSMiddleware → MetricsMiddleware
+# [Source: docs/stories/21.5.1.story.md - AC-3]
+# CORSExceptionMiddleware 必须在 CORSMiddleware 之前注册，确保异常也能获得 CORS 头
+app.add_middleware(CORSExceptionMiddleware)
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: CORSMiddleware CORS)
 # Pattern: app.add_middleware(CORSMiddleware, allow_origins=[], ...)
