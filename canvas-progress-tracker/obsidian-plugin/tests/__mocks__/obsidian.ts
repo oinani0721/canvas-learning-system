@@ -162,6 +162,7 @@ export class Events {
 // Mock Plugin class
 export class Plugin {
   app: any;
+  private _pluginData: Record<string, unknown> = {};
 
   constructor() {
     this.app = {
@@ -176,6 +177,25 @@ export class Plugin {
   addCommand(command: any): void {}
   addRibbonIcon(icon: string, title: string, callback: () => void): void {}
   registerEvent(event: any): void {}
+
+  // Story 21.5.5: loadData/saveData for ErrorHistoryManager
+  async loadData(): Promise<Record<string, unknown> | null> {
+    return this._pluginData;
+  }
+
+  async saveData(data: Record<string, unknown>): Promise<void> {
+    this._pluginData = data;
+  }
+
+  // Test helper to clear plugin data
+  _clearData(): void {
+    this._pluginData = {};
+  }
+
+  // Test helper to set plugin data
+  _setData(data: Record<string, unknown>): void {
+    this._pluginData = data;
+  }
 }
 
 // Mock Menu class
