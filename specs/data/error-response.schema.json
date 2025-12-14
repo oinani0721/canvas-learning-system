@@ -25,6 +25,10 @@
     "details": {
       "type": "object",
       "description": "额外错误详情"
+    },
+    "error_type": {
+      "type": "string",
+      "description": "异常类型名称 (如 ValueError, KeyError)，用于调试和错误追踪"
     }
   },
   "additionalProperties": false,
@@ -40,6 +44,11 @@
         "field": "node_id",
         "reason": "Invalid format"
       }
+    },
+    {
+      "code": 500,
+      "message": "File not found: example.canvas",
+      "error_type": "FileNotFoundError"
     }
   ]
 }
