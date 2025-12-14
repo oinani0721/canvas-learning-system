@@ -4,11 +4,9 @@
   "outcome": "SUCCESS",
   "story_file": "docs/stories/24.1.story.md",
   "title": "Verification Canvas Generation Engine with Mode Support",
-  "description": "Implements dual review mode (fresh/targeted) capability for verification canvas generation with Graphiti integration for history tracking",
-  "acceptance_criteria_count": 6,
+  "description": "Implements dual review modes (fresh/targeted) in verification canvas generation with Graphiti integration",
   "sdd_references": [
-    "specs/api/review-api.openapi.yml#L215-249",
-    "specs/api/review-api.openapi.yml#L75-112",
+    "specs/api/review-api.openapi.yml#L215-257",
     "specs/data/review-generate-request.schema.json#L14-32",
     "specs/data/review-generate-response.schema.json#L14-41",
     "specs/data/canvas-node.schema.json"
@@ -18,14 +16,18 @@
     "docs/architecture/decisions/0003-graphiti-memory.md",
     "docs/architecture/decisions/0004-async-execution-engine.md"
   ],
-  "key_files_to_modify": [
+  "files_to_modify": [
     "backend/app/models/schemas.py",
     "backend/app/services/review_service.py",
     "backend/app/api/v1/endpoints/review.py",
     "specs/data/review-generate-request.schema.json",
     "specs/data/review-generate-response.schema.json"
   ],
-  "checklist_validation": {
+  "files_to_create": [
+    "src/tests/test_review_mode_support.py"
+  ],
+  "acceptance_criteria_count": 6,
+  "checklist": {
     "1.1_template_structure": true,
     "1.2_clear_title": true,
     "2.1_testable_ac": true,
@@ -37,17 +39,13 @@
     "6.3_file_paths_verified": true
   },
   "checklist_passed": true,
-  "epic_context": {
-    "epic_title": "Verification Canvas Redesign",
-    "epic_objective": "Redesign verification canvas system to support dual review modes and integrate with Graphiti for history tracking",
-    "epic_file_note": "Epic 24 file does not exist as standalone document - Epic defined through this Story"
-  },
-  "dependencies": {
-    "story_dependencies": [],
-    "epic_dependencies": ["Epic 22 (Memory System)", "Epic 23 (RAG Intelligent Inference)"]
-  },
-  "estimated_points": 5,
-  "priority": "P0",
-  "timestamp": "2025-12-13T00:00:00.000Z",
-  "generated_by": "SM Agent - Automated Batch Mode"
+  "validation_notes": [
+    "All SDD files verified to exist",
+    "All ADR files verified to exist",
+    "Backend service file verified at correct line numbers",
+    "OpenAPI spec has mode enum at L672-676",
+    "Story is self-contained with complete Dev Notes"
+  ],
+  "timestamp": "2025-12-13T12:00:00Z",
+  "agent": "SM Agent (Automated Batch Mode)"
 }
