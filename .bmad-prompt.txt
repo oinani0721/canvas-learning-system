@@ -24,7 +24,7 @@ This session uses UltraThink extended thinking mode for maximum quality:
 
 
 ===============================================================================
-MISSION: Create Story 24.1 from Epic 24
+MISSION: Create Story 24.2 from Epic 24
 ===============================================================================
 
 **CRITICAL - AUTOMATED MODE RULES**:
@@ -39,7 +39,7 @@ PHASE 1: CONTEXT LOADING
 Step 1: Read .bmad-core/core-config.yaml for document paths
 Step 2: Load Epic file: docs\prd\EPIC-24-VERIFICATION-CANVAS-REDESIGN.md
 Step 3: Load Architecture docs from configured paths (architectureShardedLocation)
-Step 4: Identify Story 24.1 scope and acceptance criteria from Epic
+Step 4: Identify Story 24.2 scope and acceptance criteria from Epic
 
 ===============================================================================
 PHASE 2: STORY CREATION (Direct Execution - No /sm command needed)
@@ -48,7 +48,7 @@ Step 5: Create Story document with ALL required sections:
 
 **Story Structure**:
 ```markdown
-# Story 24.1: [Title from Epic]
+# Story 24.2: [Title from Epic]
 
 ## Status
 - [ ] Draft
@@ -108,16 +108,16 @@ Step 6: Self-validate Story against checklist:
 PHASE 4: OUTPUT (CRITICAL - MUST USE Write TOOL)
 ===============================================================================
 Step 7: Use Write tool to create Story file:
-   - File path: docs/stories/24.1.story.md
+   - File path: docs/stories/24.2.story.md
 
 Step 8: Use Write tool to create result file:
    - File path: .sm-result.json
    - Content:
 {
-  "story_id": "24.1",
+  "story_id": "24.2",
   "epic_id": "24",
   "outcome": "SUCCESS",
-  "story_file": "docs/stories/24.1.story.md",
+  "story_file": "docs/stories/24.2.story.md",
   "title": "[Story Title]",
   "sdd_references": ["specs/api/...", "specs/data/..."],
   "adr_references": ["docs/architecture/decisions/..."],
