@@ -4,6 +4,19 @@
 
 # Rollback models (Story 18.1)
 # [Source: docs/architecture/rollback-recovery-architecture.md:296-400]
+# Review models (Story 24.4)
+# [Source: specs/api/review-api.openapi.yml#L725-805]
+from app.models.review_models import (
+    ConceptStatus,
+    MultiReviewProgressResponse,
+    OverallProgress,
+    PassRateTrend,
+    ReviewEntry,
+    ReviewMode,
+    TrendAnalysis,
+    TrendDirection,
+    WeakConceptImprovement,
+)
 from app.models.rollback import (
     CreateSnapshotRequest,
     DiffResponse,
@@ -51,6 +64,8 @@ from app.models.schemas import (
     ReviewScheduleResponse,
     ScoreRequest,
     ScoreResponse,
+    WeakConceptData,
+    WeightConfig,
 )
 
 __all__ = [
@@ -81,8 +96,20 @@ __all__ = [
     "ReviewScheduleResponse",
     "GenerateReviewRequest",
     "GenerateReviewResponse",
+    "WeakConceptData",
+    "WeightConfig",
     "RecordReviewRequest",
     "RecordReviewResponse",
+    # Multi-Review (Story 24.4)
+    "ReviewMode",
+    "TrendDirection",
+    "ConceptStatus",
+    "ReviewEntry",
+    "PassRateTrend",
+    "WeakConceptImprovement",
+    "OverallProgress",
+    "TrendAnalysis",
+    "MultiReviewProgressResponse",
     # Rollback (Story 18.1-18.5)
     "OperationTypeEnum",
     "OperationDataResponse",

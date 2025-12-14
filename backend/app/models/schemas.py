@@ -10,7 +10,7 @@ All models are derived from the OpenAPI specification:
 
 from datetime import date, datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -281,12 +281,53 @@ class GenerateReviewRequest(BaseModel):
     Request model for generating verification canvas.
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/GenerateReviewRequest]
+    [Source: specs/data/review-generate-request.schema.json - Story 24.1]
     """
     source_canvas: str = Field(..., description="Source Canvas file name")
     node_ids: Optional[List[str]] = Field(
         None,
         description="Specific node IDs (optional, defaults to all green nodes)"
     )
+    # ✅ Verified from Story 24.1 Dev Notes (lines 167-178)
+    mode: Literal["fresh", "targeted"] = Field(
+        default="fresh",
+        description="Review mode: fresh=blind test, targeted=weakness-focused"
+    )
+    weak_weight: float = Field(
+        default=0.7,
+        ge=0,
+        le=1,
+        description="Weight for weak concepts in targeted mode"
+    )
+    mastered_weight: float = Field(
+        default=0.3,
+        ge=0,
+        le=1,
+        description="Weight for mastered concepts in targeted mode"
+    )
+
+
+class WeakConceptData(BaseModel):
+    """
+    Data for a weak concept in targeted review.
+
+    [Source: Story 24.3 - Weight Algorithm Implementation]
+    """
+    concept_name: str = Field(..., description="Name of the weak concept")
+    weakness_score: float = Field(..., ge=0, le=1, description="Calculated weakness score")
+    failure_count: int = Field(..., ge=0, description="Historical failure count")
+    avg_rating: float = Field(..., ge=0, le=4, description="Average review rating")
+
+
+class WeightConfig(BaseModel):
+    """
+    Weight configuration for targeted review.
+
+    [Source: Story 24.3 - Weight Algorithm Implementation]
+    """
+    weak_weight: float = Field(..., ge=0, le=1, description="Weight for weak concepts")
+    mastered_weight: float = Field(..., ge=0, le=1, description="Weight for mastered concepts")
+    applied: bool = Field(..., description="Whether weights were applied")
 
 
 class GenerateReviewResponse(BaseModel):
@@ -294,9 +335,22 @@ class GenerateReviewResponse(BaseModel):
     Response model for generated verification canvas.
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/GenerateReviewResponse]
+    [Source: specs/data/review-generate-response.schema.json - Story 24.1]
+    [Source: Story 24.3 - Added weak_concepts and weight_config fields]
     """
     verification_canvas_name: str = Field(..., description="Generated verification canvas name")
     node_count: int = Field(..., description="Number of verification nodes")
+    # ✅ Verified from Story 24.1 Dev Notes - Response Enhancement
+    mode_used: Optional[str] = Field(None, description="Mode used for generation (fresh/targeted)")
+    # ✅ Story 24.3 additions - Weight Algorithm Response Enhancement
+    weak_concepts: List["WeakConceptData"] = Field(
+        default_factory=list,
+        description="Weak concepts identified in targeted mode"
+    )
+    weight_config: Optional["WeightConfig"] = Field(
+        None,
+        description="Weight configuration used in targeted mode"
+    )
 
 
 class RecordReviewRequest(BaseModel):
@@ -318,3 +372,90 @@ class RecordReviewResponse(BaseModel):
     """
     next_review_date: date = Field(..., description="Next review date")
     new_interval: int = Field(..., description="New review interval in days")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Multi-Review Progress Schemas (Story 24.2)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ReviewSessionSummary(BaseModel):
+    """
+    Single review session summary.
+
+    [Source: specs/api/review-api.openapi.yml#L725-805]
+    [Source: docs/stories/24.2.story.md - Dev Notes]
+    """
+    review_canvas_path: str = Field(..., description="Path to review canvas file")
+    date: datetime = Field(..., description="Review session date")
+    mode: str = Field(..., description="Review mode: fresh or targeted")
+    pass_rate: float = Field(..., ge=0, le=1, description="Pass rate (0-1)")
+    total_concepts: int = Field(..., description="Total concepts reviewed")
+    passed_concepts: int = Field(..., description="Concepts passed (≥80%)")
+
+
+class PassRateTrendPoint(BaseModel):
+    """
+    Single point in pass rate trend.
+
+    [Source: specs/api/review-api.openapi.yml#L725-805]
+    [Source: docs/stories/24.2.story.md - Dev Notes]
+    """
+    date: str = Field(..., description="Date in YYYY-MM-DD format")
+    pass_rate: float = Field(..., ge=0, le=1, description="Pass rate (0-1)")
+
+
+class WeakConceptImprovement(BaseModel):
+    """
+    Weak concept improvement tracking.
+
+    [Source: specs/api/review-api.openapi.yml#L725-805]
+    [Source: docs/stories/24.2.story.md - Dev Notes]
+    """
+    concept_name: str = Field(..., description="Concept name")
+    improvement_rate: float = Field(..., description="Improvement rate (current-first)/first")
+    current_status: str = Field(
+        ...,
+        description="Current status: weak (<60), improving (60-79), mastered (≥80)"
+    )
+
+
+class OverallProgress(BaseModel):
+    """
+    Overall progress metrics.
+
+    [Source: specs/api/review-api.openapi.yml#L725-805]
+    [Source: docs/stories/24.2.story.md - Dev Notes]
+    """
+    progress_rate: float = Field(..., description="Progress rate (latest-first)/first")
+    trend_direction: str = Field(
+        ...,
+        description="Trend direction: up (>0.1), stable (-0.1 to 0.1), down (<-0.1)"
+    )
+
+
+class TrendsData(BaseModel):
+    """
+    Trend analysis data.
+
+    [Source: specs/api/review-api.openapi.yml#L725-805]
+    [Source: docs/stories/24.2.story.md - Dev Notes]
+    """
+    pass_rate_trend: List[PassRateTrendPoint] = Field(..., description="Pass rate trend over time")
+    weak_concepts_improvement: List[WeakConceptImprovement] = Field(
+        ...,
+        description="Weak concepts improvement tracking"
+    )
+    overall_progress: OverallProgress = Field(..., description="Overall progress metrics")
+
+
+class MultiReviewProgressResponse(BaseModel):
+    """
+    Full multi-review progress response.
+
+    [Source: specs/api/review-api.openapi.yml#L346-378, L725-805]
+    [Source: docs/stories/24.2.story.md - AC1]
+    """
+    original_canvas_path: str = Field(..., description="Original canvas file path")
+    review_count: int = Field(..., description="Total number of reviews")
+    reviews: List[ReviewSessionSummary] = Field(..., description="List of review sessions")
+    trends: Optional[TrendsData] = Field(None, description="Trend analysis (only if ≥2 reviews)")

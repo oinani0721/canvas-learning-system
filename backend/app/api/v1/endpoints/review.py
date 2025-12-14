@@ -23,6 +23,7 @@ from app.models import (
     ErrorResponse,
     GenerateReviewRequest,
     GenerateReviewResponse,
+    MultiReviewProgressResponse,
     RecordReviewRequest,
     RecordReviewResponse,
     ReviewItem,
@@ -228,14 +229,18 @@ async def generate_verification_canvas(
 
     - **source_canvas**: Source Canvas file name
     - **node_ids**: Specific node IDs (optional)
-    - **review_mode**: "fresh" (all red+purple) or "targeted" (70% weak + 30% partial)
+    - **mode**: "fresh" (all red+purple) or "targeted" (70% weak + 30% partial)
+    - **weak_weight**: Weight for weak concepts in targeted mode (default: 0.7)
+    - **mastered_weight**: Weight for mastered concepts in targeted mode (default: 0.3)
 
     PRD F8: Extract red+purple nodes, generate questions, topic clustering
     [Source: docs/prd/FULL-PRD-REFERENCE.md - F8, Story 4.1-4.4]
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1generate]
+    [Source: Story 24.1 - Mode Support]
     """
     # ✅ PRD Compliant Implementation (Epic 4)
     # [Source: docs/prd/FULL-PRD-REFERENCE.md - F8, Story 4.1-4.9]
+    # ✅ Story 24.1: Mode parameter support added
 
     today = date.today().strftime("%Y%m%d")
     verification_canvas_name = f"{request.source_canvas}-检验白板-{today}"
@@ -250,6 +255,7 @@ async def generate_verification_canvas(
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
+                mode_used=request.mode  # ✅ Story 24.1
             )
 
     # Step 2: Read source canvas
@@ -258,12 +264,14 @@ async def generate_verification_canvas(
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
+            mode_used=request.mode  # ✅ Story 24.1
         )
 
     # Step 3: Extract nodes to review (PRD F8 + Story 4.1)
     # ✅ FIXED: Now extracts RED (color="1") + PURPLE (color="3") instead of GREEN
+    # ✅ Story 24.1: Use mode from request (default: "fresh")
     source_nodes = canvas_data.get("nodes", [])
-    review_mode = getattr(request, 'review_mode', None) or "fresh"
+    review_mode = request.mode  # Now comes from GenerateReviewRequest schema
 
     nodes_to_review = _extract_review_nodes(
         source_nodes,
@@ -276,6 +284,7 @@ async def generate_verification_canvas(
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
+            mode_used=review_mode  # ✅ Story 24.1
         )
 
     # Step 4: Topic Clustering (PRD Story 4.3)
@@ -403,6 +412,7 @@ async def generate_verification_canvas(
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
+            mode_used=review_mode  # ✅ Story 24.1: Include mode in response
         )
 
     logging.info(
@@ -410,9 +420,11 @@ async def generate_verification_canvas(
         f"with {len(nodes_to_review)} concepts in {len(clusters)} topic groups (mode={review_mode})"
     )
 
+    # ✅ Story 24.1: Include mode_used in response (AC5)
     return GenerateReviewResponse(
         verification_canvas_name=verification_canvas_name,
         node_count=len(nodes_to_review),
+        mode_used=review_mode
     )
 
 
@@ -466,3 +478,42 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
         next_review_date=date.today() + timedelta(days=interval),
         new_interval=interval,
     )
+
+@review_router.get(
+    "/progress/multi/{original_canvas_path:path}",
+    response_model=MultiReviewProgressResponse,
+    summary="Get multi-review trend analysis",
+    operation_id="get_multi_review_progress",
+    responses={
+        404: {"model": ErrorResponse, "description": "No review history"}
+    }
+)
+async def get_multi_review_progress(
+    original_canvas_path: str
+) -> MultiReviewProgressResponse:
+    """
+    Get trend analysis for multiple verification canvas sessions.
+
+    Returns:
+    - List of all verification canvases for this original canvas
+    - Pass rate trend over time
+    - Weak concept improvement tracking
+    - Overall progress metrics
+
+    [Source: specs/api/review-api.openapi.yml#L346-378]
+    [Source: Story 24.4 - Multi-Review Trend Analysis]
+    """
+    # Import here to avoid circular dependency
+    from app.core.exceptions import CanvasNotFoundException
+    from app.dependencies import get_review_service
+
+    try:
+        review_service = get_review_service()
+        result = await review_service.get_multi_review_progress(original_canvas_path)
+        return MultiReviewProgressResponse(**result)
+    except CanvasNotFoundException as e:
+        from fastapi import HTTPException
+        raise HTTPException(
+            status_code=404,
+            detail=f"无检验历史: {original_canvas_path}"
+        ) from e

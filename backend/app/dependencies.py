@@ -35,9 +35,11 @@ from .services.agent_service import AgentService
 from .services.background_task_manager import BackgroundTaskManager
 from .services.canvas_service import CanvasService
 from .services.context_enrichment_service import ContextEnrichmentService
+from .services.cross_canvas_service import CrossCanvasService, get_cross_canvas_service
+from .services.rag_service import get_rag_service
 from .services.review_service import ReviewService
 from .services.textbook_context_service import TextbookContextConfig, TextbookContextService
-from .services.cross_canvas_service import CrossCanvasService, get_cross_canvas_service
+from .services.verification_service import VerificationService
 
 logger = logging.getLogger(__name__)
 
@@ -425,6 +427,89 @@ def _get_rollback_service_dep():
 
 
 # =============================================================================
+# VerificationService Dependency (Story 24.5)
+# [Source: docs/stories/24.5.story.md#Dev-Notes]
+# =============================================================================
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
+async def get_verification_service(
+    settings: SettingsDep
+) -> AsyncGenerator[VerificationService, None]:
+    """
+    Get VerificationService instance with RAG context injection.
+
+    This is a chained dependency that integrates RAGService, CrossCanvasService,
+    and TextbookContextService for intelligent verification canvas generation.
+
+    Story 24.5 Integration:
+    - RAGService for learning history and context
+    - CrossCanvasService for cross-canvas relationships
+    - TextbookContextService for textbook references
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
+
+    Dependency Chain:
+        get_settings() → settings
+        get_rag_service() → rag_service
+        get_cross_canvas_service() → cross_canvas_service
+        TextbookContextService(settings) → textbook_service
+        get_verification_service(...) → verification_service
+
+    Args:
+        settings: Application settings (injected via Depends)
+
+    Yields:
+        VerificationService: Verification canvas service with RAG integration
+
+    Example:
+        ```python
+        @router.post("/verification/start")
+        async def start_verification(
+            request: StartVerificationRequest,
+            service: VerificationService = Depends(get_verification_service)
+        ):
+            return await service.start_session(...)
+        ```
+
+    [Source: docs/stories/24.5.story.md#Dev-Notes]
+    [AC5: Graceful degradation - services are optional]
+    """
+    logger.debug("Creating VerificationService instance with RAG integration")
+
+    # Get RAG service (singleton)
+    rag_service = get_rag_service()
+
+    # Get CrossCanvas service (singleton)
+    cross_canvas_service = get_cross_canvas_service()
+
+    # Create TextbookContext service
+    # Story 24.5 AC4: Textbook context with timeout
+    textbook_config = TextbookContextConfig(timeout=3.0)
+    textbook_service = TextbookContextService(
+        canvas_base_path=settings.canvas_base_path,
+        config=textbook_config
+    )
+
+    # Create VerificationService with all dependencies
+    # AC5: Services are optional - graceful degradation built into VerificationService
+    service = VerificationService(
+        rag_service=rag_service,
+        cross_canvas_service=cross_canvas_service,
+        textbook_context_service=textbook_service
+    )
+
+    try:
+        yield service
+    finally:
+        await service.cleanup()
+        logger.debug("VerificationService cleanup completed")
+
+
+# Type alias for VerificationService dependency
+VerificationServiceDep = Annotated[VerificationService, Depends(get_verification_service)]
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -438,6 +523,7 @@ __all__ = [
     "get_context_enrichment_service",
     "get_cross_canvas_service_dep",
     "get_rollback_service",
+    "get_verification_service",
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -446,4 +532,5 @@ __all__ = [
     "ReviewServiceDep",
     "ContextEnrichmentServiceDep",
     "CrossCanvasServiceDep",
+    "VerificationServiceDep",
 ]

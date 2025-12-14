@@ -2,14 +2,15 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/review-generate-response.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T20:05:00Z",
+    "verified_at": "2025-12-13T00:00:00Z",
     "sources": [
       {"type": "prd", "section": "API 15.2.9", "epic": "Epic 15"},
-      {"type": "prd", "section": "Verification Canvas", "epic": "Epic 4"}
+      {"type": "prd", "section": "Verification Canvas", "epic": "Epic 4"},
+      {"type": "story", "section": "Story 24.1", "epic": "Epic 24"}
     ]
   },
   "title": "ReviewGenerateResponse",
-  "description": "生成检验白板响应 - 返回新创建的检验Canvas信息",
+  "description": "生成检验白板响应 - 返回新创建的检验Canvas信息 (含mode_used元数据)",
   "type": "object",
   "properties": {
     "review_canvas_name": {
@@ -36,6 +37,11 @@
       "type": "string",
       "format": "date-time",
       "description": "生成时间"
+    },
+    "mode_used": {
+      "type": "string",
+      "enum": ["fresh", "targeted"],
+      "description": "实际使用的复习模式 (AC5: Mode metadata storage)"
     }
   },
   "required": ["review_canvas_name", "source_canvas_name", "question_count"]
