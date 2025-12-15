@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Continue'
 $WorktreePath = $PSScriptRoot
 Set-Location $WorktreePath
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Story 21.5.1.1 - Dev+QA Workflow" -ForegroundColor Cyan
+Write-Host " Story 21.5.1.2 - Dev+QA Workflow" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "Working directory: $WorktreePath" -ForegroundColor Yellow
 $promptFile = Join-Path $WorktreePath ".claude-prompt.txt"
@@ -20,13 +20,13 @@ Write-Host "Starting Claude session..." -ForegroundColor Green
 Get-Content $promptFile -Raw -Encoding UTF8 | claude -p --dangerously-skip-permissions --output-format json 2>&1 | Tee-Object -FilePath $logFile
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host " Story 21.5.1.1 - Claude Session Complete" -ForegroundColor Green
+Write-Host " Story 21.5.1.2 - Claude Session Complete" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 
 # Phase 6: Post-Processing - Dev-QA Auto-Record Pipeline
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Story 21.5.1.1 - Post-Processing" -ForegroundColor Cyan
+Write-Host " Story 21.5.1.2 - Post-Processing" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 # Check if .worktree-result.json exists and outcome is SUCCESS
@@ -42,7 +42,7 @@ if (Test-Path $resultFile) {
             $hookScript = Join-Path $daemonPath "post_process_hook.py"
 
             if (Test-Path $hookScript) {
-                python $hookScript --story-id "21.5.1.1" --worktree-path $WorktreePath --session-id "parallel-21.5.1.1"
+                python $hookScript --story-id "21.5.1.2" --worktree-path $WorktreePath --session-id "parallel-21.5.1.2"
                 Write-Host "Post-processing complete!" -ForegroundColor Green
             } else {
                 Write-Host "Warning: post_process_hook.py not found at: $hookScript" -ForegroundColor Yellow
@@ -59,6 +59,6 @@ if (Test-Path $resultFile) {
 
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Green
-Write-Host " Story 21.5.1.1 - Workflow Complete" -ForegroundColor Green
+Write-Host " Story 21.5.1.2 - Workflow Complete" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 if (-not $args[0]) { Read-Host "Press Enter to close..." }

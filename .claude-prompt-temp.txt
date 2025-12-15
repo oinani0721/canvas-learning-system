@@ -1,4 +1,4 @@
-﻿Execute complete Dev鈫扱A鈫扜it workflow for Story 21.5.1.1.
+﻿Execute complete Dev鈫扱A鈫扜it workflow for Story 21.5.1.2.
 
 ===============================================================================
 STRICT WORKFLOW RULES - MUST FOLLOW EXACTLY
@@ -15,7 +15,7 @@ PHASE 1: DEVELOPMENT
 ===============================================================================
 Step 1: Read .ai-context.md to understand Story context
 Step 2: Activate Developer Agent: /dev
-Step 3: Implement the Story: *develop-story 21.5.1.1
+Step 3: Implement the Story: *develop-story 21.5.1.2
 Step 4: Run all tests: *run-tests
 
 **DECISION POINT A - TEST RESULTS**:
@@ -31,10 +31,10 @@ Step 4: Run all tests: *run-tests
 PHASE 2: QUALITY ASSURANCE (Full QA Sequence)
 ===============================================================================
 Step 5: Activate QA Agent: /qa
-Step 6: Trace requirements coverage: *trace 21.5.1.1
-Step 7: Assess non-functional requirements: *nfr-assess 21.5.1.1
-Step 8: Comprehensive code review: *review 21.5.1.1
-Step 9: Quality gate decision: *gate 21.5.1.1
+Step 6: Trace requirements coverage: *trace 21.5.1.2
+Step 7: Assess non-functional requirements: *nfr-assess 21.5.1.2
+Step 8: Comprehensive code review: *review 21.5.1.2
+Step 9: Quality gate decision: *gate 21.5.1.2
 
 **DECISION POINT B - QA GATE RESULT**:
 - If gate = PASS:
@@ -46,7 +46,7 @@ Step 9: Quality gate decision: *gate 21.5.1.1
 - If gate = CONCERNS:
   - Attempt to fix the identified issues
   - Re-run tests: *run-tests
-  - Re-run gate: *gate 21.5.1.1
+  - Re-run gate: *gate 21.5.1.2
   - If now PASS/WAIVED: PROCEED to Phase 3
   - If still CONCERNS or FAIL after 1 fix attempt:
     - Update status: qa_gate="CONCERNS"
@@ -62,7 +62,7 @@ PHASE 3: GIT COMMIT (Only if QA Gate = PASS or WAIVED)
 ===============================================================================
 Step 10: Stage all changes: git add -A
 Step 11: Create commit with structured message:
-         git commit -m "Story 21.5.1.1: [Brief Description]
+         git commit -m "Story 21.5.1.2: [Brief Description]
 
          QA Gate: [PASS/WAIVED]
          Tests: [PASS]
@@ -87,7 +87,7 @@ PHASE 4: RESULT OUTPUT (ALWAYS Execute)
 Step 13: Write .worktree-result.json with ENHANCED status (include dev_record and qa_record):
 
 {
-  "story_id": "21.5.1.1",
+  "story_id": "21.5.1.2",
   "story_title": "[Story title from Story file]",
   "outcome": "SUCCESS|DEV_BLOCKED|QA_BLOCKED|QA_CONCERNS_UNFIXED",
   "tests_passed": true|false,
@@ -130,7 +130,7 @@ PHASE 5: STORY FILE UPDATE (ALWAYS Execute After Phase 4)
 ===============================================================================
 Step 14: Find and update Story file's "## Dev Agent Record" section:
 
-    1. Locate Story file: docs/stories/21.5.1.1.story.md or story-21.5.1.1.md
+    1. Locate Story file: docs/stories/21.5.1.2.story.md or story-21.5.1.2.md
 
     2. Replace "## Dev Agent Record" section content with:
 
@@ -180,7 +180,7 @@ Step 15: Update Story file's "## QA Results" section:
     [list of issues or "鏃?]
 
     ### Gate File Reference
-    docs/qa/gates/21.5.1.1-[slug].yml
+    docs/qa/gates/21.5.1.2-[slug].yml
 
     **楠岃瘉娴佺▼**:
     - [x] 鍗曞厓娴嬭瘯閫氳繃

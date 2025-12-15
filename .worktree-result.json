@@ -1,108 +1,67 @@
 {
-  "story_id": "21.5.1.1",
-  "story_title": "修复前端canvas_name参数构建",
+  "story_id": "21.5.1.2",
+  "story_title": "优化后端Path Traversal安全检查",
   "outcome": "SUCCESS",
   "tests_passed": true,
   "test_count": 16,
   "test_coverage": 100.0,
   "qa_gate": "PASS",
-  "commit_sha": "28be7faa1ba393081a809caa70bbbd973987ff23",
+  "commit_sha": "1e6090c525ccaa1304f453a3e8acedc332c74d2e",
   "blocking_reason": null,
   "fix_attempts": 0,
-  "timestamp": "2025-12-14T18:45:00+08:00",
+  "timestamp": "2025-12-14T17:45:00+08:00",
   "duration_seconds": 900,
+
   "dev_record": {
     "agent_model": "Claude Code (claude-sonnet-4-5)",
-    "duration_seconds": 120,
+    "duration_seconds": 600,
     "files_created": [
       {
-        "path": "canvas-progress-tracker/obsidian-plugin/tests/utils/extractCanvasFileName.test.ts",
-        "description": "Unit tests for extractCanvasFileName helper (16 test cases covering all path formats)"
-      },
-      {
-        "path": "docs/qa/traces/21.5.1.1-trace.md",
-        "description": "Requirements traceability matrix"
-      },
-      {
-        "path": "docs/qa/nfr/21.5.1.1-nfr-assessment.md",
-        "description": "Non-functional requirements assessment"
-      },
-      {
-        "path": "docs/stories/21.5.1.1.story.md",
-        "description": "Complete Story documentation with Dev and QA records"
+        "path": "backend/tests/unit/test_canvas_validation.py",
+        "description": "Comprehensive unit tests for canvas name validation (16 test cases covering valid paths, invalid patterns, and edge cases)"
       }
     ],
     "files_modified": [
       {
-        "path": "canvas-progress-tracker/obsidian-plugin/main.ts",
-        "description": "Added extractCanvasFileName() helper function and updated 9 Agent call locations to use it"
+        "path": "backend/app/services/canvas_service.py",
+        "description": "Modified _validate_canvas_name() to allow subdirectory paths (/) while blocking dangerous patterns (.., //, /./, \\\\, \\0, absolute paths)"
       }
     ],
-    "completion_notes": "Implemented AC1 (helper function with cross-platform path separator support), AC2 (updated all 9 Agent endpoint calls), and AC3 (16/16 unit tests passing with 100% coverage). Fix resolves HTTP 500 'Path traversal detected' errors by sending filename-only to backend instead of full file paths. All 9 Agent call locations (lines 300, 320, 340, 359, 430, 450, 470, 490, 511) now use extractCanvasFileName(). Helper function implemented at lines 1497-1515 with comprehensive JSDoc documentation."
+    "completion_notes": "Successfully implemented path traversal security optimization. Removed '/' from dangerous patterns list to allow legitimate subdirectory paths (e.g., '笔记库/子目录/test'). Added new security checks for absolute paths (startswith '/') and enhanced pattern blocking ('//', '/./') to maintain security. All 16 unit tests passing with 100% coverage for modified code."
   },
+
   "qa_record": {
     "quality_score": 98,
     "ac_coverage": {
       "AC1": {
         "status": "PASS",
-        "evidence": "main.ts:1497-1515 - extractCanvasFileName() function with JSDoc, cross-platform regex /[/\\]/, null safety"
+        "evidence": "tests/unit/test_canvas_validation.py - test_valid_simple_filename, test_valid_filename_with_extension, test_valid_subdirectory_path_chinese, test_valid_deep_chinese_path, test_valid_deep_ascii_path (5 tests, all passing)"
       },
       "AC2": {
         "status": "PASS",
-        "evidence": "main.ts - All 9 locations updated: executeDecomposition (L300), executeOralExplanation (L320), executeFourLevelExplanation (L340), executeScoring (L359), executeDeepDecomposition (L430), executeClarificationPath (L450), executeExampleTeaching (L470), executeMemoryAnchor (L490), generateVerificationQuestions (L511)"
+        "evidence": "tests/unit/test_canvas_validation.py - test_invalid_directory_traversal, test_invalid_embedded_traversal, test_invalid_null_byte_injection, test_invalid_backslash, test_invalid_double_slash, test_invalid_current_directory_reference, test_invalid_multiple_dots_in_traversal (7 tests, all passing)"
       },
       "AC3": {
         "status": "PASS",
-        "evidence": "tests/utils/extractCanvasFileName.test.ts - 16/16 tests passing, covers all required scenarios (undefined/empty, pure filename, Unix/Windows/mixed paths, edge cases, backend validation)"
+        "evidence": "tests/unit/test_canvas_validation.py - test_invalid_absolute_path (1 test, passing)"
       }
     },
     "issues_found": [
       {
         "severity": "low",
-        "description": "Function lacks explicit debug logging. If issues arise in production, debugging may be slightly harder. Non-blocking, can be added later if needed."
+        "description": "Consider adding test for empty string input (edge case)"
+      },
+      {
+        "severity": "low",
+        "description": "Consider adding test for very long paths (DoS protection)"
       }
     ],
     "recommendations": [
-      "Consider adding debug logging in future if production issues arise (low priority)",
-      "Monitor backend validation success rate post-deployment to confirm fix effectiveness",
-      "No code changes required at this time - approved for immediate merge"
+      "All acceptance criteria verified with comprehensive tests",
+      "Security requirements met - all path traversal attacks blocked",
+      "No blocking issues found - ready for merge"
     ]
   },
-  "story_file_updated": true,
-  "story_file_path": "docs/stories/21.5.1.1.story.md",
-  "workflow_metadata": {
-    "workflow_type": "Automated Dev+QA via /parallel",
-    "execution_mode": "Non-interactive background automation",
-    "qa_artifacts": [
-      "docs/qa/traces/21.5.1.1-trace.md",
-      "docs/qa/nfr/21.5.1.1-nfr-assessment.md",
-      "docs/qa/reviews/21.5.1.1-code-review.md",
-      "docs/qa/gates/21.5.1.1-quality-gate.yml"
-    ],
-    "nfr_assessment": {
-      "performance": "PASS (O(n), <1ms execution)",
-      "reliability": "PASS (robust error handling)",
-      "security": "PASS (path traversal fix validated)",
-      "maintainability": "PASS (high code quality)",
-      "scalability": "PASS (stateless function)",
-      "usability": "PASS (fixes user-facing bug)",
-      "observability": "PASS (adequate for utility function)",
-      "compliance": "PASS (SDD & ADR compliant)"
-    },
-    "sdd_compliance": {
-      "json_schema": "COMPLIANT (canvas_name field matches spec)",
-      "openapi_spec": "COMPLIANT (all 9 Agent endpoints receive correct format)"
-    },
-    "adr_compliance": {
-      "ADR-008": "COMPLIANT (uses Jest for Obsidian plugin tests)"
-    }
-  },
-  "post_process": {
-    "completed": true,
-    "timestamp": "2025-12-14T18:41:26.058581",
-    "story_file_updated": false,
-    "qa_gate_file": "C:\\Users\\ROG\\托福\\Canvas\\docs\\qa\\gates\\21.5.1.1-canvas-name.yml",
-    "dev_record_complete": false,
-    "qa_record_complete": false
-  }
+
+  "story_file_updated": true
 }

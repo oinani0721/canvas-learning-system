@@ -49,17 +49,23 @@ class CanvasService:
     def _validate_canvas_name(self, canvas_name: str) -> None:
         """
         Validate canvas name to prevent path traversal attacks.
+        Allows subdirectory paths (/) but blocks dangerous patterns.
 
         Args:
-            canvas_name: Canvas name to validate
+            canvas_name: Canvas name to validate (can include subdirectories like "笔记库/子目录/test")
 
         Raises:
-            ValidationError: If canvas name contains path traversal patterns
+            ValidationError: If canvas name contains dangerous path traversal patterns
         """
-        dangerous_patterns = ['..', '/', '\\', '\0']
+        # Block absolute paths
+        if canvas_name.startswith('/'):
+            raise ValidationError(f"Absolute path not allowed: {canvas_name}")
+
+        # Block dangerous patterns
+        dangerous_patterns = ['..', '\\', '\0', '//', '/./']
         for pattern in dangerous_patterns:
             if pattern in canvas_name:
-                raise ValidationError(f"Path traversal detected in canvas name: {canvas_name}")
+                raise ValidationError(f"Invalid canvas path: {canvas_name}")
 
     def _get_canvas_path(self, canvas_name: str) -> Path:
         """Get full path to canvas file."""
