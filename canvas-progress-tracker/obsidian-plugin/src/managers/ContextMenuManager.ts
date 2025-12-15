@@ -18,6 +18,7 @@ import {
   MarkdownView,
   Notice,
   EventRef,
+  ItemView,
 } from 'obsidian';
 import type {
   MenuItemConfig,
@@ -106,6 +107,8 @@ export class ContextMenuManager {
   private actionRegistry: MenuActionRegistry = {};
   private eventRefs: EventRef[] = [];
   private debugMode: boolean = false;
+  // Epic 21.5.2: Canvas context缓存，修复getCurrentContext()返回错误路径问题
+  private cachedCanvasContext: MenuContext | null = null;
 
   constructor(
     app: App,
@@ -852,8 +855,18 @@ export class ContextMenuManager {
       nodeType: nodeInfo.nodeData?.type,
     };
 
+    // Epic 21.5.2: Cache canvas context for use in action handlers
+    this.cachedCanvasContext = context;
+    this.log(`ContextMenuManager: Canvas context cache set - filePath=${context.filePath}`);
+
     // Create menu
     const menu = new Menu();
+
+    // Epic 21.5.2: Register menu hide callback for cache cleanup
+    menu.onHide(() => {
+      this.cachedCanvasContext = null;
+      this.log('ContextMenuManager: Canvas context cache cleared (menu hidden)');
+    });
 
     // Get relevant menu items for canvas-node context
     const items = this.getMenuItemsForContext('canvas-node');
@@ -956,10 +969,20 @@ export class ContextMenuManager {
 
   /**
    * Get current context (for action callbacks)
+   * Epic 21.5.2: Returns cached canvas context if available, otherwise falls back to editor context
    */
   private getCurrentContext(): MenuContext {
-    const activeFile = this.app.workspace.getActiveFile();
+    // Epic 21.5.2: Prioritize returning cached canvas context
+    if (this.cachedCanvasContext) {
+      const cached = this.cachedCanvasContext;
+      this.cachedCanvasContext = null; // Clear after use to prevent pollution
+      this.log(`ContextMenuManager: Using cached canvas context - filePath=${cached.filePath}`);
+      return cached;
+    }
 
+    // Fallback to original logic for editor context
+    this.log('ContextMenuManager: No cached context, using getActiveFile()');
+    const activeFile = this.app.workspace.getActiveFile();
     return {
       type: 'editor',
       filePath: activeFile?.path,
