@@ -1,0 +1,67 @@
+{
+  "story_id": "21.5.1.2",
+  "story_title": "优化后端Path Traversal安全检查",
+  "outcome": "SUCCESS",
+  "tests_passed": true,
+  "test_count": 16,
+  "test_coverage": 100.0,
+  "qa_gate": "PASS",
+  "commit_sha": "1e6090c525ccaa1304f453a3e8acedc332c74d2e",
+  "blocking_reason": null,
+  "fix_attempts": 0,
+  "timestamp": "2025-12-14T17:45:00+08:00",
+  "duration_seconds": 900,
+
+  "dev_record": {
+    "agent_model": "Claude Code (claude-sonnet-4-5)",
+    "duration_seconds": 600,
+    "files_created": [
+      {
+        "path": "backend/tests/unit/test_canvas_validation.py",
+        "description": "Comprehensive unit tests for canvas name validation (16 test cases covering valid paths, invalid patterns, and edge cases)"
+      }
+    ],
+    "files_modified": [
+      {
+        "path": "backend/app/services/canvas_service.py",
+        "description": "Modified _validate_canvas_name() to allow subdirectory paths (/) while blocking dangerous patterns (.., //, /./, \\\\, \\0, absolute paths)"
+      }
+    ],
+    "completion_notes": "Successfully implemented path traversal security optimization. Removed '/' from dangerous patterns list to allow legitimate subdirectory paths (e.g., '笔记库/子目录/test'). Added new security checks for absolute paths (startswith '/') and enhanced pattern blocking ('//', '/./') to maintain security. All 16 unit tests passing with 100% coverage for modified code."
+  },
+
+  "qa_record": {
+    "quality_score": 98,
+    "ac_coverage": {
+      "AC1": {
+        "status": "PASS",
+        "evidence": "tests/unit/test_canvas_validation.py - test_valid_simple_filename, test_valid_filename_with_extension, test_valid_subdirectory_path_chinese, test_valid_deep_chinese_path, test_valid_deep_ascii_path (5 tests, all passing)"
+      },
+      "AC2": {
+        "status": "PASS",
+        "evidence": "tests/unit/test_canvas_validation.py - test_invalid_directory_traversal, test_invalid_embedded_traversal, test_invalid_null_byte_injection, test_invalid_backslash, test_invalid_double_slash, test_invalid_current_directory_reference, test_invalid_multiple_dots_in_traversal (7 tests, all passing)"
+      },
+      "AC3": {
+        "status": "PASS",
+        "evidence": "tests/unit/test_canvas_validation.py - test_invalid_absolute_path (1 test, passing)"
+      }
+    },
+    "issues_found": [
+      {
+        "severity": "low",
+        "description": "Consider adding test for empty string input (edge case)"
+      },
+      {
+        "severity": "low",
+        "description": "Consider adding test for very long paths (DoS protection)"
+      }
+    ],
+    "recommendations": [
+      "All acceptance criteria verified with comprehensive tests",
+      "Security requirements met - all path traversal attacks blocked",
+      "No blocking issues found - ready for merge"
+    ]
+  },
+
+  "story_file_updated": true
+}

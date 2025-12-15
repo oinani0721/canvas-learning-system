@@ -2,7 +2,7 @@ story_id: "21.5.1.2"
 story_title: "优化后端Path Traversal安全检查"
 epic: "EPIC-21.5.1"
 priority: "P1"
-status: "dev-complete"  # initialized -> in-progress -> dev-complete -> qa-reviewing -> ready-to-merge
+status: "ready-to-merge"  # initialized -> in-progress -> dev-complete -> qa-reviewing -> ready-to-merge
 created: "2025-12-14T17:30:00+08:00"
 branch: "develop-story-21.5.1.2"
 worktree_path: "C:/Users/ROG/托福/Canvas-develop-21.5.1.2"
@@ -22,3 +22,7 @@ files_modified:
   - backend/app/services/canvas_service.py
 files_created:
   - backend/tests/unit/test_canvas_validation.py
+
+# Commit Info
+commit_sha: "1e6090c525ccaa1304f453a3e8acedc332c74d2e"
+commit_timestamp: "2025-12-14T17:45:00+08:00"
