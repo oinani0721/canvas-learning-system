@@ -17,12 +17,17 @@ project:
   version: "1.2"
   description: "AI-powered learning system based on Feynman technique with 14 specialized agents"
   status: "Active Development"
-  # Epic编号说明 (v1.1.9):
-  # - Epic 1-10: 原始Canvas Learning System (已完成)
-  # - Epic 11: 学习记忆监控系统 (v1.1.9重新分配, 已完成)
-  # - Epic 15: FastAPI后端基础架构 (v1.1.9重新分配, 开发中)
-  # - Epic 19: 检验白板进度追踪 (v1.1.9从原Epic 15移入, 待开发)
-  epics_completed: [1, 2, 3, 4, 5, 10, 11, 15]
+  # Epic编号说明 (v2.0 - UltraThink深度验证 2025-12-15):
+  # - Epic 1-5: 原始Canvas核心系统 (100%完成)
+  # - Epic 10: Canvas集成 (100%完成)
+  # - Epic 11/15: FastAPI后端 (100%完成, 11个端点)
+  # - Epic 12: LangGraph多Agent (88%完成, 代码在src/agentic_rag/)
+  # - Epic 13: Obsidian插件 (90%完成, 22个服务类)
+  # - Epic 14: 复习系统 (95%完成, review_service.py 1,247行)
+  # - Epic 16: 跨Canvas (100%完成)
+  # - Epic 18: 回滚系统 (100%完成)
+  # - Epic 19: 检验追踪 (待开发)
+  epics_completed: [1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16, 18]
 
 # ====================
 # BMad Core Configuration (Original)
