@@ -47,18 +47,16 @@ top_issues:
     resolution: '通过修复PERF-001(添加内部超时)连带解决'
 
   - id: 3
-    severity: medium
+    severity: resolved
     category: operations
     title: 'HTTP状态码不一致'
     description: |
-      /health/ai 在AI失败时返回503
-      /health/full 在AI失败时返回200 + status:"degraded"
-      这种不一致可能影响监控系统告警配置
+      [已修复] /health/ai 和 /health/full 现在都在失败/降级时返回503。
+      统一的HTTP状态码便于监控系统配置告警。
     refs:
-      - 'backend/app/api/v1/endpoints/health.py:410-412'
-      - 'backend/app/api/v1/endpoints/health.py:492'
+      - 'backend/app/api/v1/endpoints/health.py:532-535'
     suggested_owner: dev
-    recommendation: '统一失败响应策略，建议都使用200+degraded或都使用503'
+    resolution: '统一为503状态码 - /health/full在degraded时也返回503'
 
   - id: 4
     severity: medium
@@ -106,8 +104,8 @@ waiver:
 # ============================================================================
 # Quality Metrics
 # ============================================================================
-quality_score: 90  # 100 - (0*20 FAIL) - (0*10 HIGH) - (2*5 MEDIUM) = 90
-risk_score: 90  # 2 High risks RESOLVED, 2 Medium + 4 Low remaining
+quality_score: 95  # 100 - (0*20 FAIL) - (0*10 HIGH) - (1*5 MEDIUM) = 95
+risk_score: 95  # 3 risks RESOLVED (PERF-001/002, OPS-001), 1 Medium + 4 Low remaining
 expires: '2025-12-28T10:20:00+08:00'  # 2 weeks from review
 
 # ============================================================================
@@ -116,10 +114,10 @@ expires: '2025-12-28T10:20:00+08:00'  # 2 weeks from review
 risk_matrix:
   critical: 0
   high: 0  # Was 3, now 0 (PERF-001/002 RESOLVED)
-  medium: 2
+  medium: 1  # Was 2, OPS-001 now RESOLVED
   low: 4
-  resolved: 2  # PERF-001, PERF-002
-  total: 8  # 9 - 2 resolved + 1 (resolved category)
+  resolved: 3  # PERF-001, PERF-002, OPS-001
+  total: 8
 
 # ============================================================================
 # Evidence
@@ -185,12 +183,15 @@ recommendations:
       status: DONE
       resolution_date: '2025-12-14'
 
-  immediate:
-    - action: '统一/health/ai和/health/full的HTTP状态码策略'
+    - action: '[已完成] 统一/health/ai和/health/full的HTTP状态码策略'
       refs:
-        - 'backend/app/api/v1/endpoints/health.py'
+        - 'backend/app/api/v1/endpoints/health.py:532-535'
       priority: P1
       owner: dev
+      status: DONE
+      resolution_date: '2025-12-14'
+
+  immediate: []  # All immediate actions completed
 
   future:
     - action: '添加Pydantic响应模型提升类型安全'
