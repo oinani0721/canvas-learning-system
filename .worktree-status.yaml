@@ -1,0 +1,24 @@
+story_id: "21.5.1.2"
+story_title: "优化后端Path Traversal安全检查"
+epic: "EPIC-21.5.1"
+priority: "P1"
+status: "dev-complete"  # initialized -> in-progress -> dev-complete -> qa-reviewing -> ready-to-merge
+created: "2025-12-14T17:30:00+08:00"
+branch: "develop-story-21.5.1.2"
+worktree_path: "C:/Users/ROG/托福/Canvas-develop-21.5.1.2"
+
+# Development Phase
+tests_run: true
+tests_passed: true
+dev_completed: true
+
+# QA Phase
+qa_reviewed: true
+qa_gate: "PASS"  # PASS / CONCERNS / FAIL / WAIVED
+qa_notes: "All acceptance criteria verified. 16/16 tests passing. Quality score: 98/100. No blocking issues."
+
+# Files Modified
+files_modified:
+  - backend/app/services/canvas_service.py
+files_created:
+  - backend/tests/unit/test_canvas_validation.py
