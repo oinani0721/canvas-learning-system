@@ -387,6 +387,119 @@ export interface RecordReviewResponse {
 }
 
 // =============================================================================
+// RAG Types (Story 12.5 - Plugin RAG API Client)
+// =============================================================================
+
+/**
+ * RAG fusion strategy for multi-source retrieval
+ * @source Story 12.5 - Plugin RAG API Client
+ * @source backend/app/api/v1/endpoints/rag.py
+ */
+export type RAGFusionStrategy = 'rrf' | 'weighted' | 'cascade';
+
+/**
+ * RAG reranking strategy for result optimization
+ * @source Story 12.5 - Plugin RAG API Client
+ */
+export type RAGRerankingStrategy = 'local' | 'cohere' | 'hybrid_auto';
+
+/**
+ * RAG query request for intelligent retrieval
+ * @source Story 12.5 - Plugin RAG API Client
+ * @verified backend/app/api/v1/endpoints/rag.py#RAGQueryRequest
+ */
+export interface RAGQueryRequest {
+  query: string;
+  canvas_file?: string;
+  is_review_canvas?: boolean;
+  fusion_strategy?: RAGFusionStrategy;
+  reranking_strategy?: RAGRerankingStrategy;
+}
+
+/**
+ * Single search result item from RAG query
+ * @source Story 12.5 - Plugin RAG API Client
+ */
+export interface RAGSearchResultItem {
+  doc_id: string;
+  content: string;
+  score: number;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * RAG query latency information
+ * @source Story 12.5 - Plugin RAG API Client
+ */
+export interface RAGLatencyInfo {
+  graphiti?: number;
+  lancedb?: number;
+  multimodal?: number;
+  fusion?: number;
+  reranking?: number;
+}
+
+/**
+ * RAG query metadata
+ * @source Story 12.5 - Plugin RAG API Client
+ */
+export interface RAGQueryMetadata {
+  query_rewritten: boolean;
+  rewrite_count: number;
+  fusion_strategy?: string;
+  reranking_strategy?: string;
+}
+
+/**
+ * RAG query response with results and metrics
+ * @source Story 12.5 - Plugin RAG API Client
+ * @verified backend/app/api/v1/endpoints/rag.py#RAGQueryResponse
+ */
+export interface RAGQueryResponse {
+  results: RAGSearchResultItem[];
+  quality_grade: 'high' | 'medium' | 'low';
+  result_count: number;
+  latency_ms: RAGLatencyInfo;
+  total_latency_ms: number;
+  metadata: RAGQueryMetadata;
+}
+
+/**
+ * Single weak concept item
+ * @source Story 12.5 - Plugin RAG API Client
+ */
+export interface WeakConceptItem {
+  concept: string;
+  stability: number;
+  last_review?: string;
+  review_count: number;
+}
+
+/**
+ * Weak concepts response for review canvas generation
+ * @source Story 12.5 - Plugin RAG API Client
+ * @verified backend/app/api/v1/endpoints/rag.py#WeakConceptsResponse
+ */
+export interface WeakConceptsResponse {
+  concepts: WeakConceptItem[];
+  total_count: number;
+  canvas_file: string;
+}
+
+/**
+ * RAG service status response
+ * @source Story 12.5 - Plugin RAG API Client
+ * @verified backend/app/api/v1/endpoints/rag.py#RAGStatusResponse
+ */
+export interface RAGStatusResponse {
+  available: boolean;
+  initialized: boolean;
+  langgraph_available: boolean;
+  import_error?: string;
+  timestamp: string;
+}
+
+// =============================================================================
 // Configuration Types
 // =============================================================================
 

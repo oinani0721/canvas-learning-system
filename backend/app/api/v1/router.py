@@ -18,6 +18,7 @@ from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.memory import memory_router
 from app.api.v1.endpoints.monitoring import monitoring_router
+from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
 
@@ -131,5 +132,22 @@ router.include_router(
     responses={
         404: {"description": "Bug not found"},
         500: {"description": "Debug service error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# RAG Routes (Story 12.4 - P0 BLOCKER FIX)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Story 12.4: Register RAG endpoint (was missing - Epic 12 invisible to users!)
+# [Source: UltraThink深度调研报告 v2.0 - Section 10.1]
+# [Source: backend/app/api/v1/endpoints/rag.py - 完整实现312行]
+router.include_router(
+    rag_router,
+    prefix="/rag",
+    tags=["RAG"],
+    responses={
+        503: {"description": "RAG service unavailable"},
+        500: {"description": "RAG query failed"}
     }
 )

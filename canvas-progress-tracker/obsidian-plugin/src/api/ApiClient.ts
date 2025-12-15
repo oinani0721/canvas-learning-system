@@ -2,7 +2,8 @@
  * Canvas Learning System - API Client
  *
  * HTTP client for communicating with the FastAPI backend.
- * Implements all 19 API endpoints with retry mechanism and error handling.
+ * Implements all 22 API endpoints with retry mechanism and error handling.
+ * (19 original + 3 RAG endpoints from Story 12.5)
  *
  * @source Story 13.3 - API客户端实现
  * @verified specs/api/canvas-api.openapi.yml
@@ -40,6 +41,11 @@ import {
   GenerateReviewResponse,
   RecordReviewRequest,
   RecordReviewResponse,
+  // RAG Types (Story 12.5 - Plugin RAG API Client)
+  RAGQueryRequest,
+  RAGQueryResponse,
+  WeakConceptsResponse,
+  RAGStatusResponse,
 } from './types';
 
 /**
@@ -521,6 +527,71 @@ export class ApiClient {
       '/review/record',
       request
     );
+  }
+
+  // ===========================================================================
+  // RAG API Methods (3 endpoints) - Story 12.5: Plugin RAG API Client
+  // ===========================================================================
+
+  /**
+   * Execute RAG intelligent retrieval query
+   *
+   * Features:
+   * - Multi-source parallel retrieval (Graphiti + LanceDB + Multimodal)
+   * - 3 fusion algorithms (RRF, Weighted, Cascade)
+   * - Hybrid reranking (Local + Cohere)
+   * - Quality control with query rewriting
+   *
+   * @param request - RAG query request
+   * @returns RAG query response with results and metrics
+   *
+   * @source Story 12.5 - Plugin RAG API Client (P0)
+   * @source UltraThink深度调研报告 v2.0 - Section 10.1
+   * @verified backend/app/api/v1/endpoints/rag.py#rag_query
+   */
+  async ragQuery(request: RAGQueryRequest): Promise<RAGQueryResponse> {
+    return this.request<RAGQueryResponse>('POST', '/rag/query', request);
+  }
+
+  /**
+   * Get weak concepts for a canvas (low stability items)
+   *
+   * Used to generate verification canvas for review based on
+   * concepts that need more practice.
+   *
+   * @param canvasFile - Canvas file path
+   * @param limit - Maximum number of concepts to return (default: 10)
+   * @returns Weak concepts list from Temporal Memory
+   *
+   * @source Story 12.5 - Plugin RAG API Client (P0)
+   * @verified backend/app/api/v1/endpoints/rag.py#get_weak_concepts
+   */
+  async getWeakConcepts(
+    canvasFile: string,
+    limit = 10
+  ): Promise<WeakConceptsResponse> {
+    const params = new URLSearchParams({ limit: String(limit) });
+    return this.request<WeakConceptsResponse>(
+      'GET',
+      `/rag/weak-concepts/${encodeURIComponent(canvasFile)}?${params}`
+    );
+  }
+
+  /**
+   * Get RAG service status
+   *
+   * Returns availability information including:
+   * - Whether the RAG service is available
+   * - Whether LangGraph is initialized
+   * - Any import/initialization errors
+   *
+   * @returns RAG service status
+   *
+   * @source Story 12.5 - Plugin RAG API Client (P0)
+   * @verified backend/app/api/v1/endpoints/rag.py#get_rag_status
+   */
+  async getRagStatus(): Promise<RAGStatusResponse> {
+    return this.request<RAGStatusResponse>('GET', '/rag/status');
   }
 
   // ===========================================================================

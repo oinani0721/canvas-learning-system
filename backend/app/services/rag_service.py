@@ -76,6 +76,32 @@ except Exception as e:
 
 
 # ============================================================
+# Custom Exceptions (Story 12.4 - RAG Endpoint Integration)
+# ============================================================
+
+class RAGServiceError(Exception):
+    """
+    Base exception for RAG service errors.
+
+    Raised when RAG query execution fails.
+
+    [Source: backend/app/api/v1/endpoints/rag.py - Error handling]
+    """
+    pass
+
+
+class RAGUnavailableError(RAGServiceError):
+    """
+    Exception raised when RAG service is not available.
+
+    This occurs when LangGraph is not installed or import fails.
+
+    [Source: backend/app/api/v1/endpoints/rag.py - 503 response]
+    """
+    pass
+
+
+# ============================================================
 # RAG Service Class
 # ============================================================
 
@@ -154,6 +180,8 @@ class RAGService:
         query: str,
         canvas_file: Optional[str] = None,
         is_review_canvas: bool = False,
+        fusion_strategy: Optional[str] = None,
+        reranking_strategy: Optional[str] = None,
         config: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
@@ -185,7 +213,7 @@ class RAGService:
         [Source: docs/stories/23.1.story.md#Step-4-创建rag_service.py]
         """
         if not LANGGRAPH_AVAILABLE:
-            raise RuntimeError(
+            raise RAGUnavailableError(
                 f"LangGraph not available. Cannot execute RAG query. "
                 f"Error: {_IMPORT_ERROR}"
             )
@@ -199,6 +227,8 @@ class RAGService:
             "messages": [{"role": "user", "content": query}],
             "canvas_file": canvas_file,
             "is_review_canvas": is_review_canvas,
+            "fusion_strategy": fusion_strategy or ("weighted" if is_review_canvas else "rrf"),
+            "reranking_strategy": reranking_strategy or "hybrid_auto",
             "graphiti_results": [],
             "lancedb_results": [],
             "multimodal_results": [],
@@ -219,9 +249,56 @@ class RAGService:
             )
             return result
 
+        except RAGServiceError:
+            # Re-raise our custom exceptions
+            raise
         except Exception as e:
             logger.error(f"RAGService query failed: {e}")
-            raise
+            raise RAGServiceError(f"RAG query execution failed: {e}") from e
+
+    async def get_weak_concepts(
+        self,
+        canvas_file: str,
+        limit: int = 10
+    ) -> list[Dict[str, Any]]:
+        """
+        Get weak concepts from Temporal Memory for a canvas file.
+
+        Used by review canvas generation to identify concepts needing review.
+
+        Args:
+            canvas_file: Canvas file path
+            limit: Maximum number of concepts to return
+
+        Returns:
+            List of weak concept dicts with stability, last_review, review_count
+
+        [Source: backend/app/api/v1/endpoints/rag.py#get_weak_concepts]
+        """
+        if not LANGGRAPH_AVAILABLE:
+            logger.warning("get_weak_concepts: LangGraph not available, returning empty list")
+            return []
+
+        # TODO: Implement actual weak concept retrieval from Temporal Memory
+        # For now, return empty list (graceful degradation)
+        logger.info(f"get_weak_concepts called for {canvas_file}, limit={limit}")
+        return []
+
+    def get_status(self) -> Dict[str, Any]:
+        """
+        Get RAG service status information.
+
+        Returns:
+            Dict with available, initialized, langgraph_available, import_error
+
+        [Source: backend/app/api/v1/endpoints/rag.py#get_rag_status]
+        """
+        return {
+            "available": LANGGRAPH_AVAILABLE,
+            "initialized": self._initialized,
+            "langgraph_available": LANGGRAPH_AVAILABLE,
+            "import_error": _IMPORT_ERROR,
+        }
 
     async def query_with_fallback(
         self,
@@ -292,6 +369,8 @@ def get_rag_service() -> RAGService:
 
 __all__ = [
     "RAGService",
+    "RAGServiceError",
+    "RAGUnavailableError",
     "get_rag_service",
     "LANGGRAPH_AVAILABLE",
 ]

@@ -134,6 +134,61 @@ export class BackendProcessManager {
     }
 
     /**
+     * Check if backend is running with multiple retries
+     * Used to give external backends more time to respond before assuming "stale"
+     *
+     * FIX (Story 12.5.1): Added retry logic for robust external backend detection
+     *
+     * @param maxRetries - Number of retry attempts (default: 3)
+     * @param timeout - Timeout per attempt in ms (default: 3000)
+     * @returns true if backend responds to health check within retries
+     */
+    async isRunningWithRetries(maxRetries = 3, timeout = 3000): Promise<boolean> {
+        const connectHost = this.config.host === '0.0.0.0' ? '127.0.0.1' : this.config.host;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                this.addLog(`Health check attempt ${attempt}/${maxRetries}...`);
+
+                const timeoutPromise = new Promise<never>((_, reject) =>
+                    setTimeout(() => reject(new Error('Health check timeout')), timeout)
+                );
+
+                const requestPromise = requestUrl({
+                    url: `http://${connectHost}:${this.config.port}/api/v1/health`,
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                    },
+                    throw: false,
+                });
+
+                const response: RequestUrlResponse = await Promise.race([
+                    requestPromise,
+                    timeoutPromise,
+                ]);
+
+                if (response.status >= 200 && response.status < 300) {
+                    this.addLog(`Health check succeeded on attempt ${attempt}`);
+                    return true;
+                }
+
+                this.addLog(`Health check returned status ${response.status}`);
+            } catch (error) {
+                const msg = error instanceof Error ? error.message : 'Unknown error';
+                this.addLog(`Health check attempt ${attempt} failed: ${msg}`);
+            }
+
+            // Wait before retry (except on last attempt)
+            if (attempt < maxRetries) {
+                await this.sleep(1000);
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Find Python executable path
      * Searches in order: configured path, virtual environments, system Python
      *
@@ -271,6 +326,11 @@ export class BackendProcessManager {
 
     /**
      * Start the backend server
+     *
+     * FIX (Story 12.5.1): Improved stale process detection
+     * - Do multiple health check retries before assuming "stale"
+     * - Only kill process if backend is definitely not responding
+     * - Prevents killing healthy external backend processes
      */
     async start(): Promise<boolean> {
         if (this.status === 'running' || this.status === 'starting') {
@@ -278,19 +338,32 @@ export class BackendProcessManager {
             return false;
         }
 
-        // Check if already running externally
+        // Check if already running externally (with extended retry for slow startup)
         if (await this.isRunning()) {
             this.setStatus('running', 'Backend is already running (external process)');
             new Notice('Backend is already running');
             return true;
         }
 
-        // ========== Port Pre-cleanup Logic ==========
-        // Check if port is occupied by stale process (health check failed but port still in use)
-        // This prevents EADDRINUSE error when starting backend
+        // ========== IMPROVED Port Pre-cleanup Logic ==========
+        // FIX: Before assuming "stale", try health check multiple times
+        // This prevents killing a healthy backend that's just slow to respond
         const portInUse = await this.isPortInUse(this.config.port);
         if (portInUse) {
-            this.addLog(`Port ${this.config.port} is in use by stale process, cleaning up...`);
+            this.addLog(`Port ${this.config.port} is in use, checking if backend is healthy...`);
+
+            // Try health check with extended retries (3 attempts, 3 seconds each)
+            const isHealthy = await this.isRunningWithRetries(3, 3000);
+
+            if (isHealthy) {
+                // Backend IS healthy, just use it
+                this.setStatus('running', 'Connected to existing backend');
+                new Notice('Connected to existing backend');
+                return true;
+            }
+
+            // Backend not responding after retries - might be stale
+            this.addLog(`Backend on port ${this.config.port} not responding, attempting cleanup...`);
 
             // Get and display PIDs occupying the port
             const stalePids = await this.getPidsOnPort(this.config.port);
@@ -304,14 +377,23 @@ export class BackendProcessManager {
             // Wait for port to be released (max 5 seconds)
             const portReleased = await this.waitForPortRelease(this.config.port, 5000);
             if (!portReleased) {
-                this.setStatus('error', `Port ${this.config.port} is still in use after cleanup`);
-                new Notice(`Cannot start: port ${this.config.port} is occupied`);
+                // FIX: Instead of error, try one more health check
+                // The process might be healthy but just couldn't be killed
+                const stillHealthy = await this.isRunningWithRetries(2, 2000);
+                if (stillHealthy) {
+                    this.setStatus('running', 'Connected to existing backend (cleanup skipped)');
+                    new Notice('Connected to existing backend');
+                    return true;
+                }
+
+                this.setStatus('error', `Port ${this.config.port} is occupied by another process`);
+                new Notice(`Cannot start: port ${this.config.port} is occupied. Try stopping the process manually.`);
                 return false;
             }
 
             this.addLog(`Port ${this.config.port} is now free`);
         }
-        // ========== End Port Pre-cleanup Logic ==========
+        // ========== End IMPROVED Port Pre-cleanup Logic ==========
 
         this.setStatus('starting', 'Starting backend server...');
         new Notice('Starting backend server...');

@@ -16,7 +16,7 @@ import os
 from functools import lru_cache
 from typing import List
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings BaseSettings)
 # Source: "from pydantic_settings import BaseSettings, SettingsConfigDict"
@@ -142,27 +142,38 @@ class Settings(BaseSettings):
         # Fallback: return default if path is completely invalid
         return "/api/v1"
 
-    # ✅ Verified from Context7:/websites/pydantic_dev (topic: field_validator)
+    # ✅ Verified from Context7:/websites/pydantic_dev (topic: model_validator)
     # [Source: docs/stories/21.5.2.story.md - AC-1, AC-2]
-    @field_validator("AI_MODEL_NAME")
-    @classmethod
-    def validate_model_name(cls, v: str) -> str:
+    # [FIX] Changed from field_validator to model_validator to access AI_PROVIDER
+    @model_validator(mode='after')
+    def validate_model_name(self) -> 'Settings':
         """
-        检测并清理AI模型名称中的异常前缀。
+        检测并清理AI模型名称中的异常前缀（仅对非 custom provider）。
 
         某些终端或配置工具可能会在模型名称前添加前缀（如 [K1], [K2]），
-        这会导致 API 调用失败。此验证器自动检测并清理这些前缀。
+        这会导致某些 API 调用失败。此验证器自动检测并清理这些前缀。
+
+        **重要**: 对于 custom provider，保留前缀，因为自定义 AI 服务商
+        可能使用这些前缀作为模型路由标识。
 
         异常前缀示例: [K1], [K2], [TEST]
 
-        Args:
-            v: 原始 AI_MODEL_NAME 值
-
         Returns:
-            清理后的模型名称
+            修改后的 Settings 实例
 
         [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md#story-21-5-2]
         """
+        v = self.AI_MODEL_NAME
+
+        # [FIX] Skip prefix cleaning for custom providers - they may use prefixes
+        # for model routing (e.g., [K1] routes to a specific model channel)
+        if self.AI_PROVIDER == "custom":
+            if v.startswith("[") and "]" in v:
+                logger.info(
+                    f"AI_MODEL_NAME '{v}' contains prefix, preserved for custom provider"
+                )
+            return self
+
         # 检测方括号前缀模式
         if v.startswith("[") and "]" in v:
             bracket_end = v.index("]") + 1
@@ -172,8 +183,8 @@ class Settings(BaseSettings):
                 f"AI_MODEL_NAME contains abnormal prefix '{prefix}', "
                 f"auto-cleaned to '{clean_name}'"
             )
-            return clean_name
-        return v
+            self.AI_MODEL_NAME = clean_name
+        return self
 
     MAX_CONCURRENT_REQUESTS: int = Field(
         default=100,

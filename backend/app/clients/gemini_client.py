@@ -13,6 +13,7 @@ Supports:
 [Source: Multi-Provider AI Architecture]
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -193,19 +194,27 @@ class GeminiClient:
         system_prompt: str,
         user_prompt: str,
         temperature: float = 0.7,
+        max_retries: int = 3,
+        base_delay: float = 1.0,
     ) -> Dict[str, Any]:
         """
-        Call OpenAI-compatible API using httpx.
+        Call OpenAI-compatible API using httpx with retry logic.
 
         [Multi-Provider] Supports custom providers like OpenRouter, custom endpoints.
+        [Retry] Automatically retries on transient errors (503, 502, 429) with exponential backoff.
 
         Args:
             system_prompt: System prompt text
             user_prompt: User prompt text
             temperature: Response temperature
+            max_retries: Maximum retry attempts for transient errors (default: 3)
+            base_delay: Base delay in seconds for exponential backoff (default: 1.0)
 
         Returns:
             Dict with response and usage info
+
+        Raises:
+            httpx.HTTPStatusError: After all retries exhausted
         """
         if not self._http_client:
             raise RuntimeError("HTTP client not initialized for custom provider.")
@@ -226,26 +235,77 @@ class GeminiClient:
             "Content-Type": "application/json",
         }
 
-        logger.info(f"Calling OpenAI-compatible API at {url}, model={self.model}")
+        # Retryable HTTP status codes
+        RETRYABLE_STATUS_CODES = {502, 503, 504, 429}
 
-        response = await self._http_client.post(url, json=payload, headers=headers)
-        response.raise_for_status()
+        last_error: Optional[Exception] = None
 
-        data = response.json()
+        for attempt in range(max_retries + 1):
+            try:
+                logger.info(f"Calling OpenAI-compatible API at {url}, model={self.model}" +
+                           (f" (attempt {attempt + 1}/{max_retries + 1})" if attempt > 0 else ""))
 
-        response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-        usage = data.get("usage", {})
+                response = await self._http_client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
 
-        logger.info("OpenAI-compatible API call successful")
+                data = response.json()
 
-        return {
-            "response": response_text,
-            "model": self.model,
-            "usage": {
-                "input_tokens": usage.get("prompt_tokens", 0),
-                "output_tokens": usage.get("completion_tokens", 0),
-            },
-        }
+                response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                usage = data.get("usage", {})
+
+                logger.info("OpenAI-compatible API call successful" +
+                           (f" after {attempt + 1} attempts" if attempt > 0 else ""))
+
+                return {
+                    "response": response_text,
+                    "model": self.model,
+                    "usage": {
+                        "input_tokens": usage.get("prompt_tokens", 0),
+                        "output_tokens": usage.get("completion_tokens", 0),
+                    },
+                }
+
+            except httpx.HTTPStatusError as e:
+                last_error = e
+                status_code = e.response.status_code
+
+                if status_code in RETRYABLE_STATUS_CODES and attempt < max_retries:
+                    # Exponential backoff: 1s, 2s, 4s, ...
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        f"OpenAI-compatible API returned {status_code}, "
+                        f"retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    # Non-retryable error or max retries exhausted
+                    logger.error(
+                        f"OpenAI-compatible API error: {status_code} after {attempt + 1} attempts. "
+                        f"URL: {url}"
+                    )
+                    raise
+
+            except (httpx.ConnectError, httpx.TimeoutException) as e:
+                last_error = e
+
+                if attempt < max_retries:
+                    delay = base_delay * (2 ** attempt)
+                    logger.warning(
+                        f"Connection error to API: {type(e).__name__}, "
+                        f"retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"OpenAI-compatible API connection failed after {attempt + 1} attempts. "
+                        f"URL: {url}, Error: {e}"
+                    )
+                    raise
+
+        # Should not reach here, but just in case
+        if last_error:
+            raise last_error
+        raise RuntimeError("Unexpected error in _call_openai_compatible")
 
     async def call_agent(
         self,
