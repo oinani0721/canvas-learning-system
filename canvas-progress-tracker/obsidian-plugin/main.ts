@@ -297,7 +297,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在拆解节点...');
                         const result = await this.apiClient.decomposeBasic({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
                     } catch (error) {
@@ -317,7 +317,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在生成口语化解释...');
                         const result = await this.apiClient.explainOral({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice('口语化解释生成完成');
                     } catch (error) {
@@ -337,7 +337,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在生成四层次解释...');
                         const result = await this.apiClient.explainFourLevel({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice('四层次解释生成完成');
                     } catch (error) {
@@ -356,7 +356,7 @@ export default class CanvasReviewPlugin extends Plugin {
                     try {
                         new Notice('正在评分节点...');
                         const result = await this.apiClient.scoreUnderstanding({
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                             node_ids: context.nodeId ? [context.nodeId] : [],
                         });
                         new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
@@ -427,7 +427,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在进行深度拆解...');
                         const result = await this.apiClient.decomposeDeep({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题`);
                     } catch (error) {
@@ -447,7 +447,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在生成澄清路径...');
                         const result = await this.apiClient.explainClarification({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice('澄清路径生成完成');
                     } catch (error) {
@@ -467,7 +467,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在生成例题教学...');
                         const result = await this.apiClient.explainExample({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice('例题教学生成完成');
                     } catch (error) {
@@ -487,7 +487,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('正在生成记忆锚点...');
                         const result = await this.apiClient.explainMemory({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice('记忆锚点生成完成');
                     } catch (error) {
@@ -508,7 +508,7 @@ export default class CanvasReviewPlugin extends Plugin {
                         // Use decomposeDeep which generates verification questions
                         const result = await this.apiClient.decomposeDeep({
                             node_id: context.nodeId || '',
-                            canvas_name: context.filePath || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
                         });
                         new Notice(`检验问题生成完成: 生成了 ${result.questions?.length || 0} 个问题`);
                     } catch (error) {
@@ -1493,6 +1493,26 @@ export default class CanvasReviewPlugin extends Plugin {
     // ══════════════════════════════════════════════════════════════════
     // Story 21.5.5: Enhanced Error Handling - Helper Methods
     // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Extract Canvas filename from complete file path
+     * Supports both Unix (/) and Windows (\) path separators
+     *
+     * @param filePath - Complete file path (e.g., "笔记库/子目录/test.canvas")
+     * @returns Canvas filename only (e.g., "test.canvas"), or empty string if input is undefined/empty
+     *
+     * @source Story 21.5.1.1 - AC1: Fix canvas_name parameter construction
+     *
+     * @example
+     * extractCanvasFileName("笔记库/子目录/test.canvas") // "test.canvas"
+     * extractCanvasFileName("笔记库\\子目录\\test.canvas") // "test.canvas"
+     * extractCanvasFileName("test.canvas") // "test.canvas"
+     * extractCanvasFileName(undefined) // ""
+     */
+    private extractCanvasFileName(filePath: string | undefined): string {
+        if (!filePath) return '';
+        return filePath.split(/[/\\]/).pop() || '';
+    }
 
     /**
      * Handle Agent API error with enhanced notification and history tracking

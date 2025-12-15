@@ -1,0 +1,24 @@
+story_id: "21.5.1.1"
+story_title: "修复前端canvas_name参数构建"
+epic: "EPIC-21.5.1"
+priority: "P0"
+status: "ready-to-merge"  # initialized -> in-progress -> dev-complete -> qa-reviewing -> ready-to-merge
+created: "2025-12-14T17:30:00+08:00"
+branch: "develop-story-21.5.1.1"
+worktree_path: "C:/Users/ROG/托福/Canvas-develop-21.5.1.1"
+
+# Development Phase
+tests_run: true
+tests_passed: true
+dev_completed: true
+
+# QA Phase
+qa_reviewed: true
+qa_gate: "PASS"  # PASS / CONCERNS / FAIL / WAIVED
+qa_notes: "Quality Score: 98/100. All AC verified with comprehensive test coverage (16 tests passing)."
+
+# Files Modified
+files_modified:
+  - "canvas-progress-tracker/obsidian-plugin/main.ts"
+files_created:
+  - "canvas-progress-tracker/obsidian-plugin/tests/utils/extractCanvasFileName.test.ts"
