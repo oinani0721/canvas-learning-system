@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\claude_client.py
+# hypothesis_version: 6.148.1
+
+[0.7, ':', 'ANTHROPIC_API_KEY', 'agent_type', 'base64', 'content', 'data', 'description', 'image', 'image/png', 'images_processed', 'inherit', 'input_tokens', 'media_type', 'model', 'name', 'output_tokens', 'response', 'role', 'source', 'text', 'type', 'unknown', 'usage', 'user', 'utf-8']

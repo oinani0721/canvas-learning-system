@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\nodes.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.2, 0.5, 0.7, 1.0, 200, 400, 1000, 'behavior_updated', 'canvas_file', 'cascade', 'cohere', 'content', 'current_concept', 'fused_results', 'fusion_latency_ms', 'fusion_strategy', 'graphiti_batch_size', 'graphiti_latency_ms', 'graphiti_results', 'high', 'hybrid_auto', 'is_review_canvas', 'lancedb_batch_size', 'lancedb_latency_ms', 'lancedb_results', 'learning_behavior.db', 'local', 'low', 'medium', 'messages', 'quality_grade', 'quality_threshold', 'rating', 'reranked_results', 'reranking_latency_ms', 'reranking_strategy', 'retrieval_batch_size', 'rrf', 'score', 'session_id', 'temporal_latency_ms', 'updated_card', 'weak_concepts', 'weak_concepts_limit', 'weighted', '~/.lancedb']

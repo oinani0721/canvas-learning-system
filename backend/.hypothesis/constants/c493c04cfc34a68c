@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\dependencies.py
+# hypothesis_version: 6.148.1
+
+[3.0, 'AgentServiceDep', 'CanvasServiceDep', 'ReviewServiceDep', 'RollbackService', 'SettingsDep', 'TaskManagerDep', 'get_agent_service', 'get_canvas_service', 'get_review_service', 'get_rollback_service', 'get_settings', 'get_task_manager']

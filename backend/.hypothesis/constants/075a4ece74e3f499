@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\rollback_service.py
+# hypothesis_version: 6.148.1
+
+[100, 200, 300, '.canvas-learning', 'RollbackService', 'added', 'after', 'before', 'cleanup', 'color', 'edges', 'edges_diff', 'enable_auto_backup', 'enable_graphiti_sync', 'fromNode', 'from_node', 'graphiti_timeout_ms', 'history_limit', 'id', 'initialized', 'max_snapshots', 'modified', 'nodes', 'nodes_diff', 'r', 'removed', 'snapshot_interval', 'stop_auto_scheduler', 'storage_path', 'text', 'toNode', 'to_node', 'user', 'utf-8']

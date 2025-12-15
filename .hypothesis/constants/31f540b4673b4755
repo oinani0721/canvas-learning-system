@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\review_service.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.2, 24.0, 40.0, 100, '%Y%m%d', ':', 'CanvasService', 'LearningMemoryClient', 'average_score', 'cancelled', 'canvas_name', 'completed', 'completed_at', 'concept', 'details', 'easy', 'edges', 'error', 'failed', 'green_nodes', 'hard', 'has_history', 'in_progress', 'last_reviewed', 'learning_context', 'mastery_percentage', 'message', 'name', 'node_id', 'nodes', 'normal', 'pending', 'priority', 'processing', 'progress', 'progress_percentage', 'purple_nodes', 'recorded', 'recorded_at', 'red_nodes', 'review_generation', 'reviewed_nodes', 'running', 'scheduled', 'scheduled_date', 'score', 'skipped', 'source_canvas', 'started_at', 'status', 'suggested_difficulty', 'task_id', 'text', 'timestamp', 'total_nodes', 'total_reviews', 'trigger_point', 'unknown', 'weak_concepts', 'weak_concepts_count', '未知概念', '：']

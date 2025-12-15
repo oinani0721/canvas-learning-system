@@ -1,0 +1,158 @@
+[
+  {
+    "canvas_path": "test.canvas",
+    "id": "d98f700c-04ca-4b07-bb89-51c3c6286100",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:39.204260+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "b48fa183-059a-4f0c-9aa0-ffa8d742d9e7",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (timepoint)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:39.121913+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "d88e5169-b788-4fe2-b1f5-420b91868fdd",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:39.062085+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "cab7eca9-6ce9-4393-8ee3-a8bfb7fda75f",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:38.991766+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "4e274b9d-950c-4240-97ad-9046916fa545",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Tagged snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:38.931885+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "c7fdab86-7ef1-4e29-8be5-248bc63630a4",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "E2E test snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T12:10:38.884564+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "a1ebec0e-4c87-4b56-8d1f-77ad280bb8a4",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.883803+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "d27496f2-1085-412c-903c-8e6c58a0f8f1",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (timepoint)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.808113+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "5b7cff7f-97db-4fad-8ac0-429bb51874b6",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.745796+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "7fd40376-8b33-4ea7-8ff2-afed93e3ba27",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.666439+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "a352ab73-5586-4c11-bdc2-c82a45355b23",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Tagged snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.613650+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "87110d6d-3e62-422e-b76b-09a6a30294df",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "E2E test snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T10:40:24.572709+00:00",
+    "type": "manual"
+  }
+]

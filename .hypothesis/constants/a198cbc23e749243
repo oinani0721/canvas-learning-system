@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\__init__.py
+# hypothesis_version: 6.148.1
+
+['ClaudeClient', 'GraphitiEdgeClient', 'get_claude_client', 'get_graphiti_client', 'reset_claude_client']

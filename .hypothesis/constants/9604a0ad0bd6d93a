@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\canvas.py
+# hypothesis_version: 6.148.1
+
+[250, 400, 404, '/{canvas_name:path}', 'Create edge', 'Create node', 'Delete edge', 'Delete node', 'No edges to sync', 'Not found', 'Read Canvas file', 'Update node', 'Validation error', 'canvas_name', 'color', 'create_edge', 'create_node', 'delete_edge', 'delete_node', 'description', 'edges', 'failed', 'file', 'fromNode', 'fromSide', 'graphiti_stats', 'height', 'id', 'label', 'message', 'model', 'nodes', 'read_canvas', 'synced', 'text', 'timeout', 'toNode', 'toSide', 'total_edges', 'type', 'update_node', 'url', 'width', 'x', 'y']

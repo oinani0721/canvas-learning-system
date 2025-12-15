@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\base_provider.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.7, 120.0, '*', '<not set>', 'consecutive_failures', 'degraded', 'error_message', 'healthy', 'input_tokens', 'last_check', 'latency_ms', 'model', 'none', 'output_tokens', 'provider', 'status', 'text', 'unhealthy', 'unknown', 'usage']

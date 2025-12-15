@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\topic_clustering.py
+# hypothesis_version: 6.148.1
+
+[100, 250, 400, ',', '-', '...', ':', '^#+\\s*', 'group', 'group_id', 'height', 'id', 'label', 'original_node', 'text', 'topic', 'type', 'width', 'x', 'y', '—', '不同', '为什么', '例子', '公式', '其他', '区别', '原因', '原理', '含义', '场景', '如何', '定义', '实例', '对比', '属性', '应用', '怎么', '性质', '方法', '是什么', '机制', '概念', '步骤', '比较', '求', '特征', '特点', '相同', '等于', '计算', '，', '：']

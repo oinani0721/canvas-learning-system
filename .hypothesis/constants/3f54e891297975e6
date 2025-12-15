@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\config.py
+# hypothesis_version: 6.148.1
+
+[0.05, 0.15, 0.2, 0.25, 0.7, 10.0, 384, 768, '100', '384', '400', 'LANCEDB_BATCH_SIZE', 'LANCEDB_PATH', 'LANCEDB_TABLE', 'LANCEDB_TIMEOUT_MS', 'backend/data/lancedb', 'batch_size', 'canvas_file', 'canvas_nodes', 'cascade', 'cohere', 'color', 'content', 'cross_canvas', 'db_path', 'doc_id', 'embedding_dim', 'embedding_model', 'graphiti', 'hybrid_auto', 'lancedb', 'local', 'metadata_json', 'multimodal', 'node_id', 'node_type', 'rrf', 'table_name', 'textbook', 'timeout_ms', 'timestamp', 'vector', 'weighted', 'x', 'y']

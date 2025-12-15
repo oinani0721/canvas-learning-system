@@ -1,0 +1,5 @@
+# Canvas Learning System Alert Rules
+# Empty configuration - backend handles missing file gracefully
+# Add alert rules here as needed
+
+alerts: []

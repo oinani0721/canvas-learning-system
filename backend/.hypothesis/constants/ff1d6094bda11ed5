@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\alert_manager.py
+# hypothesis_version: 6.148.1
+
+[0.0, 120, 300, '"', ',', '<', '=', '==', '>', 'API响应时间过高', 'AgentExecutionSlow', 'Agent执行过慢', 'HighAPILatency', 'HighConcurrentTasks', 'HighErrorRate', 'MemorySystemDown', 'active_count', 'agent', 'alerts', 'component', 'critical', 'critical_count', 'description', 'expression', 'fired', 'firing', 'for', 'id', 'info', 'info_count', 'labels', 'memory', 'message', 'name', 'pending', 'r', 'rate(', 'resolved', 'severity', 'summary', 'threshold', 'triggered_at', 'utf-8', 'value', 'warning', 'warning_count', '{', '{quantile=', '}', '并发任务过多', '记忆系统不可用', '错误率过高']

@@ -1,0 +1,531 @@
+project:
+  name: Canvas Learning System
+  version: v1.3
+  current_phase: implementation
+  bmad_integration_status: aligned
+  last_updated: '2025-12-11'
+epics:
+  epic-1:
+    name: Basic Learning System
+    status: completed
+    completion_date: 2025-10-15
+    stories:
+    - 1.1
+    - 1.2
+    - 1.3
+    description: 红色节点拆解、AI解释生成、个人理解填写
+  epic-2:
+    name: Scoring System
+    status: completed
+    completion_date: 2025-10-20
+    stories:
+    - 2.1
+    - 2.2
+    - 2.3
+    description: 4维评分系统（Accuracy/Imagery/Completeness/Originality）
+  epic-3:
+    name: Color Flow System
+    status: completed
+    completion_date: 2025-10-22
+    stories:
+    - 3.1
+    - 3.2
+    description: 红→紫→绿颜色流转机制
+  epic-4:
+    name: Verification Whiteboard
+    status: completed
+    completion_date: 2025-10-25
+    stories:
+    - 4.1
+    - 4.2
+    - 4.3
+    description: 检验白板生成、无辅助知识复现、盲区检测
+  epic-5:
+    name: Multi-Agent Orchestration
+    status: completed
+    completion_date: 2025-10-28
+    stories:
+    - 5.1
+    - 5.2
+    description: 14个专项Agent协作、智能调度
+  epic-6:
+    name: Memory System Integration
+    status: completed
+    completion_date: 2025-10-30
+    stories:
+    - 6.1
+    - 6.2
+    description: Graphiti知识图谱集成
+  epic-10:
+    name: Async Parallel Execution Engine
+    status: completed
+    completion_date: 2025-11-10
+    stories:
+    - 10.1
+    - 10.2
+    description: 异步并行执行（8倍性能提升，12并发Agent）
+    key_achievement: 100s → 12s for 10 nodes
+  epic-11:
+    name: Canvas监控/进度追踪系统
+    status: completed
+    completion_date: 2025-11-20
+    stories:
+    - 11.1
+    - 11.2
+    - 11.3
+    - 11.4
+    - 11.5
+    - 11.6
+    - 11.7
+    - 11.8
+    - 11.9
+    description: Canvas文件监控、学习活动追踪、热/冷数据存储、监控仪表盘
+    key_achievement: 完整的Canvas监控系统实现
+    note: v1.1.9修正：原PRD将FastAPI编号为Epic 11，实际代码库中Epic 11为Canvas监控系统
+  epic-15:
+    name: FastAPI后端基础架构
+    status: completed
+    completion_date: 2025-11-27
+    stories:
+    - 15.1
+    - 15.2
+    - 15.3
+    - 15.4
+    - 15.5
+    - 15.6
+    description: FastAPI后端基础架构（路由、依赖注入、中间件、异步操作、测试框架）
+    key_achievement: 通过*linear自动化流程完成全部6个Stories
+    verification_source: linear-progress.json
+    note: v1.1.9修正：原PRD将FastAPI编号为Epic 11，现重分配为Epic 15
+  epic-12:
+    name: 3层记忆系统 + Agentic RAG
+    status: completed
+    completion_date: 2025-11-29
+    started_date: 2025-11-19
+    stories:
+    - 12.1
+    - 12.2
+    - 12.3
+    - 12.4
+    - 12.5
+    - 12.6
+    - 12.7
+    - 12.8
+    - 12.9
+    - 12.1
+    - 12.11
+    - 12.12
+    - 12.13
+    - 12.14
+    - 12.15
+    - 12.16
+    description: 三层记忆系统 (LanceDB + Graphiti + LangGraph) + Agentic RAG架构
+    key_achievement: 完整的Agentic RAG系统，32+个Python模块，17个Git commits
+    note: v1.1.9修正：原描述为'BMad Integration Correction'，实际内容为3层记忆系统
+    substories:
+      12.1: Canvas检验白板生成集成 ✅
+      12.2: LanceDB POC验证 ✅
+      12.3: ChromaDB → LanceDB数据迁移 ✅
+      12.4: Temporal Memory实现 ✅
+      12.5: LangGraph StateGraph构建 ✅
+      12.6: 并行检索实现 (Send模式) ✅
+      12.7: 3种融合算法实现 ✅
+      12.8: 混合Reranking策略 ✅
+      12.9: 质量控制循环 ✅
+      12.11: graphiti-memory-agent调用接口 ✅
+      12.12: LangSmith可观测性集成 ✅
+      12.13: 回归测试 ✅
+      12.14: 性能基准测试 ✅
+      12.15: E2E集成测试 ✅
+      12.16: 文档和部署 ✅
+    key_features:
+    - LanceDB向量存储（替代ChromaDB）
+    - Graphiti知识图谱增强
+    - LangGraph多Agent编排
+    - 3种融合算法（RRF/Weighted/Cascade）
+    - Agentic RAG检索增强生成
+    - LangSmith全链路追踪
+    - FSRS遗忘曲线算法
+    verification_source: 'Git commits: 701ab2b, 9c2eb4c, 575ae5c, 5289561, b860501,
+      etc.'
+  epic-13:
+    name: Obsidian Plugin核心功能
+    status: completed
+    completion_date: 2025-12-02
+    stories:
+    - 13.1
+    - 13.2
+    - 13.3
+    - 13.4
+    - 13.5
+    - 13.6
+    - 13.7
+    - 13.8
+    description: Obsidian插件开发（API集成、核心命令、设置面板、右键菜单、快捷键、错误处理、智能并行处理UI）
+    prd_source: PRD lines 4105-4114
+    key_achievement: 8个Stories完成，~760测试，完整Obsidian Plugin (含智能并行处理UI)
+    verification_source: 'Git: 8838a34d, 9cd5fb10, c7fd9453, 52290086, e04f0e0a'
+    substories:
+      13.1: Plugin项目初始化 ✅ (75 tests)
+      13.2: Canvas API集成 ✅ (183 tests)
+      13.3: HTTP API客户端 ✅ (44 tests)
+      13.4: CommandWrapper系统 ✅ (80 tests)
+      13.5: 右键菜单和快捷键 ✅ (98 tests)
+      13.6: 设置面板 ✅ (106 tests)
+      13.7: 错误处理系统 ✅ (58 tests)
+      13.8: 智能并行处理UI ✅ (~116 tests)
+      '13.1': ✅
+      '13.2': ✅
+      '13.3': ✅
+      '13.4': ✅
+      '13.5': ✅
+      '13.6': ✅
+      '13.7': ✅
+      '13.8': ✅
+  epic-14:
+    name: 艾宾浩斯复习系统迁移
+    status: completed
+    completion_date: 2025-12-02
+    stories:
+    - 14.1
+    - 14.2
+    - 14.3
+    - 14.4
+    - 14.5
+    - 14.6
+    - 14.7
+    description: 艾宾浩斯复习系统迁移到Obsidian Plugin（SQLite、仪表板、任务卡片、复习逻辑、检验白板生成、历史趋势、通知系统）
+    prd_source: PRD lines 4115-4124 (Epic 14定义)
+    key_achievement: 7个Stories完成，~72,013行测试代码，完整复习系统实现
+    substories:
+      14.1: SQLite数据库集成 ✅ (DatabaseManager 751行, ReviewRecordDAO 389行)
+      14.2: 复习仪表板UI ✅ (ReviewDashboardView 1,058行)
+      14.3: 任务卡片UI ✅ (TaskCard组件)
+      14.4: 今日复习列表与交互 ✅ (TodayReviewListService 674行, 21,687行测试)
+      14.5: 一键生成检验白板 ✅ (ReviewCanvasGeneratorService 652行, 19,670行测试)
+      14.6: 复习历史查看+趋势分析 ✅ (HistoryService 341行, 18,761行测试)
+      14.7: 复习提醒通知 ✅ (NotificationService 300行, 11,895行测试)
+      '14.1': ✅
+      '14.2': ✅
+      '14.3': ✅
+      '14.4': ✅
+      '14.5': ✅
+      '14.6': ✅
+      '14.7': ✅
+  epic-16:
+    name: 跨Canvas关联学习系统
+    status: completed
+    completion_date: 2025-12-02
+    stories:
+    - 16.1
+    - 16.2
+    - 16.3
+    - 16.4
+    - 16.5
+    - 16.6
+    - 16.7
+    description: 跨Canvas关联学习系统（关联UI、配置管理、Graphiti集成、教材引用、状态指示器）
+    key_achievement: 11个TypeScript文件，完整跨Canvas关联功能
+    verification_source: 'Git commit: 1be8c354'
+    substories:
+      16.1: Canvas关联UI ✅
+      16.2: .canvas-links.json配置管理 ✅
+      16.3: Graphiti跨Canvas关系存储 ✅
+      16.4: 关联模式Toggle控制 ✅
+      16.5: Agent引用教材上下文 ✅
+      16.6: 教材引用显示 ✅
+      16.7: 关联状态指示器 ✅
+      '16.1': ✅
+      '16.2': ✅
+      '16.3': ✅
+      '16.4': ✅
+      '16.5': ✅
+      '16.6': ✅
+      '16.7': ✅
+  epic-17:
+    name: 性能优化和监控
+    status: completed
+    completion_date: 2025-12-04
+    started_date: 2025-12-03
+    stories:
+    - 17.1
+    - 17.2
+    - 17.3
+    - 17.4
+    - 17.5
+    - 17.6
+    description: 性能监控、指标采集、告警和优化策略（Prometheus、结构化日志、Agent追踪、Dashboard）
+    prd_source: docs/prd/epics/EPIC-17-PERFORMANCE-MONITORING.md
+    architecture_source: docs/architecture/performance-monitoring-architecture.md
+    key_achievement: 完整的性能监控系统（143+测试，~7,500 LOC，8个运维文档）
+    verification_source: 'Tests: 17.1(20), 17.2(45), 17.3(39), 17.4(33), 17.5(71)'
+    substories:
+      17.1: Prometheus指标集成 ✅ QA-PASS (8/8 AC, 20测试)
+      17.2: 深度监控 ✅ QA-PASS (8/8 AC, 45测试)
+      17.3: 告警系统和Dashboard ✅ QA-PASS (39/39测试)
+      17.4: 性能优化策略 ✅ QA-PASS (33/33测试)
+      17.5: E2E集成测试 ✅ QA-PASS (71/71测试)
+      17.6: 文档和生产就绪 ✅ QA-PASS (8/8文档)
+      '17.1': ✅
+      '17.2': ✅
+      '17.3': ✅
+      '17.4': ✅
+      '17.5': ✅
+      '17.6': ✅
+  epic-18:
+    name: 数据迁移和回滚
+    status: completed
+    started_date: 2025-12-04
+    completion_date: 2025-12-04
+    stories:
+    - 18.1
+    - 18.2
+    - 18.3
+    - 18.4
+    - 18.5
+    description: Canvas操作追踪、快照管理、回滚功能、Graphiti同步、REST API配置
+    architecture_source: docs/architecture/rollback-recovery-architecture.md
+    story_points: 28
+    estimated_days: 9-11
+    key_achievement: 完整回滚系统（92测试，5个REST端点，Graphiti同步）
+    verification_source: 'Git commit: 7ae53cf6'
+    substories:
+      18.1: Operation Tracker - Canvas操作历史系统 (5 SP)
+      18.2: Snapshot Manager - Canvas状态快照 (5 SP)
+      18.3: Rollback Engine - Canvas状态恢复 (8 SP)
+      18.4: Graph Sync Service - Graphiti知识图谱同步 (5 SP)
+      18.5: Rollback API和配置 - 完整REST API和配置 (5 SP)
+      '18.1': ✅
+      '18.2': ✅
+      '18.3': ✅
+      '18.4': ✅
+      '18.5': ✅
+    dependency_graph: 18.1 → 18.2 → [18.3 || 18.4] → 18.5
+    parallel_opportunity: Story 18.3和18.4可并行开发
+  epic-19:
+    name: 检验白板进度追踪系统
+    status: completed
+    started_date: 2025-12-04
+    completion_date: 2025-12-04
+    stories:
+    - 19.1
+    - 19.2
+    - 19.3
+    - 19.4
+    - 19.5
+    description: sourceNodeId元数据写入、进度分析算法、进度追踪UI、WebSocket实时更新、进度可视化
+    prd_source: Migration PRD (原Epic 15移入)
+    key_achievement: 163测试全部通过，完整进度追踪系统（22,330行代码）
+    verification_source: 'Git commit: 0e97e359'
+    substories:
+      19.1: sourceNodeId元数据写入 ✅ (14 tests)
+      19.2: 进度分析算法 ✅ (18 tests)
+      19.3: 进度追踪UI组件 ✅ (38 tests)
+      19.4: WebSocket实时更新 ✅ (39 tests)
+      19.5: 进度可视化组件 ✅ (54 tests)
+      '19.1': ✅
+      '19.2': ✅
+      '19.3': ✅
+      '19.4': ✅
+      '19.5': ✅
+    key_features:
+    - CircularProgress SVG组件
+    - ProgressTrendChart (Chart.js)
+    - ConceptMasteryChart
+    - LearningHeatmap (GitHub风格)
+    - BehaviorMonitorService
+    - WebSocket实时推送
+  epic-20:
+    status: pending
+    stories:
+    - '20.1'
+    - '20.2'
+    - '20.3'
+    - '20.4'
+    substories:
+      '20.1': ⏳
+      '20.2': ⏳
+      '20.3': ⏳
+      '20.4': ⏳
+scp_006:
+  name: 多模态文件关联
+  status: completed
+  planning_date: 2025-11-30
+  completion_date: 2025-12-04
+  priority: P2
+  supersedes: Story 12.17 (ImageBind)
+  tech_stack: Gemini 2.0 Flash (云API，无需GPU)
+  stories:
+  - 6.1
+  - 6.2
+  - 6.3
+  - 6.4
+  - 6.5
+  - 6.6
+  - 6.7
+  - 6.8
+  - 6.9
+  total_days: 24
+  phases:
+    phase_1: 基础多模态支持 (7天) - 图片、PDF节点
+    phase_2: 智能分析 (7天) - OCR、向量化
+    phase_3: 关联与检索 (10天) - Agentic RAG集成
+  dependencies:
+  - Epic 12 (Agentic RAG) ✅
+  - Epic 13 (Obsidian Plugin) ⏳ 推荐先完成
+  implementation_plan: docs/prd/SCP-006-IMPLEMENTATION-PLAN.md
+  note: 决策：放弃ImageBind (GPU依赖)，采用Gemini 2.0 Flash (云API)
+next_actions:
+- ✅ Epic 12 已完成 (16个Stories, 32+模块)
+- ✅ Epic 13 已完成 (8个Stories, ~760测试)
+- ✅ Epic 14 已完成 (7个Stories, ~72,013行测试)
+- ✅ Epic 16 已完成 (7个Stories, 跨Canvas关联)
+- ✅ Epic 17 已完成 (6个Stories, 143+测试, ~7,500 LOC)
+- ✅ Epic 18 已完成 (5个Stories, 92测试, 完整回滚系统)
+- ✅ Epic 19 已完成 (5个Stories, 163测试, 进度追踪系统)
+- ⏳ SCP-006: 多模态支持 (可选)
+blocked_items: []
+technical_debt:
+- item: CLAUDE.md已优化（27KB → 12.2KB）
+  priority: completed
+  resolution: Epic 12.4 - Document Sharding ✅
+- item: 缺少OpenAPI Specs
+  priority: high
+  resolution: Epic 12.5 - 创建Canvas API规范
+- item: 缺少Contract Testing
+  priority: high
+  resolution: Epic 12.6 - 实现Schemathesis测试
+- item: 缺少ADR文档
+  priority: medium
+  resolution: Epic 12.7 - 记录架构决策
+- item: helpers.md未正确结构化
+  priority: medium
+  resolution: Epic 12.8 - 重构helpers.md
+devload_always_files:
+- docs/architecture/coding-standards.md
+- docs/architecture/tech-stack.md
+- docs/architecture/project-structure.md
+- docs/architecture/canvas-layer-architecture.md
+- CANVAS_ERROR_LOG.md
+stats:
+  total_epics: 15
+  completed_epics: 15
+  in_progress_epics: 0
+  pending_epics: 5
+  total_agents: 14
+  test_pass_rate: 99.2%
+  documentation_coverage: 100%
+  agentic_rag_modules: 32
+parallel_development:
+  enabled: true
+  version: 1.0.0
+  status_definitions:
+    pending: Story not yet started
+    draft: Story being drafted by @sm
+    in-progress: Story being developed by @dev
+    dev-complete: Development done, tests passed, awaiting QA
+    qa-review: Under QA review
+    completed: Fully completed and merged
+    blocked: Blocked by dependency or issue
+    deferred: Moved to next sprint/batch
+  current_sprint:
+    sprint_id: epic-20
+    phase: halt
+    total_stories: 1
+    active_worktrees: []
+    qa_groups: []
+    started_at: null
+  worktrees:
+    '13.1':
+      status: blocked
+      path: C:\Users\ROG\托福\Canvas-develop-13.1
+      branch: develop-13.1
+    '13.5':
+      status: qa-review
+      branch: develop-13.5
+    '13.7':
+      status: blocked
+      branch: develop-13.7
+    '14.1':
+      status: blocked
+      path: C:\Users\ROG\托福\Canvas-develop-14.1
+      branch: develop-14.1
+    '14.2':
+      status: blocked
+      path: C:\Users\ROG\托福\Canvas-develop-14.2
+      branch: develop-14.2
+    '14.3':
+      status: blocked
+      path: C:\Users\ROG\托福\Canvas-develop-14.3
+      branch: develop-14.3
+    16.1,16.2,16.3,16.4,16.5,16.6,16.7:
+      status: pending
+      branch: develop-16.1,16.2,16.3,16.4,16.5,16.6,16.7
+    '16.1':
+      status: draft
+      branch: develop-16.1
+    '16.3':
+      status: pending
+      branch: develop-16.3
+    '16.4':
+      status: pending
+      branch: develop-16.4
+    '16.5':
+      status: pending
+      branch: develop-16.5
+    '16.6':
+      status: pending
+      branch: develop-16.6
+    '16.7':
+      status: pending
+      branch: develop-16.7
+    '17.1':
+      status: completed
+      branch: develop-17.1
+      qa_date: 2025-12-03
+      qa_result: PASS (8/8 AC, 20 tests, metrics_middleware.py 305行)
+    '17.2':
+      status: completed
+      branch: develop-17.2
+      qa_date: 2025-12-03
+      qa_result: PASS (8/8 AC, 60 tests, agent_metrics.py + memory_metrics.py + resource_monitor.py)
+    '17.3':
+      status: completed
+      branch: develop-17.3
+      qa_date: 2025-12-03
+      qa_result: PASS (39/39 tests, alert_manager.py + notification_channels.py)
+    '17.4':
+      status: completed
+      branch: develop-17.4
+      qa_date: 2025-12-03
+      qa_result: PASS (33/33 tests, canvas_cache.py + batch_writer.py + resource_aware_scheduler.py)
+    '17.5':
+      status: completed
+      branch: develop-17.5
+      qa_date: 2025-12-03
+      qa_result: PASS (71/71 tests, E2E + Performance + Load tests)
+    '17.6':
+      status: completed
+      branch: develop-17.6
+      qa_date: 2025-12-04
+      qa_result: PASS (8/8 docs, monitoring-operations-guide.md + alert-runbook.md
+        + dashboard-user-guide.md + ...)
+    '20.1':
+      status: pending
+      branch: develop-20.1
+    '20.2':
+      status: pending
+      branch: develop-20.2
+    '20.3':
+      status: pending
+      branch: develop-20.3
+    '20.4':
+      status: pending
+      branch: develop-20.4
+  conflicts_detected: []
+notes:
+- Epic 12 is critical - Correcting BMad integration misalignment
+- 'After Epic 12: Focus on SDD (Specification-Driven Design)'
+- 'Key insight: BMad is conversation-driven, not script-driven'
+- Helper System = Phase 4 token optimizer, NOT global context manager
+- YAML Status = Progress tracking, NOT workflow orchestrator

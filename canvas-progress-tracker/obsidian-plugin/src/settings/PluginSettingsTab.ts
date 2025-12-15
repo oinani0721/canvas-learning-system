@@ -21,7 +21,8 @@ import {
     Setting,
     Notice,
     TextComponent,
-    ButtonComponent
+    ButtonComponent,
+    Modal
 } from 'obsidian';
 import type CanvasReviewPlugin from '../../main';
 import {
@@ -200,6 +201,108 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
      */
     private displayConnectionSettings(container: HTMLElement): void {
         const settings = this.plugin.settings;
+
+        // Backend Service Management Group
+        // @source Plan: 后端启动/停止UI实现计划
+        this.createSettingGroup(container, '后端服务管理');
+
+        // Backend Status Display
+        const backendManager = this.plugin.backendManager;
+        const currentStatus = backendManager?.getStatus() || 'stopped';
+        const statusEmoji: Record<string, string> = {
+            'stopped': '⏹️',
+            'starting': '⏳',
+            'running': '🟢',
+            'stopping': '⏳',
+            'error': '❌'
+        };
+        const statusText: Record<string, string> = {
+            'stopped': '已停止',
+            'starting': '启动中...',
+            'running': '运行中',
+            'stopping': '停止中...',
+            'error': '错误'
+        };
+
+        // Extract port from URL for display
+        const apiUrl = settings.claudeCodeUrl || 'http://localhost:8000';
+        const urlMatch = apiUrl.match(/:(\d+)/);
+        const port = urlMatch ? urlMatch[1] : '8000';
+
+        new Setting(container)
+            .setName('服务状态')
+            .setDesc(`${statusEmoji[currentStatus]} ${statusText[currentStatus]} (端口: ${port})`)
+            .addButton(button => {
+                const isRunning = currentStatus === 'running';
+                button
+                    .setButtonText(isRunning ? '停止' : '启动')
+                    .setIcon(isRunning ? 'square' : 'play')
+                    .setCta()
+                    .onClick(async () => {
+                        if (!backendManager) {
+                            new Notice('后端管理器未初始化');
+                            return;
+                        }
+                        button.setDisabled(true);
+                        button.setButtonText(isRunning ? '停止中...' : '启动中...');
+                        try {
+                            if (isRunning) {
+                                await backendManager.stop();
+                            } else {
+                                await backendManager.start();
+                            }
+                            // Refresh the settings panel to show new status
+                            setTimeout(() => this.displaySection('connection'), 500);
+                        } catch (error) {
+                            new Notice(`操作失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                            button.setDisabled(false);
+                            button.setButtonText(isRunning ? '停止' : '启动');
+                        }
+                    });
+            })
+            .addButton(button => button
+                .setButtonText('重启')
+                .setIcon('refresh-cw')
+                .onClick(async () => {
+                    if (!backendManager) {
+                        new Notice('后端管理器未初始化');
+                        return;
+                    }
+                    button.setDisabled(true);
+                    button.setButtonText('重启中...');
+                    try {
+                        await backendManager.stop();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        await backendManager.start();
+                        setTimeout(() => this.displaySection('connection'), 500);
+                    } catch (error) {
+                        new Notice(`重启失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                    }
+                    button.setDisabled(false);
+                    button.setButtonText('重启');
+                }));
+
+        // Backend Log Viewer Button
+        new Setting(container)
+            .setName('后端日志')
+            .setDesc('查看后端服务的输出日志')
+            .addButton(button => button
+                .setButtonText('查看日志')
+                .setIcon('file-text')
+                .onClick(() => {
+                    if (!backendManager) {
+                        new Notice('后端管理器未初始化');
+                        return;
+                    }
+                    const logs = backendManager.getOutputLog();
+                    if (logs.length === 0) {
+                        new Notice('暂无日志');
+                        return;
+                    }
+                    // Show logs in a modal
+                    const modal = new BackendLogModal(this.app, logs);
+                    modal.open();
+                }));
 
         // API Configuration Group
         this.createSettingGroup(container, 'API配置');
@@ -1620,5 +1723,92 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         message += `\n调试模式: ${this.plugin.settings.debugMode ? '启用' : '禁用'}`;
 
         alert(message);
+    }
+}
+
+/**
+ * Modal for displaying backend logs
+ *
+ * @source Plan: 后端启动/停止UI实现计划
+ */
+class BackendLogModal extends Modal {
+    private logs: string[];
+
+    constructor(app: App, logs: string[]) {
+        super(app);
+        this.logs = logs;
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('backend-log-modal');
+
+        // Header
+        contentEl.createEl('h2', { text: '后端服务日志' });
+
+        // Log container with scrolling
+        const logContainer = contentEl.createDiv('backend-log-container');
+        logContainer.style.maxHeight = '400px';
+        logContainer.style.overflow = 'auto';
+        logContainer.style.fontFamily = 'monospace';
+        logContainer.style.fontSize = '12px';
+        logContainer.style.backgroundColor = 'var(--background-secondary)';
+        logContainer.style.padding = '10px';
+        logContainer.style.borderRadius = '5px';
+        logContainer.style.whiteSpace = 'pre-wrap';
+        logContainer.style.wordBreak = 'break-all';
+
+        // Display logs
+        if (this.logs.length === 0) {
+            logContainer.createEl('p', {
+                text: '暂无日志',
+                cls: 'backend-log-empty'
+            });
+        } else {
+            this.logs.forEach(line => {
+                const lineEl = logContainer.createEl('div', {
+                    text: line,
+                    cls: 'backend-log-line'
+                });
+                // Color code based on content
+                if (line.includes('ERROR') || line.includes('error')) {
+                    lineEl.style.color = 'var(--text-error)';
+                } else if (line.includes('WARNING') || line.includes('warning')) {
+                    lineEl.style.color = 'var(--text-warning)';
+                } else if (line.includes('INFO') || line.includes('info')) {
+                    lineEl.style.color = 'var(--text-muted)';
+                }
+            });
+        }
+
+        // Button container
+        const buttonContainer = contentEl.createDiv('backend-log-buttons');
+        buttonContainer.style.marginTop = '10px';
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '10px';
+
+        // Copy button
+        const copyBtn = buttonContainer.createEl('button', {
+            text: '复制日志',
+            cls: 'mod-cta'
+        });
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(this.logs.join('\n'));
+            new Notice('日志已复制到剪贴板');
+        });
+
+        // Close button
+        const closeBtn = buttonContainer.createEl('button', {
+            text: '关闭'
+        });
+        closeBtn.addEventListener('click', () => {
+            this.close();
+        });
+    }
+
+    onClose(): void {
+        const { contentEl } = this;
+        contentEl.empty();
     }
 }

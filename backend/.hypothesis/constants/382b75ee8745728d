@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\retrievers\multimodal_retriever.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.5, 1.0, 2.0, 100, 200, 300, 1000, '$in', 'MultimodalResult', '_distance', 'audio', 'chapter', 'content', 'content_preview', 'description', 'distance', 'doc_id', 'file_path', 'id', 'image', 'media_type', 'metadata', 'multimodal_content', 'multimodal_results', 'page_number', 'pdf', 'query_vector', 'related_concepts', 'relevance_score', 'retrieved_at', 'source_location', 'thumbnail_path', 'timestamp', 'unknown', 'video']

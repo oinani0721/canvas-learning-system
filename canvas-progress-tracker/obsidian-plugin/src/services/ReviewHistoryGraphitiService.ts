@@ -105,7 +105,7 @@ export interface ReviewHistoryGraphitiSettings {
  * Default settings
  */
 export const DEFAULT_GRAPHITI_SETTINGS: ReviewHistoryGraphitiSettings = {
-    apiBaseUrl: 'http://localhost:8001/api/v1',
+    apiBaseUrl: 'http://localhost:8000/api/v1',
     timeout: 10000,
     enableCaching: true,
     cacheExpiry: 5 * 60 * 1000, // 5 minutes

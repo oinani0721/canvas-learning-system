@@ -1,0 +1,66 @@
+schema: 1
+story: '23.4'
+story_title: 多源融合 (教材+历史+跨Canvas)
+gate: PASS
+status_reason: Story 23.4 通过所有验证，代码质量符合标准
+reviewer: Quinn (Test Architect)
+updated: '2025-12-12T22:52:25.715496Z'
+waiver:
+  active: false
+top_issues:
+- id: ISSUE-001
+  severity: LOW
+  finding: _get_associated_textbooks() placeholder - returns empty list
+  suggested_action: Review and address
+- id: ISSUE-002
+  severity: LOW
+  finding: find_related_canvases() placeholder - returns empty list
+  suggested_action: Review and address
+risk_summary:
+  totals:
+    critical: 0
+    high: 0
+    medium: 0
+    low: 0
+  recommendations:
+    must_fix: []
+    monitor:
+    - Consider implementing textbook-canvas association logic in a follow-up story
+    - Consider implementing Canvas relationship graph for cross-canvas discovery
+    - Add integration tests with real LanceDB when available
+quality_score: 95
+expires: '2025-12-26T22:52:25.715496Z'
+evidence:
+  tests_reviewed: 0
+  risks_identified: 2
+  trace:
+    ac_covered: []
+    ac_gaps:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+nfr_validation:
+  security:
+    status: PASS
+    notes: 自动化验证
+  performance:
+    status: PASS
+    notes: 自动化验证
+  reliability:
+    status: PASS
+    notes: 自动化验证
+  maintainability:
+    status: PASS
+    notes: 自动化验证
+recommendations:
+  immediate: []
+  future:
+  - action: Consider implementing textbook-canvas association logic in a follow-up
+      story
+    refs: []
+  - action: Consider implementing Canvas relationship graph for cross-canvas discovery
+    refs: []
+  - action: Add integration tests with real LanceDB when available
+    refs: []

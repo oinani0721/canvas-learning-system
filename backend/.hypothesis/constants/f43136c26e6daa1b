@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\clients\graphiti_temporal_client.py
+# hypothesis_version: 6.148.1
+
+[0.0, 1000.0, 100, 500, 1000, ', ', 'average_score', 'cached_episodes', 'canvas_path', 'concept', 'concepts_learned', 'content', 'created_at', 'day', 'duration_seconds', 'edges', 'enable_fallback', 'entity_type', 'episode_body', 'episode_count', 'episode_type', 'fact', 'granularity', 'graphiti_available', 'graphiti_connected', 'id', 'initialized', 'invalid_at', 'learning', 'metadata', 'month', 'name', 'neo4j', 'neo4j_uri', 'period_end', 'period_start', 'periods', 'reference_time', 'score', 'source_description', 'summary', 'timeout_ms', 'total_concepts', 'total_episodes', 'user_id', 'uuid', 'valid_at', 'week']

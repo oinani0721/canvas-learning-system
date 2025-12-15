@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\rollback\snapshot_manager.py
+# hypothesis_version: 6.148.1
+
+[300, '.canvas-learning', '.json', '.json.gz', '.tmp', 'Auto snapshot', 'canvas_path', 'edges', 'id', 'last_operation_id', 'metadata', 'nodes', 'rollback_engine', 'snapshots', 'snapshots_index.json', 'system', 'timestamp', 'type']

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\clients\lancedb_client.py
+# hypothesis_version: 6.148.1
+
+[0.0, 1.0, 1000.0, 100, 384, 400, 768, 1000, '_distance', 'agent_type', 'backend/data/lancedb', 'batch_size', 'canvas_concepts', 'canvas_explanations', 'canvas_file', 'canvas_nodes', 'color', 'concept', 'content', 'cosine', 'cpu', 'db_available', 'db_path', 'distance', 'doc_id', 'document', 'embedding', 'enable_fallback', 'height', 'id', 'initialized', 'lancedb', 'lancedb_', 'lancedb_installed', 'metadata', 'metadata_json', 'node_id', 'node_type', 'nodes', 'original_distance', 'r', 'score', 'source', 'tables', 'text', 'timeout_ms', 'timestamp', 'type', 'utf-8', 'vector', 'width', 'x', 'y']

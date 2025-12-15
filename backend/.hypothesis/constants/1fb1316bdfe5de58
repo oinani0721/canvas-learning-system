@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\debug.py
+# hypothesis_version: 6.148.1
+
+[200, 404, 1000, '/api/v1/canvas/nodes', '/bugs', '/bugs/stats', '/bugs/{bug_id}', '2025-12-14T10:30:00Z', 'BUG-A1B2C3D4', 'Bug不存在', 'Bug日志列表', 'Bug统计信息', 'Bug详细信息', 'Invalid input', 'KeyError', 'Traceback...', 'TypeError', 'ValueError', 'application/json', 'bug_id', 'by_endpoint', 'by_error_type', 'canvas_path', 'code', 'content', 'description', 'endpoint', 'error_message', 'error_type', 'example', 'get_bug_by_id', 'get_bug_stats', 'get_recent_bugs', 'json', 'message', 'request_params', 'stack_trace', 'test.canvas', 'timestamp', 'total_bugs', '根据bug_id获取特定Bug的详细信息', '获取Bug统计信息', '获取最近的Bug日志', '获取特定Bug详情', '返回的最大记录数（1-200）']

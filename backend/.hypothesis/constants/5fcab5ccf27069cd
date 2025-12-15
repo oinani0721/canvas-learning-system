@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\retrievers\textbook_retriever.py
+# hypothesis_version: 6.148.1
+
+[0.3, 1000.0, 400, 500, 1000, 'canvas_file', 'content', 'cosine', 'file_path', 'messages', 'metadata', 'retrieval_batch_size', 'source', 'textbook', 'textbook_latency_ms', 'textbook_results', 'textbooks', '~/.lancedb']

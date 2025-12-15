@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\state_graph.py
+# hypothesis_version: 6.148.1
+
+[1.5, 2.0, 'canvas_agentic_rag', 'check_quality', 'content', 'fuse_results', 'low', 'messages', 'quality_grade', 'query_rewritten', 'rerank_results', 'retrieve_graphiti', 'retrieve_lancedb', 'retrieve_multimodal', 'retrieve_textbook', 'rewrite_count', 'rewrite_query', 'role', 'user']

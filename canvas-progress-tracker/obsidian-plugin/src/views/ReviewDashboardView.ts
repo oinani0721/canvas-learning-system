@@ -2266,13 +2266,16 @@ export class ReviewDashboardView extends ItemView {
 
         try {
             // Call backend API to generate verification canvas
+            // Fix: Use canvasPath (without .canvas extension) instead of canvasName (basename only)
+            // Backend expects full relative path, e.g., "Canvas/Math53/Lecture5"
+            const canvasPathWithoutExt = canvasPath.replace(/\.canvas$/i, '');
             const response = await fetch('http://localhost:8000/api/v1/review/generate', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    source_canvas: canvasName,
+                    source_canvas: canvasPathWithoutExt,
                     review_mode: mode,
                 }),
             });
@@ -2381,7 +2384,7 @@ export class ReviewDashboardView extends ItemView {
 
             // Call API to generate review canvas
             // This integrates with Epic 4's generate_review_canvas_file()
-            const response = await fetch('http://localhost:8001/api/v1/canvas/generate-review', {
+            const response = await fetch('http://localhost:8000/api/v1/canvas/generate-review', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -2441,7 +2444,7 @@ export class ReviewDashboardView extends ItemView {
     ): Promise<void> {
         try {
             // Call Graphiti MCP to store relationship
-            const response = await fetch('http://localhost:8001/api/v1/memory/relationship', {
+            const response = await fetch('http://localhost:8000/api/v1/memory/relationship', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

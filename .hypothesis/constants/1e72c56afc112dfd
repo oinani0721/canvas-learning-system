@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\rag_service.py
+# hypothesis_version: 6.148.1
+
+['LANGGRAPH_AVAILABLE', 'RAGService', 'ainvoke', 'canvas_file', 'content', 'error', 'fused_results', 'get_rag_service', 'graphiti_results', 'is_review_canvas', 'lancedb_results', 'messages', 'multimodal_results', 'quality_grade', 'query_rewritten', 'reranked_results', 'rewrite_count', 'role', 'src', 'user']

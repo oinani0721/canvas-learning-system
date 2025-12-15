@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\core\exception_handlers.py
+# hypothesis_version: 6.148.1
+
+[400, 500, '.', 'HTTP Error', 'Invalid value', 'Validation error', 'X-Request-ID', 'body', 'canvas_exception', 'code', 'details', 'errors', 'field', 'http_exception', 'loc', 'message', 'msg', 'request_id', 'type', 'unhandled_exception', 'unknown', 'validation_error', 'validation_exception']

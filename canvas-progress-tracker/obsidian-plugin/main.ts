@@ -45,6 +45,7 @@ import { CrossCanvasService } from './src/services/CrossCanvasService';
 import { ErrorHistoryManager } from './src/managers/ErrorHistoryManager';
 import { ErrorNotificationService } from './src/services/ErrorNotificationService';
 import { ApiError } from './src/api/types';
+import { BackendProcessManager, createBackendProcessManager, BackendStatus } from './src/services/BackendProcessManager';
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -90,6 +91,12 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Error Notification Service - Shows enhanced error notices (Story 21.5.5) */
     private errorNotificationService: ErrorNotificationService | null = null;
+
+    /** Backend Process Manager - Manages FastAPI backend lifecycle */
+    public backendManager: BackendProcessManager | null = null;
+
+    /** Current backend status for UI updates */
+    private backendStatus: BackendStatus = 'stopped';
 
     /**
      * Plugin load lifecycle method
@@ -280,7 +287,7 @@ export default class CanvasReviewPlugin extends Plugin {
             this.contextMenuManager.initialize(this);
 
             // Initialize API Client (Story 13.3)
-            const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8001';
+            const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
             this.apiClient = new ApiClient({
                 baseUrl: `${apiBaseUrl}/api/v1`,
                 timeout: 30000,
@@ -547,6 +554,55 @@ export default class CanvasReviewPlugin extends Plugin {
         } catch (error) {
             console.error('Canvas Review System: Failed to initialize error tracking:', error);
         }
+
+        // Initialize BackendProcessManager
+        // @source Plan: 后端启动/停止UI实现计划
+        try {
+            // Extract port from settings URL
+            const apiUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
+            const urlMatch = apiUrl.match(/:(\d+)/);
+            const port = urlMatch ? parseInt(urlMatch[1], 10) : 8000;
+
+            // Get backend path relative to vault
+            // FIX: Removed extra "Canvas/" - backend is at ../backend, not ../Canvas/backend
+            const vaultPath = (this.app.vault.adapter as any).basePath || '';
+            const backendPath = `${vaultPath}/../backend`;
+
+            this.backendManager = createBackendProcessManager(backendPath, {
+                onStatusChange: (status: BackendStatus, message?: string) => {
+                    this.backendStatus = status;
+                    if (this.settings.debugMode) {
+                        console.log(`Canvas Review System: Backend status changed to ${status}`, message);
+                    }
+                    // Show notice for important status changes
+                    if (status === 'running') {
+                        new Notice('✅ 后端服务已启动');
+                    } else if (status === 'stopped') {
+                        new Notice('⏹️ 后端服务已停止');
+                    } else if (status === 'error') {
+                        new Notice(`❌ 后端服务错误: ${message || '未知错误'}`);
+                    }
+                },
+                onOutput: (data: string) => {
+                    if (this.settings.debugMode) {
+                        console.log('Backend output:', data);
+                    }
+                },
+                onError: (error: string) => {
+                    console.error('Backend error:', error);
+                }
+            });
+
+            // Override the port from settings
+            (this.backendManager as any).config.port = port;
+
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: BackendProcessManager initialized');
+                console.log(`Canvas Review System: Backend configured for port ${port}`);
+            }
+        } catch (error) {
+            console.error('Canvas Review System: Failed to initialize BackendProcessManager:', error);
+        }
     }
 
     /**
@@ -591,6 +647,22 @@ export default class CanvasReviewPlugin extends Plugin {
 
         // Cleanup BackupProtectionManager
         this.backupProtectionManager = null;
+
+        // Cleanup BackendProcessManager
+        if (this.backendManager) {
+            try {
+                // Stop backend if running when plugin unloads
+                if (this.backendManager.getStatus() === 'running') {
+                    await this.backendManager.stop();
+                }
+                this.backendManager = null;
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: BackendProcessManager cleanup complete');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Error cleaning up BackendProcessManager:', error);
+            }
+        }
 
         // TODO: Story 13.3+ - Cleanup CommandWrapper
         // TODO: Story 13.4+ - Cleanup UIManager
@@ -823,6 +895,97 @@ export default class CanvasReviewPlugin extends Plugin {
             callback: async () => {
                 await this.showCrossCanvasSidebar();
                 new Notice('Canvas关联管理面板已打开');
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════
+        // Backend Service Control Commands
+        // @source Plan: 后端启动/停止UI实现计划
+        // ══════════════════════════════════════════════════════════════════
+
+        // Register "Toggle Backend" command
+        this.addCommand({
+            id: 'backend-toggle',
+            name: 'Backend: 切换后端状态 (Toggle Backend Server)',
+            icon: 'play',
+            callback: async () => {
+                if (!this.backendManager) {
+                    new Notice('后端管理器未初始化');
+                    return;
+                }
+                const currentStatus = this.backendManager.getStatus();
+                if (currentStatus === 'running') {
+                    new Notice('⏳ 正在停止后端服务...');
+                    await this.backendManager.stop();
+                } else if (currentStatus === 'stopped' || currentStatus === 'error') {
+                    new Notice('⏳ 正在启动后端服务...');
+                    await this.backendManager.start();
+                } else {
+                    new Notice(`后端服务当前状态: ${currentStatus}`);
+                }
+            }
+        });
+
+        // Register "Start Backend" command
+        this.addCommand({
+            id: 'backend-start',
+            name: 'Backend: 启动后端 (Start Backend Server)',
+            icon: 'play',
+            callback: async () => {
+                if (!this.backendManager) {
+                    new Notice('后端管理器未初始化');
+                    return;
+                }
+                const status = this.backendManager.getStatus();
+                if (status === 'running') {
+                    new Notice('后端服务已在运行中');
+                    return;
+                }
+                new Notice('⏳ 正在启动后端服务...');
+                await this.backendManager.start();
+            }
+        });
+
+        // Register "Stop Backend" command
+        this.addCommand({
+            id: 'backend-stop',
+            name: 'Backend: 停止后端 (Stop Backend Server)',
+            icon: 'square',
+            callback: async () => {
+                if (!this.backendManager) {
+                    new Notice('后端管理器未初始化');
+                    return;
+                }
+                const status = this.backendManager.getStatus();
+                if (status === 'stopped') {
+                    new Notice('后端服务已停止');
+                    return;
+                }
+                new Notice('⏳ 正在停止后端服务...');
+                await this.backendManager.stop();
+            }
+        });
+
+        // Register "Backend Status" command
+        this.addCommand({
+            id: 'backend-status',
+            name: 'Backend: 查看后端状态 (Show Backend Status)',
+            icon: 'info',
+            callback: () => {
+                if (!this.backendManager) {
+                    new Notice('后端管理器未初始化');
+                    return;
+                }
+                const status = this.backendManager.getStatus();
+                const statusEmoji: Record<BackendStatus, string> = {
+                    'stopped': '⏹️',
+                    'starting': '⏳',
+                    'running': '✅',
+                    'stopping': '⏳',
+                    'error': '❌'
+                };
+                const apiUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
+                new Notice(`${statusEmoji[status]} 后端状态: ${status}\n地址: ${apiUrl}`);
             }
         });
 
@@ -1144,7 +1307,7 @@ export default class CanvasReviewPlugin extends Plugin {
                 this.app,
                 activeFile,
                 eligibleNodes,
-                this.settings.claudeCodeUrl || 'http://localhost:8001/api/v1',
+                this.settings.claudeCodeUrl || 'http://localhost:8000/api/v1',
                 {
                     onConfirm: (sessionId: string, groups: NodeGroup[]) => {
                         this.handleGroupProcessingConfirm(activeFile, sessionId, groups);
@@ -1437,7 +1600,7 @@ export default class CanvasReviewPlugin extends Plugin {
             console.log('Canvas Review System: showJumpToAssociatedCanvasModal for:', canvasFile.path);
         }
 
-        const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8001';
+        const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
 
         try {
             // Fetch associations for current Canvas
@@ -1495,23 +1658,26 @@ export default class CanvasReviewPlugin extends Plugin {
     // ══════════════════════════════════════════════════════════════════
 
     /**
-     * Extract Canvas filename from complete file path
-     * Supports both Unix (/) and Windows (\) path separators
+     * 提取 Canvas 路径 (不含 .canvas 扩展名)
      *
-     * @param filePath - Complete file path (e.g., "笔记库/子目录/test.canvas")
-     * @returns Canvas filename only (e.g., "test.canvas"), or empty string if input is undefined/empty
+     * 后端 canvas_service.py 期望格式: "子目录/文件名" (无扩展名)
+     * 后端会自动添加 .canvas 扩展名
      *
-     * @source Story 21.5.1.1 - AC1: Fix canvas_name parameter construction
+     * @param filePath - Complete file path (e.g., "Canvas/Math53/Lecture5.canvas")
+     * @returns Canvas path without extension (e.g., "Canvas/Math53/Lecture5")
+     *
+     * @source Fix for Canvas path truncation issue (Agent API 500 Error)
      *
      * @example
-     * extractCanvasFileName("笔记库/子目录/test.canvas") // "test.canvas"
-     * extractCanvasFileName("笔记库\\子目录\\test.canvas") // "test.canvas"
-     * extractCanvasFileName("test.canvas") // "test.canvas"
+     * extractCanvasFileName("Canvas/Math53/Lecture5.canvas") // "Canvas/Math53/Lecture5"
+     * extractCanvasFileName("笔记库/test.canvas") // "笔记库/test"
+     * extractCanvasFileName("test.canvas") // "test"
      * extractCanvasFileName(undefined) // ""
      */
     private extractCanvasFileName(filePath: string | undefined): string {
         if (!filePath) return '';
-        return filePath.split(/[/\\]/).pop() || '';
+        // 移除 .canvas 扩展名，保留完整路径
+        return filePath.replace(/\.canvas$/i, '');
     }
 
     /**

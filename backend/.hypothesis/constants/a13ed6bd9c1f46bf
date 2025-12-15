@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\clients\graphiti_client.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.05, 0.2, 0.3, 0.5, 0.7, 1.0, 1000.0, 200, 1000, 'HAS_VERIFICATION', 'MCP module not found', '_graphiti_type', 'answer', 'batch_size', 'canvas', 'canvas_file', 'canvas_id', 'concept', 'concepts_reviewed', 'content', 'created_at', 'description', 'difficulty', 'doc_id', 'enable_fallback', 'end_time', 'entity_type', 'error_rate', 'fact', 'file_path', 'graphiti', 'graphiti_', 'graphiti_type', 'id', 'importance', 'initialized', 'last_review', 'learning_session', 'mcp_available', 'memory', 'metadata', 'name', 'next_review', 'node', 'node_count', 'node_id', 'original_id', 'question', 'review', 'review_count', 'review_date', 'score', 'similarity', 'source', 'source_canvas', 'stability', 'start_time', 'text', 'timeout_ms', 'timestamp', 'type', 'unknown', 'updated_at', 'uuid', 'verification_canvas']

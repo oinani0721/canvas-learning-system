@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\rag_service.py
+# hypothesis_version: 6.148.1
+
+[0.7, 'LANGGRAPH_AVAILABLE', 'RAGService', 'RAGServiceError', 'RAGUnavailableError', 'available', 'canvas_file', 'cascade', 'cohere', 'configurable', 'content', 'default_config', 'fused_results', 'fusion', 'fusion_latency_ms', 'fusion_strategy', 'get_rag_service', 'graphiti', 'graphiti_latency_ms', 'graphiti_results', 'hybrid_auto', 'import_error', 'initialized', 'is_review_canvas', 'lancedb', 'lancedb_latency_ms', 'lancedb_results', 'langgraph_available', 'latency_ms', 'local', 'low', 'messages', 'metadata', 'multimodal', 'multimodal_results', 'original_query', 'quality_grade', 'quality_threshold', 'query_rewritten', 'reranked_results', 'reranking', 'reranking_latency_ms', 'reranking_strategy', 'result_count', 'results', 'retrieval_batch_size', 'rewrite_count', 'role', 'rrf', 'src', 'total_latency_ms', 'user', 'weak_concepts', 'weak_concepts_limit', 'weighted']

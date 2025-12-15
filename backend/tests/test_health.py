@@ -476,14 +476,18 @@ class TestFullHealthEndpoint:
     [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
     """
 
-    def test_health_full_returns_200(self, client: TestClient):
+    def test_health_full_returns_valid_status(self, client: TestClient):
         """
-        Test that /health/full endpoint returns HTTP 200 OK.
+        Test that /health/full endpoint returns valid HTTP status.
+
+        Returns 200 if all OK, 503 if degraded (P1 fix: unified with /health/ai).
 
         [Source: docs/stories/21.5.4.story.md#AC-21.5.4.3]
+        [Source: docs/qa/gates/21.5.4-agent-health-check-enhancement.yml#OPS-001]
         """
         response = client.get("/api/v1/health/full")
-        assert response.status_code == 200
+        # 200 = all OK, 503 = degraded (consistent with /health/ai)
+        assert response.status_code in [200, 503]
 
     def test_health_full_response_structure(self, client: TestClient):
         """
@@ -624,5 +628,6 @@ class TestHealthEndpointsPerformance:
         response = client.get("/api/v1/health/full")
         elapsed_ms = (time.time() - start) * 1000
 
-        assert response.status_code == 200
+        # 200 = all OK, 503 = degraded (both valid)
+        assert response.status_code in [200, 503]
         assert elapsed_ms < 500, f"Response time {elapsed_ms:.2f}ms exceeds 500ms limit"

@@ -183,7 +183,7 @@ export class ProgressTrackerView extends ItemView {
         try {
             // Load current progress
             // ✅ P1 Task #9: Use settings.claudeCodeUrl instead of hardcoded URL
-            const baseUrl = this.plugin.settings.claudeCodeUrl || 'http://localhost:8001';
+            const baseUrl = this.plugin.settings.claudeCodeUrl || 'http://localhost:8000';
             const progressResponse = await fetch(
                 `${baseUrl}/api/v1/progress/analyze?` +
                 `review_canvas=${encodeURIComponent(this.state.canvasPath)}&` +

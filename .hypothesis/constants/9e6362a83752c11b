@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\state.py
+# hypothesis_version: 6.148.1
+
+['Canvas文件路径', 'Graphiti检索延迟 (ms)', 'Graphiti知识图谱检索结果', 'LanceDB向量检索结果', 'LanceDB检索延迟 (ms)', 'Query是否已重写', 'Reranking后的最终结果', 'Reranking延迟 (ms)', 'Reranking策略选择', 'cascade', 'cohere', 'high', 'hybrid_auto', 'local', 'low', 'medium', 'rrf', 'weighted', '原始用户查询', '多模态检索延迟 (ms)', '多模态检索结果 (图片、PDF等)', '当前重写次数 (最大2次)', '是否为检验白板场景', '结果质量评级', '融合算法延迟 (ms)', '融合算法输出结果', '融合算法选择']

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\models\__init__.py
+# hypothesis_version: 6.148.1
+
+['CanvasResponse', 'DecomposeRequest', 'DecomposeResponse', 'DiffResponse', 'EdgeCreate', 'EdgeRead', 'EdgeSide', 'ErrorResponse', 'ExplainRequest', 'ExplainResponse', 'GraphSyncStatusEnum', 'HealthCheckResponse', 'HealthStatus', 'NodeColor', 'NodeCreate', 'NodeRead', 'NodeScore', 'NodeType', 'NodeUpdate', 'OperationResponse', 'OperationTypeEnum', 'RecordReviewRequest', 'RecordReviewResponse', 'ReviewItem', 'RollbackRequest', 'RollbackResult', 'RollbackTypeEnum', 'ScoreRequest', 'ScoreResponse', 'SnapshotListResponse', 'SnapshotResponse', 'SnapshotTypeEnum']

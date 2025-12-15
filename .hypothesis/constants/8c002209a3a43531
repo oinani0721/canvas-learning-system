@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\core\bug_tracker.py
+# hypothesis_version: 6.148.1
+
+[100, 'API endpoint path', 'Error message', 'Exception class name', 'Full stack trace', 'Request parameters', 'a', 'bug_log_clear_failed', 'bug_log_parse_error', 'bug_log_read_failed', 'bug_log_write_failed', 'bug_logged', 'data/bug_log.jsonl', 'r', 'utf-8']

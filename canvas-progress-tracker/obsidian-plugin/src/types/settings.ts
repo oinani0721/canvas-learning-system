@@ -391,7 +391,7 @@ export interface PluginSettings {
  */
 export const DEFAULT_SETTINGS: PluginSettings = {
     // Connection Settings
-    claudeCodeUrl: 'http://localhost:8001',
+    claudeCodeUrl: 'http://localhost:8000',
     apiKey: '',
     aiProvider: 'google',
     aiModelName: 'gemini-2.0-flash-exp',

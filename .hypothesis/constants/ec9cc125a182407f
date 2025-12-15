@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\dependencies.py
+# hypothesis_version: 6.148.1
+
+[2000, 'AgentServiceDep', 'CanvasServiceDep', 'ReviewServiceDep', 'RollbackService', 'SettingsDep', 'TaskManagerDep', 'X-AI-Api-Key', 'X-AI-Base-Url', 'X-AI-Model', 'X-AI-Provider', 'X-Google-Api-Key', 'custom', 'gemini-2.0-flash-exp', 'get_agent_service', 'get_canvas_service', 'get_review_service', 'get_rollback_service', 'get_settings', 'get_task_manager', 'google', 'graphiti_enabled', 'graphiti_timeout_ms']

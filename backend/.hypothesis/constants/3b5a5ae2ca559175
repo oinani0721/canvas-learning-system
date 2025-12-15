@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\neo4j_client.py
+# hypothesis_version: 6.148.1
+
+['1.0', 'Concept', 'LEARNED', 'MATCH', 'MERGE', 'User', 'concept', 'conceptId', 'concept_id', 'concept_name', 'concepts', 'created_at', 'data', 'due_date', 'enabled', 'high', 'id', 'initialized', 'last_score', 'limit', 'medium', 'metadata', 'name', 'neo4j_memory.json', 'next_review', 'priority', 'r', 'relationships', 'review_count', 'score', 'storage_path', 'timestamp', 'total_concepts', 'total_relationships', 'total_users', 'userId', 'user_id', 'users', 'utf-8', 'version', 'w']

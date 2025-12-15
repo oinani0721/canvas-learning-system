@@ -69,7 +69,7 @@ export interface WebSocketServiceConfig {
 }
 
 const DEFAULT_CONFIG: WebSocketServiceConfig = {
-    baseUrl: 'ws://localhost:8001',
+    baseUrl: 'ws://localhost:8000',
     maxReconnectAttempts: 5,
     maxReconnectDelay: 30000,
     showNotifications: true

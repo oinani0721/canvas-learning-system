@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\gemini_client.py
+# hypothesis_version: 6.148.1
+
+[0.7, 120.0, ':', 'Authorization', 'Content-Type', 'GEMINI_MODEL', 'GOOGLE_API_KEY', 'agent_type', 'application/json', 'choices', 'completion_tokens', 'content', 'data', 'description', 'gemini-2.5-flash', 'image/png', 'images_processed', 'inherit', 'inline_data', 'input_tokens', 'media_type', 'message', 'messages', 'mime_type', 'model', 'name', 'output_tokens', 'prompt_token_count', 'prompt_tokens', 'response', 'role', 'system', 'temperature', 'text', 'unknown', 'usage', 'usage_metadata', 'user', 'utf-8']

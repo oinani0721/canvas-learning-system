@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\api\v1\endpoints\agents.py
+# hypothesis_version: 6.148.1
+
+[0.0, 200, 400, 404, 500, '/decompose/basic', '/decompose/deep', '/explain/comparison', '/explain/example', '/explain/four-level', '/explain/memory', '/explain/oral', '/score', '3', 'Agent service error', 'Validation error', 'accuracy', 'clarification', 'comparison', 'completeness', 'created_node_id', 'created_nodes', 'decompose_basic', 'decompose_deep', 'description', 'example', 'explain_comparison', 'explain_example', 'explain_four_level', 'explain_memory', 'explain_oral', 'explanation', 'four-level', 'height', 'id', 'imagery', 'memory', 'model', 'new_color', 'node_id', 'nodes', 'oral', 'originality', 'questions', 'score_understanding', 'scores', 'total', 'width', 'x', 'y']

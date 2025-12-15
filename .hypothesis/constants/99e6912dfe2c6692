@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\graphiti_client.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.1, 0.5, 0.6, 0.7, 0.8, 1.0, 1000.0, 100, 1000, 2000, '-', '...', '1.0', 'CONNECTED_TO', '_', 'agent_feedback', 'canvas_name', 'concept', 'connects', 'content', 'created_at', 'data', 'disabled', 'edge_id', 'enabled', 'entity1', 'entity2', 'episodes', 'error', 'error_count', 'failed', 'fromNode', 'from_node', 'graphiti_edges.json', 'id', 'initialized', 'key', 'label', 'mcp_available', 'mcp_unavailable', 'memories', 'metadata', 'no_edges', 'node_id', 'r', 'reason', 'relationship_type', 'relationships', 'relevance', 'score', 'skipped', 'storage_path', 'sync_count', 'synced', 'timeout', 'timestamp', 'toNode', 'to_node', 'total_episodes', 'total_memories', 'total_relationships', 'unknown', 'user_understanding', 'utf-8', 'version', 'w']

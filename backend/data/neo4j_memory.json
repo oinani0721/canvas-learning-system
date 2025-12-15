@@ -1,0 +1,278 @@
+{
+  "users": [
+    {
+      "id": "user-123",
+      "created_at": "2025-12-13T17:07:15.136199"
+    },
+    {
+      "id": "body",
+      "created_at": "2025-12-13T17:07:16.507477"
+    },
+    {
+      "id": "å􁱈,Ð>񐌷S񵢾𔲽󹺟ý«",
+      "created_at": "2025-12-13T17:07:17.332390"
+    },
+    {
+      "id": "ãÎ\f񡄥",
+      "created_at": "2025-12-13T17:09:27.652237"
+    },
+    {
+      "id": "𪭹򨪍񽒮óH¸FR􅙄",
+      "created_at": "2025-12-13T17:09:28.330222"
+    },
+    {
+      "id": "lê\n򋧜ç󣘺}",
+      "created_at": "2025-12-13T21:18:43.510506"
+    },
+    {
+      "id": "£񄝋ä¹",
+      "created_at": "2025-12-13T21:18:44.238907"
+    },
+    {
+      "id": " ",
+      "created_at": "2025-12-14T02:37:52.374353"
+    },
+    {
+      "id": "7󗛞􎕎\nïW񼪛򏤿",
+      "created_at": "2025-12-14T02:37:52.442017"
+    },
+    {
+      "id": "`\u001fíD",
+      "created_at": "2025-12-14T02:40:04.579473"
+    },
+    {
+      "id": "Inf",
+      "created_at": "2025-12-14T02:40:04.662919"
+    },
+    {
+      "id": "򤀮",
+      "created_at": "2025-12-14T04:06:10.296743"
+    },
+    {
+      "id": "exercise_lecture",
+      "created_at": "2025-12-14T04:10:01.284549"
+    },
+    {
+      "id": "Lâ®¼Õ򡈋±°",
+      "created_at": "2025-12-14T04:10:01.438064"
+    }
+  ],
+  "concepts": [
+    {
+      "id": "concept-1",
+      "name": "逆否命题",
+      "created_at": "2025-12-13T17:07:15.140281"
+    },
+    {
+      "id": "concept-2",
+      "name": "{",
+      "created_at": "2025-12-13T17:07:16.507477"
+    },
+    {
+      "id": "concept-3",
+      "name": "ÑqîÙý\"",
+      "created_at": "2025-12-13T17:07:17.332390"
+    },
+    {
+      "id": "concept-4",
+      "name": "𾉛ó",
+      "created_at": "2025-12-13T17:09:27.652237"
+    },
+    {
+      "id": "concept-5",
+      "name": "n\u000b»ÿ«񆨓 ×",
+      "created_at": "2025-12-13T17:09:28.330222"
+    },
+    {
+      "id": "concept-6",
+      "name": "񏋑񺆹~",
+      "created_at": "2025-12-13T21:18:43.510506"
+    },
+    {
+      "id": "concept-7",
+      "name": "7􊯆B¶õ",
+      "created_at": "2025-12-13T21:18:44.238907"
+    },
+    {
+      "id": "concept-8",
+      "name": "\u0005l񷛄񩓺ÄÎy",
+      "created_at": "2025-12-14T02:37:52.374353"
+    },
+    {
+      "id": "concept-9",
+      "name": "󶝁^",
+      "created_at": "2025-12-14T02:37:52.442017"
+    },
+    {
+      "id": "concept-10",
+      "name": "ô𸬸éäzH\u0013",
+      "created_at": "2025-12-14T02:40:04.579473"
+    },
+    {
+      "id": "concept-11",
+      "name": "á",
+      "created_at": "2025-12-14T02:40:04.662919"
+    },
+    {
+      "id": "concept-12",
+      "name": "ß",
+      "created_at": "2025-12-14T04:06:10.296743"
+    },
+    {
+      "id": "concept-13",
+      "name": "îÊ򔛩\u001c\f򚼊񐗜Î",
+      "created_at": "2025-12-14T04:10:01.284549"
+    },
+    {
+      "id": "concept-14",
+      "name": "\tÖ)k",
+      "created_at": "2025-12-14T04:10:01.438064"
+    }
+  ],
+  "relationships": [
+    {
+      "id": "learned-1",
+      "user_id": "user-123",
+      "concept_id": "concept-1",
+      "concept_name": "逆否命题",
+      "timestamp": "2025-12-14T04:10:00.957778",
+      "last_score": 85,
+      "next_review": "2025-12-15T04:10:00.957778",
+      "review_count": 14
+    },
+    {
+      "id": "learned-2",
+      "user_id": "body",
+      "concept_id": "concept-2",
+      "concept_name": "{",
+      "timestamp": "2025-12-13T17:07:16.507477",
+      "last_score": null,
+      "next_review": "2025-12-14T17:07:16.507477",
+      "review_count": 1
+    },
+    {
+      "id": "learned-3",
+      "user_id": "å􁱈,Ð>񐌷S񵢾𔲽󹺟ý«",
+      "concept_id": "concept-3",
+      "concept_name": "ÑqîÙý\"",
+      "timestamp": "2025-12-13T17:07:17.332390",
+      "last_score": null,
+      "next_review": "2025-12-14T17:07:17.332390",
+      "review_count": 1
+    },
+    {
+      "id": "learned-4",
+      "user_id": "ãÎ\f񡄥",
+      "concept_id": "concept-4",
+      "concept_name": "𾉛ó",
+      "timestamp": "2025-12-13T17:09:27.652237",
+      "last_score": 44,
+      "next_review": "2025-12-14T17:09:27.652237",
+      "review_count": 1
+    },
+    {
+      "id": "learned-5",
+      "user_id": "𪭹򨪍񽒮óH¸FR􅙄",
+      "concept_id": "concept-5",
+      "concept_name": "n\u000b»ÿ«񆨓 ×",
+      "timestamp": "2025-12-13T17:09:28.330222",
+      "last_score": 3,
+      "next_review": "2025-12-14T17:09:28.330222",
+      "review_count": 1
+    },
+    {
+      "id": "learned-6",
+      "user_id": "lê\n򋧜ç󣘺}",
+      "concept_id": "concept-6",
+      "concept_name": "񏋑񺆹~",
+      "timestamp": "2025-12-13T21:18:43.510506",
+      "last_score": null,
+      "next_review": "2025-12-14T21:18:43.510506",
+      "review_count": 1
+    },
+    {
+      "id": "learned-7",
+      "user_id": "£񄝋ä¹",
+      "concept_id": "concept-7",
+      "concept_name": "7􊯆B¶õ",
+      "timestamp": "2025-12-13T21:18:44.238907",
+      "last_score": 62,
+      "next_review": "2025-12-14T21:18:44.238907",
+      "review_count": 1
+    },
+    {
+      "id": "learned-8",
+      "user_id": " ",
+      "concept_id": "concept-8",
+      "concept_name": "\u0005l񷛄񩓺ÄÎy",
+      "timestamp": "2025-12-14T02:37:52.374353",
+      "last_score": null,
+      "next_review": "2025-12-15T02:37:52.374353",
+      "review_count": 1
+    },
+    {
+      "id": "learned-9",
+      "user_id": "7󗛞􎕎\nïW񼪛򏤿",
+      "concept_id": "concept-9",
+      "concept_name": "󶝁^",
+      "timestamp": "2025-12-14T02:37:52.442017",
+      "last_score": null,
+      "next_review": "2025-12-15T02:37:52.442017",
+      "review_count": 1
+    },
+    {
+      "id": "learned-10",
+      "user_id": "`\u001fíD",
+      "concept_id": "concept-10",
+      "concept_name": "ô𸬸éäzH\u0013",
+      "timestamp": "2025-12-14T02:40:04.579473",
+      "last_score": null,
+      "next_review": "2025-12-15T02:40:04.579473",
+      "review_count": 1
+    },
+    {
+      "id": "learned-11",
+      "user_id": "Inf",
+      "concept_id": "concept-11",
+      "concept_name": "á",
+      "timestamp": "2025-12-14T02:40:04.662919",
+      "last_score": 100,
+      "next_review": "2025-12-15T02:40:04.662919",
+      "review_count": 1
+    },
+    {
+      "id": "learned-12",
+      "user_id": "򤀮",
+      "concept_id": "concept-12",
+      "concept_name": "ß",
+      "timestamp": "2025-12-14T04:06:10.296743",
+      "last_score": null,
+      "next_review": "2025-12-15T04:06:10.296743",
+      "review_count": 1
+    },
+    {
+      "id": "learned-13",
+      "user_id": "exercise_lecture",
+      "concept_id": "concept-13",
+      "concept_name": "îÊ򔛩\u001c\f򚼊񐗜Î",
+      "timestamp": "2025-12-14T04:10:01.284549",
+      "last_score": 4,
+      "next_review": "2025-12-15T04:10:01.284549",
+      "review_count": 1
+    },
+    {
+      "id": "learned-14",
+      "user_id": "Lâ®¼Õ򡈋±°",
+      "concept_id": "concept-14",
+      "concept_name": "\tÖ)k",
+      "timestamp": "2025-12-14T04:10:01.438064",
+      "last_score": null,
+      "next_review": "2025-12-15T04:10:01.438064",
+      "review_count": 1
+    }
+  ],
+  "metadata": {
+    "created_at": "2025-12-13T17:06:59.074847",
+    "version": "1.0"
+  }
+}

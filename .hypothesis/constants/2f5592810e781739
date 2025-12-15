@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\memory_service.py
+# hypothesis_version: 6.148.1
+
+['agent_type', 'average', 'canvas_path', 'concept', 'concept_id', 'content', 'duration_seconds', 'episode_id', 'episode_type', 'first', 'improvement', 'initialized', 'items', 'last', 'learning', 'neo4j_stats', 'node_id', 'page', 'page_size', 'pages', 'review_count', 'score', 'score_trend', 'timeline', 'timestamp', 'total', 'total_episodes', 'total_reviews', 'user_id']

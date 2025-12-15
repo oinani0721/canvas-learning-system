@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\rollback\models.py
+# hypothesis_version: 6.148.1
+
+['Operation', 'OperationData', 'OperationMetadata', 'Snapshot', 'SnapshotMetadata', 'after', 'agent_id', 'auto', 'batch_operation', 'before', 'canvas_data', 'canvas_path', 'checkpoint', 'created_by', 'data', 'description', 'edge_add', 'edge_delete', 'edge_ids', 'id', 'last_operation_id', 'manual', 'metadata', 'node_add', 'node_color_change', 'node_delete', 'node_ids', 'node_modify', 'request_id', 'size_bytes', 'system', 'tags', 'timestamp', 'type', 'user_id']

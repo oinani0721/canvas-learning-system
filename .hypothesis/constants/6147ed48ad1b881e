@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\metrics_collector.py
+# hypothesis_version: 6.148.1
+
+[0.1, 2.0, 'HealthStatus', 'MetricsSummary', 'agent', 'agent_metrics', 'alerts', 'avg_latency_s', 'by_type', 'components', 'count', 'cpu', 'cpu_percent', 'critical', 'degraded', 'error', 'error_count', 'healthy', 'invocations_total', 'level', 'memory', 'memory_metrics', 'memory_percent', 'message', 'overall_health', 'overall_status', 'percent', 'queries_total', 'resource', 'resources', 'source', 'status', 'timestamp', 'unhealthy', 'unknown', 'warning']

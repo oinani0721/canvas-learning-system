@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\clients\provider_factory.py
+# hypothesis_version: 6.148.1
+
+[0.7, 'AI_API_KEY', 'AI_BASE_URL', 'AI_MODEL_NAME', 'AI_PROVIDER', 'ANTHROPIC_API_KEY', 'All providers closed', 'GEMINI_MODEL', 'GOOGLE_API_KEY', 'OPENAI_API_KEY', 'ProviderFactory', 'active_provider', 'anthropic', 'available', 'enabled', 'gemini-2.0-flash-exp', 'google', 'gpt-4o', 'health', 'inf', 'initialized', 'last_switch_time', 'latency', 'model', 'name', 'openai', 'priority', 'providers', 'round_robin', 'selection_strategy', 'switch_count', 'true']

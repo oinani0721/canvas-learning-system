@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\rollback\rollback_engine.py
+# hypothesis_version: 6.148.1
+
+[100, '.tmp', 'Rollback failed', 'Rollback successful', 'canvas_path', 'color', 'description', 'edges', 'id', 'latest_operation_id', 'message', 'nodes', 'operation', 'operation_id', 'operations', 'pending', 'skipped', 'snapshot', 'snapshot_id', 'synced', 'timepoint', 'timestamp', 'type']

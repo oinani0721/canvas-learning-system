@@ -1,6 +1,84 @@
 [
   {
     "canvas_path": "test.canvas",
+    "id": "9cf8297c-dbd6-4efd-a575-5530cb4fb0f6",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.441932+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "cbcb7e16-5c59-4c67-99c3-4d790c08e0a2",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (timepoint)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.383200+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "571cdc38-8f73-42fd-b2d6-e24520dd4170",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.326783+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "663123d8-5800-449b-af65-f4e0abf01688",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.251557+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "fbd6ced3-5ce1-4098-994e-7259b27c2905",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Tagged snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.213741+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
+    "id": "95039ef1-0ce4-4e64-b233-a56496d5fe72",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "E2E test snapshot",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.170034+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "test.canvas",
     "id": "90b4f474-dfbb-44dc-870a-79fc9f73362e",
     "last_operation_id": null,
     "metadata": {

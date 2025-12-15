@@ -1,0 +1,71 @@
+{
+  "epic_id": "24",
+  "start_time": "2025-12-13T17:52:28.439703",
+  "end_time": "2025-12-13T17:52:28.439703",
+  "story_ids": [
+    "24.3",
+    "24.4",
+    "24.5"
+  ],
+  "metadata": {},
+  "entries": [
+    {
+      "timestamp": "2025-12-13T17:52:28.439703",
+      "node_name": "po_node",
+      "status": "executed",
+      "reason": "Normal execution",
+      "artifacts": [],
+      "duration_ms": null,
+      "error_message": null,
+      "metadata": {
+        "node": "po_node",
+        "started_at": "2025-12-13T17:43:44.531941",
+        "status": "completed",
+        "completed_at": "2025-12-13T17:52:28.211755"
+      }
+    },
+    {
+      "timestamp": "2025-12-13T17:52:28.439703",
+      "node_name": "halt_node",
+      "status": "executed",
+      "reason": "Normal execution",
+      "artifacts": [],
+      "duration_ms": null,
+      "error_message": null,
+      "metadata": {
+        "node": "halt_node",
+        "started_at": "2025-12-13T17:52:28.213994",
+        "status": "completed",
+        "completed_at": "2025-12-13T17:52:28.284848"
+      }
+    },
+    {
+      "timestamp": "2025-12-13T17:52:28.439703",
+      "node_name": "sm_node",
+      "status": "skipped",
+      "reason": "CLI flag: --skip-sm",
+      "artifacts": [],
+      "duration_ms": null,
+      "error_message": null,
+      "metadata": {}
+    }
+  ],
+  "compliance": {
+    "compliant": false,
+    "executed_nodes": [
+      "po_node",
+      "halt_node"
+    ],
+    "skipped_nodes": [
+      "sm_node"
+    ],
+    "failed_nodes": [],
+    "missing_required": [
+      "qa_node",
+      "dev_node",
+      "commit_node"
+    ],
+    "order_violations": [],
+    "total_entries": 3
+  }
+}

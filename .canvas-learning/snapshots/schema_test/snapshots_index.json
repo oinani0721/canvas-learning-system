@@ -1,6 +1,32 @@
 [
   {
     "canvas_path": "schema_test.canvas",
+    "id": "f397956f-bbc6-4c1d-a68c-353b0029f7a5",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.792089+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "acb5205a-0c9d-401c-b248-99bfe6cdd3da",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-14T05:19:56.752003+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
     "id": "03accc6f-ceae-45ea-9705-cd0d7d099285",
     "last_operation_id": null,
     "metadata": {

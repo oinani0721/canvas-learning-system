@@ -1,0 +1,43 @@
+# Parallel Development Worktree Tracking
+# Updated: 2025-12-14T17:30:00+08:00
+
+active_worktrees:
+  - story_id: "21.5.1.1"
+    story_title: "修复前端canvas_name参数构建"
+    epic: "EPIC-21.5.1"
+    priority: "P0"
+    branch: "develop-story-21.5.1.1"
+    worktree_path: "C:/Users/ROG/托福/Canvas-develop-21.5.1.1"
+    status: "initialized"
+    created: "2025-12-14T17:30:00+08:00"
+    qa_gate: null
+
+  - story_id: "21.5.1.2"
+    story_title: "优化后端Path Traversal安全检查"
+    epic: "EPIC-21.5.1"
+    priority: "P1"
+    branch: "develop-story-21.5.1.2"
+    worktree_path: "C:/Users/ROG/托福/Canvas-develop-21.5.1.2"
+    status: "initialized"
+    created: "2025-12-14T17:30:00+08:00"
+    qa_gate: null
+
+# Conflict Analysis
+conflict_matrix:
+  "21.5.1.1_21.5.1.2": "no_conflict"  # Frontend vs Backend - different files
+
+# Pending Stories (to be developed after merge)
+pending_stories:
+  - story_id: "21.5.1.3"
+    reason: "Depends on 21.5.1.1 and 21.5.1.2 completion"
+    dependencies: ["21.5.1.1", "21.5.1.2"]
+
+# Session Statistics
+statistics:
+  total_worktrees: 2
+  initialized: 2
+  in_progress: 0
+  dev_complete: 0
+  qa_reviewing: 0
+  ready_to_merge: 0
+  merged: 0

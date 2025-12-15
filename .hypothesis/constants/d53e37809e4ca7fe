@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\config.py
+# hypothesis_version: 6.148.1
+
+[0.7, 10.0, 'cascade', 'cohere', 'hybrid_auto', 'local', 'rrf', 'weighted']

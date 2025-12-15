@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\resource_monitor.py
+# hypothesis_version: 6.148.1
+
+[0.0, 5.0, 70.0, 80.0, 90.0, 95.0, 100.0, '/', 'C:\\', 'CPU usage percentage', 'Disk free in bytes', 'Disk used in bytes', 'Memory used in bytes', 'available_bytes', 'cpu', 'cpu_critical', 'cpu_warning', 'critical', 'degraded', 'disk', 'disk_critical', 'disk_warning', 'error', 'free_bytes', 'healthy', 'memory', 'memory_critical', 'memory_warning', 'mount_point', 'normal', 'overall_status', 'percent', 'status', 'threshold_critical', 'threshold_warning', 'total_bytes', 'used_bytes', 'warning', 'win32']

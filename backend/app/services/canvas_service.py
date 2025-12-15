@@ -70,7 +70,10 @@ class CanvasService:
     def _get_canvas_path(self, canvas_name: str) -> Path:
         """Get full path to canvas file."""
         self._validate_canvas_name(canvas_name)
-        return Path(self.canvas_base_path) / f"{canvas_name}.canvas"
+        # ✅ FIX: Normalize canvas_name by removing existing .canvas extension
+        # This handles both "Canvas/Math53/Lecture5" and "Canvas/Math53/Lecture5.canvas"
+        normalized_name = canvas_name.removesuffix('.canvas')
+        return Path(self.canvas_base_path) / f"{normalized_name}.canvas"
 
     async def read_canvas(self, canvas_name: str) -> Dict[str, Any]:
         """

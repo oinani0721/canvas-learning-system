@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\clients\temporal_client.py
+# hypothesis_version: 6.148.1
+
+[0.3, 0.7, 1000.0, 1000, 'db_path', 'enable_fallback', 'initialized', 'learning_behavior.db', 'timeout_ms']

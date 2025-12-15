@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\memory_metrics.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, '_count', '_sum', '_total', 'avg_latency_s', 'batch_read', 'batch_write', 'by_operation', 'by_type', 'delete', 'error', 'error_count', 'error_type', 'graphiti', 'lancedb', 'memory_type', 'operation', 'queries_total', 'query_count', 'read', 'search', 'sqlite', 'status', 'success', 'success_count', 'sync', 'temporal', 'unknown', 'write']

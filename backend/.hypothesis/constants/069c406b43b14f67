@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\middleware\agent_metrics.py
+# hypothesis_version: 6.148.1
+
+[0.0, 0.1, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 'P', 'R', '_count', '_sum', '_total', 'agent_type', 'avg_execution_time_s', 'avg_time_s', 'basic-decomposition', 'by_type', 'canvas-orchestrator', 'clarification-path', 'comparison-table', 'count', 'deep-decomposition', 'error', 'error_count', 'error_type', 'example-teaching', 'general-purpose', 'invocations_total', 'memory-anchor', 'oral-explanation', 'scoring-agent', 'status', 'success', 'success_count', 'unknown']
