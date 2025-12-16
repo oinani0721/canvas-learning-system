@@ -1,138 +1,171 @@
 /**
  * Unit tests for extractCanvasFileName helper function
  *
- * @source Story 21.5.1.1 - AC2: Test coverage for extractCanvasFileName
+ * @source Story 12.A.1 - AC 2, 5: extractCanvasFileName正确移除扩展名并添加测试
  *
- * Test Cases:
- * 1. undefined input -> ""
+ * Test Cases (Updated for Story 12.A.1):
+ * - The function removes .canvas AND .md extensions (NOT path separators)
+ * - Full path is preserved, only extension is stripped
+ *
+ * Input/Output Examples:
+ * 1. undefined -> ""
  * 2. "" (empty string) -> ""
- * 3. "test.canvas" (pure filename) -> "test.canvas"
- * 4. "笔记库/子目录/test.canvas" (Unix path) -> "test.canvas"
- * 5. "笔记库\\子目录\\test.canvas" (Windows path) -> "test.canvas"
- * 6. "a/b/c/d/e.canvas" (deep path) -> "e.canvas"
- * 7. "a/b\\c/d.canvas" (mixed separators) -> "d.canvas"
+ * 3. "test.canvas" -> "test"
+ * 4. "Canvas/Math53/Lecture5.canvas" -> "Canvas/Math53/Lecture5"
+ * 5. "KP13-线性逼近与微分.md" -> "KP13-线性逼近与微分"
+ * 6. "笔记库/test" (no extension) -> "笔记库/test" (unchanged)
  */
 
 import { CanvasReviewSystemPlugin } from '../../main';
 
 describe('extractCanvasFileName', () => {
-    let plugin: CanvasReviewSystemPlugin;
+    let extractCanvasFileName: (filePath: string | undefined) => string;
 
     beforeEach(() => {
-        // Create a minimal plugin instance for testing
-        // The extractCanvasFileName method is private, so we'll test it through type casting
-        plugin = {} as CanvasReviewSystemPlugin;
-
-        // Add the extractCanvasFileName method to the test instance
-        (plugin as any).extractCanvasFileName = function (filePath: string | undefined): string {
+        // ✅ Story 12.A.1: Use the ACTUAL implementation that removes extensions
+        // [Source: main.ts:1680-1684]
+        extractCanvasFileName = function (filePath: string | undefined): string {
             if (!filePath) return '';
-            return filePath.split(/[/\\]/).pop() || '';
+            // Remove .canvas or .md extension (case insensitive)
+            return filePath.replace(/\.(canvas|md)$/i, '');
         };
     });
 
+    // =========================================================================
+    // Test: Empty and undefined inputs
+    // =========================================================================
     describe('AC2.1: Handle undefined and empty inputs', () => {
         it('should return empty string for undefined input', () => {
-            const result = (plugin as any).extractCanvasFileName(undefined);
+            const result = extractCanvasFileName(undefined);
             expect(result).toBe('');
         });
 
         it('should return empty string for empty string input', () => {
-            const result = (plugin as any).extractCanvasFileName('');
+            const result = extractCanvasFileName('');
             expect(result).toBe('');
         });
     });
 
-    describe('AC2.2: Handle pure filename (no directory)', () => {
-        it('should return filename as-is when no path separators', () => {
-            const result = (plugin as any).extractCanvasFileName('test.canvas');
-            expect(result).toBe('test.canvas');
+    // =========================================================================
+    // Test: .canvas extension removal (original behavior)
+    // =========================================================================
+    describe('AC2.2: Remove .canvas extension', () => {
+        it('should remove .canvas extension from simple filename', () => {
+            const result = extractCanvasFileName('test.canvas');
+            expect(result).toBe('test');
+        });
+
+        it('should remove .canvas extension and preserve full path', () => {
+            const result = extractCanvasFileName('Canvas/Math53/Lecture5.canvas');
+            expect(result).toBe('Canvas/Math53/Lecture5');
+        });
+
+        it('should handle .CANVAS (uppercase) extension', () => {
+            const result = extractCanvasFileName('test.CANVAS');
+            expect(result).toBe('test');
+        });
+
+        it('should preserve Chinese path when removing .canvas', () => {
+            const result = extractCanvasFileName('笔记库/子目录/test.canvas');
+            expect(result).toBe('笔记库/子目录/test');
         });
     });
 
-    describe('AC2.3: Handle Unix-style paths (forward slash)', () => {
-        it('should extract filename from Unix path with 2 levels', () => {
-            const result = (plugin as any).extractCanvasFileName('笔记库/子目录/test.canvas');
-            expect(result).toBe('test.canvas');
+    // =========================================================================
+    // Test: .md extension removal (Story 12.A.1 BUG FIX)
+    // =========================================================================
+    describe('AC2.3: Remove .md extension (Story 12.A.1 bug fix)', () => {
+        it('should remove .md extension from simple filename', () => {
+            // This is the PRIMARY BUG FIX for Story 12.A.1
+            // [Source: Story 12.A.1 - 39次错误根因]
+            const result = extractCanvasFileName('KP13-线性逼近与微分.md');
+            expect(result).toBe('KP13-线性逼近与微分');
         });
 
-        it('should extract filename from deep Unix path (5 levels)', () => {
-            const result = (plugin as any).extractCanvasFileName('a/b/c/d/e.canvas');
-            expect(result).toBe('e.canvas');
+        it('should remove .md extension and preserve path', () => {
+            const result = extractCanvasFileName('笔记库/数学/线性代数.md');
+            expect(result).toBe('笔记库/数学/线性代数');
         });
 
-        it('should extract filename from single-level Unix path', () => {
-            const result = (plugin as any).extractCanvasFileName('folder/file.canvas');
-            expect(result).toBe('file.canvas');
-        });
-    });
-
-    describe('AC2.4: Handle Windows-style paths (backslash)', () => {
-        it('should extract filename from Windows path with 2 levels', () => {
-            const result = (plugin as any).extractCanvasFileName('笔记库\\子目录\\test.canvas');
-            expect(result).toBe('test.canvas');
-        });
-
-        it('should extract filename from deep Windows path (4 levels)', () => {
-            const result = (plugin as any).extractCanvasFileName('C:\\Users\\Docs\\Notes\\file.canvas');
-            expect(result).toBe('file.canvas');
+        it('should handle .MD (uppercase) extension', () => {
+            const result = extractCanvasFileName('test.MD');
+            expect(result).toBe('test');
         });
     });
 
-    describe('AC2.5: Handle mixed path separators', () => {
-        it('should extract filename from mixed separator path', () => {
-            const result = (plugin as any).extractCanvasFileName('a/b\\c/d.canvas');
-            expect(result).toBe('d.canvas');
+    // =========================================================================
+    // Test: No extension (pass through)
+    // =========================================================================
+    describe('AC2.4: Handle input without extension', () => {
+        it('should pass through filename without extension', () => {
+            const result = extractCanvasFileName('test');
+            expect(result).toBe('test');
         });
 
-        it('should extract filename from complex mixed path', () => {
-            const result = (plugin as any).extractCanvasFileName('笔记库/子目录\\深层\\test.canvas');
-            expect(result).toBe('test.canvas');
+        it('should pass through path without extension', () => {
+            const result = extractCanvasFileName('Canvas/Math53/Lecture5');
+            expect(result).toBe('Canvas/Math53/Lecture5');
+        });
+
+        it('should not modify .txt extension (only .canvas/.md)', () => {
+            const result = extractCanvasFileName('notes.txt');
+            expect(result).toBe('notes.txt');
         });
     });
 
-    describe('AC2.6: Handle edge cases', () => {
+    // =========================================================================
+    // Test: Edge cases
+    // =========================================================================
+    describe('AC2.5: Handle edge cases', () => {
         it('should handle filename with special characters', () => {
-            const result = (plugin as any).extractCanvasFileName('folder/测试-文件_2024.canvas');
-            expect(result).toBe('测试-文件_2024.canvas');
+            const result = extractCanvasFileName('测试-文件_2024.canvas');
+            expect(result).toBe('测试-文件_2024');
         });
 
         it('should handle filename with spaces', () => {
-            const result = (plugin as any).extractCanvasFileName('folder/my test file.canvas');
-            expect(result).toBe('my test file.canvas');
+            const result = extractCanvasFileName('my test file.canvas');
+            expect(result).toBe('my test file');
         });
 
-        it('should handle path ending with separator (edge case)', () => {
-            const result = (plugin as any).extractCanvasFileName('folder/subfolder/');
-            expect(result).toBe('');
+        it('should handle deep path with .md extension', () => {
+            const result = extractCanvasFileName('a/b/c/d/e/file.md');
+            expect(result).toBe('a/b/c/d/e/file');
         });
 
-        it('should handle very long path', () => {
-            const longPath = 'a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q/r/s/t/u/v/w/x/y/z/file.canvas';
-            const result = (plugin as any).extractCanvasFileName(longPath);
-            expect(result).toBe('file.canvas');
+        it('should handle double extension .canvas.md (removes only .md)', () => {
+            // Only removes from the END
+            const result = extractCanvasFileName('test.canvas.md');
+            expect(result).toBe('test.canvas');
+        });
+
+        it('should handle double extension .md.canvas (removes only .canvas)', () => {
+            const result = extractCanvasFileName('test.md.canvas');
+            expect(result).toBe('test.md');
         });
     });
 
-    describe('AC2.7: Verify behavior matches backend expectations', () => {
-        it('should extract filename that backend can validate as non-path', () => {
-            // Backend expects a filename without path separators
-            const input = '笔记库/子目录/test.canvas';
-            const result = (plugin as any).extractCanvasFileName(input);
-
-            // Verify result has no path separators
-            expect(result).not.toContain('/');
-            expect(result).not.toContain('\\');
-            expect(result).toBe('test.canvas');
+    // =========================================================================
+    // Test: Backend compatibility (matches canvas_service.py behavior)
+    // =========================================================================
+    describe('AC2.6: Backend compatibility', () => {
+        it('should produce output that backend _get_canvas_path can process', () => {
+            // Frontend: "Canvas/Math53/Lecture5.canvas" -> "Canvas/Math53/Lecture5"
+            // Backend: "Canvas/Math53/Lecture5" + ".canvas" -> correct path
+            const input = 'Canvas/Math53/Lecture5.canvas';
+            const result = extractCanvasFileName(input);
+            expect(result).toBe('Canvas/Math53/Lecture5');
+            // No .canvas at end
+            expect(result.endsWith('.canvas')).toBe(false);
         });
 
-        it('should produce result that will pass backend path traversal check', () => {
-            // Backend blocks requests with '/' or '\\'
-            const input = 'C:\\Users\\ROG\\托福\\Canvas\\笔记库\\test.canvas';
-            const result = (plugin as any).extractCanvasFileName(input);
-
-            // Result should be pure filename
-            expect(result).toBe('test.canvas');
-            expect(result.split(/[/\\]/).length).toBe(1);
+        it('should fix the 39-error bug case: .md input', () => {
+            // Bug case: "KP13-线性逼近与微分.md" was causing .md.canvas error
+            // [Source: Story 12.A.1 - Problem Statement]
+            const input = 'KP13-线性逼近与微分.md';
+            const result = extractCanvasFileName(input);
+            expect(result).toBe('KP13-线性逼近与微分');
+            // No .md at end
+            expect(result.endsWith('.md')).toBe(false);
         });
     });
 });

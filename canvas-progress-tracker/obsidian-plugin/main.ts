@@ -512,8 +512,8 @@ export default class CanvasReviewPlugin extends Plugin {
                     }
                     try {
                         new Notice('正在生成检验问题...');
-                        // Use decomposeDeep which generates verification questions
-                        const result = await this.apiClient.decomposeDeep({
+                        // Story 12.A.6: Use new verification question API
+                        const result = await this.apiClient.generateVerificationQuestions({
                             node_id: context.nodeId || '',
                             canvas_name: this.extractCanvasFileName(context.filePath),
                         });
@@ -522,6 +522,27 @@ export default class CanvasReviewPlugin extends Plugin {
                         // @source Story 21.5.5 - 增强错误处理
                         this.handleAgentError(error, 'generate_verification_questions', () =>
                             this.contextMenuManager?.getActionRegistry()?.generateVerificationQuestions?.(context)
+                        );
+                    }
+                },
+
+                // Story 12.A.6: Question Decomposition Agent
+                decomposeQuestion: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    try {
+                        new Notice('正在拆解问题...');
+                        const result = await this.apiClient.decomposeQuestion({
+                            node_id: context.nodeId || '',
+                            canvas_name: this.extractCanvasFileName(context.filePath),
+                        });
+                        new Notice(`问题拆解完成: 生成了 ${result.questions?.length || 0} 个子问题`);
+                    } catch (error) {
+                        // @source Story 21.5.5 - 增强错误处理
+                        this.handleAgentError(error, 'decompose_question', () =>
+                            this.contextMenuManager?.getActionRegistry()?.decomposeQuestion?.(context)
                         );
                     }
                 },
@@ -1671,13 +1692,17 @@ export default class CanvasReviewPlugin extends Plugin {
      * @example
      * extractCanvasFileName("Canvas/Math53/Lecture5.canvas") // "Canvas/Math53/Lecture5"
      * extractCanvasFileName("笔记库/test.canvas") // "笔记库/test"
+     * extractCanvasFileName("KP13-线性逼近与微分.md") // "KP13-线性逼近与微分"
      * extractCanvasFileName("test.canvas") // "test"
      * extractCanvasFileName(undefined) // ""
+     *
+     * @source Story 12.A.1 - AC 1, 2: Canvas名称标准化
      */
     private extractCanvasFileName(filePath: string | undefined): string {
         if (!filePath) return '';
-        // 移除 .canvas 扩展名，保留完整路径
-        return filePath.replace(/\.canvas$/i, '');
+        // ✅ FIX Story 12.A.1: 移除 .canvas 或 .md 扩展名，保留完整路径
+        // 修复39次 "无法从AI响应中提取有效内容" 错误
+        return filePath.replace(/\.(canvas|md)$/i, '');
     }
 
     /**

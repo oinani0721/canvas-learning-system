@@ -68,11 +68,21 @@ class CanvasService:
                 raise ValidationError(f"Invalid canvas path: {canvas_name}")
 
     def _get_canvas_path(self, canvas_name: str) -> Path:
-        """Get full path to canvas file."""
+        """Get full path to canvas file.
+
+        Normalizes canvas_name by removing common extensions (.canvas, .md)
+        to prevent path construction errors like "file.md.canvas".
+
+        [Source: Story 12.A.1 - AC 3: CanvasService 路径处理支持多种输入格式]
+        """
         self._validate_canvas_name(canvas_name)
-        # ✅ FIX: Normalize canvas_name by removing existing .canvas extension
-        # This handles both "Canvas/Math53/Lecture5" and "Canvas/Math53/Lecture5.canvas"
-        normalized_name = canvas_name.removesuffix('.canvas')
+        # ✅ FIX Story 12.A.1: Normalize canvas_name by removing .canvas OR .md extension
+        # This handles:
+        #   - "Canvas/Math53/Lecture5" (standard format)
+        #   - "Canvas/Math53/Lecture5.canvas" (with .canvas extension)
+        #   - "KP13-线性逼近与微分.md" (incorrect .md extension from Obsidian)
+        normalized_name = canvas_name.removesuffix('.canvas').removesuffix('.md')
+        logger.debug(f"Canvas path normalized: '{canvas_name}' -> '{normalized_name}'")
         return Path(self.canvas_base_path) / f"{normalized_name}.canvas"
 
     async def read_canvas(self, canvas_name: str) -> Dict[str, Any]:

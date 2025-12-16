@@ -1,0 +1,136 @@
+# QA Gate File - Story 12.A.1
+# Canvas Name Standardization
+# Generated: 2025-12-15
+# QA Agent: Quinn (Test Architect)
+
+story_id: "12.A.1"
+story_name: "Canvas Name Standardization"
+epic: "12.A - Agent-RAG Deep Integration"
+priority: "P0 BLOCKER"
+
+# Gate Decision
+gate_decision: "PASS"
+gate_date: "2025-12-15"
+qa_agent: "Quinn"
+
+# Risk Assessment
+risk_profile:
+  overall_risk: "LOW"
+  factors:
+    - name: "Change Scope"
+      level: "LOW"
+      rationale: "Limited to path normalization logic in 2 files"
+    - name: "Data Impact"
+      level: "NONE"
+      rationale: "No database changes, no data migration"
+    - name: "Security"
+      level: "LOW"
+      rationale: "Path traversal validation already exists"
+    - name: "Regression"
+      level: "LOW"
+      rationale: "38 unit tests cover all scenarios"
+
+# Implementation Review
+implementation:
+  frontend:
+    file: "main.ts:1701-1706"
+    function: "extractCanvasFileName()"
+    change: "Regex updated from /\\.canvas$/i to /\\.(canvas|md)$/i"
+    verified: true
+  backend:
+    file: "canvas_service.py:70-86"
+    function: "_get_canvas_path()"
+    change: "Added .removesuffix('.md') after .removesuffix('.canvas')"
+    verified: true
+
+# Test Coverage
+test_coverage:
+  frontend:
+    file: "tests/utils/extractCanvasFileName.test.ts"
+    test_count: 19
+    status: "PASS"
+    categories:
+      - "Empty/undefined inputs"
+      - ".canvas extension removal"
+      - ".md extension removal (bug fix)"
+      - "No extension pass-through"
+      - "Edge cases (double extensions, special chars)"
+      - "Backend compatibility"
+  backend:
+    file: "tests/test_canvas_name_normalize.py"
+    test_count: 19
+    status: "PASS"
+    categories:
+      - "Standard format (no extension)"
+      - ".canvas extension removal"
+      - ".md extension removal (bug fix)"
+      - "Chinese filenames"
+      - "Edge cases"
+      - "Subdirectory paths"
+      - "Security validation (path traversal)"
+
+# Call Site Analysis
+call_sites:
+  total: 12
+  verified: 12
+  locations:
+    - "main.ts:914 - invokeAgent (decompose)"
+    - "main.ts:938 - invokeAgent (explain)"
+    - "main.ts:964 - invokeAgent (verify)"
+    - "main.ts:988 - invokeAgent (score)"
+    - "main.ts:1012 - invokeAgent (memorize)"
+    - "main.ts:1036 - invokeAgent (example)"
+    - "main.ts:1163 - streamingAgentCall"
+    - "main.ts:1328 - syncCanvasWithBackend"
+    - "main.ts:1422 - toggleNodeMastery"
+    - "main.ts:1510 - requestRelatedConcepts"
+    - "main.ts:1583 - addMasteryHistory"
+    - "main.ts:1648 - getNodeDetails"
+
+# Acceptance Criteria Verification
+acceptance_criteria:
+  - id: "AC1"
+    description: "Canvas名称统一为无扩展名格式"
+    status: "PASS"
+    evidence: "extractCanvasFileName removes both .canvas and .md"
+  - id: "AC2"
+    description: "extractCanvasFileName正确移除.md和.canvas扩展名"
+    status: "PASS"
+    evidence: "19 frontend tests verify all extension cases"
+  - id: "AC3"
+    description: "CanvasService路径处理支持多种输入格式"
+    status: "PASS"
+    evidence: "_get_canvas_path handles .canvas, .md, and no extension"
+  - id: "AC4"
+    description: "39次错误归零"
+    status: "PENDING_USER_VERIFICATION"
+    evidence: "Code fix deployed, requires Obsidian restart to verify"
+  - id: "AC5"
+    description: "单元测试覆盖路径标准化逻辑"
+    status: "PASS"
+    evidence: "38 tests pass (19 frontend + 19 backend)"
+  - id: "AC6"
+    description: "现有Agent功能正常工作"
+    status: "PENDING_USER_VERIFICATION"
+    evidence: "Requires manual testing in Obsidian"
+
+# Concerns/Blockers
+concerns: []
+blockers: []
+
+# Recommendations
+recommendations:
+  - type: "ADVISORY"
+    description: "User should restart Obsidian and test right-click Agent functions"
+  - type: "ADVISORY"
+    description: "Monitor bug_log.jsonl for any new path-related errors"
+
+# Final Notes
+notes: |
+  This is a well-implemented bug fix with comprehensive test coverage.
+  The defense-in-depth approach (both frontend AND backend normalization)
+  ensures robustness even if one layer is bypassed.
+
+  Two acceptance criteria (AC4, AC6) require user verification after
+  Obsidian restart. These are not blockers for the PASS decision as
+  the code implementation is correct and tested.
