@@ -325,6 +325,71 @@ export interface ExplainResponse {
 }
 
 // =============================================================================
+// Story 12.A.6: Verification Question and Question Decomposition Types
+// =============================================================================
+
+/**
+ * Verification question request
+ * @source Story 12.A.6 - verification-question Agent
+ */
+export interface VerificationQuestionRequest {
+  canvas_name: string;
+  node_id: string;
+}
+
+/**
+ * Single verification question
+ * @source Story 12.A.6 - verification-question Agent
+ */
+export interface VerificationQuestion {
+  source_node_id: string;
+  question_text: string;
+  question_type: string; // 突破型/检验型/应用型/综合型
+  difficulty: string; // 基础/深度
+  guidance?: string; // Optional hint starting with 💡
+  rationale: string;
+}
+
+/**
+ * Verification question response
+ * @source Story 12.A.6 - verification-question Agent
+ */
+export interface VerificationQuestionResponse {
+  questions: VerificationQuestion[];
+  concept: string;
+  generated_at: string; // ISO datetime
+  created_nodes: NodeRead[];
+}
+
+/**
+ * Question decomposition request
+ * @source Story 12.A.6 - question-decomposition Agent
+ */
+export interface QuestionDecomposeRequest {
+  canvas_name: string;
+  node_id: string;
+}
+
+/**
+ * Single sub-question from decomposition
+ * @source Story 12.A.6 - question-decomposition Agent
+ */
+export interface SubQuestion {
+  text: string;
+  type: string; // 检验型/应用型/对比型/推理型
+  guidance: string; // Starts with 💡 提示:
+}
+
+/**
+ * Question decomposition response
+ * @source Story 12.A.6 - question-decomposition Agent
+ */
+export interface QuestionDecomposeResponse {
+  questions: SubQuestion[];
+  created_nodes: NodeRead[];
+}
+
+// =============================================================================
 // Review Types
 // =============================================================================
 

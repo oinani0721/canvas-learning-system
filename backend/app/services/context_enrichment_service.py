@@ -102,6 +102,10 @@ class EnrichedContext:
     lecture_canvas_path: Optional[str] = None
     lecture_canvas_title: Optional[str] = None
 
+    # Story 12.A.3: Graphiti relations
+    graphiti_relations: Optional[List[Dict]] = None
+    has_graphiti_refs: bool = False
+
 
 class ContextEnrichmentService:
     """
@@ -117,7 +121,13 @@ class ContextEnrichmentService:
     [Source: Story 25.3 - Exercise-Lecture Canvas Association]
     """
 
-    def __init__(self, canvas_service, textbook_service=None, cross_canvas_service=None):
+    def __init__(
+        self,
+        canvas_service,
+        textbook_service=None,
+        cross_canvas_service=None,
+        graphiti_service=None
+    ):
         """
         Initialize ContextEnrichmentService.
 
@@ -125,19 +135,23 @@ class ContextEnrichmentService:
             canvas_service: CanvasService instance for reading Canvas data
             textbook_service: Optional TextbookContextService for textbook references
             cross_canvas_service: Optional CrossCanvasService for cross-Canvas associations
+            graphiti_service: Optional LearningMemoryClient for Graphiti relations
 
         [Story 25.3: Added cross_canvas_service parameter]
+        [Story 12.A.3: Added graphiti_service parameter]
         """
         self._canvas_service = canvas_service
         self._textbook_service = textbook_service
         self._cross_canvas_service = cross_canvas_service
+        self._graphiti_service = graphiti_service
         logger.debug("ContextEnrichmentService initialized")
 
     async def enrich_with_adjacent_nodes(
         self,
         canvas_name: str,
         node_id: str,
-        hop_depth: int = 1
+        hop_depth: int = 1,
+        include_graphiti: bool = True
     ) -> EnrichedContext:
         """
         Get enriched context for a node including adjacent node content.
@@ -146,6 +160,9 @@ class ContextEnrichmentService:
             canvas_name: Canvas file name
             node_id: Target node ID to enrich
             hop_depth: Number of hops to traverse (default 1-hop)
+            include_graphiti: Whether to include Graphiti relations (default True)
+
+        [Story 12.A.3: Added include_graphiti parameter for Graphiti MCP integration]
 
         Returns:
             EnrichedContext with target node, adjacent nodes, and combined context
@@ -290,16 +307,47 @@ class ContextEnrichmentService:
         if cross_canvas_context_str:
             enriched_context = f"{enriched_context}\n\n{cross_canvas_context_str}"
 
+        # 9. Story 12.A.3: Get Graphiti relations if enabled
+        graphiti_relations_list = []
+        has_graphiti_refs = False
+        graphiti_context_str = None
+
+        if include_graphiti and self._graphiti_service:
+            try:
+                # Search Graphiti using target node content as query
+                node_text = target_node.get("text", "")[:200]  # First 200 chars as query
+                graphiti_results = await self._search_graphiti_relations(
+                    query=node_text,
+                    canvas_name=canvas_name,
+                    node_id=node_id
+                )
+
+                if graphiti_results:
+                    has_graphiti_refs = True
+                    graphiti_relations_list = graphiti_results
+                    graphiti_context_str = self._format_graphiti_context(graphiti_results)
+                    logger.debug(
+                        f"Found {len(graphiti_results)} Graphiti relations for {node_id}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to get Graphiti relations: {e}")
+                # Continue without Graphiti context (graceful degradation)
+
+        # 10. Combine Graphiti context
+        if graphiti_context_str:
+            enriched_context = f"{enriched_context}\n\n{graphiti_context_str}"
+
         logger.debug(
             f"Enriched context for {node_id}: "
             f"{len(adjacent_nodes)} adjacent nodes found, "
             f"textbook_refs={has_textbook_refs}, "
             f"cross_canvas_refs={has_cross_canvas_refs}, "
+            f"graphiti_refs={has_graphiti_refs}, "
             f"incoming={len(incoming_edges)}, outgoing={len(outgoing_edges)}, "
             f"siblings={len(sibling_nodes_list)}"
         )
 
-        # Story 21.2 + 25.3: Return EnrichedContext with all fields populated
+        # Story 21.2 + 25.3 + 12.A.3: Return EnrichedContext with all fields populated
         return EnrichedContext(
             target_node=target_node,
             adjacent_nodes=adjacent_nodes,
@@ -325,6 +373,9 @@ class ContextEnrichmentService:
             has_cross_canvas_refs=has_cross_canvas_refs,
             lecture_canvas_path=lecture_canvas_path,
             lecture_canvas_title=lecture_canvas_title,
+            # Story 12.A.3: Graphiti relations
+            graphiti_relations=graphiti_relations_list,
+            has_graphiti_refs=has_graphiti_refs,
         )
 
     def _find_adjacent_nodes(
@@ -609,6 +660,93 @@ class ContextEnrichmentService:
                 parts.append(f"[lecture|{display_name}]{color_desc} {node_text}")
         else:
             parts.append(f"[lecture|{display_name}] (暂无具体知识点信息)")
+
+        return "\n".join(parts)
+
+    async def _search_graphiti_relations(
+        self,
+        query: str,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Search Graphiti for related learning memories and concepts.
+
+        Uses LearningMemoryClient.search_memories() to find relevant historical
+        learning records that can provide additional context for the agent.
+
+        [Source: Story 12.A.3 AC4 - Agent receives Graphiti-related concepts]
+        [Source: Story 12.A.3 Task 2 - Integrate Graphiti MCP tool]
+
+        Args:
+            query: Search query (typically node text content)
+            canvas_name: Optional filter by canvas name
+            node_id: Optional filter by node ID
+
+        Returns:
+            List of related memory dicts with relevance scores
+        """
+        if not self._graphiti_service:
+            return []
+
+        try:
+            # Initialize service if needed
+            await self._graphiti_service.initialize()
+
+            # Search for related memories
+            results = await self._graphiti_service.search_memories(
+                query=query,
+                canvas_name=canvas_name,
+                node_id=node_id,
+                limit=5  # Limit to top 5 most relevant
+            )
+
+            logger.debug(f"Graphiti search for '{query[:50]}...': {len(results)} results")
+            return results
+
+        except Exception as e:
+            logger.warning(f"Graphiti search failed: {e}")
+            return []
+
+    def _format_graphiti_context(self, graphiti_results: List[Dict[str, Any]]) -> str:
+        """
+        Format Graphiti results for inclusion in enriched context.
+
+        Formats historical learning memories as context for the agent prompt.
+
+        [Source: Story 12.A.3 AC4 - Format Graphiti relations for agent]
+
+        Args:
+            graphiti_results: List of memory dicts from search_memories()
+
+        Returns:
+            Formatted Graphiti context string
+        """
+        if not graphiti_results:
+            return ""
+
+        parts = ["--- 历史学习记忆 (Graphiti Relations) ---"]
+
+        for memory in graphiti_results:
+            concept = memory.get("concept", "未知概念")
+            relevance = memory.get("relevance", 0.0)
+            timestamp = memory.get("timestamp", "")[:10] if memory.get("timestamp") else ""
+            score = memory.get("score")
+            understanding = memory.get("user_understanding", "")
+
+            # Format entry with relevance and optional score
+            entry = f"[memory|{relevance:.0%}] {concept}"
+            if timestamp:
+                entry = f"[{timestamp}] " + entry
+            if score is not None:
+                entry += f" (得分: {score:.1f}/40)"
+
+            parts.append(entry)
+
+            # Add brief understanding preview if available
+            if understanding:
+                preview = understanding[:100] + "..." if len(understanding) > 100 else understanding
+                parts.append(f"  历史理解: {preview}")
 
         return "\n".join(parts)
 

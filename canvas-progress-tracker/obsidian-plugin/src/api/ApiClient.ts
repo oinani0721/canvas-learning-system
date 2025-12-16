@@ -46,6 +46,11 @@ import {
   RAGQueryResponse,
   WeakConceptsResponse,
   RAGStatusResponse,
+  // Story 12.A.6: Verification Question and Question Decomposition
+  VerificationQuestionRequest,
+  VerificationQuestionResponse,
+  QuestionDecomposeRequest,
+  QuestionDecomposeResponse,
 } from './types';
 
 /**
@@ -592,6 +597,54 @@ export class ApiClient {
    */
   async getRagStatus(): Promise<RAGStatusResponse> {
     return this.request<RAGStatusResponse>('GET', '/rag/status');
+  }
+
+  // ===========================================================================
+  // Story 12.A.6: Verification Question and Question Decomposition
+  // ===========================================================================
+
+  /**
+   * Generate verification questions for a concept node
+   *
+   * Creates 2-4 verification questions based on the node content,
+   * suitable for testing understanding of red/purple nodes.
+   *
+   * @param request - Verification question request
+   * @returns Generated questions and created nodes
+   *
+   * @source Story 12.A.6 - verification-question Agent (AC1, AC5)
+   * @verified backend/app/api/v1/endpoints/agents.py#generate_verification_questions
+   */
+  async generateVerificationQuestions(
+    request: VerificationQuestionRequest
+  ): Promise<VerificationQuestionResponse> {
+    return this.request<VerificationQuestionResponse>(
+      'POST',
+      '/agents/verification/question',
+      request
+    );
+  }
+
+  /**
+   * Decompose a verification question into sub-questions
+   *
+   * Takes a purple node (verification question) and creates 2-5
+   * smaller, more focused sub-questions to guide understanding.
+   *
+   * @param request - Question decomposition request
+   * @returns Decomposed questions and created nodes
+   *
+   * @source Story 12.A.6 - question-decomposition Agent (AC2, AC5)
+   * @verified backend/app/api/v1/endpoints/agents.py#decompose_question
+   */
+  async decomposeQuestion(
+    request: QuestionDecomposeRequest
+  ): Promise<QuestionDecomposeResponse> {
+    return this.request<QuestionDecomposeResponse>(
+      'POST',
+      '/agents/decompose/question',
+      request
+    );
   }
 
   // ===========================================================================

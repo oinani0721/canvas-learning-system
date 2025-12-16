@@ -82,6 +82,9 @@ export interface MenuActionRegistry {
   executeMemoryAnchor?: MenuActionCallback;
   /** Generate verification questions */
   generateVerificationQuestions?: MenuActionCallback;
+  // Story 12.A.6: Question Decomposition Agent
+  /** Decompose question into sub-questions */
+  decomposeQuestion?: MenuActionCallback;
 }
 
 // ============================================================================
@@ -381,6 +384,22 @@ export class ContextMenuManager {
         }
       },
     }, ['editor', 'canvas-node'], 68);
+
+    // Story 12.A.6: Question Decomposition
+    this.registerMenuItem({
+      id: 'decompose-question',
+      title: '问题拆解 🔀',
+      icon: 'split',
+      section: 'secondary',
+      description: '将检验问题拆解为子问题',
+      action: async () => {
+        if (this.actionRegistry.decomposeQuestion) {
+          await this.actionRegistry.decomposeQuestion(this.getCurrentContext());
+        } else {
+          new Notice('问题拆解功能尚未初始化');
+        }
+      },
+    }, ['editor', 'canvas-node'], 66);
 
     // Utility actions - Node History
     this.registerMenuItem({

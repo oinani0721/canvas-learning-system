@@ -537,6 +537,65 @@ VerificationServiceDep = Annotated[VerificationService, Depends(get_verification
 
 
 # =============================================================================
+# RAGService Dependency (Story 12.A.2 - Agent-RAG Bridge Layer)
+# [Source: docs/stories/story-12.A.2-agent-rag-bridge.md#Task-0]
+# =============================================================================
+
+from .services.rag_service import RAGService
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
+async def get_rag_service_dep() -> AsyncGenerator[RAGService, None]:
+    """
+    Get RAGService instance for Agent-RAG integration.
+
+    Provides RAGService with 5-source parallel retrieval capability:
+    - Graphiti (temporal knowledge graph)
+    - LanceDB (vector embeddings)
+    - Multimodal (images/diagrams)
+    - Textbook (lecture references)
+    - CrossCanvas (related canvases)
+
+    Uses singleton pattern internally via get_rag_service().
+    Supports graceful degradation when LangGraph not available.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
+
+    Yields:
+        RAGService: RAG orchestration service instance
+
+    Example:
+        ```python
+        @router.post("/agents/decompose/basic")
+        async def decompose_basic(
+            request: DecomposeRequest,
+            rag_service: RAGService = Depends(get_rag_service_dep)
+        ):
+            rag_context = await rag_service.query_with_fallback(...)
+            return await agent_service.decompose_basic(..., rag_context=rag_context)
+        ```
+
+    [Source: docs/stories/story-12.A.2-agent-rag-bridge.md#Task-0]
+    [Source: src/agentic_rag/state_graph.py - 5-source parallel retrieval]
+    """
+    logger.debug("Getting RAGService instance for Agent-RAG bridge")
+    service = get_rag_service()
+
+    # Initialize if not already done
+    if not service._initialized:
+        await service.initialize()
+
+    try:
+        yield service
+    finally:
+        # RAGService is singleton, no cleanup needed per-request
+        logger.debug("RAGService dependency released")
+
+
+# Type alias for RAGService dependency
+RAGServiceDep = Annotated[RAGService, Depends(get_rag_service_dep)]
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -551,6 +610,7 @@ __all__ = [
     "get_cross_canvas_service_dep",
     "get_rollback_service",
     "get_verification_service",
+    "get_rag_service_dep",  # Story 12.A.2
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -560,4 +620,5 @@ __all__ = [
     "ContextEnrichmentServiceDep",
     "CrossCanvasServiceDep",
     "VerificationServiceDep",
+    "RAGServiceDep",  # Story 12.A.2
 ]

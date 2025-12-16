@@ -700,6 +700,9 @@ class AgentService:
         self._active_calls = 0
         self._initialized = True
         self._use_real_api = gemini_client is not None and gemini_client.is_configured()
+        # Story 12.A.4: Memory cache for AC6 (30s TTL)
+        # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-6]
+        self._memory_cache: Dict[str, Tuple[List[Any], float]] = {}
 
         # Log AI configuration
         if ai_config:
@@ -731,6 +734,79 @@ class AgentService:
     def active_calls(self) -> int:
         """Current number of active agent calls"""
         return self._active_calls
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 12.A.4: Learning Memory Injection with Timeout and Cache
+    # [Source: docs/stories/story-12.A.4-memory-injection.md]
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def _get_learning_memories(
+        self,
+        content: str,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None
+    ) -> str:
+        """
+        Get learning history with cache and timeout support.
+
+        Queries LearningMemoryClient for relevant memories with:
+        - AC5: 500ms timeout to ensure responsiveness
+        - AC6: 30-second cache to reduce redundant queries
+
+        Args:
+            content: The concept/content to search memories for
+            canvas_name: Optional Canvas name to filter memories
+            node_id: Optional node ID for context
+
+        Returns:
+            Formatted memory context string, or empty string on failure/timeout
+
+        [Source: docs/stories/story-12.A.4-memory-injection.md#Task-4-5-6]
+        [Source: ADR-0003 Graphiti Memory - 3-layer architecture]
+        """
+        if not self._memory_client or not content:
+            return ""
+
+        # AC6: Build cache key
+        cache_key = f"{canvas_name}:{node_id}:{content[:50]}"
+
+        # AC6: Check cache (30s TTL)
+        if cache_key in self._memory_cache:
+            memories, timestamp = self._memory_cache[cache_key]
+            if time.time() - timestamp < 30:
+                logger.debug(f"Memory cache hit for key: {cache_key[:30]}...")
+                return self._memory_client.format_for_context(memories)
+            else:
+                # Cache expired, remove stale entry
+                del self._memory_cache[cache_key]
+                logger.debug(f"Memory cache expired for key: {cache_key[:30]}...")
+
+        # AC5: Query with 500ms timeout
+        try:
+            memories = await asyncio.wait_for(
+                self._memory_client.search_memories(
+                    query=content[:100],
+                    canvas_name=canvas_name,
+                    node_id=node_id,
+                    limit=5
+                ),
+                timeout=0.5  # 500ms timeout
+            )
+
+            # AC6: Store in cache
+            if memories:
+                self._memory_cache[cache_key] = (memories, time.time())
+                logger.debug(f"Cached {len(memories)} memories for key: {cache_key[:30]}...")
+                return self._memory_client.format_for_context(memories)
+
+            return ""
+
+        except asyncio.TimeoutError:
+            logger.warning(f"Memory query timeout (500ms) for: {content[:30]}...")
+            return ""
+        except Exception as e:
+            logger.warning(f"Memory query failed: {e}")
+            return ""
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # FIX-Canvas-Write: 后端直接写入节点到Canvas文件
@@ -824,29 +900,18 @@ class AgentService:
         [Source: FIX-4.2 Agent调用时查询历史]
         [Source: Gemini Migration - Using google.genai instead of anthropic]
         """
-        # FIX-4.2: Query historical memories before calling Claude
+        # Story 12.A.4: Use refactored _get_learning_memories() with timeout and cache
+        # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-4]
         enriched_context = context or ""
 
-        if self._memory_client and (canvas_name or prompt):
-            try:
-                # Search for relevant memories
-                query = prompt[:100] if prompt else ""
-                memories = await self._memory_client.search_memories(
-                    query=query,
-                    canvas_name=canvas_name,
-                    node_id=node_id,
-                    limit=5
-                )
-
-                if memories:
-                    memory_context = self._memory_client.format_for_context(memories)
-                    if memory_context:
-                        enriched_context = f"{enriched_context}\n\n{memory_context}" if enriched_context else memory_context
-                        logger.debug(f"Added {len(memories)} historical memories to context")
-
-            except Exception as e:
-                logger.warning(f"Failed to query historical memories: {e}")
-                # Continue without memories - graceful degradation
+        memory_context = await self._get_learning_memories(
+            content=prompt or "",
+            canvas_name=canvas_name,
+            node_id=node_id
+        )
+        if memory_context:
+            enriched_context = f"{enriched_context}\n\n{memory_context}" if enriched_context else memory_context
+            logger.debug("Added historical memories to context via _get_learning_memories()")
 
         # Phase 1 FIX: 强制真实API调用，不再回退到Mock
         # [Source: C:\Users\ROG\.claude\plans\wild-purring-umbrella.md - Phase 1]
@@ -1170,7 +1235,8 @@ class AgentService:
     async def call_decomposition(
         self,
         content: str,
-        deep: bool = False
+        deep: bool = False,
+        context: Optional[str] = None  # Story 12.A.2: RAG context
     ) -> AgentResult:
         """
         Call decomposition agent.
@@ -1178,17 +1244,19 @@ class AgentService:
         Args:
             content: Content to decompose
             deep: If True, use deep decomposition
+            context: Optional RAG context for enhanced prompts (Story 12.A.2)
 
         Returns:
             AgentResult with decomposition
         """
         agent_type = AgentType.DEEP_DECOMPOSITION if deep else AgentType.BASIC_DECOMPOSITION
-        return await self.call_agent(agent_type, content)
+        return await self.call_agent(agent_type, content, context=context)
 
     async def call_scoring(
         self,
         node_content: str,
-        user_understanding: str
+        user_understanding: str,
+        context: Optional[str] = None  # Story 12.A.2: RAG context support
     ) -> AgentResult:
         """
         Call scoring agent.
@@ -1196,12 +1264,13 @@ class AgentService:
         Args:
             node_content: Original node content
             user_understanding: User's explanation
+            context: Optional RAG context (Story 12.A.2)
 
         Returns:
             AgentResult with scores
         """
         prompt = f"Content: {node_content}\nUser: {user_understanding}"
-        return await self.call_agent(AgentType.SCORING, prompt)
+        return await self.call_agent(AgentType.SCORING, prompt, context=context)
 
     async def call_explanation(
         self,
@@ -1252,7 +1321,8 @@ class AgentService:
         node_id: str,
         content: str,
         source_x: float = 0,
-        source_y: float = 0
+        source_y: float = 0,
+        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
     ) -> Dict[str, Any]:
         """
         Perform basic decomposition on a concept node.
@@ -1263,17 +1333,19 @@ class AgentService:
             content: Node content to decompose
             source_x: X coordinate of source node (for positioning new nodes)
             source_y: Y coordinate of source node (for positioning new nodes)
+            rag_context: Optional RAG context from 5-source fusion (Story 12.A.2)
 
         Returns:
             Decomposition result with guiding questions and created_nodes for Canvas
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
         [FIX: Return created_nodes array for frontend to write to Canvas]
+        [Story 12.A.2: Agent-RAG Bridge Layer - RAG context injection]
         """
         import uuid
 
-        logger.debug(f"Basic decomposition for node {node_id}")
-        result = await self.call_decomposition(content, deep=False)
+        logger.debug(f"Basic decomposition for node {node_id}, has_rag_context={rag_context is not None}")
+        result = await self.call_decomposition(content, deep=False, context=rag_context)
 
         # Extract questions from AI result
         questions = []
@@ -1418,7 +1490,8 @@ class AgentService:
         self,
         canvas_name: str,
         node_ids: List[str],
-        node_contents: Dict[str, str]
+        node_contents: Optional[Dict[str, str]] = None,
+        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
     ) -> Dict[str, Any]:
         """
         Score multiple nodes' understanding.
@@ -1426,7 +1499,8 @@ class AgentService:
         Args:
             canvas_name: Target canvas name
             node_ids: List of node IDs to score
-            node_contents: Dict mapping node_id to content text
+            node_contents: Dict mapping node_id to content text (optional)
+            rag_context: Optional RAG context for enhanced scoring (Story 12.A.2)
 
         Returns:
             {"scores": [{"node_id": ..., "accuracy": ..., ...}]}
@@ -1434,15 +1508,21 @@ class AgentService:
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
         [Source: FIX-4.2 记录学习历程]
         [Source: FIX-5.1 修复score_node签名不匹配]
+        [Source: Story 12.A.2 Agent-RAG Bridge Layer]
         """
-        logger.debug(f"Scoring {len(node_ids)} nodes")
+        logger.debug(f"Scoring {len(node_ids)} nodes, has_rag_context={rag_context is not None}")
+
+        # Story 12.A.2: Handle node_contents being None
+        if node_contents is None:
+            node_contents = {}
 
         scores = []
         for node_id in node_ids:
             content = node_contents.get(node_id, "")
 
             # Call scoring for each node
-            result = await self.call_scoring("", content)
+            # Story 12.A.2: Pass rag_context to call_scoring
+            result = await self.call_scoring("", content, context=rag_context)
 
             # Determine color based on score
             total_score = 0.0
@@ -1557,7 +1637,8 @@ class AgentService:
         source_x: float = 0,
         source_y: float = 0,
         source_width: float = 400,
-        source_height: float = 200
+        source_height: float = 200,
+        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
     ) -> Dict[str, Any]:
         """
         Generate an explanation for a concept with adjacent node context and optional images.
@@ -1573,6 +1654,7 @@ class AgentService:
             source_y: Y coordinate of source node (for positioning new nodes)
             source_width: Width of source node
             source_height: Height of source node
+            rag_context: Optional RAG context from 5-source fusion (Story 12.A.2)
 
         Returns:
             Generated explanation with created_nodes for Canvas
@@ -1581,13 +1663,15 @@ class AgentService:
         [Source: FIX-1.1 修复上下文传递链 - adjacent_context now flows through]
         [Source: FIX-2.1 实现Claude Vision多模态支持]
         [Source: FIX-3.0 返回created_nodes数组用于Canvas写入]
+        [Source: Story 12.A.2 Agent-RAG Bridge Layer]
         """
         import json as json_module  # Avoid conflict with local variables
         import uuid
 
         context_len = len(adjacent_context) if adjacent_context else 0
         images_count = len(images) if images else 0
-        logger.debug(f"Generating {explanation_type} explanation for node {node_id}, context_len={context_len}, images={images_count}")
+        rag_len = len(rag_context) if rag_context else 0  # Story 12.A.2
+        logger.debug(f"Generating {explanation_type} explanation for node {node_id}, context_len={context_len}, images={images_count}, rag_context_len={rag_len}")
 
         # ✅ FIX-4.4: 读取用户之前填写的个人理解
         user_understandings = []
@@ -1619,9 +1703,15 @@ class AgentService:
             enhanced_context = (enhanced_context + user_context) if enhanced_context else user_context
             logger.info(f"[FIX-4.4] Enhanced context with {len(user_understandings)} user understandings")
 
+        # ✅ Story 12.A.2: 添加 RAG 上下文到增强上下文
+        if rag_context:
+            enhanced_context = f"{enhanced_context}\n\n{rag_context}" if enhanced_context else rag_context
+            logger.info(f"[Story 12.A.2] Enhanced context with RAG ({len(rag_context)} chars)")
+
         # ✅ FIX-1.1: Pass adjacent_context to call_explanation
         # ✅ FIX-2.1: Pass images for multimodal support
         # ✅ FIX-4.4: Pass enhanced_context with user understandings
+        # ✅ Story 12.A.2: Pass enhanced_context with RAG context
         result = await self.call_explanation(
             content, explanation_type, context=enhanced_context, images=images
         )
@@ -2067,6 +2157,321 @@ class AgentService:
                 "error_code": error_code,
                 "latency_ms": round(latency_ms, 2)
             }
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 12.A.6: verification-question and question-decomposition Agents
+    # [Source: docs/stories/story-12.A.6-complete-agents.md]
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def generate_verification_questions(
+        self,
+        canvas_name: str,
+        node_id: str,
+        content: str,
+        node_type: str = "red",
+        related_yellow: Optional[List[str]] = None,
+        parent_content: Optional[str] = None,
+        adjacent_context: Optional[str] = None,
+        source_x: float = 0,
+        source_y: float = 0,
+        source_width: float = 400,
+        source_height: float = 200,
+        rag_context: Optional[str] = None,  # Story 12.A.2: RAG context injection
+    ) -> Dict[str, Any]:
+        """
+        Generate verification questions for a concept node.
+
+        This method implements AC1 and AC3 of Story 12.A.6:
+        - Calls ContextEnrichmentService.enrich_with_adjacent_nodes() for context
+        - Calls LearningMemoryClient.search_memories() for historical memory
+        - Calls record_learning_episode() after generation
+
+        Args:
+            canvas_name: Canvas file name
+            node_id: Target node ID
+            content: Node content to generate questions for
+            node_type: Node type ("red" for not understood, "purple" for partially understood)
+            related_yellow: List of related yellow node contents (user's understanding)
+            parent_content: Optional parent node content for context
+            adjacent_context: Context from adjacent nodes
+            source_x, source_y: Source node position for new node placement
+            source_width, source_height: Source node dimensions
+            rag_context: Optional RAG context from 5-source fusion (Story 12.A.2)
+
+        Returns:
+            Dict with questions list, concept, generated_at, and created_nodes
+
+        [Source: docs/stories/story-12.A.6-complete-agents.md#AC1]
+        [Source: .claude/agents/verification-question-agent.md]
+        [Source: Story 12.A.2 Agent-RAG Bridge Layer]
+        """
+        from datetime import datetime
+
+        call_logger = AgentCallLogger(
+            agent_type="verification-question",
+            node_id=node_id,
+            canvas_name=canvas_name
+        )
+
+        # Build input for the verification-question agent
+        input_data = {
+            "nodes": [{
+                "id": node_id,
+                "content": content,
+                "type": node_type,
+                "related_yellow": related_yellow or [],
+                "parent_content": parent_content or ""
+            }]
+        }
+
+        prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
+        call_logger.log_request({"content_length": len(content), "node_type": node_type})
+
+        try:
+            # AC3a: Adjacent context is passed via adjacent_context parameter
+            # AC3b: Query historical memories
+            enriched_context = adjacent_context or ""
+
+            # Story 12.A.2: Add RAG context to enriched context
+            if rag_context:
+                enriched_context = f"{enriched_context}\n\n{rag_context}" if enriched_context else rag_context
+                logger.info(f"[Story 12.A.2] Enhanced verification questions context with RAG ({len(rag_context)} chars)")
+
+            result = await self._call_gemini_api(
+                agent_type=AgentType.VERIFICATION_QUESTION,
+                prompt=prompt,
+                context=enriched_context,
+                canvas_name=canvas_name,
+                node_id=node_id
+            )
+
+            # Parse questions from result
+            questions = result.get("questions", [])
+            call_logger.log_response(result, success=True, response_length=len(str(questions)))
+
+            # Generate Canvas nodes for questions
+            created_nodes = []
+            created_edges = []
+            node_width = 350
+            node_height = 150
+            gap_y = 40
+
+            for idx, q in enumerate(questions):
+                question_node_id = f"vq-{node_id[:8]}-{idx}-{uuid.uuid4().hex[:6]}"
+
+                # Build node text
+                node_text = q.get("question_text", "")
+                q_type = q.get("question_type", "")
+                guidance = q.get("guidance", "")
+
+                if q_type:
+                    node_text = f"[{q_type}] {node_text}"
+                if guidance:
+                    node_text = f"{node_text}\n\n{guidance}"
+
+                # Position nodes vertically below source
+                node_x = source_x
+                node_y = source_y + source_height + gap_y + idx * (node_height + gap_y)
+
+                created_nodes.append({
+                    "id": question_node_id,
+                    "type": "text",
+                    "text": node_text,
+                    "x": node_x,
+                    "y": node_y,
+                    "width": node_width,
+                    "height": node_height,
+                    "color": "6",  # Purple - verification question
+                })
+
+                # Create edge from source to question
+                created_edges.append({
+                    "id": f"edge-vq-{uuid.uuid4().hex[:8]}",
+                    "fromNode": node_id,
+                    "toNode": question_node_id,
+                    "fromSide": "bottom",
+                    "toSide": "top",
+                    "label": EdgeLabels.VERIFICATION,
+                })
+
+            # Write nodes to Canvas
+            if created_nodes:
+                await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
+
+            # AC3c: Record learning episode
+            await self.record_learning_episode(
+                canvas_name=canvas_name,
+                node_id=node_id,
+                concept=content[:50] if content else "Unknown",
+                user_understanding=str(related_yellow) if related_yellow else None,
+                agent_feedback=f"Generated {len(questions)} verification questions"
+            )
+
+            return {
+                "questions": questions,
+                "concept": content[:100] if content else "",
+                "generated_at": datetime.now().isoformat(),
+                "created_nodes": created_nodes,
+                "created_edges": created_edges,
+                "status": "completed"
+            }
+
+        except Exception as e:
+            call_logger.log_error(e)
+            logger.error(f"generate_verification_questions failed: {e}", exc_info=True)
+            raise
+
+    async def decompose_question(
+        self,
+        canvas_name: str,
+        node_id: str,
+        content: str,
+        user_understanding: str,
+        topic: Optional[str] = None,
+        adjacent_context: Optional[str] = None,
+        source_x: float = 0,
+        source_y: float = 0,
+        source_width: float = 400,
+        source_height: float = 200,
+        rag_context: Optional[str] = None,  # Story 12.A.2: RAG context injection
+    ) -> Dict[str, Any]:
+        """
+        Decompose a question into verification sub-questions.
+
+        This method implements AC2 and AC3 of Story 12.A.6:
+        - Calls ContextEnrichmentService.enrich_with_adjacent_nodes() for context
+        - Calls LearningMemoryClient.search_memories() for historical memory
+        - Calls record_learning_episode() after generation
+
+        Args:
+            canvas_name: Canvas file name
+            node_id: Target node ID
+            content: Original material content
+            user_understanding: User's understanding (from yellow node)
+            topic: Topic name (optional, extracted from content if not provided)
+            adjacent_context: Context from adjacent nodes
+            source_x, source_y: Source node position for new node placement
+            source_width, source_height: Source node dimensions
+            rag_context: Optional RAG context from 5-source fusion (Story 12.A.2)
+
+        Returns:
+            Dict with questions list and created_nodes
+
+        [Source: docs/stories/story-12.A.6-complete-agents.md#AC2]
+        [Source: .claude/agents/question-decomposition.md]
+        [Source: Story 12.A.2 Agent-RAG Bridge Layer]
+        """
+        call_logger = AgentCallLogger(
+            agent_type="question-decomposition",
+            node_id=node_id,
+            canvas_name=canvas_name
+        )
+
+        # Build input for the question-decomposition agent
+        input_data = {
+            "material_content": content,
+            "topic": topic or content[:50] if content else "Unknown",
+            "user_understanding": user_understanding
+        }
+
+        prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
+        call_logger.log_request({"content_length": len(content), "understanding_length": len(user_understanding)})
+
+        try:
+            # AC3a: Adjacent context is passed via adjacent_context parameter
+            # AC3b: Query historical memories via _call_gemini_api
+            enriched_context = adjacent_context or ""
+
+            # Story 12.A.2: Add RAG context to enriched context
+            if rag_context:
+                enriched_context = f"{enriched_context}\n\n{rag_context}" if enriched_context else rag_context
+                logger.info(f"[Story 12.A.2] Enhanced question decomposition context with RAG ({len(rag_context)} chars)")
+
+            result = await self._call_gemini_api(
+                agent_type=AgentType.QUESTION_DECOMPOSITION,
+                prompt=prompt,
+                context=enriched_context,
+                canvas_name=canvas_name,
+                node_id=node_id
+            )
+
+            # Parse questions from result
+            questions = result.get("questions", [])
+            call_logger.log_response(result, success=True, response_length=len(str(questions)))
+
+            # Generate Canvas nodes for questions
+            created_nodes = []
+            created_edges = []
+            node_width = 320
+            node_height = 120
+            gap_x = 30
+            gap_y = 40
+            nodes_per_row = 2
+
+            for idx, q in enumerate(questions):
+                question_node_id = f"qd-{node_id[:8]}-{idx}-{uuid.uuid4().hex[:6]}"
+
+                # Build node text
+                node_text = q.get("text", "")
+                q_type = q.get("type", "")
+                guidance = q.get("guidance", "")
+
+                if q_type:
+                    node_text = f"[{q_type}] {node_text}"
+                if guidance:
+                    node_text = f"{node_text}\n\n{guidance}"
+
+                # Position nodes in grid below source
+                row = idx // nodes_per_row
+                col = idx % nodes_per_row
+                node_x = source_x + col * (node_width + gap_x)
+                node_y = source_y + source_height + gap_y + row * (node_height + gap_y)
+
+                created_nodes.append({
+                    "id": question_node_id,
+                    "type": "text",
+                    "text": node_text,
+                    "x": node_x,
+                    "y": node_y,
+                    "width": node_width,
+                    "height": node_height,
+                    "color": "6",  # Purple - verification question
+                })
+
+                # Create edge from source to question
+                created_edges.append({
+                    "id": f"edge-qd-{uuid.uuid4().hex[:8]}",
+                    "fromNode": node_id,
+                    "toNode": question_node_id,
+                    "fromSide": "bottom",
+                    "toSide": "top",
+                    "label": EdgeLabels.QUESTION,
+                })
+
+            # Write nodes to Canvas
+            if created_nodes:
+                await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
+
+            # AC3c: Record learning episode
+            await self.record_learning_episode(
+                canvas_name=canvas_name,
+                node_id=node_id,
+                concept=topic or content[:50] if content else "Unknown",
+                user_understanding=user_understanding,
+                agent_feedback=f"Decomposed into {len(questions)} verification questions"
+            )
+
+            return {
+                "questions": questions,
+                "created_nodes": created_nodes,
+                "created_edges": created_edges,
+                "status": "completed"
+            }
+
+        except Exception as e:
+            call_logger.log_error(e)
+            logger.error(f"decompose_question failed: {e}", exc_info=True)
+            raise
 
     async def cleanup(self) -> None:
         """

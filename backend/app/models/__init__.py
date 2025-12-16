@@ -57,6 +57,9 @@ from app.models.schemas import (
     # Canvas
     NodeType,
     NodeUpdate,
+    # Story 12.A.6: verification-question and question-decomposition Agents
+    QuestionDecomposeRequest,
+    QuestionDecomposeResponse,
     RecordReviewRequest,
     RecordReviewResponse,
     # Review
@@ -64,6 +67,10 @@ from app.models.schemas import (
     ReviewScheduleResponse,
     ScoreRequest,
     ScoreResponse,
+    SubQuestion,
+    VerificationQuestion,
+    VerificationQuestionRequest,
+    VerificationQuestionResponse,
     WeakConceptData,
     WeightConfig,
 )
@@ -91,6 +98,13 @@ __all__ = [
     "NodeScore",
     "ExplainRequest",
     "ExplainResponse",
+    # Story 12.A.6: verification-question and question-decomposition Agents
+    "VerificationQuestionRequest",
+    "VerificationQuestion",
+    "VerificationQuestionResponse",
+    "QuestionDecomposeRequest",
+    "SubQuestion",
+    "QuestionDecomposeResponse",
     # Review
     "ReviewItem",
     "ReviewScheduleResponse",

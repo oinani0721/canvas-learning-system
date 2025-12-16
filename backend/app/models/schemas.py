@@ -249,6 +249,82 @@ class ExplainResponse(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.A.6: verification-question and question-decomposition Agents
+# [Source: docs/stories/story-12.A.6-complete-agents.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class VerificationQuestionRequest(BaseModel):
+    """
+    Request model for generating verification questions.
+
+    [Source: docs/stories/story-12.A.6-complete-agents.md#AC1]
+    [Source: .claude/agents/verification-question-agent.md]
+    """
+    canvas_name: str = Field(..., description="Canvas file name")
+    node_id: str = Field(..., description="Target node ID")
+
+
+class VerificationQuestion(BaseModel):
+    """
+    Single verification question item.
+
+    [Source: .claude/agents/verification-question-agent.md#Output-Format]
+    """
+    source_node_id: str = Field(..., description="Source node ID this question refers to")
+    question_text: str = Field(..., description="The verification question text")
+    question_type: str = Field(..., description="Question type: 突破型/检验型/应用型/综合型")
+    difficulty: str = Field(..., description="Difficulty level: 基础/深度")
+    guidance: Optional[str] = Field(None, description="Optional hint starting with 💡")
+    rationale: str = Field(..., description="Why this question was generated")
+
+
+class VerificationQuestionResponse(BaseModel):
+    """
+    Response model for verification question generation.
+
+    [Source: docs/stories/story-12.A.6-complete-agents.md#AC1]
+    [Source: .claude/agents/verification-question-agent.md#Output-Format]
+    """
+    questions: List[VerificationQuestion] = Field(..., description="Generated verification questions")
+    concept: str = Field(..., description="The concept being verified")
+    generated_at: datetime = Field(..., description="Generation timestamp")
+    created_nodes: List[NodeRead] = Field(default_factory=list, description="Created question nodes on Canvas")
+
+
+class QuestionDecomposeRequest(BaseModel):
+    """
+    Request model for question decomposition.
+
+    [Source: docs/stories/story-12.A.6-complete-agents.md#AC2]
+    [Source: .claude/agents/question-decomposition.md]
+    """
+    canvas_name: str = Field(..., description="Canvas file name")
+    node_id: str = Field(..., description="Target node ID")
+
+
+class SubQuestion(BaseModel):
+    """
+    Single sub-question from decomposition.
+
+    [Source: .claude/agents/question-decomposition.md#Output-Format]
+    """
+    text: str = Field(..., description="The sub-question text")
+    type: str = Field(..., description="Question type: 检验型/应用型/对比型/推理型")
+    guidance: str = Field(..., description="Guidance hint starting with 💡 提示:")
+
+
+class QuestionDecomposeResponse(BaseModel):
+    """
+    Response model for question decomposition.
+
+    [Source: docs/stories/story-12.A.6-complete-agents.md#AC2]
+    [Source: .claude/agents/question-decomposition.md#Output-Format]
+    """
+    questions: List[SubQuestion] = Field(..., description="Decomposed verification questions (2-5)")
+    created_nodes: List[NodeRead] = Field(default_factory=list, description="Created question nodes on Canvas")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Review Schemas
 # ═══════════════════════════════════════════════════════════════════════════════
 
