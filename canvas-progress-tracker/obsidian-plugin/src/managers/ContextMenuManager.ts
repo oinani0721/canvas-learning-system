@@ -833,7 +833,7 @@ export class ContextMenuManager {
    *
    * Story 13.5: Canvas node right-click menu fix
    */
-  private handleCanvasNodeContextMenu(evt: MouseEvent): void {
+  private async handleCanvasNodeContextMenu(evt: MouseEvent): Promise<void> {
     console.log('[DEBUG-CANVAS] ====== handleCanvasNodeContextMenu TRIGGERED ======');
     console.log('[DEBUG-CANVAS] evt.target:', evt.target);
 
@@ -865,6 +865,37 @@ export class ContextMenuManager {
     evt.preventDefault();
     evt.stopPropagation();
 
+    // Story 12.D.1: Support both TEXT and FILE node types
+    // ✅ Verified from @obsidian-canvas Skill (SKILL.md:587-591)
+    let nodeContent: string | undefined;
+
+    if (nodeInfo.nodeData?.type === 'text' && nodeInfo.nodeData?.text) {
+      // TEXT type: Read directly from JSON
+      nodeContent = nodeInfo.nodeData.text;
+      if (nodeContent) {
+        const preview = nodeContent.length > 100 ? nodeContent.substring(0, 100) + '...' : nodeContent;
+        console.log('[DEBUG-CANVAS] Extracted TEXT node content:', preview);
+      }
+    } else if (nodeInfo.nodeData?.type === 'file' && nodeInfo.nodeData?.file) {
+      // FILE type: Read linked MD file content
+      // ✅ Verified from @obsidian-canvas Skill (SKILL.md:587-591)
+      const filePath = nodeInfo.nodeData.file;
+      const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+      if (abstractFile instanceof TFile) {
+        try {
+          // Use cachedRead for better performance (Epic 12.D PRD recommendation)
+          nodeContent = await this.app.vault.cachedRead(abstractFile);
+          console.log(`[Story 12.D.1] Read FILE node content: ${filePath}, length: ${nodeContent.length}`);
+        } catch (error) {
+          console.error(`[Story 12.D.1] Failed to read FILE node: ${filePath}`, error);
+          nodeContent = undefined;
+        }
+      } else {
+        console.warn(`[Story 12.D.1] File not found: ${filePath}`);
+        nodeContent = undefined;
+      }
+    }
+
     // Build context with node information
     const context: MenuContext = {
       type: 'canvas-node',
@@ -872,7 +903,27 @@ export class ContextMenuManager {
       nodeId: nodeInfo.nodeId,
       nodeColor: nodeInfo.nodeData?.color as CanvasNodeColor,
       nodeType: nodeInfo.nodeData?.type,
+      nodeContent: nodeContent,  // Story 12.B.2: Pass real-time content
     };
+
+    // Story 12.D.3: Log complete node content trace for debugging
+    const logNodeType = nodeInfo.nodeData?.type || 'unknown';
+    const logFilePath = nodeInfo.nodeData?.file || null;
+    const logContentSource = nodeContent
+      ? (logNodeType === 'file' ? 'file_read' : 'json_text')
+      : 'empty';
+    const logContentPreview = nodeContent
+      ? (nodeContent.length > 80 ? nodeContent.substring(0, 80) + '...' : nodeContent)
+      : '';
+    console.log(
+      `[Story 12.D.3] Node content trace:\n` +
+      `  - node_id: ${nodeInfo.nodeId}\n` +
+      `  - node_type: ${logNodeType}\n` +
+      `  - file_path: ${logFilePath || 'N/A'}\n` +
+      `  - content_source: ${logContentSource}\n` +
+      `  - content_length: ${nodeContent?.length || 0} chars\n` +
+      `  - content_preview: ${logContentPreview}`
+    );
 
     // Epic 21.5.2: Cache canvas context for use in action handlers
     this.cachedCanvasContext = context;
