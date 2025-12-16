@@ -25,9 +25,90 @@ Features:
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+import structlog
+
+# Standard logger for backward compatibility
 logger = logging.getLogger(__name__)
+
+# ✅ Verified from ADR-010:77-100 (structlog get_logger)
+# Structlog logger for new FILE node handling (Story 12.D.2)
+struct_logger = structlog.get_logger(__name__)
+
+
+def get_node_content(node: dict, vault_path: str) -> str:
+    """
+    Extract content from a Canvas node based on its type.
+
+    Story 12.D.2: Backend FILE Type Node Support
+    Handles all four Canvas node types defined in JSON Canvas Spec 1.0.
+
+    Args:
+        node: Canvas node dictionary with 'type' and content fields
+        vault_path: Absolute path to Obsidian vault root
+
+    Returns:
+        Node content as string, empty string if unavailable
+
+    [Source: specs/data/canvas-node.schema.json#L24-L38 - node type handling]
+    [Source: ADR-001 - file paths are relative to vault root]
+    """
+    node_type = node.get("type", "text")
+    node_id = node.get("id", "unknown")
+
+    struct_logger.debug("get_node_content", node_id=node_id, node_type=node_type)
+
+    if node_type == "text":
+        return node.get("text", "")
+
+    elif node_type == "file":
+        file_path = node.get("file", "")
+        if not file_path:
+            struct_logger.warning("file_node_missing_path", node_id=node_id)
+            return ""
+
+        # Construct absolute path
+        # [Source: ADR-001 - file paths are relative to vault root]
+        abs_path = Path(vault_path) / file_path
+        struct_logger.debug(
+            "resolving_file_path", node_id=node_id, resolved_path=str(abs_path)
+        )
+
+        try:
+            content = abs_path.read_text(encoding="utf-8")
+            struct_logger.debug(
+                "file_read_success", node_id=node_id, content_length=len(content)
+            )
+            return content
+        except FileNotFoundError:
+            struct_logger.warning(
+                "file_not_found", node_id=node_id, path=str(abs_path)
+            )
+            return ""
+        except PermissionError:
+            struct_logger.warning(
+                "file_permission_denied", node_id=node_id, path=str(abs_path)
+            )
+            return ""
+        except Exception as e:
+            struct_logger.warning(
+                "file_read_error", node_id=node_id, error=str(e)
+            )
+            return ""
+
+    elif node_type == "link":
+        return node.get("url", "")
+
+    elif node_type == "group":
+        return ""
+
+    else:
+        struct_logger.warning(
+            "unknown_node_type", node_id=node_id, node_type=node_type
+        )
+        return ""
 
 
 @dataclass
@@ -199,7 +280,26 @@ class ContextEnrichmentService:
         y = int(target_node.get("y", 0))
         width = int(target_node.get("width", 400))
         height = int(target_node.get("height", 200))
-        target_content = target_node.get("text", "")
+
+        # Story 12.D.2: Use get_node_content() to handle all node types (text, file, link, group)
+        # [Source: specs/data/canvas-node.schema.json#L24-L38]
+        vault_path = self._canvas_service.canvas_base_path
+        target_content = get_node_content(target_node, vault_path)
+
+        # Story 12.D.3: Log node content resolution trace
+        node_type = target_node.get("type", "text")
+        file_path = target_node.get("file") if node_type == "file" else None
+        content_source = "empty"
+        if target_content:
+            content_source = "file_read" if node_type == "file" else "json_text"
+        struct_logger.info(
+            "[Story 12.D.3] Node content resolved",
+            node_id=node_id,
+            node_type=node_type,
+            file_path=file_path,
+            content_source=content_source,
+            content_length=len(target_content)
+        )
 
         # Story 21.2: Extract edge relationships
         incoming_edges = []
@@ -454,8 +554,12 @@ class ContextEnrichmentService:
         """
         parts = []
 
+        # Story 12.D.2: Get vault_path for FILE node content resolution
+        vault_path = self._canvas_service.canvas_base_path
+
         # Add target node
-        target_text = target_node.get("text", "")
+        # Story 12.D.2: Use get_node_content() to handle all node types
+        target_text = get_node_content(target_node, vault_path)
         target_color = target_node.get("color", "")
         color_desc = self._get_color_description(target_color)
 
@@ -468,13 +572,15 @@ class ContextEnrichmentService:
         if parents:
             parts.append("\n--- 前置知识 (Parent Nodes) ---")
             for adj in parents:
-                node_text = adj.node.get("text", "")[:300]  # Truncate long text
+                # Story 12.D.2: Use get_node_content() for adjacent nodes too
+                node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[parent|{adj.edge_label}] {node_text}")
 
         if children:
             parts.append("\n--- 衍生概念 (Child Nodes) ---")
             for adj in children:
-                node_text = adj.node.get("text", "")[:300]  # Truncate long text
+                # Story 12.D.2: Use get_node_content() for adjacent nodes too
+                node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[child|{adj.edge_label}] {node_text}")
 
         return "\n\n".join(parts)
