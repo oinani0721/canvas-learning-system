@@ -1,0 +1,141 @@
+# Quality Gate - Story 12.A.4: 记忆系统注入
+# Generated: 2025-12-15
+# QA Agent: Quinn
+
+gate:
+  story_id: "12.A.4"
+  story_name: "记忆系统注入"
+  epic: "12.A"
+  status: PASS
+  reviewed_by: "Quinn (QA Agent)"
+  review_date: "2025-12-15"
+
+summary:
+  description: "为 Agent 添加 500ms 超时控制和 30 秒缓存机制"
+  risk_level: "低"
+  recommendation: "批准发布"
+
+acceptance_criteria:
+  total: 6
+  passed: 6
+  failed: 0
+  coverage: "100%"
+
+  details:
+    - id: AC1
+      description: "查询 LearningMemoryClient"
+      status: PASS
+      evidence: "agent_service.py:784-793"
+
+    - id: AC2
+      description: "结构化格式注入"
+      status: PASS
+      evidence: "agent_service.py:903-914"
+
+    - id: AC3
+      description: "包含概念、理解、得分、时间戳"
+      status: PASS
+      evidence: "graphiti_client.py:666-709"
+
+    - id: AC4
+      description: "无历史时优雅降级"
+      status: PASS
+      evidence: "agent_service.py:795-809"
+
+    - id: AC5
+      description: "500ms 超时控制"
+      status: PASS
+      evidence: "asyncio.wait_for(timeout=0.5)"
+
+    - id: AC6
+      description: "30秒缓存机制"
+      status: PASS
+      evidence: "_memory_cache + TTL 检查"
+
+testing:
+  unit_tests:
+    total: 11
+    passed: 11
+    failed: 0
+    test_file: "backend/tests/unit/test_agent_memory_injection.py"
+
+  test_classes:
+    - name: "TestMemoryInjection"
+      tests: 9
+      coverage: "缓存命中/过期、超时、降级、性能"
+
+    - name: "TestCacheKeyGeneration"
+      tests: 2
+      coverage: "长内容截断、None 值处理"
+
+code_review:
+  quality: "优秀"
+  highlights:
+    - "独立方法封装 (_get_learning_memories)"
+    - "防御性编程 (空检查、异常捕获)"
+    - "简单有效的缓存策略"
+    - "适当的日志记录"
+
+  files_modified:
+    - path: "backend/app/services/agent_service.py"
+      changes:
+        - "Line 703-705: 添加 _memory_cache 属性"
+        - "Lines 743-809: 新增 _get_learning_memories() 方法"
+        - "Lines 903-914: 重构调用逻辑"
+
+    - path: "backend/tests/unit/test_agent_memory_injection.py"
+      changes:
+        - "新建文件: 11 个单元测试"
+
+adr_compliance:
+  adr_id: "ADR-0003"
+  adr_name: "Graphiti Memory System"
+  status: COMPLIANT
+
+  checklist:
+    - requirement: "使用 LearningMemoryClient"
+      status: PASS
+      note: "通过依赖注入使用"
+
+    - requirement: "3层记忆架构"
+      status: PASS
+      note: "使用第1层(Temporal)和第3层(Semantic)"
+
+    - requirement: "查询接口规范"
+      status: PASS
+      note: "search_memories() 符合规范"
+
+    - requirement: "格式化输出规范"
+      status: PASS
+      note: "format_for_context() 符合规范"
+
+risk_assessment:
+  overall_risk: "低"
+
+  risks:
+    - name: "记忆查询延迟"
+      level: "低"
+      mitigation: "500ms 超时保护"
+
+    - name: "缓存内存泄漏"
+      level: "低"
+      mitigation: "TTL 过期自动删除"
+
+    - name: "服务不可用"
+      level: "低"
+      mitigation: "异常时静默降级"
+
+decision:
+  gate_result: PASS
+
+  rationale:
+    - "所有 6 个 AC 均已满足并验证"
+    - "11 个单元测试全部通过"
+    - "代码质量优秀，符合项目规范"
+    - "完全符合 ADR-0003 架构决策"
+    - "性能要求满足 (500ms 超时 + 30s 缓存)"
+
+  conditions: []
+  blockers: []
+
+# End of Gate File
