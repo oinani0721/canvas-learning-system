@@ -18,8 +18,8 @@ from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Tuple
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
+from app.core.exceptions import CanvasNotFoundException
 from app.dependencies import AgentServiceDep, CanvasServiceDep, ContextEnrichmentServiceDep, RAGServiceDep
-from app.services.memory_service import MemoryService
 from app.models import (
     DecomposeRequest,
     DecomposeResponse,
@@ -37,6 +37,7 @@ from app.models import (
     VerificationQuestionRequest,
     VerificationQuestionResponse,
 )
+from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -579,17 +580,44 @@ async def _call_explanation(
     [Story 25.2: TextbookContextService Integration]
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
+    [Story 12.B.1: 增强错误处理]
     """
+    # Story 12.B.1: 请求开始日志
+    # Story 12.B.2: 记录是否有实时节点内容
+    has_realtime_content = bool(request.node_content)
+    logger.info(
+        f"[Story 12.B.1] explain_{explanation_type} START: "
+        f"canvas={request.canvas_name}, node_id={request.node_id}, "
+        f"has_realtime_content={has_realtime_content}"
+    )
+
     # Story 25.2: Get enriched context (includes textbook references)
+    # Story 12.B.1: 增强异常捕获
     try:
         enriched = await context_service.enrich_with_adjacent_nodes(
             canvas_name=request.canvas_name,
             node_id=request.node_id
         )
-    except ValueError as err:
+    except CanvasNotFoundException as err:
+        # Story 12.B.1: Canvas文件不存在
+        logger.warning(f"Canvas not found: {request.canvas_name}")
         raise HTTPException(
             status_code=404,
-            detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
+            detail=f"Canvas file not found: {request.canvas_name}. Please check the file path."
+        ) from err
+    except ValueError as err:
+        # Story 12.B.1: 节点不存在
+        logger.warning(f"Node not found: {request.node_id} in {request.canvas_name}")
+        raise HTTPException(
+            status_code=404,
+            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+        ) from err
+    except Exception as err:
+        # Story 12.B.1: 意外的上下文获取错误
+        logger.error(f"Context enrichment failed unexpectedly: {err}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read canvas context: {str(err)}"
         ) from err
 
     # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
@@ -606,12 +634,44 @@ async def _call_explanation(
         f"has_textbook_refs={enriched.has_textbook_refs}, has_rag_context={rag_context is not None}"
     )
 
+    # Story 12.D.3: Log received node content for debugging trace
+    logger.info(
+        f"[Story 12.D.3] Received node content: "
+        f"node_id={request.node_id}, "
+        f"canvas_name={request.canvas_name}, "
+        f"has_node_content={bool(request.node_content)}, "
+        f"node_content_len={len(request.node_content or '')}, "
+        f"content_preview={(request.node_content or '')[:80].replace(chr(10), ' ')}"
+    )
+
     try:
+        # Story 12.B.2: 优先使用实时传入的节点内容，fallback到磁盘读取的内容
+        # 这是核心修复：确保Agent使用正确的节点内容
+        effective_content = request.node_content if request.node_content else enriched.target_content
+
         # Story 25.2: Pass enriched context to agent (includes textbook refs per AC3)
+        # Story 12.B.1: 日志记录Agent调用参数
+        # Story 12.B.2: 增加内容来源日志
+        content_source = "realtime" if request.node_content else "disk"
+        logger.debug(
+            f"[Story 12.B.1] Calling agent_service.generate_explanation: "
+            f"type={explanation_type}, content_source={content_source}, "
+            f"content_len={len(effective_content)}, "
+            f"has_adjacent_context={bool(enriched.enriched_context)}, "
+            f"has_rag_context={bool(rag_context)}"
+        )
+
+        # Story 12.B.2: 如果使用实时内容，记录内容差异
+        if request.node_content and enriched.target_content != request.node_content:
+            logger.info(
+                f"[Story 12.B.2] Using realtime content (differs from disk): "
+                f"realtime_len={len(request.node_content)}, disk_len={len(enriched.target_content)}"
+            )
+
         result = await agent_service.generate_explanation(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
-            content=enriched.target_content,
+            content=effective_content,  # Story 12.B.2: 使用有效内容
             adjacent_context=enriched.enriched_context,  # Includes textbook refs per AC3
             explanation_type=explanation_type,
             source_x=enriched.x,
@@ -631,13 +691,54 @@ async def _call_explanation(
             concept=enriched.target_content[:100]
         )
 
+        # Story 12.B.1: 成功日志
+        logger.info(
+            f"[Story 12.B.1] explain_{explanation_type} SUCCESS: "
+            f"explanation_len={len(result.get('explanation', ''))}"
+        )
+
         return ExplainResponse(
             explanation=result.get("explanation", ""),
             created_node_id=result.get("created_node_id", ""),
         )
+    except HTTPException:
+        # Story 12.B.1: 已经是HTTPException，直接重新抛出
+        raise
+    except TimeoutError as e:
+        # Story 12.B.1: AI服务超时
+        logger.error(f"Agent service timeout for {explanation_type}: {e}")
+        raise HTTPException(
+            status_code=504,
+            detail=f"AI service timeout: The {explanation_type} explanation took too long to generate."
+        ) from e
+    except ConnectionError as e:
+        # Story 12.B.1: AI服务连接失败
+        logger.error(f"Agent service connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail="AI service unavailable: Cannot connect to the AI provider."
+        ) from e
     except Exception as e:
+        # Story 12.B.1: 其他Agent错误
+        error_msg = str(e)
         logger.error(f"explain_{explanation_type} failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+
+        # 提供更具体的错误信息
+        if "rate limit" in error_msg.lower() or "429" in error_msg:
+            raise HTTPException(
+                status_code=429,
+                detail="AI service rate limited: Please try again in a few moments."
+            ) from e
+        elif "api key" in error_msg.lower() or "authentication" in error_msg.lower():
+            raise HTTPException(
+                status_code=503,
+                detail="AI service configuration error: API key issue."
+            ) from e
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Agent service error: {error_msg}"
+            ) from e
 
 
 @agents_router.post(

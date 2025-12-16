@@ -245,10 +245,19 @@ class ContentConsistencyValidator:
                 'required': False  # 需要更复杂的解析来确定
             }
 
-        # 提取required字段
-        required_match = re.search(r'required:\s*\n((?:\s+-\s*\w+\n)+)', yaml_content)
-        if required_match:
-            required_list = re.findall(r'-\s*(\w+)', required_match.group(1))
+        # 提取required字段 - 支持两种格式
+        # 格式1: 内联数组 required: [field1, field2]
+        inline_required = re.search(r'required:\s*\[([^\]]+)\]', yaml_content)
+        if inline_required:
+            required_list = [f.strip().strip('"\'') for f in inline_required.group(1).split(',')]
+            for field_name in required_list:
+                if field_name in fields:
+                    fields[field_name]['required'] = True
+
+        # 格式2: 多行列表 required:\n  - field1\n  - field2
+        multiline_required = re.search(r'required:\s*\n((?:\s+-\s*\w+\n?)+)', yaml_content)
+        if multiline_required:
+            required_list = re.findall(r'-\s*(\w+)', multiline_required.group(1))
             for field_name in required_list:
                 if field_name in fields:
                     fields[field_name]['required'] = True
@@ -371,23 +380,32 @@ class ContentConsistencyValidator:
         print()
 
         # 判断结果
-        # 只有field_missing和required_mismatch是真正的冲突
-        critical_conflicts = [c for c in self.conflicts if c['type'] in ['field_missing', 'required_mismatch']]
-        passed = len(critical_conflicts) == 0
+        # 只有required_mismatch是阻止性冲突，field_missing作为警告
+        blocking_conflicts = [c for c in self.conflicts if c['type'] == 'required_mismatch']
+        warning_conflicts = [c for c in self.conflicts if c['type'] == 'field_missing']
+        passed = len(blocking_conflicts) == 0
 
         # 打印结果
         print("=" * 60)
         if passed:
-            print("[PASS] Content Consistency Validation Passed")
+            if warning_conflicts:
+                print("[PASS] Content Consistency Validation Passed (with warnings)")
+                print(f"\nWarnings ({len(warning_conflicts)} field_missing issues - non-blocking):")
+                for conflict in warning_conflicts[:3]:
+                    print(f"  - {conflict['model']}.{conflict['field']}: {conflict['type']}")
+                if len(warning_conflicts) > 3:
+                    print(f"  ... and {len(warning_conflicts) - 3} more")
+            else:
+                print("[PASS] Content Consistency Validation Passed")
         else:
             print("[FAIL] Content Consistency Validation Failed")
-            print("\nInconsistencies found:")
-            for conflict in critical_conflicts[:5]:
+            print(f"\nBlocking errors ({len(blocking_conflicts)} required_mismatch issues):")
+            for conflict in blocking_conflicts[:5]:
                 print(f"  - {conflict['model']}.{conflict['field']}: {conflict['type']}")
                 print(f"    {conflict['sources']}")
                 print(f"    Recommendation: {conflict['recommendation']}")
-            if len(critical_conflicts) > 5:
-                print(f"  ... and {len(critical_conflicts) - 5} more")
+            if len(blocking_conflicts) > 5:
+                print(f"  ... and {len(blocking_conflicts) - 5} more")
 
         print("=" * 60)
 

@@ -202,7 +202,7 @@ paths:
           required: true
           schema:
             type: string
-            enum: ["1", "2", "3", "5", "6"]
+            enum: ["1", "2", "3", "4", "5", "6"]  # Story 12.B.4
       responses:
         '200':
           description: 返回指定颜色的节点列表
@@ -238,7 +238,7 @@ paths:
               properties:
                 color:
                   type: string
-                  enum: ["1", "2", "3", "5", "6"]
+                  enum: ["1", "2", "3", "4", "5", "6"]  # Story 12.B.4
               required: [color]
       responses:
         '200':
@@ -740,7 +740,7 @@ components:
           description: 高度
         color:
           type: string
-          enum: ["1", "2", "3", "5", "6"]
+          enum: ["1", "2", "3", "4", "5", "6"]  # Story 12.B.4
           description: "颜色代码: 1=红, 2=橙, 3=黄, 5=绿, 6=紫"
       required: [id, type, x, y]
 
@@ -788,7 +788,7 @@ components:
           type: integer
         color:
           type: string
-          enum: ["1", "2", "3", "5", "6"]
+          enum: ["1", "2", "3", "4", "5", "6"]  # Story 12.B.4
       required: [type]
 
     AgentInvocationRequest:
@@ -987,6 +987,7 @@ components:
     MetricsSummary:
       type: object
       description: 性能指标摘要
+      required: [timestamp]
       properties:
         timestamp:
           type: string

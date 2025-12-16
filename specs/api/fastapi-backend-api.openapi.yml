@@ -652,6 +652,8 @@ components:
         - type
         - x
         - y
+        - width
+        - height
       properties:
         id:
           type: string

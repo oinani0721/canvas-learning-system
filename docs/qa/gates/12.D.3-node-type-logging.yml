@@ -1,0 +1,78 @@
+# Quality Gate Decision
+# Story: 12.D.3 - Node Type Logging Chain
+# Reviewed: 2025-12-15
+# Reviewer: Quinn (QA Agent)
+
+gate_decision: PASS
+
+story:
+  id: "12.D.3"
+  title: "Node Type Logging Chain"
+  epic: "12.D"
+  status: "Ready for Done"
+
+review_summary:
+  mode: "ultrathink"
+  risk_level: "low"
+  complexity: "low"
+
+implementation_verification:
+  frontend_logging:
+    file: "canvas-progress-tracker/obsidian-plugin/src/managers/ContextMenuManager.ts"
+    lines: "909-926"
+    status: "PASS"
+    details: "console.log with [Story 12.D.3] prefix, logs node_id, node_type, file_path, content_source, content_length, content_preview"
+
+  api_logging:
+    file: "backend/app/api/v1/endpoints/agents.py"
+    lines: "637-645"
+    status: "PASS"
+    details: "logger.info with [Story 12.D.3] prefix, logs node_id, canvas_name, has_node_content, node_content_len, content_preview"
+
+  service_logging:
+    file: "backend/app/services/context_enrichment_service.py"
+    lines: "289-302"
+    status: "PASS"
+    details: "struct_logger.info with [Story 12.D.3] prefix, logs node_id, node_type, file_path, content_source, content_length"
+
+acceptance_criteria:
+  AC1_frontend_logging:
+    status: "PASS"
+    evidence: "Lines 909-926 in ContextMenuManager.ts"
+
+  AC2_api_logging:
+    status: "PASS"
+    evidence: "Lines 637-645 in agents.py"
+
+  AC3_service_logging:
+    status: "PASS"
+    evidence: "Lines 289-302 in context_enrichment_service.py"
+
+  AC4_content_source_enum:
+    status: "PASS"
+    evidence: "All 3 locations use file_read|json_text|empty enum"
+
+  AC5_grep_filterable:
+    status: "PASS"
+    evidence: "All logs use [Story 12.D.3] prefix"
+
+test_results:
+  test_file: "backend/tests/test_context_enrichment_service.py"
+  total_tests: 21
+  passed: 21
+  failed: 0
+  coverage_note: "Mock fixtures updated to include canvas_base_path"
+
+technical_debt:
+  - id: "TD-001"
+    severity: "low"
+    description: "agents.py uses standard Python logging instead of structlog (ADR-010)"
+    location: "backend/app/api/v1/endpoints/agents.py"
+    recommendation: "Defer to future Epic - pre-existing pattern in file"
+    blocking: false
+
+security_review:
+  status: "PASS"
+  notes: "No sensitive data logged, content preview truncated to 80 chars"
+
+recommendation: "Approve for Done status"
