@@ -76,6 +76,16 @@ class Settings(BaseSettings):
         description="Enable debug mode (Swagger/ReDoc docs, detailed errors)"
     )
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Agent Debug Settings (Story 12.G.1)
+    # [Source: docs/stories/story-12.G.1-api-response-logging.md]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    DEBUG_AGENT_RESPONSE: bool = Field(
+        default=False,
+        description="Enable detailed Agent API response logging for debugging (Story 12.G.1)"
+    )
+
     LOG_LEVEL: str = Field(
         default="INFO",
         description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL"
@@ -349,6 +359,11 @@ class Settings(BaseSettings):
     def debug(self) -> bool:
         """Alias for DEBUG (lowercase for convenience)."""
         return self.DEBUG
+
+    @property
+    def debug_agent_response(self) -> bool:
+        """Alias for DEBUG_AGENT_RESPONSE (lowercase for convenience). Story 12.G.1."""
+        return self.DEBUG_AGENT_RESPONSE
 
     @property
     def log_level(self) -> str:

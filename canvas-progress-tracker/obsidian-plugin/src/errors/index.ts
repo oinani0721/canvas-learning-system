@@ -61,3 +61,18 @@ export {
     type RecoveryAction,
     type RecoveryResult
 } from './ErrorRecoveryManager';
+
+// Agent error handler (Story 12.G.5)
+export {
+    AgentErrorHandler,
+    type AgentErrorHandlerConfig
+} from './AgentErrorHandler';
+
+// Error notification map (Story 12.G.5)
+export {
+    NotificationLevel,
+    ERROR_NOTIFICATION_MAP,
+    getNotificationConfig,
+    isRetryableErrorCode,
+    type ErrorNotificationConfig
+} from './error-notification-map';

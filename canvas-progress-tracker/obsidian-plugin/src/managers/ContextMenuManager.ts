@@ -34,6 +34,8 @@ import {
 } from '../types/menu';
 import { BackupProtectionManager } from './BackupProtectionManager';
 import { BACKUP_FOLDER } from '../utils/canvas-helpers';
+import { ApiError } from '../api/types';
+import { AgentErrorHandler } from '../errors';
 
 // ============================================================================
 // Types
@@ -66,6 +68,8 @@ export interface MenuActionRegistry {
   addToReviewPlan?: MenuActionCallback;
   /** Generate comparison table */
   generateComparisonTable?: MenuActionCallback;
+  /** Execute comparison table - Story 12.F.2 */
+  executeComparisonTable?: MenuActionCallback;
   // Story 25.1: Cross-Canvas UI Entry Points
   /** Open Cross-Canvas association modal */
   openCrossCanvasModal?: MenuActionCallback;
@@ -112,6 +116,8 @@ export class ContextMenuManager {
   private debugMode: boolean = false;
   // Epic 21.5.2: Canvas context缓存，修复getCurrentContext()返回错误路径问题
   private cachedCanvasContext: MenuContext | null = null;
+  // Story 12.G.5: Unified Agent error handler
+  private agentErrorHandler: AgentErrorHandler;
 
   constructor(
     app: App,
@@ -121,6 +127,8 @@ export class ContextMenuManager {
     this.app = app;
     this.backupProtectionManager = backupProtectionManager;
     this.settings = { ...DEFAULT_CONTEXT_MENU_SETTINGS, ...settings };
+    // Story 12.G.5: Initialize Agent error handler
+    this.agentErrorHandler = new AgentErrorHandler({ debug: false });
   }
 
   // ============================================================================
@@ -215,6 +223,22 @@ export class ContextMenuManager {
    */
   setDebugMode(enabled: boolean): void {
     this.debugMode = enabled;
+  }
+
+  /**
+   * Set status bar element for error state display
+   * @source Story 12.G.5: AC 5 - 错误状态持续展示
+   */
+  setStatusBarEl(el: HTMLElement): void {
+    this.agentErrorHandler.setStatusBarEl(el);
+  }
+
+  /**
+   * Get the Agent error handler instance
+   * @source Story 12.G.5
+   */
+  getAgentErrorHandler(): AgentErrorHandler {
+    return this.agentErrorHandler;
   }
 
   // ============================================================================
@@ -865,60 +889,95 @@ export class ContextMenuManager {
     evt.preventDefault();
     evt.stopPropagation();
 
-    // Story 12.D.1: Support both TEXT and FILE node types
-    // ✅ Verified from @obsidian-canvas Skill (SKILL.md:587-591)
+    // Story 12.F.3: Support both TEXT and FILE node types
+    // ✅ FIX: Obsidian Canvas internal node object doesn't have 'type' property
+    // Must detect type by checking existence of 'file' or 'text' properties
     let nodeContent: string | undefined;
+    let detectedNodeType: 'text' | 'file' | undefined = undefined;
 
-    if (nodeInfo.nodeData?.type === 'text' && nodeInfo.nodeData?.text) {
-      // TEXT type: Read directly from JSON
+    // Story 12.F.3: Debug log nodeData structure to diagnose type detection
+    console.log('[Story 12.F.3] nodeData structure debug:', {
+      nodeDataExists: !!nodeInfo.nodeData,
+      nodeDataType: typeof nodeInfo.nodeData,
+      nodeDataKeys: nodeInfo.nodeData ? Object.keys(nodeInfo.nodeData) : [],
+      hasType: 'type' in (nodeInfo.nodeData || {}),
+      typeValue: nodeInfo.nodeData?.type,
+      hasText: 'text' in (nodeInfo.nodeData || {}),
+      hasFile: 'file' in (nodeInfo.nodeData || {}),
+      fileValue: nodeInfo.nodeData?.file,
+    });
+
+    // ✅ FIX: Check for 'file' property first (TFile object or path string)
+    if (nodeInfo.nodeData?.file) {
+      detectedNodeType = 'file';
+      // FILE type: Read linked MD file content
+      // nodeData.file can be a TFile object or a path string
+      const fileRef = nodeInfo.nodeData.file;
+      let filePath: string;
+
+      if (typeof fileRef === 'string') {
+        filePath = fileRef;
+      } else if (fileRef && typeof fileRef === 'object' && 'path' in fileRef) {
+        // TFile object has 'path' property
+        filePath = (fileRef as any).path;
+      } else {
+        console.warn('[Story 12.F.3] Cannot determine file path from:', fileRef);
+        filePath = '';
+      }
+
+      if (filePath) {
+        const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+        if (abstractFile instanceof TFile) {
+          try {
+            // Use cachedRead for better performance
+            nodeContent = await this.app.vault.cachedRead(abstractFile);
+            console.log(`[Story 12.F.3] FILE node content loaded: ${filePath}, length: ${nodeContent.length}`);
+          } catch (error) {
+            console.error(`[Story 12.F.3] Failed to read FILE node: ${filePath}`, error);
+            nodeContent = undefined;
+          }
+        } else {
+          console.warn(`[Story 12.F.3] File not found in vault: ${filePath}`);
+          nodeContent = undefined;
+        }
+      }
+    } else if (nodeInfo.nodeData?.text !== undefined) {
+      // TEXT type: Read directly from node data
+      detectedNodeType = 'text';
       nodeContent = nodeInfo.nodeData.text;
       if (nodeContent) {
         const preview = nodeContent.length > 100 ? nodeContent.substring(0, 100) + '...' : nodeContent;
-        console.log('[DEBUG-CANVAS] Extracted TEXT node content:', preview);
-      }
-    } else if (nodeInfo.nodeData?.type === 'file' && nodeInfo.nodeData?.file) {
-      // FILE type: Read linked MD file content
-      // ✅ Verified from @obsidian-canvas Skill (SKILL.md:587-591)
-      const filePath = nodeInfo.nodeData.file;
-      const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
-      if (abstractFile instanceof TFile) {
-        try {
-          // Use cachedRead for better performance (Epic 12.D PRD recommendation)
-          nodeContent = await this.app.vault.cachedRead(abstractFile);
-          console.log(`[Story 12.D.1] Read FILE node content: ${filePath}, length: ${nodeContent.length}`);
-        } catch (error) {
-          console.error(`[Story 12.D.1] Failed to read FILE node: ${filePath}`, error);
-          nodeContent = undefined;
-        }
-      } else {
-        console.warn(`[Story 12.D.1] File not found: ${filePath}`);
-        nodeContent = undefined;
+        console.log('[Story 12.F.3] TEXT node content extracted:', preview);
       }
     }
 
     // Build context with node information
+    // Story 12.F.3: Use detectedNodeType instead of nodeInfo.nodeData?.type
     const context: MenuContext = {
       type: 'canvas-node',
       filePath: canvasView.file.path,
       nodeId: nodeInfo.nodeId,
       nodeColor: nodeInfo.nodeData?.color as CanvasNodeColor,
-      nodeType: nodeInfo.nodeData?.type,
+      nodeType: detectedNodeType,  // Story 12.F.3: Use detected type
       nodeContent: nodeContent,  // Story 12.B.2: Pass real-time content
     };
 
-    // Story 12.D.3: Log complete node content trace for debugging
-    const logNodeType = nodeInfo.nodeData?.type || 'unknown';
-    const logFilePath = nodeInfo.nodeData?.file || null;
+    // Story 12.F.3: Log complete node content trace for debugging (updated)
+    const logFilePath = nodeInfo.nodeData?.file
+      ? (typeof nodeInfo.nodeData.file === 'string'
+          ? nodeInfo.nodeData.file
+          : nodeInfo.nodeData.file?.path || 'TFile')
+      : null;
     const logContentSource = nodeContent
-      ? (logNodeType === 'file' ? 'file_read' : 'json_text')
+      ? (detectedNodeType === 'file' ? 'file_read' : 'json_text')
       : 'empty';
     const logContentPreview = nodeContent
       ? (nodeContent.length > 80 ? nodeContent.substring(0, 80) + '...' : nodeContent)
       : '';
     console.log(
-      `[Story 12.D.3] Node content trace:\n` +
+      `[Story 12.F.3] Node content trace:\n` +
       `  - node_id: ${nodeInfo.nodeId}\n` +
-      `  - node_type: ${logNodeType}\n` +
+      `  - node_type: ${detectedNodeType || 'unknown'}\n` +
       `  - file_path: ${logFilePath || 'N/A'}\n` +
       `  - content_source: ${logContentSource}\n` +
       `  - content_length: ${nodeContent?.length || 0} chars\n` +
@@ -978,14 +1037,24 @@ export class ContextMenuManager {
         item.setIcon(config.icon);
       }
 
+      // Story 12.G.5: Unified Agent error handling with retry support
       item.onClick(async () => {
         try {
           this.log(`ContextMenuManager: Menu item clicked - ${config.id}`);
           await config.action();
         } catch (error) {
-          const message = error instanceof Error ? error.message : '未知错误';
-          console.error(`Menu action failed: ${config.id}`, error);
-          new Notice(`操作失败: ${message}`);
+          // Story 12.G.5: Use AgentErrorHandler for ApiError instances
+          if (error instanceof ApiError) {
+            await this.agentErrorHandler.handleError(error, async () => {
+              // Retry callback: re-execute the same action
+              await config.action();
+            });
+          } else {
+            // Fallback for non-ApiError errors
+            const message = error instanceof Error ? error.message : '未知错误';
+            console.error(`Menu action failed: ${config.id}`, error);
+            new Notice(`操作失败: ${message}`);
+          }
         }
       });
     });

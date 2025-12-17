@@ -51,13 +51,19 @@ import {
   VerificationQuestionResponse,
   QuestionDecomposeRequest,
   QuestionDecomposeResponse,
+  // Story 12.G.2: Agent Error Types
+  AgentErrorType,
+  AgentErrorResponse,
+  isAgentErrorRetryable,
+  getAgentErrorMessage,
 } from './types';
 
 /**
  * Default configuration values
  * @source Story 13.3 Dev Notes - ApiClientConfig默认值
+ * @modified Story 12.F.6 - Timeout increased from 30s to 60s for Agent calls
  */
-const DEFAULT_TIMEOUT = 30000; // 30 seconds
+const DEFAULT_TIMEOUT = 60000; // 60 seconds (Story 12.F.6)
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BACKOFF_MS = 1000;
 const RETRYABLE_ERROR_TYPES: ErrorType[] = [
@@ -65,6 +71,24 @@ const RETRYABLE_ERROR_TYPES: ErrorType[] = [
   'TimeoutError',
   'HttpError5xx',
 ];
+
+/**
+ * Story 12.F.6: Estimated processing time for each Agent type (in seconds)
+ * Used to display progress hints to users ("正在分析... 预计30秒")
+ */
+const ESTIMATED_TIME: Record<string, number> = {
+  'clarification-path': 30,
+  'four-level-explanation': 45,
+  'basic-decomposition': 20,
+  'deep-decomposition': 40,
+  'oral-explanation': 25,
+  'example-teaching': 35,
+  'memory-anchor': 20,
+  'comparison-table': 30,
+  'question-decomposition': 25,
+  'verification-question': 30,
+  'scoring': 15,
+};
 
 /**
  * Canvas Learning System API Client
@@ -676,8 +700,9 @@ export class ApiClient {
 
     // AbortController timeout
     // ✅ Verified from MDN - AbortError name for abort signal
+    // Story 12.F.6: User-friendly timeout message in Chinese
     if (error instanceof Error && error.name === 'AbortError') {
-      return new ApiError('Request timeout', 'TimeoutError', 408);
+      return new ApiError('请求超时 (60秒)，请稍后重试', 'TimeoutError', 408);
     }
 
     // Network error (fetch failed)
@@ -694,6 +719,87 @@ export class ApiClient {
     const message =
       error instanceof Error ? error.message : 'Unknown error occurred';
     return new ApiError(message, 'UnknownError', 0);
+  }
+
+  /**
+   * Story 12.G.2: Normalize Agent error response to ApiError
+   *
+   * Converts backend AgentErrorResponse to frontend ApiError with:
+   * - Proper error type classification
+   * - User-friendly Chinese messages
+   * - Bug ID for tracking
+   * - Retryable flag for UI hints
+   *
+   * @param response - Agent error response from backend
+   * @returns Normalized ApiError instance
+   *
+   * @source Story 12.G.2 - 增强错误处理与友好提示
+   * @source specs/api/agent-api.openapi.yml:629-652
+   */
+  normalizeAgentError(response: AgentErrorResponse): ApiError {
+    const errorType = response.error_type || 'UNKNOWN';
+    const isRetryable = isAgentErrorRetryable(errorType as AgentErrorType);
+
+    // Map Agent error types to ApiError types
+    let apiErrorType: ErrorType;
+    let statusCode: number;
+
+    if (isRetryable) {
+      apiErrorType = 'HttpError5xx';  // Retryable errors use 5xx category
+      statusCode = 503;  // Service Unavailable
+    } else {
+      apiErrorType = 'HttpError4xx';  // Non-retryable errors use 4xx category
+      statusCode = 400;  // Bad Request
+    }
+
+    // Create ApiError with Agent-specific information
+    const apiError = new ApiError(
+      response.message || getAgentErrorMessage(errorType as AgentErrorType),
+      apiErrorType,
+      statusCode,
+      response.details,
+      response.bug_id,
+      errorType  // backendErrorType for display
+    );
+
+    return apiError;
+  }
+
+  /**
+   * Story 12.G.2: Check if API response contains Agent error
+   *
+   * Agent errors have specific fields: error_type, is_retryable, bug_id
+   *
+   * @param data - Response data to check
+   * @returns True if response is an Agent error
+   */
+  isAgentErrorResponse(data: unknown): data is AgentErrorResponse {
+    if (typeof data !== 'object' || data === null) {
+      return false;
+    }
+
+    const obj = data as Record<string, unknown>;
+    return (
+      'error' in obj &&
+      obj.error === true &&
+      'error_type' in obj &&
+      typeof obj.error_type === 'string'
+    );
+  }
+
+  /**
+   * Story 12.G.2: Handle Agent response that may contain error
+   *
+   * Used by Agent-calling methods to detect and throw proper errors
+   *
+   * @param data - Response data from Agent endpoint
+   * @throws ApiError if response contains error
+   */
+  handleAgentResponse<T>(data: T): T {
+    if (this.isAgentErrorResponse(data)) {
+      throw this.normalizeAgentError(data as AgentErrorResponse);
+    }
+    return data;
   }
 
   /**
@@ -728,6 +834,15 @@ export class ApiClient {
    */
   getRetryPolicy(): RetryPolicy {
     return { ...this.retryPolicy };
+  }
+
+  /**
+   * Story 12.F.6: Get estimated processing time for an Agent type
+   * @param agentType - Agent type identifier
+   * @returns Estimated time in seconds (default: 30)
+   */
+  getEstimatedTime(agentType: string): number {
+    return ESTIMATED_TIME[agentType] ?? 30;
   }
 }
 

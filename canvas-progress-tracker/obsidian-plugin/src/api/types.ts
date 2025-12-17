@@ -118,6 +118,76 @@ export interface ErrorResponse {
 }
 
 // =============================================================================
+// Story 12.G.2: Agent Error Types (对齐ADR-009 ErrorCode)
+// =============================================================================
+
+/**
+ * Agent错误类型枚举 (对齐后端AgentErrorType和ADR-009)
+ * @source specs/api/agent-api.openapi.yml:617-627
+ * @source docs/architecture/decisions/ADR-009-ERROR-HANDLING-RETRY-STRATEGY.md
+ */
+export type AgentErrorType =
+  | 'CONFIG_MISSING'       // 2001 - API Key未配置 (NON_RETRYABLE)
+  | 'FILE_NOT_FOUND'       // 3001 - 模板缺失 (FATAL)
+  | 'LLM_TIMEOUT'          // 1002 - API调用超时 (RETRYABLE)
+  | 'LLM_RATE_LIMIT'       // 1001 - 速率限制 (RETRYABLE)
+  | 'LLM_INVALID_RESPONSE' // 1004 - 响应格式错误 (NON_RETRYABLE)
+  | 'NETWORK_TIMEOUT'      // 4001 - 网络错误 (RETRYABLE)
+  | 'UNKNOWN';             // 9999 - 未知错误
+
+/**
+ * 错误类型到用户消息映射 (对齐后端)
+ * @source Story 12.G.2 AC1
+ */
+export const AGENT_ERROR_MESSAGES: Record<AgentErrorType, string> = {
+  CONFIG_MISSING: '请在插件设置中配置 API Key',
+  FILE_NOT_FOUND: 'Agent 模板文件缺失',
+  LLM_TIMEOUT: 'AI 响应超时，请重试',
+  LLM_RATE_LIMIT: '请求过于频繁，请稍后重试',
+  LLM_INVALID_RESPONSE: 'AI 响应格式异常',
+  NETWORK_TIMEOUT: '网络连接失败，请检查网络',
+  UNKNOWN: '发生未知错误',
+};
+
+/**
+ * 可重试错误类型 (对齐ADR-009 ErrorCategory.RETRYABLE)
+ * @source Story 12.G.2 AC3
+ */
+export const RETRYABLE_AGENT_ERRORS: AgentErrorType[] = [
+  'LLM_TIMEOUT',
+  'LLM_RATE_LIMIT',
+  'NETWORK_TIMEOUT',
+];
+
+/**
+ * Agent错误响应接口 (对齐OpenAPI AgentError schema)
+ * @source specs/api/agent-api.openapi.yml:629-652
+ */
+export interface AgentErrorResponse {
+  error_type: AgentErrorType;
+  message: string;
+  is_retryable: boolean;
+  details?: Record<string, unknown>;
+  bug_id?: string;  // Format: BUG-XXXXXXXX
+}
+
+/**
+ * 判断错误类型是否可重试
+ * @source Story 12.G.2 AC3
+ */
+export function isAgentErrorRetryable(errorType: AgentErrorType): boolean {
+  return RETRYABLE_AGENT_ERRORS.includes(errorType);
+}
+
+/**
+ * 获取Agent错误的用户友好消息
+ * @source Story 12.G.2 AC1
+ */
+export function getAgentErrorMessage(errorType: AgentErrorType): string {
+  return AGENT_ERROR_MESSAGES[errorType] || AGENT_ERROR_MESSAGES.UNKNOWN;
+}
+
+// =============================================================================
 // Common Types
 // =============================================================================
 
@@ -156,9 +226,10 @@ export type NodeType = 'text' | 'file' | 'group' | 'link';
 /**
  * Canvas node color codes
  * @source Story 13.3 Dev Notes - NodeColor
- * @verified specs/api/canvas-api.openapi.yml - 颜色代码: 1=红, 2=橙, 3=黄, 5=绿, 6=紫
+ * @verified Story 12.B.4 - 正确颜色映射: 1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄
+ * @see canvas-progress-tracker/obsidian-plugin/src/types/menu.ts - CANVAS_COLOR_NAMES
  */
-export type NodeColor = '1' | '2' | '3' | '5' | '6';
+export type NodeColor = '1' | '2' | '3' | '4' | '5' | '6';
 
 /**
  * Edge connection sides
@@ -309,10 +380,17 @@ export interface ScoreResponse {
 /**
  * Explanation request for various explanation agents
  * @source Story 13.3 Dev Notes - ExplainRequest
+ * @source Story 12.B.2 - node_content for real-time content passing
  */
 export interface ExplainRequest {
   canvas_name: string;
   node_id: string;
+  /**
+   * Real-time node content from plugin (Story 12.B.2)
+   * If provided, backend uses this directly instead of reading from disk.
+   * Solves the "content mismatch" bug where disk content differs from UI display.
+   */
+  node_content?: string;
 }
 
 /**

@@ -23,6 +23,10 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+# Story 12.G.2: Agent Error Type Enum
+# [Source: specs/api/agent-api.openapi.yml:617-627]
+from app.models.enums import AgentErrorType
+
 # ✅ Story 12.C.1: 环境变量开关 - 禁用上下文增强以消除污染
 # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
 # ⚠️ TEMPORARY: Default to True for testing - set to "false" after fixing pollution
@@ -61,6 +65,7 @@ class AgentResult:
     """
     Agent调用结果数据类
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
+    [Enhanced: Story 12.G.2 - error_type field for classified errors]
     """
     agent_type: AgentType
     node_id: str = ""
@@ -68,6 +73,10 @@ class AgentResult:
     result: Optional[Dict[str, Any]] = None
     data: Optional[Dict[str, Any]] = None  # Alias for result
     error: Optional[str] = None
+    # Story 12.G.2: Classified error type (aligned with ADR-009)
+    error_type: Optional[AgentErrorType] = None
+    # Story 12.G.2: Bug tracking ID (format: BUG-XXXXXXXX)
+    bug_id: Optional[str] = None
     duration_ms: float = 0.0
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -79,7 +88,10 @@ class AgentResult:
             self.result = self.data
 
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典"""
+        """转换为字典
+
+        Story 12.G.2: 包含error_type和bug_id字段用于错误追踪
+        """
         return {
             "agent_type": self.agent_type.value,
             "node_id": self.node_id,
@@ -87,6 +99,9 @@ class AgentResult:
             "result": self.result,
             "data": self.data,
             "error": self.error,
+            # Story 12.G.2: 错误类型和追踪ID
+            "error_type": self.error_type.value if self.error_type else None,
+            "bug_id": self.bug_id,
             "duration_ms": self.duration_ms,
             "created_at": self.created_at.isoformat(),
         }
@@ -104,6 +119,13 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
     使用多个提取器按优先级尝试提取文本内容，确保即使
     API响应格式不完全匹配也能尽最大努力提取有效内容。
 
+    支持的格式 (Story 12.G.4):
+    - Gemini 原生: {"response": "..."}
+    - OpenAI 兼容: {"choices": [{"message": {"content": "..."}}]}
+    - 嵌套 response: {"response": {"text": "..."}} 或 {"response": {"content": "..."}}
+    - Markdown JSON: ```json\\n{...}\\n```
+    - 纯文本: "直接文本"
+
     Args:
         response: AI API响应对象（可能是dict、对象或字符串）
 
@@ -113,60 +135,261 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
             - success: True如果成功提取到非空文本
 
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+    [Enhanced: Story 12.G.4 - 响应格式自适应]
     """
     if response is None:
         logger.warning("extract_explanation_text: response is None")
         return "", False
 
+    # ✅ Story 12.G.1: 条件性详细提取器日志 (AC 2)
+    # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-3]
+    # ✅ Verified from ADR-010: structlog dual-format logging
+    from app.config import settings
+    debug_enabled = settings.DEBUG_AGENT_RESPONSE
+
+    if debug_enabled:
+        logger.debug(
+            "[Story 12.G.1] extract_attempt_start",
+            extra={
+                "input_type": type(response).__name__,
+                "input_preview": str(response)[:200] if response else "None",
+            }
+        )
+
     extractors = [
+        # === 精确匹配 (高优先级) ===
         # 优先级1: response字段（Gemini常用格式）
-        ("response", lambda r: r.get("response") if isinstance(r, dict) else None),
-        # 优先级2: text属性（某些SDK的响应对象）
+        ("response", lambda r: r.get("response") if isinstance(r, dict) and isinstance(r.get("response"), str) else None),
+        # 优先级2: 嵌套 response.text (Story 12.G.4 AC2)
+        # ✅ Verified from Epic 12.G definition
+        ("nested_response_text", lambda r: _extract_nested_response_text(r)),
+        # 优先级3: 嵌套 response.content (Story 12.G.4 AC2)
+        ("nested_response_content", lambda r: _extract_nested_response_content(r)),
+        # 优先级4: OpenAI 兼容格式 choices[0].message.content (Story 12.G.4 AC1)
+        # ✅ Verified from Context7: OpenAI API response format
+        ("openai_choices", lambda r: _extract_openai_choices(r)),
+        # 优先级5: text属性（某些SDK的响应对象）
         ("text_attr", lambda r: r.text if hasattr(r, "text") and r.text else None),
-        # 优先级3: dict的text字段
+        # 优先级6: dict的text字段
         ("text_key", lambda r: r.get("text") if isinstance(r, dict) else None),
-        # 优先级4: dict的content字段
+        # 优先级7: dict的content字段
         ("content", lambda r: r.get("content") if isinstance(r, dict) else None),
-        # 优先级5: dict的explanation字段
+        # 优先级8: dict的explanation字段
         ("explanation", lambda r: r.get("explanation") if isinstance(r, dict) else None),
-        # 优先级6: dict的message字段
+        # 优先级9: dict的message字段
         ("message", lambda r: r.get("message") if isinstance(r, dict) else None),
-        # 优先级7: dict的output字段
+        # 优先级10: dict的output字段
         ("output", lambda r: r.get("output") if isinstance(r, dict) else None),
-        # 优先级8: 如果response本身是字符串
+        # === 模糊匹配 (低优先级) ===
+        # 优先级11: Markdown JSON 代码块 (Story 12.G.4 AC3)
+        # ✅ Verified from Python re module documentation
+        ("markdown_json", lambda r: _extract_json_from_markdown(r)),
+        # 优先级12: 如果response本身是字符串
         ("direct_str", lambda r: r if isinstance(r, str) else None),
-        # 优先级9: 字符串化（最终fallback）
+        # 优先级13: 字符串化（最终fallback）
         ("stringify", lambda r: str(r) if r else None),
     ]
 
     for name, extractor in extractors:
         try:
             text = extractor(response)
+
+            # ✅ Story 12.G.1: 每个提取器尝试后记录结果 (AC 2)
+            # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-3.1]
+            if debug_enabled:
+                logger.debug(
+                    "[Story 12.G.1] extractor_attempt",
+                    extra={
+                        "extractor_name": name,
+                        "success": text is not None and len(str(text).strip()) > 0 if text else False,
+                        "result_length": len(str(text)) if text else 0,
+                        "result_preview": str(text)[:100] if text else None,
+                    }
+                )
+
             if text and isinstance(text, str) and text.strip():
-                if name != "response" and name != "text_attr":
-                    logger.info(
-                        f"extract_explanation_text: Used fallback extractor '{name}' "
-                        f"for response type: {type(response).__name__}"
-                    )
+                # Story 12.G.4 AC4: 成功时记录提取器名称
+                logger.info(
+                    "extraction_success",
+                    extra={
+                        "extractor_name": name,
+                        "result_length": len(text.strip()),
+                        "response_type": type(response).__name__,
+                    }
+                )
                 return text.strip(), True
         except Exception as e:
+            # ✅ Story 12.G.1: 提取器异常时记录详情 (AC 2)
+            if debug_enabled:
+                logger.warning(
+                    "[Story 12.G.1] extractor_failed",
+                    extra={
+                        "extractor_name": name,
+                        "error": str(e),
+                    }
+                )
             logger.debug(f"extract_explanation_text: Extractor '{name}' failed: {e}")
 
-    # 所有提取器都失败
-    logger.error(
-        f"extract_explanation_text: All extractors failed for response type: {type(response).__name__}",
+    # Story 12.G.4 AC5: 全部失败时记录原始响应 (截断至1000字符)
+    # ✅ Story 12.G.1: 提取失败时记录完整原始响应内容 (AC 2, Task 3.2)
+    # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-3.2]
+    if debug_enabled:
+        logger.error(
+            "[Story 12.G.1] all_extractors_failed_debug",
+            extra={
+                "input_type": type(response).__name__,
+                "input_content": str(response)[:1000] if response else "None",
+                "extractors_tried": len(extractors),
+            }
+        )
+
+    logger.warning(
+        "all_extractors_failed",
         extra={
             "response_type": type(response).__name__,
-            "response_preview": str(response)[:500] if response else "None"
+            "response_preview": str(response)[:1000] if response else "None",
         }
     )
     return "", False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.G.4: 响应格式自适应 - 辅助提取函数
+# [Source: docs/stories/story-12.G.4-response-format-adaptive.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _extract_nested_response_text(r: Any) -> Optional[str]:
+    """
+    提取嵌套格式: response.text
+
+    支持格式: {"response": {"text": "..."}}
+
+    [Source: Story 12.G.4 AC2]
+    """
+    if not isinstance(r, dict):
+        return None
+    response = r.get("response")
+    if isinstance(response, dict):
+        text = response.get("text")
+        if text and isinstance(text, str):
+            return text
+    return None
+
+
+def _extract_nested_response_content(r: Any) -> Optional[str]:
+    """
+    提取嵌套格式: response.content
+
+    支持格式: {"response": {"content": "..."}}
+
+    [Source: Story 12.G.4 AC2]
+    """
+    if not isinstance(r, dict):
+        return None
+    response = r.get("response")
+    if isinstance(response, dict):
+        content = response.get("content")
+        if content and isinstance(content, str):
+            return content
+    return None
+
+
+def _extract_openai_choices(r: Any) -> Optional[str]:
+    """
+    提取 OpenAI 兼容格式: choices[0].message.content 或 choices[0].delta.content
+
+    支持格式:
+    - 标准格式: {"choices": [{"message": {"content": "..."}}]}
+    - Streaming格式: {"choices": [{"delta": {"content": "..."}}]}
+
+    [Source: Story 12.G.4 AC1]
+    ✅ Verified from Context7: OpenAI API response format
+    """
+    if not isinstance(r, dict):
+        return None
+    choices = r.get("choices")
+    if not choices or not isinstance(choices, list) or len(choices) == 0:
+        return None
+    first_choice = choices[0]
+    if not isinstance(first_choice, dict):
+        return None
+    # 标准格式: message.content
+    message = first_choice.get("message")
+    if isinstance(message, dict):
+        content = message.get("content")
+        if content and isinstance(content, str):
+            return content
+    # Streaming 格式: delta.content
+    delta = first_choice.get("delta")
+    if isinstance(delta, dict):
+        content = delta.get("content")
+        if content and isinstance(content, str):
+            return content
+    return None
+
+
+def _extract_json_from_markdown(r: Any) -> Optional[str]:
+    """
+    提取 Markdown JSON 代码块中的内容
+
+    支持格式:
+    - ```json\\n{"response": "..."}\\n```
+    - ```JSON\\n{...}\\n```
+    - ```\\n{...}\\n```
+
+    解析 JSON 后尝试提取常见字段: response, text, content, explanation, output
+
+    [Source: Story 12.G.4 AC3]
+    ✅ Verified from Python re module documentation
+    """
+    if not isinstance(r, str):
+        return None
+
+    # 匹配 ```json ... ``` 或 ```JSON ... ``` 或 ``` ... ```
+    pattern = r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```'
+    match = re.search(pattern, r)
+    if not match:
+        return None
+
+    json_str = match.group(1).strip()
+    try:
+        parsed = json.loads(json_str)
+        # 递归提取: 如果解析出的是 dict，尝试常见字段
+        if isinstance(parsed, dict):
+            for key in ["response", "text", "content", "explanation", "output"]:
+                if key in parsed and parsed[key]:
+                    value = parsed[key]
+                    if isinstance(value, str):
+                        return value
+            # 如果没有找到常见字段，返回整个 JSON 字符串
+            return json.dumps(parsed, ensure_ascii=False)
+        elif isinstance(parsed, str):
+            return parsed
+        return json.dumps(parsed, ensure_ascii=False)
+    except json.JSONDecodeError:
+        return None
+
+
+def _generate_bug_id() -> str:
+    """
+    生成Bug追踪ID (格式: BUG-XXXXXXXX)
+
+    Story 12.G.2 AC2: 错误响应包含bug_id便于追踪
+    [Source: specs/api/agent-api.openapi.yml:648-652]
+
+    Returns:
+        str: Bug ID in format BUG-XXXXXXXX
+    """
+    return f"BUG-{uuid.uuid4().hex[:8].upper()}"
 
 
 def create_error_response(
     error_message: str,
     source_node_id: str,
     agent_type: str,
+    error_type: Optional[AgentErrorType] = None,
+    details: Optional[Dict[str, Any]] = None,
+    bug_id: Optional[str] = None,
     source_x: int = 0,
     source_y: int = 0,
     source_width: int = 400,
@@ -178,43 +401,76 @@ def create_error_response(
     当Agent处理失败时，创建一个红色错误节点而不是返回空结果，
     让用户清楚地知道发生了什么问题。
 
+    Story 12.G.2 增强:
+    - 支持错误类型分类 (AgentErrorType)
+    - 显示是否可重试
+    - 包含bug_id便于追踪
+    - debug模式下包含调试信息
+
     Args:
-        error_message: 错误描述信息
+        error_message: 错误描述信息 (用户友好消息)
         source_node_id: 源节点ID
         agent_type: Agent类型
+        error_type: AgentErrorType枚举值 (对齐ADR-009)
+        details: 调试信息 (仅debug模式返回)
+        bug_id: Bug追踪ID (格式: BUG-XXXXXXXX, 自动生成若未提供)
         source_x, source_y: 源节点位置
         source_width, source_height: 源节点尺寸
 
     Returns:
-        包含错误节点和元数据的响应字典
+        包含错误节点和元数据的响应字典, 颜色为红色(color="1")
 
     [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
+    [Enhanced: Story 12.G.2 - 增强错误处理与友好提示]
     """
+    # Story 12.G.2: 自动生成bug_id
+    if bug_id is None:
+        bug_id = _generate_bug_id()
+
     error_node_id = f"error-{agent_type}-{uuid.uuid4().hex[:8]}"
 
     # 位置在源节点右侧
     error_x = source_x + source_width + 50
     error_y = source_y
 
+    # Story 12.G.2: 构建增强的错误节点文本
+    error_type_str = error_type.value if error_type else "UNKNOWN"
+    is_retryable = error_type.is_retryable if error_type else False
+    retry_hint = "请重试" if is_retryable else "请检查配置后重试"
+
+    # Story 12.G.2 AC3: 更友好的错误节点格式
+    error_text = f"""⚠️ Agent 调用失败
+
+**错误类型**: {error_type_str}
+**错误信息**: {error_message}
+
+**时间**: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+**请求ID**: {bug_id}
+
+{retry_hint}"""
+
     logger.warning(
         f"create_error_response: Creating error node for {agent_type}",
         extra={
             "source_node_id": source_node_id,
             "agent_type": agent_type,
-            "error_message": error_message
+            "error_message": error_message,
+            "error_type": error_type_str,
+            "bug_id": bug_id,
+            "is_retryable": is_retryable,
         }
     )
 
-    return {
+    response = {
         "created_nodes": [{
             "id": error_node_id,
             "type": "text",
-            "text": f"⚠️ Agent处理失败\n\n**错误**: {error_message}\n\n**Agent类型**: {agent_type}\n\n请检查输入内容后重试。",
-            "color": "1",  # 红色表示错误
+            "text": error_text,
+            "color": "1",  # 红色表示错误 (Story 12.G.2 AC4)
             "x": error_x,
             "y": error_y,
             "width": 400,
-            "height": 200
+            "height": 250  # 增加高度以显示更多信息
         }],
         "created_edges": [{
             "id": f"edge-error-{uuid.uuid4().hex[:8]}",
@@ -228,8 +484,23 @@ def create_error_response(
         "error": True,
         "error_message": error_message,
         "agent_type": agent_type,
-        "source_node_id": source_node_id
+        "source_node_id": source_node_id,
+        # Story 12.G.2: 新增字段
+        "error_type": error_type_str,
+        "is_retryable": is_retryable,
+        "bug_id": bug_id,
     }
+
+    # Story 12.G.2 AC2 & AC5: 仅在debug模式下返回详细信息
+    from app.config import settings
+    if settings.DEBUG_AGENT_RESPONSE and details:
+        # AC5: 安全处理 - 不暴露敏感信息
+        safe_details = {k: v for k, v in details.items()
+                       if not any(sensitive in k.lower()
+                                 for sensitive in ['key', 'secret', 'password', 'token'])}
+        response["details"] = safe_details
+
+    return response
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1014,6 +1285,24 @@ class AgentService:
             result["_source"] = "gemini_api"
             result["_mock"] = False
             logger.info(f"Gemini API success: {result.get('usage', {})}")
+
+            # ✅ Story 12.G.1: 条件性详细响应日志 (AC 1, 3)
+            # [Source: docs/stories/story-12.G.1-api-response-logging.md#Task-2]
+            # ✅ Verified from ADR-010: structlog dual-format logging
+            from app.config import settings
+            if settings.DEBUG_AGENT_RESPONSE:
+                response_preview = str(result)[:500] if result else "None"
+                logger.debug(
+                    "[Story 12.G.1] gemini_api_response_received",
+                    extra={
+                        "agent_type": agent_type.value,
+                        "response_type": type(result).__name__,
+                        "response_keys": list(result.keys()) if isinstance(result, dict) else "N/A",
+                        "response_preview": response_preview,
+                        "has_response_field": "response" in result if isinstance(result, dict) else False,
+                    }
+                )
+
             return result
         except FileNotFoundError as e:
             # Prompt template not found - 不再回退到Mock，直接报错
@@ -1212,6 +1501,11 @@ class AgentService:
 
         Uses real Claude API if ClaudeClient is configured, otherwise mock.
 
+        Story 12.G.2 增强:
+        - 分类错误类型 (AgentErrorType)
+        - 生成bug_id便于追踪
+        - 返回用户友好错误消息
+
         Args:
             agent_type: Type of agent to call
             prompt: Input prompt for the agent
@@ -1222,8 +1516,11 @@ class AgentService:
             AgentResult with the response
 
         [Source: docs/prd/sprint-change-proposal-20251208.md - Story 20.4]
+        [Enhanced: Story 12.G.2 - 增强错误处理与友好提示]
         """
         start_time = datetime.now()
+        bug_id = _generate_bug_id()  # Story 12.G.2: 生成bug_id
+
         async with self._semaphore:
             self._active_calls += 1
             self._total_calls += 1
@@ -1244,18 +1541,106 @@ class AgentService:
                     data=data,
                     duration_ms=duration_ms,
                 )
+
+            # Story 12.G.2: 分类错误处理 (对齐ADR-009)
             except asyncio.TimeoutError:
-                return AgentResult(
-                    agent_type=agent_type,
-                    success=False,
-                    error="Agent call timed out",
+                # LLM_TIMEOUT (1002) - RETRYABLE
+                error_type = AgentErrorType.LLM_TIMEOUT
+                logger.warning(
+                    f"Agent call timed out: {agent_type.value}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value}
                 )
-            except Exception as e:
-                logger.error(f"Agent call failed: {agent_type.value} - {e}")
                 return AgentResult(
                     agent_type=agent_type,
                     success=False,
-                    error=str(e),
+                    error=error_type.user_message,
+                    error_type=error_type,
+                    bug_id=bug_id,
+                )
+
+            except FileNotFoundError as e:
+                # FILE_NOT_FOUND (3001) - FATAL
+                error_type = AgentErrorType.FILE_NOT_FOUND
+                logger.error(
+                    f"Agent template missing: {agent_type.value}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value, "error": str(e)}
+                )
+                return AgentResult(
+                    agent_type=agent_type,
+                    success=False,
+                    error=f"{error_type.user_message}: {agent_type.value}",
+                    error_type=error_type,
+                    bug_id=bug_id,
+                )
+
+            except KeyError:
+                # CONFIG_MISSING (2001) - NON_RETRYABLE (API Key未配置)
+                error_type = AgentErrorType.CONFIG_MISSING
+                # Story 12.G.2 AC5: 不记录敏感信息
+                logger.error(
+                    f"Configuration missing for agent: {agent_type.value}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                )
+                return AgentResult(
+                    agent_type=agent_type,
+                    success=False,
+                    error=error_type.user_message,
+                    error_type=error_type,
+                    bug_id=bug_id,
+                )
+
+            except ConnectionError:
+                # NETWORK_TIMEOUT (4001) - RETRYABLE
+                error_type = AgentErrorType.NETWORK_TIMEOUT
+                logger.warning(
+                    f"Network error for agent: {agent_type.value}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                )
+                return AgentResult(
+                    agent_type=agent_type,
+                    success=False,
+                    error=error_type.user_message,
+                    error_type=error_type,
+                    bug_id=bug_id,
+                )
+
+            except ValueError as e:
+                # LLM_INVALID_RESPONSE (1004) - NON_RETRYABLE
+                error_type = AgentErrorType.LLM_INVALID_RESPONSE
+                logger.error(
+                    f"Invalid response from agent: {agent_type.value}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value, "error": str(e)[:200]}
+                )
+                return AgentResult(
+                    agent_type=agent_type,
+                    success=False,
+                    error=f"{error_type.user_message}: {str(e)[:100]}",
+                    error_type=error_type,
+                    bug_id=bug_id,
+                )
+
+            except Exception as e:
+                # UNKNOWN (9999) - 未知错误
+                error_type = AgentErrorType.UNKNOWN
+                # 检查是否是速率限制错误
+                error_str = str(e).lower()
+                if "rate" in error_str and "limit" in error_str:
+                    error_type = AgentErrorType.LLM_RATE_LIMIT
+                elif "timeout" in error_str:
+                    error_type = AgentErrorType.LLM_TIMEOUT
+                elif "connection" in error_str or "network" in error_str:
+                    error_type = AgentErrorType.NETWORK_TIMEOUT
+
+                logger.error(
+                    f"Agent call failed: {agent_type.value} - {type(e).__name__}",
+                    extra={"bug_id": bug_id, "error_type": error_type.value}
+                )
+                return AgentResult(
+                    agent_type=agent_type,
+                    success=False,
+                    error=error_type.user_message,
+                    error_type=error_type,
+                    bug_id=bug_id,
                 )
             finally:
                 self._active_calls -= 1
@@ -1626,7 +2011,8 @@ class AgentService:
         node_id: str,
         content: str,
         source_x: float = 0,
-        source_y: float = 0
+        source_y: float = 0,
+        rag_context: Optional[str] = None  # Story 12.F.1: RAG context injection (was missing)
     ) -> Dict[str, Any]:
         """
         Perform deep decomposition for verification questions.
@@ -1637,15 +2023,17 @@ class AgentService:
             content: Node content to decompose
             source_x: X coordinate of source node for positioning
             source_y: Y coordinate of source node for positioning
+            rag_context: Optional RAG context from 5-source fusion (Story 12.F.1)
 
         Returns:
             Deep verification questions and created nodes
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
+        [Story 12.F.1: Fixed missing rag_context parameter that caused HTTP 500]
         """
         import uuid
-        logger.debug(f"Deep decomposition for node {node_id}")
-        result = await self.call_decomposition(content, deep=True)
+        logger.debug(f"Deep decomposition for node {node_id}, has_rag_context={rag_context is not None}")
+        result = await self.call_decomposition(content, deep=True, context=rag_context)
 
         verification_questions = []
         created_nodes = []
@@ -2716,6 +3104,120 @@ class AgentService:
             call_logger.log_error(e)
             logger.error(f"decompose_question failed: {e}", exc_info=True)
             raise
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Story 12.G.3: Agent Health Check
+    # [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def health_check(self, include_api_test: bool = False) -> Dict[str, Any]:
+        """
+        Perform health check on Agent system components.
+
+        ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: health check)
+        [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md]
+        [Source: specs/api/agent-api.openapi.yml#/paths/~1agents~1health]
+
+        Health Status Logic:
+        - unhealthy: API key not configured OR GeminiClient not initialized
+        - degraded: Some prompt templates missing
+        - healthy: All checks pass
+
+        Args:
+            include_api_test: Whether to perform actual API call test (default: False)
+
+        Returns:
+            Dict containing health status, checks details, and timestamp
+        """
+        from datetime import datetime, timezone
+        from pathlib import Path
+
+        from app.config import settings
+
+        # Check 1: API key configured (don't expose actual key)
+        api_key_configured = bool(settings.AI_API_KEY)
+
+        # Check 2: GeminiClient initialized
+        gemini_client_initialized = self._use_real_api
+
+        # Check 3: Prompt templates availability
+        # List of expected templates (excluding aliases like FOUR_LEVEL and SCORING)
+        expected_templates = [
+            "basic-decomposition",
+            "deep-decomposition",
+            "question-decomposition",
+            "oral-explanation",
+            "four-level-explanation",
+            "clarification-path",
+            "comparison-table",
+            "example-teaching",
+            "memory-anchor",
+            "scoring-agent",
+            "verification-question-agent",
+            "canvas-orchestrator",
+        ]
+
+        prompt_path = Path(settings.AGENT_PROMPT_PATH)
+        available_templates = []
+        missing_templates = []
+
+        for template_name in expected_templates:
+            template_file = prompt_path / f"{template_name}.md"
+            if template_file.exists():
+                available_templates.append(template_name)
+            else:
+                missing_templates.append(template_name)
+
+        prompt_template_check = {
+            "total": len(expected_templates),
+            "available": len(available_templates),
+            "missing": missing_templates,
+        }
+
+        # Check 4: Optional API test
+        api_test_result = None
+        if include_api_test and self._gemini_client and gemini_client_initialized:
+            try:
+                # Simple API ping test - just verify connectivity
+                # ✅ Verified from gemini_client.py:508 - call_raw method
+                test_response = await self._gemini_client.call_raw(
+                    system_prompt="You are a test assistant.",
+                    user_prompt="Say 'OK' if you can read this.",
+                )
+                api_test_result = {
+                    "enabled": True,
+                    "result": "success" if test_response else "empty_response",
+                }
+            except Exception as e:
+                api_test_result = {
+                    "enabled": True,
+                    "result": str(e),
+                }
+        else:
+            api_test_result = {
+                "enabled": False,
+                "result": None,
+            }
+
+        # Determine overall health status
+        # ✅ Verified from Story 12.G.3 AC-1.1, AC-1.2, AC-1.3
+        if not api_key_configured or not gemini_client_initialized:
+            status = "unhealthy"
+        elif len(missing_templates) > 0:
+            status = "degraded"
+        else:
+            status = "healthy"
+
+        return {
+            "status": status,
+            "checks": {
+                "api_key_configured": api_key_configured,
+                "gemini_client_initialized": gemini_client_initialized,
+                "prompt_templates": prompt_template_check,
+                "api_test": api_test_result,
+            },
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
 
     async def cleanup(self) -> None:
         """
