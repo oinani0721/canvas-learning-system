@@ -86,6 +86,21 @@ class Settings(BaseSettings):
         description="Enable detailed Agent API response logging for debugging (Story 12.G.1)"
     )
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Request Deduplication Settings (Story 12.H.5)
+    # [Source: docs/stories/story-12.H.5-backend-dedup.md]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    ENABLE_REQUEST_DEDUP: bool = Field(
+        default=True,
+        description="Enable request deduplication for Agent endpoints (Story 12.H.5)"
+    )
+
+    REQUEST_CACHE_TTL: int = Field(
+        default=60,
+        description="Request cache TTL in seconds (Story 12.H.5, ADR-007 aligned)"
+    )
+
     LOG_LEVEL: str = Field(
         default="INFO",
         description="Logging level: DEBUG, INFO, WARNING, ERROR, CRITICAL"
@@ -404,6 +419,16 @@ class Settings(BaseSettings):
     def rollback_enable_auto_backup(self) -> bool:
         """Alias for ROLLBACK_ENABLE_AUTO_BACKUP (lowercase for convenience)."""
         return self.ROLLBACK_ENABLE_AUTO_BACKUP
+
+    @property
+    def enable_request_dedup(self) -> bool:
+        """Alias for ENABLE_REQUEST_DEDUP (lowercase for convenience). Story 12.H.5."""
+        return self.ENABLE_REQUEST_DEDUP
+
+    @property
+    def request_cache_ttl(self) -> int:
+        """Alias for REQUEST_CACHE_TTL (lowercase for convenience). Story 12.H.5."""
+        return self.REQUEST_CACHE_TTL
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Configuration

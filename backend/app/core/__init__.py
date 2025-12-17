@@ -1,22 +1,12 @@
-# Core Package
-"""Core utilities and configurations for Canvas Learning System."""
+# Canvas Learning System - Core Module
+# Story 12.H.5: Backend Dedup - Request Cache Infrastructure
+"""
+Core infrastructure modules for Canvas Learning System.
 
-from .exceptions import (
-    AgentCallError,
-    CanvasException,
-    CanvasNotFoundException,
-    NodeNotFoundException,
-    TaskNotFoundError,
-    ValidationError,
-)
-from .logging import setup_logging
+This package contains shared infrastructure components:
+- request_cache: Request deduplication cache (Story 12.H.5)
+"""
 
-__all__ = [
-    "setup_logging",
-    "CanvasException",
-    "CanvasNotFoundException",
-    "NodeNotFoundException",
-    "ValidationError",
-    "AgentCallError",
-    "TaskNotFoundError",
-]
+from app.core.request_cache import RequestCache, request_cache
+
+__all__ = ["RequestCache", "request_cache"]

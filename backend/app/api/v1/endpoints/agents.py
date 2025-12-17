@@ -16,15 +16,24 @@ Provides 11 endpoints for AI agent operations (decomposition, scoring, explanati
 import asyncio
 import base64
 import logging
+import time
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
+from app.config import settings
 from app.core.exceptions import CanvasNotFoundException
+from app.core.request_cache import request_cache
 from app.dependencies import AgentServiceDep, CanvasServiceDep, ContextEnrichmentServiceDep, RAGServiceDep
 from app.models import (
+    # Story 12.G.3: Agent Health Check
+    AgentHealthCheckResponse,
+    AgentHealthChecks,
+    AgentHealthStatus,
+    ApiTestResult,
     DecomposeRequest,
     DecomposeResponse,
     ErrorResponse,
@@ -32,6 +41,7 @@ from app.models import (
     ExplainResponse,
     NodeRead,
     NodeScore,
+    PromptTemplateCheck,
     QuestionDecomposeRequest,
     QuestionDecomposeResponse,
     ScoreRequest,
@@ -160,6 +170,107 @@ agents_router = APIRouter(
         500: {"model": ErrorResponse, "description": "Agent service error"},
     }
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.G.3: Agent Health Check Endpoint with TTL Cache
+# [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md]
+# [Source: ADR-007 - 60-second TTL cache for health check]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Health check cache (TTL: 60 seconds per ADR-007)
+_health_check_cache: Dict[str, Any] = {}
+_health_check_cache_time: float = 0.0
+HEALTH_CHECK_CACHE_TTL: int = 60  # seconds
+
+
+@agents_router.get(
+    "/health",
+    response_model=AgentHealthCheckResponse,
+    summary="Agent System Health Check",
+    description="Check health status of Agent system components including API key, client initialization, and prompt templates.",
+    tags=["health"],
+    responses={
+        200: {
+            "description": "Health check successful",
+            "model": AgentHealthCheckResponse,
+        },
+    },
+)
+async def get_agent_health(
+    agent_service: AgentServiceDep,
+    include_api_test: bool = False,
+) -> AgentHealthCheckResponse:
+    """
+    Get Agent system health status.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: health check endpoint)
+    [Source: docs/stories/story-12.G.3-agent-health-check-endpoint.md]
+    [Source: specs/api/agent-api.openapi.yml#/paths/~1agents~1health]
+
+    Performs the following checks:
+    - API Key configuration (without exposing actual key)
+    - GeminiClient initialization status
+    - Prompt template availability (12 expected templates)
+    - Optional: Actual API call test (when include_api_test=true)
+
+    Health Status Logic:
+    - **unhealthy**: API key not configured OR GeminiClient not initialized
+    - **degraded**: Some prompt templates missing
+    - **healthy**: All checks pass
+
+    Cache: Results are cached for 60 seconds (ADR-007) to reduce system load.
+
+    Args:
+        agent_service: Injected AgentService dependency
+        include_api_test: Whether to perform actual API call test (default: False)
+
+    Returns:
+        AgentHealthCheckResponse with status, checks details, cached flag, and timestamp
+    """
+    global _health_check_cache, _health_check_cache_time
+
+    current_time = time.time()
+    cache_key = f"health_{include_api_test}"
+
+    # Check if cached result is still valid (TTL: 60 seconds per ADR-007)
+    if (
+        cache_key in _health_check_cache
+        and (current_time - _health_check_cache_time) < HEALTH_CHECK_CACHE_TTL
+    ):
+        cached_result = _health_check_cache[cache_key]
+        # Return cached result with cached=True flag
+        return AgentHealthCheckResponse(
+            status=AgentHealthStatus(cached_result["status"]),
+            checks=AgentHealthChecks(
+                api_key_configured=cached_result["checks"]["api_key_configured"],
+                gemini_client_initialized=cached_result["checks"]["gemini_client_initialized"],
+                prompt_templates=PromptTemplateCheck(**cached_result["checks"]["prompt_templates"]),
+                api_test=ApiTestResult(**cached_result["checks"]["api_test"]) if cached_result["checks"].get("api_test") else None,
+            ),
+            cached=True,
+            timestamp=datetime.fromisoformat(cached_result["timestamp"]),
+        )
+
+    # Perform fresh health check
+    health_result = await agent_service.health_check(include_api_test=include_api_test)
+
+    # Cache the result
+    _health_check_cache[cache_key] = health_result
+    _health_check_cache_time = current_time
+
+    # Return fresh result with cached=False flag
+    return AgentHealthCheckResponse(
+        status=AgentHealthStatus(health_result["status"]),
+        checks=AgentHealthChecks(
+            api_key_configured=health_result["checks"]["api_key_configured"],
+            gemini_client_initialized=health_result["checks"]["gemini_client_initialized"],
+            prompt_templates=PromptTemplateCheck(**health_result["checks"]["prompt_templates"]),
+            api_test=ApiTestResult(**health_result["checks"]["api_test"]) if health_result["checks"].get("api_test") else None,
+        ),
+        cached=False,
+        timestamp=datetime.fromisoformat(health_result["timestamp"]),
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -413,6 +524,95 @@ async def get_rag_context_with_timeout(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.H.5: Request Deduplication Helper
+# [Source: docs/stories/story-12.H.5-backend-dedup.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def check_duplicate_request(
+    canvas_name: str,
+    node_id: str,
+    agent_type: str
+) -> str:
+    """
+    Check for duplicate request and mark as in-progress.
+
+    Story 12.H.5: Backend-level request deduplication to prevent
+    duplicate Agent requests from being processed simultaneously.
+
+    Per ADR-009: Returns NON_RETRYABLE error (409 Conflict) for duplicates.
+
+    Args:
+        canvas_name: Canvas file name (e.g., "math.canvas")
+        node_id: Target node ID
+        agent_type: Agent type (e.g., "oral", "four-level", "decompose_basic")
+
+    Returns:
+        Cache key if dedup is enabled, empty string if disabled
+
+    Raises:
+        HTTPException: 409 Conflict if duplicate request detected
+
+    [Source: docs/stories/story-12.H.5-backend-dedup.md#集成到-agentspy]
+    """
+    # AC6: Can be disabled via environment variable for testing
+    if not settings.ENABLE_REQUEST_DEDUP:
+        return ""
+
+    cache_key = request_cache.get_key(canvas_name, node_id, agent_type)
+
+    if request_cache.is_duplicate(cache_key):
+        # AC2, AC4: Return 409 and log duplicate
+        logger.warning(
+            f"[Story 12.H.5] Duplicate request rejected: "
+            f"canvas={canvas_name}, node={node_id}, agent={agent_type}"
+        )
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "error": "Duplicate request",
+                "message": "相同请求正在处理中，请稍候",
+                "canvas_name": canvas_name,
+                "node_id": node_id,
+                "agent_type": agent_type,
+                "is_retryable": False  # Per ADR-009: NON_RETRYABLE
+            }
+        )
+
+    # Mark as in-progress
+    request_cache.mark_in_progress(cache_key)
+    return cache_key
+
+
+def complete_request(cache_key: str) -> None:
+    """
+    Mark a request as completed in the dedup cache.
+
+    Args:
+        cache_key: Cache key from check_duplicate_request()
+
+    [Source: docs/stories/story-12.H.5-backend-dedup.md#Task-3.7]
+    """
+    if cache_key:
+        request_cache.mark_completed(cache_key)
+
+
+def cancel_request(cache_key: str) -> None:
+    """
+    Remove a request from the dedup cache (on failure/cancellation).
+
+    This allows immediate retry of the same request after failure.
+
+    Args:
+        cache_key: Cache key from check_duplicate_request()
+
+    [Source: docs/stories/story-12.H.5-backend-dedup.md#Task-3.7]
+    """
+    if cache_key:
+        request_cache.remove(cache_key)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Decomposition Endpoints (2)
 # [Source: specs/api/fastapi-backend-api.openapi.yml#Agent Endpoints]
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -443,7 +643,15 @@ async def decompose_basic(
     [Story 25.2: TextbookContextService Integration]
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
+    [Story 12.H.5: Request Deduplication]
     """
+    # Story 12.H.5: Check for duplicate request
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type="decompose_basic"
+    )
+
     try:
         # Story 25.2: Get enriched context (includes textbook references)
         enriched = await context_service.enrich_with_adjacent_nodes(
@@ -451,6 +659,8 @@ async def decompose_basic(
             node_id=request.node_id
         )
     except ValueError as err:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
             detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
@@ -492,12 +702,17 @@ async def decompose_basic(
             concept=enriched.target_content[:100]
         )
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         # 转换为响应模型
         return DecomposeResponse(
             questions=result.get("questions", []),
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
     except Exception as e:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"decompose_basic failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
@@ -527,7 +742,15 @@ async def decompose_deep(
     [Story 25.2: TextbookContextService Integration]
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
+    [Story 12.H.5: Request Deduplication]
     """
+    # Story 12.H.5: Check for duplicate request
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type="decompose_deep"
+    )
+
     try:
         # Story 25.2: Get enriched context (includes textbook references)
         enriched = await context_service.enrich_with_adjacent_nodes(
@@ -535,6 +758,8 @@ async def decompose_deep(
             node_id=request.node_id
         )
     except ValueError as err:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
             detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
@@ -576,11 +801,16 @@ async def decompose_deep(
             concept=enriched.target_content[:100]
         )
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         return DecomposeResponse(
             questions=result.get("questions", []),
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
     except Exception as e:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"decompose_deep failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
@@ -615,9 +845,18 @@ async def score_understanding(
     [Story 21.1: 统一位置信息提取 - 连接真实AgentService]
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
+    [Story 12.H.5: Request Deduplication]
     """
     # Story 12.A.2: Get RAG context for first node (for scoring context)
     first_node_id = request.node_ids[0] if request.node_ids else ""
+
+    # Story 12.H.5: Check for duplicate request (use first node_id for key)
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=first_node_id,
+        agent_type="score"
+    )
+
     rag_context = None
     if first_node_id:
         rag_context = await get_rag_context_with_timeout(
@@ -662,8 +901,13 @@ async def score_understanding(
                 score=int(score_data.get("total", 0))
             )
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         return ScoreResponse(scores=scores)
     except Exception as e:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"score_understanding failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
@@ -691,70 +935,78 @@ async def _call_explanation(
     [Story 12.A.2: Agent-RAG Bridge Layer]
     [Story 12.A.5: 学习事件自动记录]
     [Story 12.B.1: 增强错误处理]
+    [Story 12.H.5: Request Deduplication]
     """
-    # Story 12.B.1: 请求开始日志
-    # Story 12.B.2: 记录是否有实时节点内容
-    has_realtime_content = bool(request.node_content)
-    logger.info(
-        f"[Story 12.B.1] explain_{explanation_type} START: "
-        f"canvas={request.canvas_name}, node_id={request.node_id}, "
-        f"has_realtime_content={has_realtime_content}"
+    # Story 12.H.5: Check for duplicate request
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type=f"explain_{explanation_type}"
     )
 
-    # Story 25.2: Get enriched context (includes textbook references)
-    # Story 12.B.1: 增强异常捕获
     try:
-        enriched = await context_service.enrich_with_adjacent_nodes(
-            canvas_name=request.canvas_name,
-            node_id=request.node_id
+        # Story 12.B.1: 请求开始日志
+        # Story 12.B.2: 记录是否有实时节点内容
+        has_realtime_content = bool(request.node_content)
+        logger.info(
+            f"[Story 12.B.1] explain_{explanation_type} START: "
+            f"canvas={request.canvas_name}, node_id={request.node_id}, "
+            f"has_realtime_content={has_realtime_content}"
         )
-    except CanvasNotFoundException as err:
-        # Story 12.B.1: Canvas文件不存在
-        logger.warning(f"Canvas not found: {request.canvas_name}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Canvas file not found: {request.canvas_name}. Please check the file path."
-        ) from err
-    except ValueError as err:
-        # Story 12.B.1: 节点不存在
-        logger.warning(f"Node not found: {request.node_id} in {request.canvas_name}")
-        raise HTTPException(
-            status_code=404,
-            detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
-        ) from err
-    except Exception as err:
-        # Story 12.B.1: 意外的上下文获取错误
-        logger.error(f"Context enrichment failed unexpectedly: {err}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to read canvas context: {str(err)}"
-        ) from err
 
-    # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
-    rag_context = await get_rag_context_with_timeout(
-        rag_service=rag_service,
-        query=enriched.target_content,
-        canvas_name=request.canvas_name
-    )
+        # Story 25.2: Get enriched context (includes textbook references)
+        # Story 12.B.1: 增强异常捕获
+        try:
+            enriched = await context_service.enrich_with_adjacent_nodes(
+                canvas_name=request.canvas_name,
+                node_id=request.node_id
+            )
+        except CanvasNotFoundException as err:
+            # Story 12.B.1: Canvas文件不存在
+            logger.warning(f"Canvas not found: {request.canvas_name}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Canvas file not found: {request.canvas_name}. Please check the file path."
+            ) from err
+        except ValueError as err:
+            # Story 12.B.1: 节点不存在
+            logger.warning(f"Node not found: {request.node_id} in {request.canvas_name}")
+            raise HTTPException(
+                status_code=404,
+                detail=f"Node not found: {request.node_id} in canvas {request.canvas_name}"
+            ) from err
+        except Exception as err:
+            # Story 12.B.1: 意外的上下文获取错误
+            logger.error(f"Context enrichment failed unexpectedly: {err}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to read canvas context: {str(err)}"
+            ) from err
 
-    # Story 25.2 AC5: Log textbook context usage + Story 12.A.2: Log RAG context
-    logger.info(
-        f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, "
-        f"pos=({enriched.x},{enriched.y},{enriched.width},{enriched.height}), "
-        f"has_textbook_refs={enriched.has_textbook_refs}, has_rag_context={rag_context is not None}"
-    )
+        # Story 12.A.2: Get RAG context with timeout (AC4: <2s, AC5: graceful degradation)
+        rag_context = await get_rag_context_with_timeout(
+            rag_service=rag_service,
+            query=enriched.target_content,
+            canvas_name=request.canvas_name
+        )
 
-    # Story 12.D.3: Log received node content for debugging trace
-    logger.info(
-        f"[Story 12.D.3] Received node content: "
-        f"node_id={request.node_id}, "
-        f"canvas_name={request.canvas_name}, "
-        f"has_node_content={bool(request.node_content)}, "
-        f"node_content_len={len(request.node_content or '')}, "
-        f"content_preview={(request.node_content or '')[:80].replace(chr(10), ' ')}"
-    )
+        # Story 25.2 AC5: Log textbook context usage + Story 12.A.2: Log RAG context
+        logger.info(
+            f"explain_{explanation_type}: canvas={request.canvas_name}, node={request.node_id}, "
+            f"pos=({enriched.x},{enriched.y},{enriched.width},{enriched.height}), "
+            f"has_textbook_refs={enriched.has_textbook_refs}, has_rag_context={rag_context is not None}"
+        )
 
-    try:
+        # Story 12.D.3: Log received node content for debugging trace
+        logger.info(
+            f"[Story 12.D.3] Received node content: "
+            f"node_id={request.node_id}, "
+            f"canvas_name={request.canvas_name}, "
+            f"has_node_content={bool(request.node_content)}, "
+            f"node_content_len={len(request.node_content or '')}, "
+            f"content_preview={(request.node_content or '')[:80].replace(chr(10), ' ')}"
+        )
+
         # Story 12.B.2: 优先使用实时传入的节点内容，fallback到磁盘读取的内容
         # 这是核心修复：确保Agent使用正确的节点内容
         effective_content = request.node_content if request.node_content else enriched.target_content
@@ -859,15 +1111,22 @@ async def _call_explanation(
             f"explanation_len={len(result.get('explanation', ''))}"
         )
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         return ExplainResponse(
             explanation=result.get("explanation", ""),
             created_node_id=result.get("created_node_id", ""),
         )
     except HTTPException:
         # Story 12.B.1: 已经是HTTPException，直接重新抛出
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         raise
     except TimeoutError as e:
         # Story 12.B.1: AI服务超时
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"Agent service timeout for {explanation_type}: {e}")
         raise HTTPException(
             status_code=504,
@@ -875,6 +1134,8 @@ async def _call_explanation(
         ) from e
     except ConnectionError as e:
         # Story 12.B.1: AI服务连接失败
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"Agent service connection error: {e}")
         raise HTTPException(
             status_code=503,
@@ -882,6 +1143,8 @@ async def _call_explanation(
         ) from e
     except Exception as e:
         # Story 12.B.1: 其他Agent错误
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         error_msg = str(e)
         logger.error(f"explain_{explanation_type} failed: {e}", exc_info=True)
 
@@ -1106,7 +1369,15 @@ async def generate_verification_questions(
     [Source: docs/stories/story-12.A.6-complete-agents.md#AC1]
     [Source: .claude/agents/verification-question-agent.md]
     [Story 12.A.2: Agent-RAG Bridge Layer]
+    [Story 12.H.5: Request Deduplication]
     """
+    # Story 12.H.5: Check for duplicate request
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type="verification_question"
+    )
+
     # AC3a: Get enriched context with adjacent nodes
     try:
         enriched = await context_service.enrich_with_adjacent_nodes(
@@ -1114,6 +1385,8 @@ async def generate_verification_questions(
             node_id=request.node_id
         )
     except ValueError as err:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
             detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
@@ -1162,6 +1435,9 @@ async def generate_verification_questions(
             for q in result.get("questions", [])
         ]
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         return VerificationQuestionResponse(
             questions=questions,
             concept=result.get("concept", enriched.target_content[:100]),
@@ -1169,6 +1445,8 @@ async def generate_verification_questions(
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
     except Exception as e:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"generate_verification_questions failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
 
@@ -1197,7 +1475,15 @@ async def decompose_question(
     [Source: docs/stories/story-12.A.6-complete-agents.md#AC2]
     [Source: .claude/agents/question-decomposition.md]
     [Story 12.A.2: Agent-RAG Bridge Layer]
+    [Story 12.H.5: Request Deduplication]
     """
+    # Story 12.H.5: Check for duplicate request
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type="decompose_question"
+    )
+
     # AC3a: Get enriched context with adjacent nodes
     try:
         enriched = await context_service.enrich_with_adjacent_nodes(
@@ -1205,6 +1491,8 @@ async def decompose_question(
             node_id=request.node_id
         )
     except ValueError as err:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         raise HTTPException(
             status_code=404,
             detail=f"Node not found: canvas={request.canvas_name}, node_id={request.node_id}"
@@ -1249,10 +1537,15 @@ async def decompose_question(
             for q in result.get("questions", [])
         ]
 
+        # Story 12.H.5: Mark request as completed on success
+        complete_request(cache_key)
+
         return QuestionDecomposeResponse(
             questions=questions,
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
     except Exception as e:
+        # Story 12.H.5: Cancel request to allow retry
+        cancel_request(cache_key)
         logger.error(f"decompose_question failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
