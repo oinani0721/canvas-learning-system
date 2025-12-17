@@ -36,6 +36,7 @@ import { NotificationService, createNotificationService } from './src/services/N
 import { GroupPreviewModal, CanvasNode, NodeGroup } from './src/modals/GroupPreviewModal';
 import { ProgressMonitorModal, ProgressMonitorCallbacks, SessionStatus } from './src/modals/ProgressMonitorModal';
 import { ResultSummaryModal, ResultSummaryCallbacks } from './src/modals/ResultSummaryModal';
+import { TaskQueueModal, PendingRequest, AGENT_ESTIMATED_TIMES } from './src/modals/TaskQueueModal';
 import { ContextMenuManager } from './src/managers/ContextMenuManager';
 import type { MenuContext } from './src/types/menu';
 import { BackupProtectionManager } from './src/managers/BackupProtectionManager';
@@ -46,6 +47,91 @@ import { ErrorHistoryManager } from './src/managers/ErrorHistoryManager';
 import { ErrorNotificationService } from './src/services/ErrorNotificationService';
 import { ApiError } from './src/api/types';
 import { BackendProcessManager, createBackendProcessManager, BackendStatus } from './src/services/BackendProcessManager';
+
+/**
+ * Story 12.H.2: Node-level Request Queue
+ *
+ * Ensures only one Agent request executes per node at a time.
+ * Subsequent requests for the same node are queued and executed sequentially.
+ * Different nodes can process requests concurrently.
+ *
+ * @source Story 12.H.2 - 同一节点并发 Agent 限制
+ */
+class NodeRequestQueue {
+    /** Map of nodeId -> current Promise chain */
+    private nodeQueues: Map<string, Promise<unknown>> = new Map();
+
+    /** Map of nodeId -> currently running Agent type (for user feedback) */
+    private nodeAgentTypes: Map<string, string> = new Map();
+
+    /**
+     * Enqueue a request for a specific node
+     *
+     * @param nodeId - The node ID to queue for
+     * @param agentType - Agent type name (for user feedback, e.g., '口语化解释')
+     * @param fn - The async function to execute
+     * @returns The result of fn()
+     */
+    async enqueue<T>(
+        nodeId: string,
+        agentType: string,
+        fn: () => Promise<T>
+    ): Promise<T> {
+        // Check if there's a request in progress for this node
+        const currentAgent = this.nodeAgentTypes.get(nodeId);
+        if (currentAgent) {
+            // Notify user that node is busy
+            new Notice(`节点正在处理 "${currentAgent}"，请稍候...`);
+            console.log(`[Story 12.H.2] Node "${nodeId}" busy with "${currentAgent}", queueing "${agentType}"`);
+        }
+
+        // Get current queue for this node (or resolved Promise if none)
+        const prev = this.nodeQueues.get(nodeId) || Promise.resolve();
+
+        // Create new Promise that chains after previous
+        const current = prev.then(async () => {
+            // Set current agent type for this node
+            this.nodeAgentTypes.set(nodeId, agentType);
+            console.log(`[Story 12.H.2] Starting "${agentType}" for node "${nodeId}"`);
+
+            try {
+                return await fn();
+            } finally {
+                // Cleanup: only remove if this is still the current queue item
+                // This ensures we don't remove a newer queue item
+                if (this.nodeQueues.get(nodeId) === current) {
+                    this.nodeQueues.delete(nodeId);
+                    this.nodeAgentTypes.delete(nodeId);
+                    console.log(`[Story 12.H.2] Completed "${agentType}" for node "${nodeId}", queue cleared`);
+                }
+            }
+        });
+
+        // Store as current queue item for this node
+        this.nodeQueues.set(nodeId, current);
+        return current as Promise<T>;
+    }
+
+    /**
+     * Check if a node has a request in progress
+     *
+     * @param nodeId - The node ID to check
+     * @returns true if node is processing a request
+     */
+    isProcessing(nodeId: string): boolean {
+        return this.nodeQueues.has(nodeId);
+    }
+
+    /**
+     * Get the currently running Agent type for a node
+     *
+     * @param nodeId - The node ID to check
+     * @returns Agent type string, or undefined if not processing
+     */
+    getCurrentAgentType(nodeId: string): string | undefined {
+        return this.nodeAgentTypes.get(nodeId);
+    }
+}
 
 /**
  * Canvas Review Plugin - Main Plugin Class
@@ -98,6 +184,15 @@ export default class CanvasReviewPlugin extends Plugin {
     /** Current backend status for UI updates */
     private backendStatus: BackendStatus = 'stopped';
 
+    /** Story 12.F.4: Pending requests map for deduplication - prevents duplicate Agent calls */
+    private pendingRequests: Map<string, boolean> = new Map();
+
+    /** Story 12.H.3: Task registry for UI display - tracks full task information */
+    private taskRegistry: Map<string, PendingRequest> = new Map();
+
+    /** Story 12.H.2: Node-level request queue - ensures one Agent per node at a time */
+    private nodeRequestQueue: NodeRequestQueue = new NodeRequestQueue();
+
     /**
      * Plugin load lifecycle method
      *
@@ -145,6 +240,12 @@ export default class CanvasReviewPlugin extends Plugin {
                 } else {
                     new Notice('Please open a Canvas file first to use Intelligent Batch Processing');
                 }
+            });
+
+            // Story 12.H.3: Add ribbon icon for task queue
+            // ✅ Verified from Context7: /obsidianmd/obsidian-api (addRibbonIcon)
+            this.addRibbonIcon('list-todo', 'Agent 任务队列 (Task Queue)', () => {
+                this.openTaskQueueModal();
             });
 
             // Register layout-ready event for notifications (Story 14.7)
@@ -300,19 +401,44 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在拆解节点...');
-                        const result = await this.apiClient.decomposeBasic({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'decompose_basic', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeDecomposition?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters
+                    const validationError = this.validateAgentParams(context);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'basic-decomp',
+                        '基础拆解',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `basic-decomp-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在拆解节点... (预计20秒)');
+                                const result = await this.callAgentWithAbort<{ questions?: string[] }>(
+                                    lockKey,
+                                    '/agents/decompose/basic',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'decompose_basic', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeDecomposition?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeOralExplanation: async (context: MenuContext) => {
@@ -320,19 +446,46 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成口语化解释...');
-                        const result = await this.apiClient.explainOral({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice('口语化解释生成完成');
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'explain_oral', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeOralExplanation?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'oral',
+                        '口语化解释',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `oral-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成口语化解释... (预计25秒)');
+                                // Story 12.B.2: Pass real-time node content to backend
+                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                    lockKey,
+                                    '/agents/explain/oral',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice('口语化解释生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_oral', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeOralExplanation?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeFourLevelExplanation: async (context: MenuContext) => {
@@ -340,19 +493,46 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成四层次解释...');
-                        const result = await this.apiClient.explainFourLevel({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice('四层次解释生成完成');
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'explain_four_level', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeFourLevelExplanation?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'four-level',
+                        '四层次解释',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `four-level-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成四层次解释... (预计45秒)');
+                                // Story 12.B.2: Pass real-time node content to backend
+                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                    lockKey,
+                                    '/agents/explain/four-level',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice('四层次解释生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_four_level', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeFourLevelExplanation?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeScoring: async (context: MenuContext) => {
@@ -360,23 +540,49 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在评分节点...');
-                        const result = await this.apiClient.scoreUnderstanding({
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                            node_ids: context.nodeId ? [context.nodeId] : [],
-                        });
-                        new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'score_understanding', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeScoring?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters
+                    const validationError = this.validateAgentParams(context);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'scoring',
+                        '评分',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `scoring-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在评分节点... (预计15秒)');
+                                const result = await this.callAgentWithAbort<{ scores?: unknown[] }>(
+                                    lockKey,
+                                    '/agents/score',
+                                    {
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_ids: context.nodeId ? [context.nodeId] : [],
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'score_understanding', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeScoring?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
+                // Story 12.F.2: Comparison Table - call ActionRegistry implementation
                 generateComparisonTable: async (context: MenuContext) => {
-                    new Notice('对比表功能开发中...');
+                    await this.contextMenuManager?.getActionRegistry()?.executeComparisonTable?.(context);
                 },
 
                 viewNodeHistory: async (context: MenuContext) => {
@@ -430,19 +636,44 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在进行深度拆解...');
-                        const result = await this.apiClient.decomposeDeep({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题`);
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'decompose_deep', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeDeepDecomposition?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters
+                    const validationError = this.validateAgentParams(context);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'deep-decomp',
+                        '深度拆解',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `deep-decomp-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在进行深度拆解... (预计40秒)');
+                                const result = await this.callAgentWithAbort<{ questions?: string[] }>(
+                                    lockKey,
+                                    '/agents/decompose/deep',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题`);
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'decompose_deep', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeDeepDecomposition?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeClarificationPath: async (context: MenuContext) => {
@@ -450,19 +681,46 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成澄清路径...');
-                        const result = await this.apiClient.explainClarification({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice('澄清路径生成完成');
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'explain_clarification', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeClarificationPath?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'clarification',
+                        '澄清路径',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `clarification-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成澄清路径... (预计30秒)');
+                                // Story 12.B.2: Pass real-time node content to backend
+                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                    lockKey,
+                                    '/agents/explain/clarification',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice('澄清路径生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_clarification', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeClarificationPath?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeExampleTeaching: async (context: MenuContext) => {
@@ -470,19 +728,46 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成例题教学...');
-                        const result = await this.apiClient.explainExample({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice('例题教学生成完成');
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'explain_example', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeExampleTeaching?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'example',
+                        '例题教学',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `example-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成例题教学... (预计35秒)');
+                                // Story 12.B.2: Pass real-time node content to backend
+                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                    lockKey,
+                                    '/agents/explain/example',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice('例题教学生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_example', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeExampleTeaching?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 executeMemoryAnchor: async (context: MenuContext) => {
@@ -490,19 +775,46 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成记忆锚点...');
-                        const result = await this.apiClient.explainMemory({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice('记忆锚点生成完成');
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'explain_memory', () =>
-                            this.contextMenuManager?.getActionRegistry()?.executeMemoryAnchor?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'memory',
+                        '记忆锚点',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `memory-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成记忆锚点... (预计20秒)');
+                                // Story 12.B.2: Pass real-time node content to backend
+                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                    lockKey,
+                                    '/agents/explain/memory',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice('记忆锚点生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_memory', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeMemoryAnchor?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 generateVerificationQuestions: async (context: MenuContext) => {
@@ -510,20 +822,45 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在生成检验问题...');
-                        // Story 12.A.6: Use new verification question API
-                        const result = await this.apiClient.generateVerificationQuestions({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice(`检验问题生成完成: 生成了 ${result.questions?.length || 0} 个问题`);
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'generate_verification_questions', () =>
-                            this.contextMenuManager?.getActionRegistry()?.generateVerificationQuestions?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters
+                    const validationError = this.validateAgentParams(context);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'verify',
+                        '检验问题',
+                        async () => {
+                            // Story 12.H.4: Use cancellable request
+                            const lockKey = `verify-${context.nodeId || ''}`;
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在生成检验问题... (预计30秒)');
+                                // Story 12.A.6: Use new verification question API
+                                const result = await this.callAgentWithAbort<{ questions?: unknown[] }>(
+                                    lockKey,
+                                    '/agents/verification/question',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Check for cancellation before success notice
+                                if (result === null) {
+                                    return; // Cancelled, skip success notice
+                                }
+                                new Notice(`检验问题生成完成: 生成了 ${result.questions?.length || 0} 个问题`);
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'generate_verification_questions', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.generateVerificationQuestions?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
 
                 // Story 12.A.6: Question Decomposition Agent
@@ -532,19 +869,92 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice('API客户端未初始化');
                         return;
                     }
-                    try {
-                        new Notice('正在拆解问题...');
-                        const result = await this.apiClient.decomposeQuestion({
-                            node_id: context.nodeId || '',
-                            canvas_name: this.extractCanvasFileName(context.filePath),
-                        });
-                        new Notice(`问题拆解完成: 生成了 ${result.questions?.length || 0} 个子问题`);
-                    } catch (error) {
-                        // @source Story 21.5.5 - 增强错误处理
-                        this.handleAgentError(error, 'decompose_question', () =>
-                            this.contextMenuManager?.getActionRegistry()?.decomposeQuestion?.(context)
-                        );
+                    // Story 12.F.5: Validate parameters
+                    const validationError = this.validateAgentParams(context);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
                     }
+                    // Story 12.H.4: Create lockKey for cancellation
+                    const lockKey = `question-${context.nodeId || ''}`;
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'question',
+                        '问题拆解',
+                        async () => {
+                            try {
+                                // Story 12.F.6: Show estimated time
+                                new Notice('正在拆解问题... (预计25秒)');
+                                // Story 12.H.4: Use cancellable request
+                                const result = await this.callAgentWithAbort<{ questions?: string[] }>(
+                                    lockKey,
+                                    '/agents/decompose/question',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Cancelled request returns null, skip success notice
+                                if (result === null) {
+                                    return;
+                                }
+                                new Notice(`问题拆解完成: 生成了 ${result.questions?.length || 0} 个子问题`);
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'decompose_question', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.decomposeQuestion?.(context)
+                                );
+                            }
+                        }
+                    );
+                },
+
+                // Story 12.F.2: Comparison Table Agent
+                executeComparisonTable: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    // Story 12.F.5: Validate parameters (requires content)
+                    const validationError = this.validateAgentParams(context, true);
+                    if (validationError) {
+                        new Notice(validationError);
+                        return;
+                    }
+                    // Story 12.H.4: Create lockKey for cancellation
+                    const lockKey = `comparison-${context.nodeId || ''}`;
+                    // Story 12.H.2: Node-level queue with deduplication
+                    await this.callAgentWithNodeQueue(
+                        context.nodeId || '',
+                        'comparison',
+                        '对比表',
+                        async () => {
+                            try {
+                                new Notice('正在生成对比表... (预计30秒)');
+                                // Story 12.H.4: Use cancellable request with real-time node content
+                                const result = await this.callAgentWithAbort<{ comparison_table?: string }>(
+                                    lockKey,
+                                    '/agents/explain/comparison',
+                                    {
+                                        node_id: context.nodeId || '',
+                                        canvas_name: this.extractCanvasFileName(context.filePath),
+                                        node_content: context.nodeContent,  // Real-time content
+                                    }
+                                );
+                                // Story 12.H.4 AC5: Cancelled request returns null, skip success notice
+                                if (result === null) {
+                                    return;
+                                }
+                                new Notice('对比表生成完成');
+                            } catch (error) {
+                                // @source Story 21.5.5 - 增强错误处理
+                                this.handleAgentError(error, 'explain_comparison', () =>
+                                    this.contextMenuManager?.getActionRegistry()?.executeComparisonTable?.(context)
+                                );
+                            }
+                        }
+                    );
                 },
             });
 
@@ -1007,6 +1417,21 @@ export default class CanvasReviewPlugin extends Plugin {
                 };
                 const apiUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
                 new Notice(`${statusEmoji[status]} 后端状态: ${status}\n地址: ${apiUrl}`);
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════
+        // Story 12.H.3: Task Queue Commands
+        // ══════════════════════════════════════════════════════════════════
+
+        // Register "Open Task Queue" command
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with callback)
+        this.addCommand({
+            id: 'open-task-queue',
+            name: 'Agent: 打开任务队列 (Open Task Queue)',
+            icon: 'list-todo',
+            callback: () => {
+                this.openTaskQueueModal();
             }
         });
 
@@ -1706,6 +2131,188 @@ export default class CanvasReviewPlugin extends Plugin {
     }
 
     /**
+     * Story 12.F.5: Validate Agent call parameters
+     *
+     * Returns error message if validation fails, or null if valid.
+     * Provides user-friendly Chinese error messages.
+     *
+     * @param context - Menu context with node information
+     * @param requireContent - Whether node_content is required (default: false)
+     * @returns Error message string, or null if valid
+     *
+     * @source Story 12.F.5 - 前端参数校验
+     */
+    private validateAgentParams(context: MenuContext, requireContent = false): string | null {
+        // Validate canvas_name (via filePath)
+        const canvasName = this.extractCanvasFileName(context.filePath);
+        if (!canvasName || canvasName.trim() === '') {
+            return '请先打开 Canvas 文件';
+        }
+
+        // Validate node_id
+        if (!context.nodeId || context.nodeId.trim() === '') {
+            return '请选择一个节点';
+        }
+
+        // Validate node_content if required
+        if (requireContent && (context.nodeContent === undefined || context.nodeContent === null)) {
+            return '节点内容为空，无法生成解释';
+        }
+
+        return null; // Valid
+    }
+
+    /**
+     * Story 12.F.4: Execute Agent call with deduplication lock
+     *
+     * Prevents duplicate API calls when:
+     * - User double-clicks menu item
+     * - Event bubbling triggers multiple handlers
+     * - User clicks again while request is in progress
+     *
+     * @param lockKey - Unique key for this request (format: `${agentType}-${nodeId}`)
+     * @param fn - The async function to execute (API call)
+     * @returns Result from fn, or null if request was deduplicated
+     *
+     * @source Story 12.F.4 - 请求去重机制
+     */
+    private async callAgentWithLock<T>(
+        lockKey: string,
+        fn: () => Promise<T>
+    ): Promise<T | null> {
+        // Check if same request is already in progress
+        if (this.pendingRequests.get(lockKey)) {
+            console.log(`[Story 12.F.4] Request "${lockKey}" already in progress, skipping`);
+            new Notice('请求处理中，请稍候...');
+            return null;
+        }
+
+        try {
+            // Set lock
+            this.pendingRequests.set(lockKey, true);
+            console.log(`[Story 12.F.4] Request "${lockKey}" started`);
+
+            // Execute the actual API call
+            const result = await fn();
+
+            return result;
+        } finally {
+            // Release lock (always, even on error)
+            this.pendingRequests.delete(lockKey);
+            console.log(`[Story 12.F.4] Request "${lockKey}" completed`);
+        }
+    }
+
+    /**
+     * Story 12.H.2: Execute Agent call with node-level queue
+     * Story 12.H.3: Extended to track tasks in taskRegistry for UI display
+     *
+     * Combines node-level queueing (one Agent per node) with request deduplication
+     * (same Agent+node cannot be called twice).
+     *
+     * - Same node, different Agents: Queued (sequential execution)
+     * - Same node, same Agent: Blocked (deduplication)
+     * - Different nodes: Concurrent execution
+     *
+     * @param nodeId - The node ID to queue for
+     * @param agentType - Agent type (for lockKey and user feedback)
+     * @param agentDisplayName - User-visible Agent name in Chinese (e.g., '口语化解释')
+     * @param fn - The async function to execute (API call)
+     * @returns Result from fn, or null if request was blocked
+     *
+     * @source Story 12.H.2 - 同一节点并发 Agent 限制
+     * @source Story 12.H.3 - Task registry integration
+     */
+    private async callAgentWithNodeQueue<T>(
+        nodeId: string,
+        agentType: string,
+        agentDisplayName: string,
+        fn: () => Promise<T>
+    ): Promise<T | null> {
+        const lockKey = `${agentType}-${nodeId}`;
+
+        // First check if exact same request is in progress (Story 12.F.4)
+        if (this.pendingRequests.get(lockKey)) {
+            console.log(`[Story 12.H.2] Same request "${lockKey}" in progress, blocking`);
+            new Notice('相同请求处理中，请稍候...');
+            return null;
+        }
+
+        // Story 12.H.3: Register task in registry (status: queued)
+        this.registerTask(lockKey, nodeId, agentType, agentDisplayName);
+
+        // Queue through NodeRequestQueue (Story 12.H.2)
+        return this.nodeRequestQueue.enqueue(nodeId, agentDisplayName, async () => {
+            // Set dedup lock inside the queue
+            this.pendingRequests.set(lockKey, true);
+            console.log(`[Story 12.H.2] Request "${lockKey}" starting via queue`);
+
+            // Story 12.H.3: Mark task as running
+            this.markTaskRunning(lockKey);
+
+            try {
+                return await fn();
+            } finally {
+                this.pendingRequests.delete(lockKey);
+                // Story 12.H.3: Unregister completed task
+                this.unregisterTask(lockKey);
+                console.log(`[Story 12.H.2] Request "${lockKey}" finished`);
+            }
+        });
+    }
+
+    /**
+     * Story 12.H.4: Execute cancellable Agent API request
+     *
+     * Wrapper around ApiClient.callAgentWithCancel that:
+     * - Creates and registers AbortController with task registry
+     * - Calls the cancellable API method
+     * - Returns null if cancelled (AC5: don't write to Canvas)
+     *
+     * @param lockKey - Unique request identifier (format: `${agentType}-${nodeId}`)
+     * @param endpoint - API endpoint path (e.g., '/agents/explain/oral')
+     * @param data - Request body data
+     * @param timeout - Optional timeout in milliseconds
+     * @returns Response data or null if cancelled
+     *
+     * @source Story 12.H.4 - AC1, AC2, AC5
+     */
+    private async callAgentWithAbort<T>(
+        lockKey: string,
+        endpoint: string,
+        data: unknown,
+        timeout?: number
+    ): Promise<T | null> {
+        if (!this.apiClient) {
+            console.error('[Story 12.H.4] ApiClient not initialized');
+            return null;
+        }
+
+        // Update task registry with AbortController tracking
+        // Note: The actual AbortController is managed inside ApiClient.callAgentWithCancel
+        const task = this.taskRegistry.get(lockKey);
+        if (task) {
+            // Mark that this task is using the cancellable API
+            console.log(`[Story 12.H.4] Task "${lockKey}" using cancellable request`);
+        }
+
+        // Call the cancellable API method
+        const result = await this.apiClient.callAgentWithCancel<T>(
+            lockKey,
+            endpoint,
+            data,
+            timeout
+        );
+
+        // AC5: null means cancelled, caller should not write to Canvas
+        if (result === null) {
+            console.log(`[Story 12.H.4] Request "${lockKey}" was cancelled, skipping Canvas write`);
+        }
+
+        return result;
+    }
+
+    /**
      * Handle Agent API error with enhanced notification and history tracking
      *
      * @param error - The caught error (may be ApiError or generic Error)
@@ -1748,5 +2355,169 @@ export default class CanvasReviewPlugin extends Plugin {
             // Fallback to basic Notice if service not initialized
             new Notice(`${operation} 失败: ${apiError.getFormattedMessage()}`);
         }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Story 12.H.3: Task Queue Management
+    // ══════════════════════════════════════════════════════════════════
+
+    /**
+     * Open Task Queue Modal
+     *
+     * Opens the task queue modal displaying all pending Agent requests.
+     *
+     * @source Story 12.H.3 - AC: Support Ribbon Icon and Command Palette
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (Modal.open)
+     */
+    private openTaskQueueModal(): void {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Opening Task Queue Modal');
+            console.log(`Canvas Review System: ${this.taskRegistry.size} tasks in registry`);
+        }
+
+        const modal = new TaskQueueModal(
+            this.app,
+            this.taskRegistry,
+            (lockKey: string) => this.cancelTask(lockKey)
+        );
+        modal.open();
+    }
+
+    /**
+     * Cancel a pending task
+     *
+     * Cancels a task by its lock key and removes it from the registry.
+     * Shows cancellation notice to user (AC4).
+     *
+     * @param lockKey - The unique task identifier (format: `${agentType}-${nodeId}`)
+     *
+     * @source Story 12.H.3 - AC: Cancel button functionality
+     * @source Story 12.H.4 - AC3, AC4, AC6: Cancel request support
+     */
+    private cancelTask(lockKey: string): void {
+        const task = this.taskRegistry.get(lockKey);
+
+        if (task) {
+            // Story 12.H.4 AC3: Cancel via ApiClient if available (preferred method)
+            // This triggers AbortController.abort() internally
+            if (this.apiClient) {
+                const cancelled = this.apiClient.cancelRequest(lockKey);
+                if (cancelled) {
+                    console.log(`[Story 12.H.4] Task "${lockKey}" cancelled via ApiClient`);
+                }
+            }
+
+            // Story 12.H.4: Also abort local AbortController if ApiClient didn't handle it
+            if (task.abortController) {
+                task.abortController.abort();
+                console.log(`[Story 12.H.4] Task "${lockKey}" aborted via local AbortController`);
+            }
+
+            // Story 12.H.4 AC4: Show cancellation notice
+            new Notice(`已取消: ${task.agentDisplayName}`);
+
+            // Remove from task registry
+            this.taskRegistry.delete(lockKey);
+
+            // Also remove from pending requests (deduplication map)
+            this.pendingRequests.delete(lockKey);
+
+            if (this.settings.debugMode) {
+                console.log(`[Story 12.H.4] Task "${lockKey}" cancelled and cleaned up`);
+            }
+        } else {
+            console.warn(`[Story 12.H.4] Task "${lockKey}" not found in registry`);
+        }
+    }
+
+    /**
+     * Register a task in the task registry
+     *
+     * Called when a new Agent request starts to track it for UI display.
+     *
+     * @param lockKey - Unique task identifier
+     * @param nodeId - Node ID being processed
+     * @param agentType - Agent type identifier
+     * @param agentDisplayName - Human-readable agent name
+     * @param abortController - Optional AbortController for cancellation
+     *
+     * @source Story 12.H.3 - Task tracking for UI
+     */
+    private registerTask(
+        lockKey: string,
+        nodeId: string,
+        agentType: string,
+        agentDisplayName: string,
+        abortController?: AbortController
+    ): void {
+        const task: PendingRequest = {
+            lockKey,
+            nodeId,
+            nodeName: this.getNodeName(nodeId) || nodeId.substring(0, 8),
+            agentType,
+            agentDisplayName,
+            status: 'queued',
+            startTime: Date.now(),
+            estimatedTime: AGENT_ESTIMATED_TIMES[agentType] || 30,
+            abortController,
+        };
+
+        this.taskRegistry.set(lockKey, task);
+
+        if (this.settings.debugMode) {
+            console.log(`[Story 12.H.3] Task "${lockKey}" registered`);
+        }
+    }
+
+    /**
+     * Update task status to running
+     *
+     * @param lockKey - Task identifier
+     *
+     * @source Story 12.H.3 - Task status tracking
+     */
+    private markTaskRunning(lockKey: string): void {
+        const task = this.taskRegistry.get(lockKey);
+        if (task) {
+            task.status = 'running';
+            task.startTime = Date.now(); // Reset start time when actually running
+            this.taskRegistry.set(lockKey, task);
+        }
+    }
+
+    /**
+     * Unregister a completed task
+     *
+     * @param lockKey - Task identifier
+     *
+     * @source Story 12.H.3 - Task cleanup
+     */
+    private unregisterTask(lockKey: string): void {
+        this.taskRegistry.delete(lockKey);
+
+        if (this.settings.debugMode) {
+            console.log(`[Story 12.H.3] Task "${lockKey}" unregistered`);
+        }
+    }
+
+    /**
+     * Get node name from Canvas
+     *
+     * Attempts to retrieve the node's display name from the active Canvas.
+     *
+     * @param nodeId - Node ID to look up
+     * @returns Node name or undefined
+     */
+    private getNodeName(nodeId: string): string | undefined {
+        // Try to get node name from active Canvas
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'canvas') {
+            return undefined;
+        }
+
+        // Return truncated nodeId as fallback
+        // Full implementation would require reading Canvas file
+        return undefined;
     }
 }

@@ -1,7 +1,7 @@
 # ============================================================================
 # Canvas Learning System - Enhanced BMad Core Configuration
-# Version: 2.0 (Canvas Integration)
-# Date: 2025-11-17
+# Version: 2.3 (Canvas Integration)
+# Date: 2025-12-15
 #
 # Purpose: BMad method configuration with Canvas-specific enhancements
 # Documentation: docs/RESEARCH_REPORT_BMAD_INTEGRATION.md
@@ -17,17 +17,29 @@ project:
   version: "1.2"
   description: "AI-powered learning system based on Feynman technique with 14 specialized agents"
   status: "Active Development"
-  # Epic编号说明 (v2.0 - UltraThink深度验证 2025-12-15):
+  # Epic编号说明 (v2.3 - 2025-12-15):
   # - Epic 1-5: 原始Canvas核心系统 (100%完成)
   # - Epic 10: Canvas集成 (100%完成)
   # - Epic 11/15: FastAPI后端 (100%完成, 11个端点)
   # - Epic 12: LangGraph多Agent (88%完成, 代码在src/agentic_rag/)
+  # - Epic 12.A: Agent-RAG深度集成 (100%完成, 6/6 Stories) ✅ 2025-12-15
+  #     - 12.A.1: Canvas名称标准化 [P0 BLOCKER] ✅ 完成 (38个测试)
+  #     - 12.A.2: Agent-RAG桥接层 [P1] ✅ 完成 (13个端点集成)
+  #     - 12.A.3: 节点上下文深度读取 [P1] ✅ 完成 (21个测试)
+  #     - 12.A.4: 记忆系统注入 [P2] ✅ 完成 (11个测试, 500ms超时+30s缓存)
+  #     - 12.A.5: 学习事件自动记录 [P2] ✅ 完成 (19个测试)
+  #     - 12.A.6: 补齐剖析节点Agent [P1] ✅ 完成 (rag_context已修复)
   # - Epic 13: Obsidian插件 (90%完成, 22个服务类)
   # - Epic 14: 复习系统 (95%完成, review_service.py 1,247行)
   # - Epic 16: 跨Canvas (100%完成)
   # - Epic 18: 回滚系统 (100%完成)
   # - Epic 19: 检验追踪 (待开发)
-  epics_completed: [1, 2, 3, 4, 5, 10, 11, 12, 13, 14, 15, 16, 18]
+  # - Epic 12.D: FILE类型节点支持 (待实施, P0 CRITICAL) ✅ 2025-12-15 创建
+  #     - 12.D.1: 前端支持FILE类型节点 [P0 BLOCKER] 待实施
+  #     - 12.D.2: 后端支持FILE类型节点 [P0 BLOCKER] 待实施
+  #     - 12.D.3: 节点类型日志追踪链 [P1] 待实施
+  epics_completed: [1, 2, 3, 4, 5, 10, 11, 12, "12.A", "12.F", "12.G", 13, 14, 15, 16, 18]
+  epics_in_progress: ["12.D", "12.H"]  # 12.D: FILE节点支持, 12.H: 并发控制+任务面板
 
 # ====================
 # BMad Core Configuration (Original)

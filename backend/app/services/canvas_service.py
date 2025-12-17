@@ -44,6 +44,10 @@ class CanvasService:
         """
         self.canvas_base_path = canvas_base_path or "./"
         self._initialized = True
+        # Story 12.H.1: Concurrency locks for write operations
+        # Per-canvas locks prevent race conditions during concurrent writes
+        self._write_locks: Dict[str, asyncio.Lock] = {}
+        self._locks_lock = asyncio.Lock()  # Protects _write_locks dictionary
         logger.debug(f"CanvasService initialized with base_path: {canvas_base_path}")
 
     def _validate_canvas_name(self, canvas_name: str) -> None:
@@ -85,6 +89,27 @@ class CanvasService:
         logger.debug(f"Canvas path normalized: '{canvas_name}' -> '{normalized_name}'")
         return Path(self.canvas_base_path) / f"{normalized_name}.canvas"
 
+    async def _get_lock(self, canvas_name: str) -> asyncio.Lock:
+        """
+        Get write lock for a specific Canvas file (thread-safe).
+
+        Story 12.H.1: Per-canvas locking prevents race conditions.
+        Uses a secondary lock (_locks_lock) to protect the locks dictionary.
+
+        Args:
+            canvas_name: Canvas file name to get lock for
+
+        Returns:
+            asyncio.Lock for the specified canvas
+
+        [Source: Python asyncio.Lock documentation - async context manager]
+        """
+        async with self._locks_lock:
+            if canvas_name not in self._write_locks:
+                self._write_locks[canvas_name] = asyncio.Lock()
+                logger.debug(f"Created new write lock for canvas: {canvas_name}")
+            return self._write_locks[canvas_name]
+
     async def read_canvas(self, canvas_name: str) -> Dict[str, Any]:
         """
         Read a Canvas file asynchronously.
@@ -116,7 +141,10 @@ class CanvasService:
 
     async def write_canvas(self, canvas_name: str, canvas_data: Dict[str, Any]) -> bool:
         """
-        Write canvas data to file.
+        Write canvas data to file (with concurrency lock).
+
+        Story 12.H.1: Uses per-canvas lock to prevent race conditions
+        during concurrent write operations.
 
         Args:
             canvas_name: Canvas file name (without .canvas extension)
@@ -127,17 +155,26 @@ class CanvasService:
 
         Raises:
             ValidationError: If canvas name contains path traversal
+
+        [Source: Python asyncio.Lock - async context manager for mutual exclusion]
         """
         canvas_path = self._get_canvas_path(canvas_name)
         logger.debug(f"Writing canvas: {canvas_path}")
 
-        def _write_file() -> bool:
-            canvas_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(canvas_path, 'w', encoding='utf-8') as f:
-                json.dump(canvas_data, f, indent=2, ensure_ascii=False)
-            return True
+        # Story 12.H.1: Acquire per-canvas lock before write
+        lock = await self._get_lock(canvas_name)
+        async with lock:
+            logger.debug(f"Acquired write lock for canvas: {canvas_name}")
 
-        return await asyncio.to_thread(_write_file)
+            def _write_file() -> bool:
+                canvas_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(canvas_path, 'w', encoding='utf-8') as f:
+                    json.dump(canvas_data, f, indent=2, ensure_ascii=False)
+                return True
+
+            result = await asyncio.to_thread(_write_file)
+            logger.debug(f"Released write lock for canvas: {canvas_name}")
+            return result
 
     async def canvas_exists(self, canvas_name: str) -> bool:
         """
@@ -288,7 +325,7 @@ class CanvasService:
 
         Args:
             canvas_name: Target canvas name
-            color: Color code to filter by (e.g., "1" for red, "3" for green)
+            color: Color code to filter by (e.g., "4" for red, "2" for green, "3" for purple)
 
         Returns:
             List of matching nodes

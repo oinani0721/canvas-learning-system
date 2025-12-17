@@ -106,6 +106,16 @@ export class ApiClient {
   private retryPolicy: RetryPolicy;
 
   /**
+   * Story 12.H.4: AbortController registry for cancellable requests
+   *
+   * Maps lockKey to AbortController, allowing external cancellation of
+   * in-flight requests. Used by callAgentWithCancel() and cancelRequest().
+   *
+   * @source Story 12.H.4 - AC1, AC2
+   */
+  private abortControllers: Map<string, AbortController> = new Map();
+
+  /**
    * Create a new API client instance
    * @param config - Client configuration options
    *
@@ -669,6 +679,171 @@ export class ApiClient {
       '/agents/decompose/question',
       request
     );
+  }
+
+  // ===========================================================================
+  // Story 12.H.4: Cancellable Request Methods
+  // ===========================================================================
+
+  /**
+   * Story 12.H.4: Make a cancellable Agent request
+   *
+   * Unlike the standard request() method, this:
+   * - Registers AbortController by lockKey for external cancellation
+   * - Returns null on cancellation instead of throwing
+   * - Distinguishes user cancellation from timeout
+   *
+   * @param lockKey - Unique identifier for the request (e.g., "oral-{nodeId}")
+   * @param endpoint - API endpoint path
+   * @param data - Request body data
+   * @param timeout - Optional timeout in milliseconds (defaults to this.timeout)
+   * @returns Response data or null if cancelled
+   *
+   * @source Story 12.H.4 - AC1, AC2, AC5
+   * @source ADR-009 - Error handling strategy (user cancel should not trigger retry)
+   */
+  async callAgentWithCancel<T>(
+    lockKey: string,
+    endpoint: string,
+    data: unknown,
+    timeout?: number
+  ): Promise<T | null> {
+    // Story 12.H.4 AC2: Create unique AbortController for this request
+    const controller = new AbortController();
+    this.abortControllers.set(lockKey, controller);
+
+    // Track if this was a user-initiated cancel (not timeout)
+    let userCancelled = false;
+
+    const effectiveTimeout = timeout ?? this.timeout;
+    const timeoutId = setTimeout(() => {
+      // Don't mark as user-cancelled for timeout
+      controller.abort();
+    }, effectiveTimeout);
+
+    try {
+      // ✅ Verified from MDN Web Docs - fetch with AbortController signal
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Obsidian-Canvas-Review/1.0.0',
+        },
+        body: JSON.stringify(data),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errorDetails: ErrorResponse | null = null;
+        try {
+          errorDetails = (await response.json()) as ErrorResponse;
+        } catch {
+          // Response body might not be JSON
+        }
+
+        const errorType: ErrorType =
+          response.status >= 500 ? 'HttpError5xx' : 'HttpError4xx';
+        const errorMessage =
+          errorDetails?.message ?? response.statusText ?? 'HTTP Error';
+
+        throw new ApiError(
+          `HTTP ${response.status}: ${errorMessage}`,
+          errorType,
+          response.status,
+          errorDetails?.details
+        );
+      }
+
+      return (await response.json()) as T;
+    } catch (error) {
+      clearTimeout(timeoutId);
+
+      // Check if this was an abort (user cancel or timeout)
+      if (error instanceof Error && error.name === 'AbortError') {
+        // Story 12.H.4 AC5: Return null on cancellation, don't write to Canvas
+        // Check if it was user-cancelled (controller still in map means timeout)
+        userCancelled = !this.abortControllers.has(lockKey);
+        console.log(
+          `[ApiClient] Request "${lockKey}" was ${userCancelled ? 'cancelled by user' : 'timed out'}`
+        );
+        return null;
+      }
+
+      // Re-throw other errors for normal handling
+      throw this.normalizeError(error);
+    } finally {
+      // Story 12.H.4 AC6: Clean up AbortController, release lock
+      this.abortControllers.delete(lockKey);
+    }
+  }
+
+  /**
+   * Story 12.H.4: Cancel a pending request by lockKey
+   *
+   * Immediately aborts the request if it exists. The request's promise
+   * will resolve to null rather than throwing an error.
+   *
+   * @param lockKey - Request identifier to cancel
+   * @returns true if request was found and cancelled, false if not found
+   *
+   * @source Story 12.H.4 - AC3, AC6
+   * @source ADR-009 - User cancel should not trigger retry or error logging
+   */
+  cancelRequest(lockKey: string): boolean {
+    const controller = this.abortControllers.get(lockKey);
+    if (controller) {
+      // Remove first so the abort handler knows it's user-initiated
+      this.abortControllers.delete(lockKey);
+      controller.abort();
+      console.log(`[ApiClient] Cancelled request: ${lockKey}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Story 12.H.4: Cancel all pending requests
+   *
+   * Useful for cleanup on plugin unload or when user wants to stop
+   * all Agent operations.
+   *
+   * @source Story 12.H.4 - Task 2.2
+   */
+  cancelAllRequests(): void {
+    const count = this.abortControllers.size;
+    this.abortControllers.forEach((controller, lockKey) => {
+      console.log(`[ApiClient] Cancelling request: ${lockKey}`);
+      controller.abort();
+    });
+    this.abortControllers.clear();
+    if (count > 0) {
+      console.log(`[ApiClient] Cancelled ${count} pending request(s)`);
+    }
+  }
+
+  /**
+   * Story 12.H.4: Check if a request is currently pending
+   *
+   * @param lockKey - Request identifier to check
+   * @returns true if request is in progress
+   *
+   * @source Story 12.H.4 - Task 2.3
+   */
+  isRequestPending(lockKey: string): boolean {
+    return this.abortControllers.has(lockKey);
+  }
+
+  /**
+   * Story 12.H.4: Get all currently pending request keys
+   *
+   * @returns Array of lockKeys for pending requests
+   *
+   * @source Story 12.H.4 - Task 2.4
+   */
+  getPendingRequests(): string[] {
+    return Array.from(this.abortControllers.keys());
   }
 
   // ===========================================================================
