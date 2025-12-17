@@ -5117,3 +5117,67 @@
     text-align: center;
     margin: 0;
 }
+
+/* ============================================================================
+ * Story 12.G.5: Agent Error Notification Styles
+ * ============================================================================ */
+
+.agent-error-notice {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.agent-error-notice span {
+    font-weight: 500;
+}
+
+.agent-error-bugid {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.agent-error-bugid button {
+    font-size: 0.8em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--background-modifier-border);
+    background-color: var(--background-primary);
+    color: var(--text-normal);
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.agent-error-bugid button:hover {
+    background-color: var(--background-modifier-hover);
+}
+
+.agent-error-retry-btn {
+    margin-top: 4px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    padding: 4px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: filter 0.15s ease;
+}
+
+.agent-error-retry-btn:hover {
+    filter: brightness(1.1);
+}
+
+.agent-error-retry-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Status Bar Error Indicator */
+.canvas-status-error {
+    color: #ef4444 !important;
+}
