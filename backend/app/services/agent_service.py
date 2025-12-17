@@ -23,6 +23,11 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+# ✅ Story 12.C.1: 环境变量开关 - 禁用上下文增强以消除污染
+# [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
+# ⚠️ TEMPORARY: Default to True for testing - set to "false" after fixing pollution
+DISABLE_CONTEXT_ENRICHMENT = os.getenv("DISABLE_CONTEXT_ENRICHMENT", "true").lower() == "true"
+
 if TYPE_CHECKING:
     from app.clients.gemini_client import GeminiClient
     from app.clients.graphiti_client import LearningMemoryClient
@@ -902,16 +907,24 @@ class AgentService:
         """
         # Story 12.A.4: Use refactored _get_learning_memories() with timeout and cache
         # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-4]
+        # ✅ Story 12.C.1: 可禁用上下文增强以消除污染
+        # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
         enriched_context = context or ""
 
-        memory_context = await self._get_learning_memories(
-            content=prompt or "",
-            canvas_name=canvas_name,
-            node_id=node_id
-        )
-        if memory_context:
-            enriched_context = f"{enriched_context}\n\n{memory_context}" if enriched_context else memory_context
-            logger.debug("Added historical memories to context via _get_learning_memories()")
+        if DISABLE_CONTEXT_ENRICHMENT:
+            logger.warning(
+                "[Story 12.C.1] Context enrichment DISABLED - skipping memory injection. "
+                "Set DISABLE_CONTEXT_ENRICHMENT=false to re-enable."
+            )
+        else:
+            memory_context = await self._get_learning_memories(
+                content=prompt or "",
+                canvas_name=canvas_name,
+                node_id=node_id
+            )
+            if memory_context:
+                enriched_context = f"{enriched_context}\n\n{memory_context}" if enriched_context else memory_context
+                logger.debug("Added historical memories to context via _get_learning_memories()")
 
         # Phase 1 FIX: 强制真实API调用，不再回退到Mock
         # [Source: C:\Users\ROG\.claude\plans\wild-purring-umbrella.md - Phase 1]
@@ -942,6 +955,23 @@ class AgentService:
         # Real Gemini API call - 不再有Mock回退
         # ✅ Verified from Context7:/googleapis/python-genai (topic: async generate content)
         logger.info(f"Making REAL Gemini API call for agent: {agent_type.value}")
+
+        # ✅ Story 12.C.2: 添加调试日志追踪实际发送给AI的内容
+        # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.2]
+        logger.info(
+            f"[Story 12.C.2] _call_gemini_api DEBUG:\n"
+            f"  - agent_type: {agent_type.value}\n"
+            f"  - prompt length: {len(prompt) if prompt else 0} chars\n"
+            f"  - prompt preview: {(prompt[:300] if prompt else 'None')}...\n"
+            f"  - enriched_context length: {len(enriched_context) if enriched_context else 0} chars\n"
+            f"  - enriched_context preview: {(enriched_context[:300] if enriched_context else 'None')}..."
+        )
+        if enriched_context and len(enriched_context) > 0:
+            logger.warning(
+                f"[Story 12.C.2] ⚠️ CONTEXT BEING INJECTED ({len(enriched_context)} chars). "
+                f"If content is unrelated to topic, this is the pollution source!"
+            )
+
         try:
             result = await self._gemini_client.call_agent(
                 agent_type=agent_type.value,
@@ -1055,6 +1085,120 @@ class AgentService:
                 context_parts.append(f"\n- Child [{label or 'extends'}] ({node_type}): {text}")
 
         return "\n".join(context_parts)
+
+    def _extract_topic_from_content(self, content: str, max_length: int = 50) -> str:
+        """
+        Extract topic/concept name from content.
+
+        Strategy:
+        1. Use first line as topic (most common: "概念名" or "# 标题")
+        2. Clean markdown markers and whitespace
+        3. Truncate if too long
+
+        [Source: Story 12.B.3 - Agent Prompt格式统一]
+
+        Args:
+            content: Raw node content
+            max_length: Maximum topic length
+
+        Returns:
+            Extracted topic string
+        """
+        if not content or not content.strip():
+            return "Unknown"
+
+        # Get first line
+        first_line = content.strip().split('\n')[0].strip()
+
+        # Remove markdown heading markers
+        if first_line.startswith('#'):
+            first_line = first_line.lstrip('#').strip()
+
+        # Remove bold/italic markers
+        first_line = first_line.replace('**', '').replace('*', '').replace('_', ' ')
+
+        # Clean up extra whitespace
+        first_line = ' '.join(first_line.split())
+
+        # Truncate if too long
+        if len(first_line) > max_length:
+            first_line = first_line[:max_length].rsplit(' ', 1)[0] + '...'
+
+        return first_line if first_line else "Unknown"
+
+    def _extract_comparison_concepts(self, content: str, topic: str) -> List[str]:
+        """
+        Extract comparison concepts list from content (for comparison-table Agent).
+
+        [Source: Story 12.E.1 - 提示词格式对齐]
+        [Source: .claude/agents/comparison-table.md:14-21 - Agent expects concepts array]
+
+        Extraction Strategy:
+        1. From Markdown table headers (e.g., | 概念A | 概念B | 概念C |)
+        2. From Markdown lists (e.g., - 概念A, - 概念B)
+        3. From ## headings (e.g., ## 概念A)
+        4. Fallback: Return [topic] single element array
+
+        Args:
+            content: Raw node content
+            topic: Extracted topic as fallback
+
+        Returns:
+            List of at least 1 concept (ideally 2+ for comparison)
+        """
+        import re
+        concepts: List[str] = []
+
+        if not content or not content.strip():
+            return [topic] if topic else ["Unknown"]
+
+        # Strategy 1: Extract from Markdown table header row
+        # Pattern: | 概念A | 概念B | 概念C | (first row with |)
+        table_header_match = re.search(r'^\|(.+)\|', content, re.MULTILINE)
+        if table_header_match:
+            header_cells = table_header_match.group(1).split('|')
+            for cell in header_cells:
+                cell = cell.strip()
+                # Skip separator rows (---, :--:, etc.) and empty cells
+                if cell and not re.match(r'^[-:]+$', cell):
+                    # Skip common header labels like "对比维度", "维度"
+                    if cell not in ['对比维度', '维度', '比较', '项目', '属性']:
+                        concepts.append(cell)
+
+        # Strategy 2: Extract from Markdown lists (- item or * item)
+        if len(concepts) < 2:
+            list_matches = re.findall(r'^[\-\*]\s+(.+)$', content, re.MULTILINE)
+            for item in list_matches[:5]:  # Limit to first 5 items
+                item = item.strip()
+                if item and item not in concepts:
+                    concepts.append(item)
+
+        # Strategy 3: Extract from ## headings (level 2-3 headings)
+        if len(concepts) < 2:
+            heading_matches = re.findall(r'^#{2,3}\s+(.+)$', content, re.MULTILINE)
+            for heading in heading_matches[:5]:  # Limit to first 5
+                heading = heading.strip().lstrip('#').strip()
+                if heading and heading not in concepts:
+                    concepts.append(heading)
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_concepts = []
+        for c in concepts:
+            if c not in seen:
+                seen.add(c)
+                unique_concepts.append(c)
+        concepts = unique_concepts
+
+        # If we got at least 2 concepts, return them
+        if len(concepts) >= 2:
+            logger.debug(f"[Story 12.E.1] Extracted {len(concepts)} comparison concepts: {concepts}")
+            return concepts[:5]  # Limit to max 5 concepts
+
+        # Fallback: Return [topic] as single element array
+        fallback = [topic] if topic and topic != "Unknown" else ["Unknown"]
+        logger.debug(f"[Story 12.E.1] Fallback to single concept: {fallback}")
+        return fallback
 
     async def call_agent(
         self,
@@ -1236,7 +1380,8 @@ class AgentService:
         self,
         content: str,
         deep: bool = False,
-        context: Optional[str] = None  # Story 12.A.2: RAG context
+        context: Optional[str] = None,  # Story 12.A.2: RAG context
+        user_understanding: Optional[str] = None
     ) -> AgentResult:
         """
         Call decomposition agent.
@@ -1245,54 +1390,86 @@ class AgentService:
             content: Content to decompose
             deep: If True, use deep decomposition
             context: Optional RAG context for enhanced prompts (Story 12.A.2)
+            user_understanding: Optional user understanding for deep decomposition
 
         Returns:
             AgentResult with decomposition
+
+        [Source: Story 12.B.3 - Agent Prompt格式统一]
         """
         agent_type = AgentType.DEEP_DECOMPOSITION if deep else AgentType.BASIC_DECOMPOSITION
-        return await self.call_agent(agent_type, content, context=context)
+
+        # ✅ Story 12.B.3: Construct JSON-formatted prompt
+        topic = self._extract_topic_from_content(content)
+        json_prompt = json.dumps({
+            "material_content": content,
+            "topic": topic,
+            "user_understanding": user_understanding
+        }, ensure_ascii=False, indent=2)
+
+        logger.debug(f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}")
+        return await self.call_agent(agent_type, json_prompt, context=context)
 
     async def call_scoring(
         self,
         node_content: str,
         user_understanding: str,
-        context: Optional[str] = None  # Story 12.A.2: RAG context support
+        context: Optional[str] = None,  # Story 12.A.2: RAG context support
+        question_text: Optional[str] = None
     ) -> AgentResult:
         """
         Call scoring agent.
 
         Args:
-            node_content: Original node content
+            node_content: Original node content (reference material)
             user_understanding: User's explanation
             context: Optional RAG context (Story 12.A.2)
+            question_text: Optional question text for context
 
         Returns:
             AgentResult with scores
+
+        [Source: Story 12.B.3 - Agent Prompt格式统一]
         """
-        prompt = f"Content: {node_content}\nUser: {user_understanding}"
-        return await self.call_agent(AgentType.SCORING, prompt, context=context)
+        # ✅ Story 12.B.3: Construct JSON-formatted prompt for scoring agent
+        json_prompt = json.dumps({
+            "question_text": question_text or self._extract_topic_from_content(node_content),
+            "user_understanding": user_understanding,
+            "reference_material": node_content
+        }, ensure_ascii=False, indent=2)
+
+        logger.debug("[Story 12.B.3] Constructed JSON prompt for scoring agent")
+        return await self.call_agent(AgentType.SCORING, json_prompt, context=context)
 
     async def call_explanation(
         self,
         content: str,
         explanation_type: str = "oral",
         context: Optional[str] = None,
-        images: Optional[List[Dict[str, Any]]] = None
+        images: Optional[List[Dict[str, Any]]] = None,
+        user_understanding: Optional[str] = None
     ) -> AgentResult:
         """
         Call explanation agent with optional multimodal support.
 
         Args:
             content: Content to explain
-            explanation_type: Type of explanation
-            context: Optional additional context (adjacent nodes, textbook refs, etc.)
+            explanation_type: Type of explanation (oral, clarification, comparison, memory, four_level, example)
+            context: Optional additional context (adjacent nodes, textbook refs, user understanding text, RAG context)
             images: Optional list of images for multimodal analysis
+            user_understanding: Optional[str] - User's understanding from yellow nodes.
+                This is passed to the JSON prompt's `user_understanding` field for Agents
+                that require it (deep-decomposition, question-decomposition).
+                When None, the JSON field will be null (not empty string).
+                [Story 12.E.2: Dual-channel delivery - also appears in context]
 
         Returns:
             AgentResult with explanation
 
         [Source: FIX-1.1 修复上下文传递链]
         [Source: FIX-2.1 实现Claude Vision多模态支持]
+        [Source: Story 12.B.3 统一Agent Prompt为JSON格式]
+        [Source: Story 12.E.2 user_understanding双通道传递]
         """
         type_map = {
             "oral": AgentType.ORAL_EXPLANATION,
@@ -1305,15 +1482,55 @@ class AgentService:
         }
         agent_type = type_map.get(explanation_type, AgentType.ORAL_EXPLANATION)
 
+        # ✅ Story 12.B.3: Construct JSON-formatted prompt for agent templates
+        # Agent templates expect JSON input with material_content, topic, etc.
+        topic = self._extract_topic_from_content(content)
+
+        # ✅ Story 12.E.1: comparison-table Agent expects 'concepts' array, not 'concept' string
+        # [Source: .claude/agents/comparison-table.md:14-21 - Agent expects concepts array]
+        if agent_type == AgentType.COMPARISON_TABLE:
+            concepts = self._extract_comparison_concepts(content, topic)
+            json_prompt = json.dumps({
+                "material_content": content,
+                "topic": topic,
+                "concepts": concepts,  # ✅ Array for comparison-table Agent
+                "user_understanding": user_understanding
+            }, ensure_ascii=False, indent=2)
+            logger.info(f"[Story 12.E.1] comparison-table concepts: {concepts}")
+        else:
+            # Other agents use 'concept' string (backward compatibility)
+            json_prompt = json.dumps({
+                "material_content": content,
+                "topic": topic,
+                "concept": topic,  # Some agents use 'concept' instead of 'topic'
+                "user_understanding": user_understanding
+            }, ensure_ascii=False, indent=2)
+
+        # ✅ Story 12.C.2: 添加调试日志追踪实际发送的内容
+        # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.2]
+        # ✅ Story 12.E.2: 添加 user_understanding 字段追踪
+        logger.info(
+            f"[Story 12.C.2] call_explanation DEBUG:\n"
+            f"  - explanation_type: {explanation_type}\n"
+            f"  - agent_type: {agent_type.value}\n"
+            f"  - content length: {len(content)} chars\n"
+            f"  - content preview: {content[:200]}...\n"
+            f"  - extracted topic: '{topic}'\n"
+            f"  - context length: {len(context) if context else 0} chars\n"
+            f"  - user_understanding: {type(user_understanding).__name__} ({len(user_understanding) if user_understanding else 'null'})\n"
+            f"  - json_prompt preview: {json_prompt[:300]}..."
+        )
+        logger.debug(f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}")
+
         # ✅ FIX-2.1: Use multimodal call if images are provided
         if images and len(images) > 0:
             logger.info(f"Calling {agent_type.value} with {len(images)} images")
             return await self.call_agent_with_images(
-                agent_type, content, images=images, context=context
+                agent_type, json_prompt, images=images, context=context
             )
 
         # ✅ FIX-1.1: Pass context to call_agent for adjacent node enrichment
-        return await self.call_agent(agent_type, content, context=context)
+        return await self.call_agent(agent_type, json_prompt, context=context)
 
     async def decompose_basic(
         self,
@@ -1531,11 +1748,11 @@ class AgentService:
 
             # Color mapping: 0-40% red, 40-70% yellow, 70%+ green
             if total_score >= 0.7:
-                new_color = "4"  # green
-            elif total_score >= 0.4:
-                new_color = "3"  # yellow
+                new_color = "2"  # green (完全理解/已通过)
+            elif total_score >= 0.6:
+                new_color = "3"  # purple (似懂非懂/待检验)
             else:
-                new_color = "1"  # red
+                new_color = "4"  # red (不理解/未通过)
 
             scores.append({
                 "node_id": node_id,
@@ -1693,27 +1910,54 @@ class AgentService:
         except Exception as e:
             logger.warning(f"[FIX-4.4] Failed to read user understandings: {e}")
 
-        # ✅ FIX-4.4: 构建包含用户理解的增强上下文
-        enhanced_context = adjacent_context or ""
+        # ✅ Story 12.E.2: 构建 user_understanding 字符串用于 JSON 字段
+        # 将 user_understandings 列表合并为单一字符串，用于双通道传递
+        user_understanding: Optional[str] = None
         if user_understandings:
-            user_context = "\n\n## 用户之前的个人理解\n\n"
-            for i, understanding in enumerate(user_understandings, 1):
-                user_context += f"### 理解 {i}\n{understanding}\n\n"
-            user_context += "请结合用户的这些理解，生成更贴合用户认知水平的解释。如果用户理解有误，请在解释中委婉纠正。\n"
-            enhanced_context = (enhanced_context + user_context) if enhanced_context else user_context
-            logger.info(f"[FIX-4.4] Enhanced context with {len(user_understandings)} user understandings")
+            user_understanding = "\n\n".join(user_understandings)
+            logger.info(f"[Story 12.E.2] user_understanding prepared: {len(user_understanding)} chars")
 
-        # ✅ Story 12.A.2: 添加 RAG 上下文到增强上下文
-        if rag_context:
-            enhanced_context = f"{enhanced_context}\n\n{rag_context}" if enhanced_context else rag_context
-            logger.info(f"[Story 12.A.2] Enhanced context with RAG ({len(rag_context)} chars)")
+        # ✅ FIX-4.4: 构建包含用户理解的增强上下文
+        # ✅ Story 12.C.1: 可禁用上下文增强以消除污染
+        # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
+        if DISABLE_CONTEXT_ENRICHMENT:
+            logger.warning(
+                f"[Story 12.C.1] Context enrichment DISABLED for generate_explanation. "
+                f"Skipping: adjacent_context ({len(adjacent_context) if adjacent_context else 0} chars), "
+                f"user_understandings ({len(user_understandings)}), "
+                f"rag_context ({len(rag_context) if rag_context else 0} chars). "
+                f"Node content will be used directly."
+            )
+            enhanced_context = ""  # 完全禁用上下文，只使用节点原文
+        else:
+            enhanced_context = adjacent_context or ""
+            if user_understandings:
+                user_context = "\n\n## 用户之前的个人理解\n\n"
+                for i, understanding in enumerate(user_understandings, 1):
+                    user_context += f"### 理解 {i}\n{understanding}\n\n"
+                user_context += "请结合用户的这些理解，生成更贴合用户认知水平的解释。如果用户理解有误，请在解释中委婉纠正。\n"
+                enhanced_context = (enhanced_context + user_context) if enhanced_context else user_context
+                logger.info(f"[FIX-4.4] Enhanced context with {len(user_understandings)} user understandings")
+
+            # ✅ Story 12.A.2: 添加 RAG 上下文到增强上下文
+            if rag_context:
+                enhanced_context = f"{enhanced_context}\n\n{rag_context}" if enhanced_context else rag_context
+                logger.info(f"[Story 12.A.2] Enhanced context with RAG ({len(rag_context)} chars)")
 
         # ✅ FIX-1.1: Pass adjacent_context to call_explanation
         # ✅ FIX-2.1: Pass images for multimodal support
         # ✅ FIX-4.4: Pass enhanced_context with user understandings
         # ✅ Story 12.A.2: Pass enhanced_context with RAG context
+        # ✅ Story 12.E.2: Pass user_understanding for dual-channel delivery (JSON + context)
+        logger.info(
+            f"[Story 12.E.2] Dual-channel user_understanding:\n"
+            f"  - JSON field: {'set' if user_understanding else 'null'}\n"
+            f"  - enhanced_context: {'contains' if enhanced_context and '用户之前的个人理解' in enhanced_context else 'empty'}\n"
+            f"  - content length: {len(user_understanding) if user_understanding else 0}"
+        )
         result = await self.call_explanation(
-            content, explanation_type, context=enhanced_context, images=images
+            content, explanation_type, context=enhanced_context, images=images,
+            user_understanding=user_understanding  # ✅ Story 12.E.2: Pass to JSON field
         )
 
         # ✅ Story 21.3: Use multi-fallback extraction with friendly error handling

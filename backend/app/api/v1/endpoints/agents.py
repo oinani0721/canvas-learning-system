@@ -2,6 +2,7 @@
 # Story 15.2: Routing System and APIRouter Configuration
 # Story 21.1: 统一位置信息提取 - 连接真实AgentService
 # Story 12.A.2: Agent-RAG Bridge Layer - 5源融合上下文注入
+# Story 12.E.5: Agent 端点多模态集成 - 图片提取和加载
 """
 Agent invocation router.
 
@@ -9,10 +10,13 @@ Provides 11 endpoints for AI agent operations (decomposition, scoring, explanati
 [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1agents]
 [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md - Story 21.1]
 [Source: docs/stories/story-12.A.2-agent-rag-bridge.md - RAG Integration]
+[Source: docs/stories/story-12.E.5-agent-multimodal-integration.md - Multimodal]
 """
 
 import asyncio
+import base64
 import logging
+from pathlib import Path
 from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Tuple
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
@@ -37,9 +41,115 @@ from app.models import (
     VerificationQuestionRequest,
     VerificationQuestionResponse,
 )
+from app.services.markdown_image_extractor import MarkdownImageExtractor
 from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.E.5: Multimodal Image Loading Support
+# [Source: docs/stories/story-12.E.5-agent-multimodal-integration.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 12.E.5 Technical Details
+# MIME types for supported image formats
+IMAGE_MIME_TYPES: Dict[str, str] = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+}
+
+# Story 12.E.5 constraints from Gemini API
+MAX_IMAGES_PER_REQUEST = 5  # Avoid exceeding token limits
+MAX_IMAGE_SIZE_MB = 4.0     # Gemini API limit
+
+
+async def _load_images_for_agent(
+    resolved_refs: List[Dict],
+    max_images: int = MAX_IMAGES_PER_REQUEST,
+    max_size_mb: float = MAX_IMAGE_SIZE_MB
+) -> List[Dict[str, Any]]:
+    """加载图片文件并转换为 API 格式 (AC 5.1)
+
+    Story 12.E.5: Agent 端点多模态集成
+
+    ✅ Verified from ADR-011: pathlib 标准化
+
+    Args:
+        resolved_refs: resolve_paths() 返回的路径信息列表
+            Each dict contains: {"reference": ImageReference, "absolute_path": str|None, "exists": bool}
+        max_images: 最大加载图片数量 (default: 5)
+        max_size_mb: 单个图片最大尺寸 MB (default: 4.0)
+
+    Returns:
+        包含 data (base64) 和 media_type 的字典列表，用于 GeminiClient.call_agent_with_images()
+        格式: [{"data": base64_str, "media_type": mime_type, "path": str}, ...]
+
+    [Source: docs/stories/story-12.E.5-agent-multimodal-integration.md#AC-5.1]
+    """
+    images: List[Dict[str, Any]] = []
+    max_size_bytes = int(max_size_mb * 1024 * 1024)
+
+    for ref_info in resolved_refs[:max_images]:
+        # AC 5.1: 不存在的图片静默跳过
+        if not ref_info.get("exists") or not ref_info.get("absolute_path"):
+            continue
+
+        try:
+            file_path = Path(ref_info["absolute_path"])
+            suffix = file_path.suffix.lower()
+
+            # Check supported format
+            mime_type = IMAGE_MIME_TYPES.get(suffix)
+            if not mime_type:
+                logger.warning(
+                    "[Story 12.E.5] Unsupported image format, skipping",
+                    extra={"path": str(file_path), "suffix": suffix}
+                )
+                continue
+
+            # Check file size (AC 5.4: error handling)
+            file_size = file_path.stat().st_size
+            if file_size > max_size_bytes:
+                logger.warning(
+                    f"[Story 12.E.5] Image too large ({file_size / (1024*1024):.2f}MB > {max_size_mb}MB), skipping: {file_path}"
+                )
+                continue
+
+            # Read and encode as base64
+            image_data = file_path.read_bytes()
+            base64_data = base64.b64encode(image_data).decode('utf-8')
+
+            images.append({
+                "data": base64_data,
+                "media_type": mime_type,
+                "path": str(file_path)
+            })
+
+            logger.info(
+                f"[Story 12.E.5] Image loaded successfully: {file_path.name} "
+                f"({mime_type}, {file_size / 1024:.1f}KB)"
+            )
+
+        except PermissionError:
+            # AC 5.4: File permission error, skip
+            logger.warning(f"[Story 12.E.5] Permission denied reading image: {ref_info.get('absolute_path')}")
+            continue
+        except OSError as e:
+            # AC 5.4: OS-level error (disk, etc.), skip
+            logger.warning(f"[Story 12.E.5] OS error reading image: {ref_info.get('absolute_path')}, error: {e}")
+            continue
+        except Exception as e:
+            # AC 5.4: Any other error, log and skip
+            logger.error(
+                f"[Story 12.E.5] Failed to load image: {ref_info.get('absolute_path')}, error: {e}"
+            )
+            continue
+
+    return images
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 # APIRouter(prefix, tags, responses) for modular routing
@@ -649,6 +759,56 @@ async def _call_explanation(
         # 这是核心修复：确保Agent使用正确的节点内容
         effective_content = request.node_content if request.node_content else enriched.target_content
 
+        # ═══════════════════════════════════════════════════════════════════════
+        # Story 12.E.5: 多模态图片提取和加载 (AC 5.2)
+        # [Source: docs/stories/story-12.E.5-agent-multimodal-integration.md]
+        # ═══════════════════════════════════════════════════════════════════════
+        images: List[Dict[str, Any]] = []
+        try:
+            # Extract image references from effective_content
+            image_extractor = MarkdownImageExtractor()
+            image_refs = image_extractor.extract_all(effective_content)
+
+            if image_refs:
+                logger.info(
+                    f"[Story 12.E.5] Found {len(image_refs)} image references in content, "
+                    f"paths={[ref.path for ref in image_refs[:5]]}"  # Log first 5
+                )
+
+                # Get vault_path and canvas_dir for path resolution
+                # ✅ Verified from context_enrichment_service.py:289
+                vault_path = Path(context_service._canvas_service.canvas_base_path)
+
+                # Canvas file directory (for ./ relative paths)
+                # Canvas files are stored in vault_path/{canvas_name}.canvas
+                canvas_file_path = vault_path / f"{request.canvas_name}.canvas"
+                canvas_dir = canvas_file_path.parent if canvas_file_path.exists() else vault_path
+
+                # Resolve paths to absolute paths
+                resolved_refs = await image_extractor.resolve_paths(
+                    image_refs,
+                    vault_path=vault_path,
+                    canvas_dir=canvas_dir
+                )
+
+                # Load images for API
+                images = await _load_images_for_agent(resolved_refs)
+
+                logger.info(
+                    f"[Story 12.E.5] Images loaded for agent: "
+                    f"loaded={len(images)}, total_refs={len(image_refs)}"
+                )
+            else:
+                logger.debug("[Story 12.E.5] No image references found in content")
+
+        except Exception as img_err:
+            # AC 5.3, 5.4: Graceful degradation - image extraction failure doesn't block agent
+            logger.warning(
+                f"[Story 12.E.5] Image extraction/loading failed, continuing without images: {img_err}"
+            )
+            images = []
+        # ═══════════════════════════════════════════════════════════════════════
+
         # Story 25.2: Pass enriched context to agent (includes textbook refs per AC3)
         # Story 12.B.1: 日志记录Agent调用参数
         # Story 12.B.2: 增加内容来源日志
@@ -658,7 +818,8 @@ async def _call_explanation(
             f"type={explanation_type}, content_source={content_source}, "
             f"content_len={len(effective_content)}, "
             f"has_adjacent_context={bool(enriched.enriched_context)}, "
-            f"has_rag_context={bool(rag_context)}"
+            f"has_rag_context={bool(rag_context)}, "
+            f"has_images={len(images) > 0}"  # Story 12.E.5: Log image count
         )
 
         # Story 12.B.2: 如果使用实时内容，记录内容差异
@@ -679,6 +840,7 @@ async def _call_explanation(
             source_width=enriched.width,
             source_height=enriched.height,
             rag_context=rag_context,  # Story 12.A.2: RAG context injection
+            images=images if images else None,  # Story 12.E.5: Multimodal images
         )
 
         # Story 12.A.5: 后台记录学习事件 (AC: 1, 3)

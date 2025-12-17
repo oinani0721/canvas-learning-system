@@ -26,7 +26,7 @@ Features:
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set
 
 import structlog
 
@@ -120,10 +120,13 @@ class AdjacentNode:
         node: Full node data from Canvas
         relation: Relationship direction ('parent' or 'child')
         edge_label: Label from the connecting edge
+        hop_distance: Distance from target node (1 = direct, 2 = 2-hop)
+                     [Story 12.E.3: Added for 2-hop context traversal support]
     """
     node: Dict[str, Any]
     relation: str  # 'parent' or 'child'
     edge_label: str
+    hop_distance: int = 1  # Story 12.E.3: Default 1-hop (backward compatible)
 
 
 @dataclass
@@ -483,24 +486,34 @@ class ContextEnrichmentService:
         node_id: str,
         nodes: Dict[str, Dict[str, Any]],
         edges: List[Dict[str, Any]],
-        hop_depth: int = 1
+        hop_depth: int = 1,
+        visited: Optional[Set[str]] = None,
+        current_hop: int = 1
     ) -> List[AdjacentNode]:
         """
-        Find all nodes adjacent to the target node.
+        Find all nodes adjacent to the target node up to hop_depth.
 
         Traverses edges to find:
         - Parent nodes: edges where target is toNode
         - Child nodes: edges where target is fromNode
 
+        [Story 12.E.3: Implemented 2-hop recursive traversal with cycle prevention]
+
         Args:
             node_id: Target node ID
             nodes: Dict of all nodes keyed by ID
             edges: List of all edges
-            hop_depth: Not fully implemented yet (reserved for future n-hop)
+            hop_depth: Maximum traversal depth (1 = direct, 2 = 2-hop)
+            visited: Set of already visited node IDs (prevents cycles)
+            current_hop: Current recursion depth (internal use)
 
         Returns:
-            List of AdjacentNode objects
+            List of AdjacentNode objects sorted by hop_distance
         """
+        # Story 12.E.3: Initialize visited set to prevent cycles
+        if visited is None:
+            visited = {node_id}
+
         adjacent = []
 
         for edge in edges:
@@ -510,23 +523,49 @@ class ContextEnrichmentService:
 
             if from_node == node_id:
                 # Target → Child (outgoing edge)
-                child_node = nodes.get(to_node)
-                if child_node:
-                    adjacent.append(AdjacentNode(
-                        node=child_node,
-                        relation="child",
-                        edge_label=label
-                    ))
+                # Story 12.E.3: Check visited to prevent cycles
+                if to_node not in visited:
+                    child_node = nodes.get(to_node)
+                    if child_node:
+                        visited.add(to_node)
+                        adjacent.append(AdjacentNode(
+                            node=child_node,
+                            relation="child",
+                            edge_label=label,
+                            hop_distance=current_hop
+                        ))
 
             elif to_node == node_id:
                 # Parent → Target (incoming edge)
-                parent_node = nodes.get(from_node)
-                if parent_node:
-                    adjacent.append(AdjacentNode(
-                        node=parent_node,
-                        relation="parent",
-                        edge_label=label
-                    ))
+                # Story 12.E.3: Check visited to prevent cycles
+                if from_node not in visited:
+                    parent_node = nodes.get(from_node)
+                    if parent_node:
+                        visited.add(from_node)
+                        adjacent.append(AdjacentNode(
+                            node=parent_node,
+                            relation="parent",
+                            edge_label=label,
+                            hop_distance=current_hop
+                        ))
+
+        # Story 12.E.3: Recurse for 2-hop if needed
+        if hop_depth >= 2 and current_hop < hop_depth:
+            hop1_node_ids = [adj.node.get("id") for adj in adjacent if adj.node.get("id")]
+
+            for hop1_node_id in hop1_node_ids:
+                hop2_nodes = self._find_adjacent_nodes(
+                    node_id=hop1_node_id,
+                    nodes=nodes,
+                    edges=edges,
+                    hop_depth=hop_depth,
+                    visited=visited,
+                    current_hop=current_hop + 1
+                )
+                adjacent.extend(hop2_nodes)
+
+        # Story 12.E.3: Sort by hop_distance (closer nodes first)
+        adjacent.sort(key=lambda x: x.hop_distance)
 
         return adjacent
 
@@ -544,6 +583,8 @@ class ContextEnrichmentService:
             [parent|{edge_label}] {parent_text}
             [child|{edge_label}] {child_text}
             ...
+
+        [Story 12.E.3: Updated to show hop_distance in output format]
 
         Args:
             target_node: The main node being analyzed
@@ -565,23 +606,35 @@ class ContextEnrichmentService:
 
         parts.append(f"[目标节点{color_desc}] {target_text}")
 
-        # Add adjacent nodes grouped by relation
-        parents = [n for n in adjacent_nodes if n.relation == "parent"]
-        children = [n for n in adjacent_nodes if n.relation == "child"]
+        # Story 12.E.3: Group adjacent nodes by relation and hop_distance
+        parents_1hop = [n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 1]
+        parents_2hop = [n for n in adjacent_nodes if n.relation == "parent" and n.hop_distance == 2]
+        children_1hop = [n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 1]
+        children_2hop = [n for n in adjacent_nodes if n.relation == "child" and n.hop_distance == 2]
 
-        if parents:
+        if parents_1hop or parents_2hop:
             parts.append("\n--- 前置知识 (Parent Nodes) ---")
-            for adj in parents:
+            # Story 12.E.3: Add 1-hop parents first
+            for adj in parents_1hop:
                 # Story 12.D.2: Use get_node_content() for adjacent nodes too
                 node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[parent|{adj.edge_label}] {node_text}")
+            # Story 12.E.3: Add 2-hop parents with indicator
+            for adj in parents_2hop:
+                node_text = get_node_content(adj.node, vault_path)[:300]
+                parts.append(f"[parent-2hop|{adj.edge_label}] {node_text}")
 
-        if children:
+        if children_1hop or children_2hop:
             parts.append("\n--- 衍生概念 (Child Nodes) ---")
-            for adj in children:
+            # Story 12.E.3: Add 1-hop children first
+            for adj in children_1hop:
                 # Story 12.D.2: Use get_node_content() for adjacent nodes too
                 node_text = get_node_content(adj.node, vault_path)[:300]  # Truncate long text
                 parts.append(f"[child|{adj.edge_label}] {node_text}")
+            # Story 12.E.3: Add 2-hop children with indicator
+            for adj in children_2hop:
+                node_text = get_node_content(adj.node, vault_path)[:300]
+                parts.append(f"[child-2hop|{adj.edge_label}] {node_text}")
 
         return "\n\n".join(parts)
 

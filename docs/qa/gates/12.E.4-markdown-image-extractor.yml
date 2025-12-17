@@ -1,0 +1,128 @@
+# Quality Gate Decision
+# Story: 12.E.4 - Markdown 图片引用提取器
+# Epic: 12.E - Agent 质量综合修复
+# Generated: 2025-12-16
+# Reviewer: Quinn (QA Agent)
+
+gate: PASS
+quality_score: 100
+
+story:
+  id: "12.E.4"
+  title: "Markdown 图片引用提取器"
+  epic: "12.E"
+  priority: P1
+  story_points: 2
+
+review_summary:
+  risk_level: LOW
+  risk_score: 2  # Scale 1-10
+  test_coverage: 100%
+  code_quality: EXCELLENT
+  adr_compliance: VERIFIED
+
+acceptance_criteria:
+  ac_4.1:
+    description: "Obsidian 图片语法提取"
+    status: PASS
+    tests:
+      - TestObsidianImageExtraction::test_simple_obsidian_image
+      - TestObsidianImageExtraction::test_obsidian_image_with_path
+      - TestObsidianImageExtraction::test_obsidian_image_with_caption
+      - TestObsidianImageExtraction::test_obsidian_image_with_size_caption
+      - TestObsidianImageExtraction::test_multiple_obsidian_images
+      - TestObsidianImageExtraction::test_obsidian_chinese_filename
+      - TestObsidianImageExtraction::test_obsidian_spaces_in_path
+
+  ac_4.2:
+    description: "标准 Markdown 图片语法提取"
+    status: PASS
+    tests:
+      - TestMarkdownImageExtraction::test_simple_markdown_image
+      - TestMarkdownImageExtraction::test_markdown_image_with_alt
+      - TestMarkdownImageExtraction::test_markdown_relative_path
+      - TestMarkdownImageExtraction::test_multiple_markdown_images
+
+  ac_4.3:
+    description: "URL 图片过滤"
+    status: PASS
+    tests:
+      - TestURLFiltering::test_skip_https_url
+      - TestURLFiltering::test_skip_http_url
+      - TestURLFiltering::test_skip_data_url
+      - TestURLFiltering::test_mixed_url_and_local
+      - TestURLFiltering::test_is_url_helper
+
+  ac_4.4:
+    description: "路径解析为绝对路径"
+    status: PASS
+    tests:
+      - TestPathResolution::test_resolve_vault_relative_path
+      - TestPathResolution::test_resolve_canvas_relative_path
+      - TestPathResolution::test_resolve_nonexistent_path
+      - TestPathResolution::test_resolve_multiple_paths
+
+nfr_validation:
+  security:
+    status: PASS
+    evidence: "No user input injection risks, URL filtering prevents external resource access"
+  performance:
+    status: PASS
+    evidence: "O(n) regex matching complexity, async path resolution for I/O"
+  reliability:
+    status: PASS
+    evidence: "Handles None/empty content, missing files return exists=False"
+  maintainability:
+    status: PASS
+    evidence: "Single responsibility principle, convenience methods, comprehensive docstrings"
+
+adr_compliance:
+  - adr: ADR-011
+    title: "文件路径处理 - pathlib 标准化"
+    status: COMPLIANT
+    evidence: "Uses pathlib.Path for all path operations, resolve() for normalization"
+
+code_quality:
+  pep8_compliance: true
+  type_hints: true
+  docstrings: true
+  source_annotations: true
+  lines_of_code: 320
+  test_lines: 461
+
+test_results:
+  total_tests: 32
+  passed: 32
+  failed: 0
+  coverage_percentage: 100  # AC coverage
+  test_file: "backend/tests/unit/test_markdown_image_extractor.py"
+
+files_reviewed:
+  - path: "backend/app/services/markdown_image_extractor.py"
+    status: Created
+    lines: 320
+    issues: 0
+
+  - path: "backend/tests/unit/test_markdown_image_extractor.py"
+    status: Created
+    lines: 461
+    issues: 0
+
+issues_found: []
+
+recommendations: []
+
+gate_decision:
+  decision: PASS
+  rationale: |
+    Story 12.E.4 meets all quality criteria:
+    - All 4 Acceptance Criteria have comprehensive test coverage (32 tests)
+    - Code follows ADR-011 (pathlib standardization)
+    - PEP 8 compliant with type hints and docstrings
+    - No security vulnerabilities identified
+    - Edge cases properly handled
+    - Real-world scenario tested (Chinese math notes)
+
+  blockers: []
+
+  approved_for: "MERGE"
