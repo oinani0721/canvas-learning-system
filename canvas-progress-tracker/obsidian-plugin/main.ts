@@ -47,6 +47,8 @@ import { ErrorHistoryManager } from './src/managers/ErrorHistoryManager';
 import { ErrorNotificationService } from './src/services/ErrorNotificationService';
 import { ApiError } from './src/api/types';
 import { BackendProcessManager, createBackendProcessManager, BackendStatus } from './src/services/BackendProcessManager';
+import { CanvasFileManager } from './src/managers/CanvasFileManager';
+import type { CanvasData, CanvasTextNode } from './src/types/canvas';
 
 /**
  * Story 12.H.2: Node-level Request Queue
@@ -171,6 +173,9 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Cross-Canvas Service - Manages canvas associations (Story 25.1) */
     private crossCanvasService: CrossCanvasService | null = null;
+
+    /** Canvas File Manager - Reads/writes Canvas files (Story 12.M: Node Creation Fix) */
+    private canvasFileManager: CanvasFileManager | null = null;
 
     /** Error History Manager - Tracks API errors for debugging (Story 21.5.5) */
     public errorHistoryManager: ErrorHistoryManager | null = null;
@@ -384,29 +389,37 @@ export default class CanvasReviewPlugin extends Plugin {
             this.backupProtectionManager = new BackupProtectionManager(this.app.vault);
             await this.backupProtectionManager.initialize();
 
+            // Story 12.M: Initialize CanvasFileManager for reading/writing Canvas files
+            this.canvasFileManager = new CanvasFileManager(this.app.vault);
+
             this.contextMenuManager = new ContextMenuManager(this.app, this.backupProtectionManager);
             this.contextMenuManager.initialize(this);
 
             // Initialize API Client (Story 13.3)
+            // Story 12.K: Timeout = 150s to match backend AI_TIMEOUT=120s + buffer
             const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
             this.apiClient = new ApiClient({
                 baseUrl: `${apiBaseUrl}/api/v1`,
-                timeout: 30000,
+                timeout: 150000, // 150 seconds (backend AI timeout = 120s + 30s buffer)
             });
 
             // Register action callbacks for context menu (Fix for missing Agent options)
             this.contextMenuManager.setActionRegistry({
                 executeDecomposition: async (context: MenuContext) => {
+                    console.log('[Story 12.K] executeDecomposition callback entered:', { nodeId: context.nodeId, filePath: context.filePath });
                     if (!this.apiClient) {
+                        console.error('[Story 12.K] apiClient is null!');
                         new Notice('API客户端未初始化');
                         return;
                     }
                     // Story 12.F.5: Validate parameters
                     const validationError = this.validateAgentParams(context);
                     if (validationError) {
+                        console.warn('[Story 12.K] Validation failed:', validationError);
                         new Notice(validationError);
                         return;
                     }
+                    console.log('[Story 12.K] Validation passed, calling queue');
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -418,7 +431,28 @@ export default class CanvasReviewPlugin extends Plugin {
                             try {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在拆解节点... (预计20秒)');
-                                const result = await this.callAgentWithAbort<{ questions?: string[] }>(
+                                // Story 12.M: Update result type to include created_nodes and created_edges
+                                const result = await this.callAgentWithAbort<{
+                                    questions?: string[];
+                                    created_nodes?: Array<{
+                                        id: string;
+                                        type: string;
+                                        text?: string;
+                                        x: number;
+                                        y: number;
+                                        width: number;
+                                        height: number;
+                                        color?: string;
+                                    }>;
+                                    created_edges?: Array<{
+                                        id: string;
+                                        fromNode: string;
+                                        toNode: string;
+                                        fromSide?: string;
+                                        toSide?: string;
+                                        label?: string;
+                                    }>;
+                                }>(
                                     lockKey,
                                     '/agents/decompose/basic',
                                     {
@@ -430,7 +464,14 @@ export default class CanvasReviewPlugin extends Plugin {
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
                                 }
-                                new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题`);
+                                // Story 12.M: Write created nodes and edges to Canvas
+                                const nodesWritten = await this.writeNodesToCanvas(
+                                    context.filePath,
+                                    result.created_nodes || [],
+                                    result.created_edges || []
+                                );
+                                console.log(`[Story 12.M] Basic decomp: wrote ${nodesWritten} nodes and ${result.created_edges?.length || 0} edges to canvas`);
+                                new Notice(`拆解完成: 生成了 ${result.questions?.length || 0} 个问题，已添加到Canvas`);
                             } catch (error) {
                                 // @source Story 21.5.5 - 增强错误处理
                                 this.handleAgentError(error, 'decompose_basic', () =>
@@ -653,7 +694,28 @@ export default class CanvasReviewPlugin extends Plugin {
                             try {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在进行深度拆解... (预计40秒)');
-                                const result = await this.callAgentWithAbort<{ questions?: string[] }>(
+                                // Story 12.M: Update result type to include created_nodes and created_edges
+                                const result = await this.callAgentWithAbort<{
+                                    questions?: string[];
+                                    created_nodes?: Array<{
+                                        id: string;
+                                        type: string;
+                                        text?: string;
+                                        x: number;
+                                        y: number;
+                                        width: number;
+                                        height: number;
+                                        color?: string;
+                                    }>;
+                                    created_edges?: Array<{
+                                        id: string;
+                                        fromNode: string;
+                                        toNode: string;
+                                        fromSide?: string;
+                                        toSide?: string;
+                                        label?: string;
+                                    }>;
+                                }>(
                                     lockKey,
                                     '/agents/decompose/deep',
                                     {
@@ -665,7 +727,14 @@ export default class CanvasReviewPlugin extends Plugin {
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
                                 }
-                                new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题`);
+                                // Story 12.M: Write created nodes and edges to Canvas
+                                const nodesWritten = await this.writeNodesToCanvas(
+                                    context.filePath,
+                                    result.created_nodes || [],
+                                    result.created_edges || []
+                                );
+                                console.log(`[Story 12.M] Deep decomp: wrote ${nodesWritten} nodes and ${result.created_edges?.length || 0} edges to canvas`);
+                                new Notice(`深度拆解完成: 生成了 ${result.questions?.length || 0} 个深度问题，已添加到Canvas`);
                             } catch (error) {
                                 // @source Story 21.5.5 - 增强错误处理
                                 this.handleAgentError(error, 'decompose_deep', () =>
@@ -2160,6 +2229,150 @@ export default class CanvasReviewPlugin extends Plugin {
         }
 
         return null; // Valid
+    }
+
+    /**
+     * Story 12.M: Write created nodes to Canvas file
+     *
+     * After Agent API returns created_nodes, this method:
+     * 1. Gets the current Canvas file
+     * 2. Reads existing Canvas data
+     * 3. Adds new nodes to the Canvas
+     * 4. Writes updated data back to file
+     *
+     * @param filePath - Canvas file path from context
+     * @param createdNodes - Array of nodes returned by backend API
+     * @param createdEdges - Array of edges returned by backend API (optional)
+     * @returns Number of nodes successfully written
+     *
+     * @source Story 12.M - Canvas Node Creation Fix
+     */
+    private async writeNodesToCanvas(
+        filePath: string | undefined,
+        createdNodes: Array<{
+            id: string;
+            type: string;
+            text?: string;
+            x: number;
+            y: number;
+            width: number;
+            height: number;
+            color?: string;
+        }>,
+        createdEdges?: Array<{
+            id: string;
+            fromNode: string;
+            toNode: string;
+            fromSide?: string;
+            toSide?: string;
+            label?: string;
+        }>
+    ): Promise<number> {
+        if (!filePath || !createdNodes || createdNodes.length === 0) {
+            console.log('[Story 12.M] No nodes to write or no file path');
+            return 0;
+        }
+
+        if (!this.canvasFileManager) {
+            console.error('[Story 12.M] CanvasFileManager not initialized');
+            new Notice('Canvas管理器未初始化');
+            return 0;
+        }
+
+        try {
+            // Get Canvas file
+            const canvasFile = this.app.vault.getAbstractFileByPath(filePath);
+            if (!canvasFile || !(canvasFile instanceof TFile)) {
+                console.error(`[Story 12.M] Canvas file not found: ${filePath}`);
+                new Notice('Canvas文件未找到');
+                return 0;
+            }
+
+            // Read existing Canvas data
+            const canvasData = await this.canvasFileManager.readCanvas(canvasFile);
+            console.log(`[Story 12.M] Read canvas with ${canvasData.nodes.length} existing nodes`);
+
+            // Add new nodes to Canvas data
+            for (const node of createdNodes) {
+                const canvasNode: CanvasTextNode = {
+                    id: node.id,
+                    type: 'text',
+                    text: node.text || '',
+                    x: node.x,
+                    y: node.y,
+                    width: node.width,
+                    height: node.height,
+                    color: node.color as CanvasTextNode['color'],
+                };
+                canvasData.nodes.push(canvasNode);
+                console.log(`[Story 12.M] Added node: ${node.id} at (${node.x}, ${node.y})`);
+            }
+
+            // Story 12.M.2: Add edges to Canvas data
+            if (createdEdges && createdEdges.length > 0) {
+                for (const edge of createdEdges) {
+                    const canvasEdge = {
+                        id: edge.id,
+                        fromNode: edge.fromNode,
+                        toNode: edge.toNode,
+                        fromSide: edge.fromSide as 'top' | 'bottom' | 'left' | 'right' | undefined,
+                        toSide: edge.toSide as 'top' | 'bottom' | 'left' | 'right' | undefined,
+                        label: edge.label,
+                    };
+                    canvasData.edges.push(canvasEdge);
+                    console.log(`[Story 12.M] Added edge: ${edge.id} (${edge.fromNode} → ${edge.toNode})`);
+                }
+            }
+
+            // Write updated Canvas data
+            await this.canvasFileManager.writeCanvas(canvasFile, canvasData);
+            console.log(`[Story 12.M] Successfully wrote ${createdNodes.length} nodes and ${createdEdges?.length || 0} edges to canvas`);
+
+            // Story 12.M.3: Refresh Canvas view after file write
+            // Obsidian Canvas has internal memory cache, writing to file doesn't auto-refresh view
+            try {
+                const activeLeaf = this.app.workspace.activeLeaf;
+                if (activeLeaf?.view?.getViewType() === 'canvas') {
+                    const canvas = (activeLeaf.view as any)?.canvas;
+                    if (canvas && canvas.file?.path === filePath) {
+                        console.log('[Story 12.M.3] Refreshing Canvas view...');
+
+                        // Method 1: Use setData if available (directly updates memory)
+                        if (typeof canvas.setData === 'function') {
+                            canvas.setData(canvasData);
+                            console.log('[Story 12.M.3] Canvas view refreshed via setData()');
+                        }
+                        // Method 2: Trigger requestFrame to re-render
+                        else if (typeof canvas.requestFrame === 'function') {
+                            canvas.requestFrame();
+                            console.log('[Story 12.M.3] Canvas view refreshed via requestFrame()');
+                        }
+                        // Method 3: Force reload from file
+                        else {
+                            // Read file content again and parse
+                            const content = await this.app.vault.read(canvasFile);
+                            const freshData = JSON.parse(content);
+                            if (canvas.data) {
+                                canvas.data.nodes = freshData.nodes;
+                                canvas.data.edges = freshData.edges;
+                            }
+                            console.log('[Story 12.M.3] Canvas view refreshed via data override');
+                        }
+                    } else {
+                        console.log('[Story 12.M.3] Active canvas does not match target file, skipping refresh');
+                    }
+                }
+            } catch (refreshError) {
+                console.warn('[Story 12.M.3] Failed to refresh Canvas view:', refreshError);
+                // Non-fatal: file was already written, user can manually refresh
+            }
+
+            return createdNodes.length;
+        } catch (error) {
+            console.error('[Story 12.M] Failed to write nodes to canvas:', error);
+            new Notice(`保存Canvas节点失败: ${error instanceof Error ? error.message : '未知错误'}`);
+            return 0;
+        }
     }
 
     /**

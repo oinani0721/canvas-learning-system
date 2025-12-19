@@ -2,44 +2,143 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/health-check-response.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T19:15:00Z",
+    "verified_at": "2025-12-16T22:00:00Z",
     "sources": [
       {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
       {"type": "context7", "library_id": "/oai/openapi-specification", "topic": "health check patterns"},
-      {"type": "prd", "epic": "Epic 11"}
-    ]
+      {"type": "context7", "library_id": "/websites/fastapi_tiangolo", "topic": "health check endpoint"},
+      {"type": "prd", "epic": "Epic 12.G", "story": "12.G.3"}
+    ],
+    "adr_references": ["ADR-007", "ADR-009"]
   },
-  "title": "Health Check Response",
-  "description": "健康检查响应数据结构. Context7 Verified: /oai/openapi-specification, /json-schema-org/json-schema-spec (draft-07)",
+  "title": "Agent Health Check Response",
+  "description": "Agent系统健康检查响应数据结构 (Story 12.G.3)",
   "type": "object",
-  "required": ["status", "app_name", "version", "timestamp"],
+  "required": ["status", "checks", "timestamp"],
   "properties": {
     "status": {
       "type": "string",
-      "enum": ["healthy", "unhealthy"],
-      "description": "应用健康状态"
+      "enum": ["healthy", "degraded", "unhealthy"],
+      "description": "整体健康状态: healthy=所有检查通过, degraded=部分模板缺失, unhealthy=关键组件不可用"
     },
-    "app_name": {
-      "type": "string",
-      "description": "应用名称"
+    "checks": {
+      "type": "object",
+      "required": ["api_key_configured", "gemini_client_initialized", "prompt_templates"],
+      "description": "各项检查结果",
+      "properties": {
+        "api_key_configured": {
+          "type": "boolean",
+          "description": "API Key是否已配置（不返回实际Key值）"
+        },
+        "gemini_client_initialized": {
+          "type": "boolean",
+          "description": "GeminiClient是否已成功初始化"
+        },
+        "prompt_templates": {
+          "type": "object",
+          "required": ["total", "available", "missing"],
+          "description": "Prompt模板检查结果",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "预期模板总数"
+            },
+            "available": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "可用模板数量"
+            },
+            "missing": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "缺失的模板名称列表"
+            }
+          }
+        },
+        "api_test": {
+          "type": "object",
+          "description": "可选API调用测试结果",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "是否启用了API调用测试"
+            },
+            "result": {
+              "type": ["string", "null"],
+              "description": "测试结果: 'success' 或错误信息"
+            }
+          }
+        }
+      }
     },
-    "version": {
-      "type": "string",
-      "description": "应用版本"
+    "cached": {
+      "type": "boolean",
+      "description": "是否为缓存结果（缓存TTL: 60秒, 参考ADR-007）"
     },
     "timestamp": {
       "type": "string",
       "format": "date-time",
-      "description": "检查时间戳"
+      "description": "检查时间戳（ISO 8601格式）"
     }
   },
   "additionalProperties": false,
   "examples": [
     {
       "status": "healthy",
-      "app_name": "Canvas Learning System",
-      "version": "1.0.0",
-      "timestamp": "2025-11-24T10:30:00Z"
+      "checks": {
+        "api_key_configured": true,
+        "gemini_client_initialized": true,
+        "prompt_templates": {
+          "total": 12,
+          "available": 12,
+          "missing": []
+        },
+        "api_test": {
+          "enabled": false,
+          "result": null
+        }
+      },
+      "cached": false,
+      "timestamp": "2025-12-16T10:30:00Z"
+    },
+    {
+      "status": "degraded",
+      "checks": {
+        "api_key_configured": true,
+        "gemini_client_initialized": true,
+        "prompt_templates": {
+          "total": 12,
+          "available": 10,
+          "missing": ["comparison-table", "review-board"]
+        },
+        "api_test": {
+          "enabled": false,
+          "result": null
+        }
+      },
+      "cached": false,
+      "timestamp": "2025-12-16T10:30:00Z"
+    },
+    {
+      "status": "unhealthy",
+      "checks": {
+        "api_key_configured": false,
+        "gemini_client_initialized": false,
+        "prompt_templates": {
+          "total": 12,
+          "available": 0,
+          "missing": []
+        },
+        "api_test": {
+          "enabled": false,
+          "result": null
+        }
+      },
+      "cached": false,
+      "timestamp": "2025-12-16T10:30:00Z"
     }
   ]
 }

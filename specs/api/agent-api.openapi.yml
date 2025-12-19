@@ -66,8 +66,90 @@ tags:
     description: Task management operations
   - name: batch
     description: Batch agent operations
+  - name: health
+    description: Health check operations
 
 paths:
+  /agents/health:
+    get:
+      tags: [health]
+      summary: Agent system health check
+      description: |
+        检查Agent系统健康状态，包括API Key配置、GeminiClient初始化、Prompt模板完整性。
+
+        **健康状态**:
+        - healthy: 所有检查通过
+        - degraded: API Key配置正常但部分模板缺失
+        - unhealthy: API Key未配置或GeminiClient未初始化
+
+        **缓存**: 结果缓存60秒以减少性能影响
+
+      operationId: checkAgentHealth
+      parameters:
+        - name: include_api_test
+          in: query
+          required: false
+          description: 是否执行API调用测试（会消耗API配额）
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Health check completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentHealthCheckResponse'
+              examples:
+                healthy:
+                  summary: All checks passed
+                  value:
+                    status: "healthy"
+                    checks:
+                      api_key_configured: true
+                      gemini_client_initialized: true
+                      prompt_templates:
+                        total: 12
+                        available: 12
+                        missing: []
+                      api_test:
+                        enabled: false
+                        result: null
+                    cached: false
+                    timestamp: "2025-12-16T10:30:00Z"
+                degraded:
+                  summary: Partial functionality
+                  value:
+                    status: "degraded"
+                    checks:
+                      api_key_configured: true
+                      gemini_client_initialized: true
+                      prompt_templates:
+                        total: 12
+                        available: 10
+                        missing: ["comparison-table", "review-board"]
+                      api_test:
+                        enabled: false
+                        result: null
+                    cached: false
+                    timestamp: "2025-12-16T10:30:00Z"
+                unhealthy:
+                  summary: System not operational
+                  value:
+                    status: "unhealthy"
+                    checks:
+                      api_key_configured: false
+                      gemini_client_initialized: false
+                      prompt_templates:
+                        total: 12
+                        available: 0
+                        missing: []
+                      api_test:
+                        enabled: false
+                        result: null
+                    cached: false
+                    timestamp: "2025-12-16T10:30:00Z"
+
   /agents:
     get:
       tags: [agents]
@@ -165,6 +247,19 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '409':
+          description: Duplicate request in progress (Story 12.H.5)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateRequestError'
+              example:
+                error: "Duplicate request"
+                message: "相同请求正在处理中，请稍候"
+                canvas_name: "test.canvas"
+                node_id: "node-abc123"
+                agent_type: "oral"
+                is_retryable: false
 
   /agents/tasks/{taskId}:
     get:
@@ -611,6 +706,151 @@ components:
               type: number
               description: 并行效率（相对串行的加速比）
               example: 8.0
+
+    # Agent健康检查响应 (Story 12.G.3)
+    AgentHealthCheckResponse:
+      type: object
+      required: [status, checks, timestamp]
+      description: Agent系统健康检查响应
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: |
+            整体健康状态:
+            - healthy: 所有检查通过
+            - degraded: API Key配置正常但部分模板缺失
+            - unhealthy: API Key未配置或GeminiClient未初始化
+          example: "healthy"
+        checks:
+          type: object
+          required: [api_key_configured, gemini_client_initialized, prompt_templates]
+          properties:
+            api_key_configured:
+              type: boolean
+              description: API Key是否已配置（不返回实际Key）
+              example: true
+            gemini_client_initialized:
+              type: boolean
+              description: GeminiClient是否已初始化
+              example: true
+            prompt_templates:
+              type: object
+              required: [total, available, missing]
+              properties:
+                total:
+                  type: integer
+                  minimum: 0
+                  description: 预期模板总数
+                  example: 12
+                available:
+                  type: integer
+                  minimum: 0
+                  description: 可用模板数量
+                  example: 12
+                missing:
+                  type: array
+                  items:
+                    type: string
+                  description: 缺失的模板名称列表
+                  example: []
+            api_test:
+              type: object
+              properties:
+                enabled:
+                  type: boolean
+                  description: 是否启用了API调用测试
+                  example: false
+                result:
+                  type: string
+                  nullable: true
+                  description: 测试结果（success或错误信息）
+                  example: null
+        cached:
+          type: boolean
+          description: 是否为缓存结果
+          example: false
+        timestamp:
+          type: string
+          format: date-time
+          description: 检查时间戳（ISO 8601格式）
+          example: "2025-12-16T10:30:00Z"
+
+    # Agent错误类型枚举 (对齐ADR-009 ErrorCode)
+    # Story 12.G.2: 增强错误处理与友好提示
+    # Story 12.J.4: 添加 ENCODING_ERROR 类型
+    AgentErrorType:
+      type: string
+      description: Agent调用错误类型枚举
+      enum:
+        - CONFIG_MISSING      # 2001 - API Key未配置 (NON_RETRYABLE)
+        - LLM_TIMEOUT         # 1002 - API调用超时 (RETRYABLE)
+        - LLM_INVALID_RESPONSE # 1004 - 响应格式错误 (NON_RETRYABLE)
+        - NETWORK_TIMEOUT     # 4001 - 网络错误 (RETRYABLE)
+        - FILE_NOT_FOUND      # 3001 - 模板缺失 (FATAL)
+        - LLM_RATE_LIMIT      # 1001 - 速率限制 (RETRYABLE)
+        - ENCODING_ERROR      # 5001 - Unicode编码错误 (RETRYABLE) - Story 12.J.4
+        - UNKNOWN             # 9999 - 未知错误
+
+    # Agent错误响应 (扩展自Error, 用于Agent特定错误)
+    AgentError:
+      type: object
+      required: [error_type, message]
+      properties:
+        error_type:
+          $ref: '#/components/schemas/AgentErrorType'
+        message:
+          type: string
+          description: 用户友好的错误消息
+          example: "请在插件设置中配置 API Key"
+        is_retryable:
+          type: boolean
+          description: 错误是否可重试
+          example: false
+        diagnostic:
+          type: string
+          description: 安全的诊断信息（ASCII编码，用于ENCODING_ERROR等）- Story 12.J.4
+          example: "position 42, char U+1F525"
+        details:
+          type: object
+          description: 调试信息（仅debug模式）
+          additionalProperties: true
+        bug_id:
+          type: string
+          pattern: "^BUG-[A-Z0-9]{8}$"
+          description: Bug追踪ID
+          example: "BUG-A1B2C3D4"
+
+    # Story 12.H.5: 重复请求错误响应
+    DuplicateRequestError:
+      type: object
+      required: [error, message, canvas_name, node_id, agent_type]
+      description: 重复请求错误响应 (HTTP 409)
+      properties:
+        error:
+          type: string
+          description: 错误类型
+          example: "Duplicate request"
+        message:
+          type: string
+          description: 用户友好的错误消息
+          example: "相同请求正在处理中，请稍候"
+        canvas_name:
+          type: string
+          description: Canvas 文件名
+          example: "test.canvas"
+        node_id:
+          type: string
+          description: 节点 ID
+          example: "node-abc123"
+        agent_type:
+          type: string
+          description: Agent 类型
+          example: "oral"
+        is_retryable:
+          type: boolean
+          description: 是否可重试（始终为 false）
+          example: false
 
     Error:
       type: object

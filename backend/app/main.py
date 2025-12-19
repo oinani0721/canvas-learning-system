@@ -138,6 +138,58 @@ app = FastAPI(
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BaseHTTPMiddleware)
 # [Source: docs/prd/EPIC-21.5-AGENT-RELIABILITY-FIX.md - Story 21.5.1]
 # [Source: specs/data/error-response.schema.json]
+# ✅ Story 12.J.3: 编码验证中间件
+# [Source: specs/data/error-response.schema.json] - 响应格式
+# [Source: ADR-009] - 错误处理策略
+# [Source: ADR-010] - 日志不使用 emoji
+class EncodingValidationMiddleware(BaseHTTPMiddleware):
+    """
+    Story 12.J.3: 验证请求体 UTF-8 编码.
+
+    在 Pydantic 解析之前验证请求体是有效的 UTF-8，
+    对无效编码返回 400 Bad Request 而不是 500。
+
+    Acceptance Criteria:
+    - AC1: 无效 UTF-8 请求返回 HTTP 400，不是 500
+    - AC2: 有效 UTF-8 请求正常处理 (无性能影响)
+    - AC3: 错误响应包含 ENCODING_ERROR 类型
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        """验证请求体的 UTF-8 编码."""
+        # AC2: 仅验证有请求体的方法 (POST, PUT, PATCH)
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_type = request.headers.get("content-type", "")
+            if "application/json" in content_type:
+                try:
+                    body = await request.body()
+                    # 验证 UTF-8 编码
+                    body.decode('utf-8')
+                except UnicodeDecodeError as e:
+                    # [Source: ADR-010] - 日志不使用 emoji，避免 Windows GBK 编码错误
+                    logger.warning(
+                        f"[Story 12.J.3] Invalid UTF-8 encoding: "
+                        f"path={request.url.path}, position={e.start}"
+                    )
+                    # AC1: 返回 400 而非 500
+                    # AC3: 包含 ENCODING_ERROR 类型
+                    # [Source: specs/data/error-response.schema.json]
+                    # 使用 details (复数) 而非 detail (单数)
+                    return JSONResponse(
+                        status_code=400,
+                        content={
+                            "code": 400,
+                            "message": "Invalid UTF-8 encoding in request body",
+                            "error_type": "ENCODING_ERROR",
+                            "details": {
+                                "position": e.start,
+                                "path": str(request.url.path)
+                            }
+                        }
+                    )
+        return await call_next(request)
+
+
 class CORSExceptionMiddleware(BaseHTTPMiddleware):
     """
     确保500错误也返回CORS头的中间件。
@@ -146,7 +198,43 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
     此中间件在 CORSMiddleware 之前捕获异常，确保异常响应也包含 CORS 头。
 
     [Source: docs/stories/21.5.1.story.md - AC-1, AC-2]
+    [Source: docs/stories/story-12.J.5-cors-encoding-safety.md - 编码安全增强]
     """
+
+    def _safe_extract_request_params(self, request: Request) -> dict:
+        """
+        Story 12.J.5: 安全提取请求参数.
+
+        确保所有字符串都可以安全序列化为 JSON。
+
+        [Source: docs/stories/story-12.J.5-cors-encoding-safety.md - AC2]
+
+        Args:
+            request: HTTP 请求对象
+
+        Returns:
+            dict: 安全编码的请求参数
+        """
+        try:
+            query_params = dict(request.query_params)
+            # 安全化每个值
+            safe_params = {}
+            for key, value in query_params.items():
+                if isinstance(value, str):
+                    safe_params[key] = value.encode('utf-8', errors='replace').decode('utf-8')
+                else:
+                    safe_params[key] = value
+            return {
+                "path": str(request.url.path),
+                "method": request.method,
+                "query_params": safe_params,
+            }
+        except Exception:
+            return {
+                "path": "[extraction failed]",
+                "method": request.method,
+                "query_params": {},
+            }
 
     async def dispatch(self, request: Request, call_next):
         """
@@ -174,31 +262,41 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             if not allowed_origin and "app://obsidian.md" in settings.cors_origins_list:
                 allowed_origin = "app://obsidian.md"
 
+            # ✅ Story 12.J.5: 安全化错误消息
+            # [Source: docs/stories/story-12.J.5-cors-encoding-safety.md - AC1, AC2]
+            try:
+                error_message = str(e)
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                # 使用 repr() 作为 ASCII 安全的后备
+                error_message = repr(e)
+
+            # 确保消息可以安全编码为 JSON
+            safe_message = error_message.encode('utf-8', errors='replace').decode('utf-8')
+
             # ✅ Story 21.5.3 AC-1, AC-2: 生成 bug_id 并记录到 bug_log.jsonl
             # [Source: docs/stories/21.5.3.story.md]
-            request_params = {
-                "path": str(request.url.path),
-                "method": request.method,
-                "query_params": dict(request.query_params),
-            }
+            # ✅ Story 12.J.5: 使用安全参数提取方法
+            request_params = self._safe_extract_request_params(request)
             bug_id = bug_tracker.log_error(
                 endpoint=str(request.url.path),
                 error=e,
                 request_params=request_params,
             )
 
+            # ✅ Story 12.J.5: 使用安全消息记录日志，限制长度为 200 字符
+            # [Source: ADR-010 - Logging聚合策略]
             logger.error(
-                f"Unhandled exception caught by CORSExceptionMiddleware: {type(e).__name__}: {e} [bug_id={bug_id}]",
+                f"Unhandled exception caught by CORSExceptionMiddleware: {type(e).__name__}: {safe_message[:200]} [bug_id={bug_id}]",
                 exc_info=True
             )
 
             return JSONResponse(
                 status_code=500,
                 content={
-                    "code": 500,                    # Required by JSON Schema
-                    "message": str(e),              # Required by JSON Schema
-                    "error_type": type(e).__name__, # Extension field
-                    "bug_id": bug_id,               # ✅ Story 21.5.5 AC-1: 返回 bug_id
+                    "code": 500,                      # Required by JSON Schema
+                    "message": safe_message[:500],    # ✅ Story 12.J.5: 限制长度为 500 字符
+                    "error_type": type(e).__name__,   # Extension field
+                    "bug_id": bug_id,                 # ✅ Story 21.5.5 AC-1: 返回 bug_id
                 },
                 headers={
                     "Access-Control-Allow-Origin": allowed_origin,
@@ -207,10 +305,19 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
             )
 
 
-# ⚠️ 中间件注册顺序: CORSExceptionMiddleware → CORSMiddleware → MetricsMiddleware
+# ⚠️ 中间件注册顺序 (先添加的后执行):
+# 1. CORSExceptionMiddleware ← 最外层，捕获所有异常
+# 2. EncodingValidationMiddleware ← Story 12.J.3，验证 UTF-8 编码
+# 3. CORSMiddleware ← CORS 头处理
+# 4. MetricsMiddleware ← 最内层，收集指标
 # [Source: docs/stories/21.5.1.story.md - AC-3]
-# CORSExceptionMiddleware 必须在 CORSMiddleware 之前注册，确保异常也能获得 CORS 头
+# [Source: docs/stories/story-12.J.3-encoding-validation-middleware.md]
 app.add_middleware(CORSExceptionMiddleware)
+
+# ✅ Story 12.J.3: 编码验证中间件
+# 在 CORSExceptionMiddleware 之后、CORSMiddleware 之前执行
+# 确保无效 UTF-8 请求返回 400 而非触发 500 异常
+app.add_middleware(EncodingValidationMiddleware)
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: CORSMiddleware CORS)
 # Pattern: app.add_middleware(CORSMiddleware, allow_origins=[], ...)

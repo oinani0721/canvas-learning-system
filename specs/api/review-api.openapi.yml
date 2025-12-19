@@ -894,7 +894,8 @@ components:
                 example: "passed"
               color:
                 type: string
-                enum: ["1", "2", "3", "5", "6"]
+                # Story 12.B.4: 1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄
+                enum: ["1", "2", "3", "4", "5", "6"]
                 example: "2"
         updated_at:
           type: string

@@ -1,0 +1,148 @@
+# Quality Gate: Story 12.K.2 - RAGService None Value Protection
+# Reviewed by: Quinn (Test Architect)
+# Review Method: UltraThink Deep Analysis
+
+schema: 1
+story: "12.K.2"
+story_title: "RAGService None Value Protection"
+gate: FAIL
+status_reason: "Critical bug: _get_fallback_result() method is called at line 256 but never defined, causing AttributeError when ainvoke() returns None"
+reviewer: "Quinn (Test Architect)"
+updated: "2025-12-17T19:45:00+08:00"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "BUG-12K2-001"
+    severity: high
+    finding: "Method _get_fallback_result() called at rag_service.py:256 but not defined in RAGService class"
+    suggested_action: "Add _get_fallback_result() method to RAGService class as specified in Epic 12.K.2"
+    suggested_owner: dev
+    refs: ["backend/app/services/rag_service.py:256"]
+
+  - id: "TEST-12K2-001"
+    severity: medium
+    finding: "No unit tests exist for Story 12.K.2 acceptance criteria"
+    suggested_action: "Create test_rag_service_fallback.py with tests for None value handling"
+    suggested_owner: dev
+    refs: ["backend/tests/unit/"]
+
+  - id: "DOC-12K2-001"
+    severity: low
+    finding: "Epic 12.K documentation shows method implemented but code does not match"
+    suggested_action: "Update Epic 12.K status to reflect incomplete implementation"
+    suggested_owner: sm
+    refs: ["docs/prd/epics/EPIC-12K-NODEREAD-SCHEMA-FIX.md"]
+
+risk_summary:
+  totals:
+    critical: 1
+    high: 0
+    medium: 1
+    low: 1
+  highest: "BUG-12K2-001 (critical - runtime crash)"
+  recommendations:
+    must_fix:
+      - "Add _get_fallback_result() method to RAGService"
+      - "Write unit tests for None value protection"
+    monitor:
+      - "Verify query_with_fallback() behavior in production"
+
+quality_score: 40  # 100 - (20*1 FAIL issue) - (10*2 NFR CONCERNS) - (10*2 test gaps)
+expires: "2025-12-31T00:00:00Z"
+
+evidence:
+  tests_reviewed: 0  # No tests exist for this story
+  risks_identified: 3
+  trace:
+    ac_covered: [2]  # Only AC-2 (query_with_fallback) works correctly
+    ac_gaps: [1, 3, 4]  # AC-1, AC-3, AC-4 fail due to missing method
+
+# Acceptance Criteria Validation
+ac_validation:
+  ac_1:
+    description: "query() never returns None"
+    status: FAIL
+    notes: "None check exists at line 252, but calls undefined _get_fallback_result() at line 256"
+  ac_2:
+    description: "query_with_fallback() never returns None"
+    status: PASS
+    notes: "Properly implemented with inline fallback dict (lines 330-351)"
+  ac_3:
+    description: "Logs fallback usage"
+    status: FAIL
+    notes: "Logger exists but unreachable due to AttributeError crash"
+  ac_4:
+    description: "Callers can safely use .get()"
+    status: FAIL
+    notes: "Callers will receive AttributeError instead of fallback dict"
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "No security issues identified"
+  performance:
+    status: PASS
+    notes: "Fallback mechanism is O(1), no performance concerns"
+  reliability:
+    status: FAIL
+    notes: "Critical runtime crash when ainvoke() returns None"
+  maintainability:
+    status: CONCERNS
+    notes: "Code references method from Epic spec that was never implemented"
+
+recommendations:
+  immediate:
+    - action: "Add _get_fallback_result() method to RAGService class"
+      refs: ["backend/app/services/rag_service.py"]
+      code_suggestion: |
+        def _get_fallback_result(self, fallback_reason: str = "unknown") -> Dict[str, Any]:
+            """Return a safe fallback result dict.
+
+            Story 12.K.2: Guard against None returns from ainvoke().
+            """
+            return {
+                "messages": [],
+                "reranked_results": [],
+                "fused_results": [],
+                "fallback_used": True,
+                "fallback_reason": fallback_reason,
+            }
+    - action: "Create unit tests for RAGService None protection"
+      refs: ["backend/tests/unit/test_rag_service_fallback.py"]
+  future:
+    - action: "Consider integration tests simulating ainvoke() None returns"
+      refs: ["backend/tests/integration/"]
+
+# Code Review Details
+code_review:
+  files_reviewed:
+    - path: "backend/app/services/rag_service.py"
+      lines_reviewed: 385
+      issues_found: 1
+      pattern_compliance: "PARTIAL - Missing method implementation"
+    - path: "backend/tests/contract/test_node_id_patterns.py"
+      lines_reviewed: 191
+      issues_found: 0
+      pattern_compliance: "PASS - Story 12.K.5 properly tested"
+
+  architecture_compliance:
+    singleton_pattern: PASS
+    async_pattern: PASS
+    error_handling: FAIL  # Missing method causes crash
+    logging: PARTIAL  # Logger calls unreachable
+
+# ADR Compliance (Story 12.K.4)
+adr_compliance:
+  adr_012_node_id_patterns:
+    status: PASS
+    notes: "ID pattern relaxation implemented correctly in schemas.py:223"
+  missing_adr:
+    status: CONCERNS
+    notes: "No ADR for RAG fallback strategy decision"
+
+# History (append-only)
+history:
+  - at: "2025-12-17T19:45:00+08:00"
+    gate: FAIL
+    note: "Initial QA review - critical bug: undefined _get_fallback_result() method"

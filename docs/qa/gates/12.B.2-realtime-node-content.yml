@@ -1,0 +1,284 @@
+# ============================================================================
+# Quality Gate Decision: Story 12.B.2 - Real-time Node Content Passing
+# ============================================================================
+# Decision: CONCERNS
+# Reviewer: Quinn (QA Agent)
+# Date: 2025-12-15
+# Review Type: UltraThink Comprehensive Review
+# ============================================================================
+
+story_id: "12.B.2"
+story_name: "节点内容实时传递 (Real-time Node Content Passing)"
+epic: "12.B - Incremental Improvements"
+
+# ============================================================================
+# GATE DECISION
+# ============================================================================
+decision: CONCERNS
+confidence: HIGH
+rationale: |
+  Implementation is functionally complete and follows best practices with proper
+  fallback mechanisms. However, critical gaps in test coverage and input validation
+  warrant attention before full production deployment.
+
+# ============================================================================
+# REQUIREMENTS TRACEABILITY
+# ============================================================================
+requirements_traced:
+  - id: "12.B.2-REQ-01"
+    description: "Plugin passes real-time node content to backend API"
+    status: VERIFIED
+    evidence:
+      - "canvas-progress-tracker/obsidian-plugin/main.ts:325-507 - All 5 explanation types pass node_content"
+      - "canvas-progress-tracker/obsidian-plugin/src/managers/ContextMenuManager.ts:868-888 - Context extraction"
+      - "canvas-progress-tracker/obsidian-plugin/src/api/types.ts:309-323 - TypeScript interface"
+
+  - id: "12.B.2-REQ-02"
+    description: "Backend accepts optional node_content field"
+    status: VERIFIED
+    evidence:
+      - "backend/app/models/schemas.py:244-258 - ExplainRequest with optional node_content field"
+
+  - id: "12.B.2-REQ-03"
+    description: "Backend prioritizes real-time content over disk read"
+    status: VERIFIED
+    evidence:
+      - "backend/app/api/v1/endpoints/agents.py:638-640 - effective_content logic"
+      - "backend/app/api/v1/endpoints/agents.py:645 - content_source tracking"
+
+  - id: "12.B.2-REQ-04"
+    description: "Graceful fallback when node_content is not provided"
+    status: VERIFIED
+    evidence:
+      - "backend/app/api/v1/endpoints/agents.py:640 - Ternary fallback pattern"
+      - "Existing context enrichment flow preserved as fallback"
+
+  - id: "12.B.2-REQ-05"
+    description: "Logging captures content source and differences"
+    status: VERIFIED
+    evidence:
+      - "backend/app/api/v1/endpoints/agents.py:587-592 - has_realtime_content logged at start"
+      - "backend/app/api/v1/endpoints/agents.py:654-659 - Content diff logged when applicable"
+
+# ============================================================================
+# CODE QUALITY ASSESSMENT
+# ============================================================================
+code_quality:
+  overall_score: 8.5/10
+
+  strengths:
+    - title: "Defensive Programming"
+      detail: "Uses Optional[str] with None default, proper ternary fallback pattern"
+      files: ["schemas.py:253-256", "agents.py:640"]
+
+    - title: "Comprehensive Logging"
+      detail: "Tracks content source, lengths, and differences for debugging"
+      files: ["agents.py:586-592", "agents.py:644-659"]
+
+    - title: "Story Reference Documentation"
+      detail: "All code changes reference Story 12.B.2 in comments and docstrings"
+      files: ["schemas.py:249", "agents.py:586,638,644,654,664"]
+
+    - title: "Full-Stack Integration"
+      detail: "Consistent implementation across TypeScript plugin and Python backend"
+      files: ["types.ts:309-323", "ContextMenuManager.ts:868-888", "main.ts:325-507"]
+
+    - title: "Error Handling"
+      detail: "Leverages Story 12.B.1 enhanced error handling (404, 429, 503, 504, 500)"
+      files: ["agents.py:594-731"]
+
+  concerns:
+    - title: "No Input Length Validation"
+      severity: MEDIUM
+      detail: |
+        node_content field has no max length constraint. Very large strings could
+        cause performance issues or exceed AI token limits. Recommend adding
+        Field(max_length=100000) or similar constraint.
+      files: ["schemas.py:253-256"]
+      recommendation: |
+        Add Pydantic Field constraint:
+        node_content: Optional[str] = Field(None, max_length=100000, ...)
+
+    - title: "No Content Sanitization"
+      severity: LOW
+      detail: |
+        User-provided content passes directly to AI model without sanitization.
+        While not a traditional security issue, could enable prompt injection.
+      files: ["agents.py:661-672"]
+      recommendation: |
+        Consider adding content validation or logging suspicious patterns.
+
+# ============================================================================
+# SECURITY ASSESSMENT
+# ============================================================================
+security:
+  overall_risk: LOW
+
+  findings:
+    - type: "Input Validation Gap"
+      severity: MEDIUM
+      description: "Unbounded string input for node_content"
+      mitigation: "Add max_length constraint to Pydantic model"
+      status: NOT_ADDRESSED
+
+    - type: "Prompt Injection Risk"
+      severity: LOW
+      description: "Content sent directly to AI model without filtering"
+      mitigation: "Known AI limitation, not a code vulnerability"
+      status: ACCEPTED_RISK
+
+# ============================================================================
+# TEST COVERAGE ASSESSMENT
+# ============================================================================
+test_coverage:
+  dedicated_tests: false
+  coverage_percentage: "N/A - Feature not isolated in tests"
+
+  missing_tests:
+    - type: "Unit Test"
+      description: "Test _call_explanation with node_content provided"
+      priority: P1
+
+    - type: "Unit Test"
+      description: "Test _call_explanation fallback when node_content is None"
+      priority: P1
+
+    - type: "Unit Test"
+      description: "Test content source logging (realtime vs disk)"
+      priority: P2
+
+    - type: "Integration Test"
+      description: "E2E test: Plugin sends node_content, backend uses it"
+      priority: P1
+
+    - type: "Edge Case Test"
+      description: "Test with very large node_content (boundary testing)"
+      priority: P2
+
+  existing_related_tests:
+    - path: "backend/tests/api/v1/endpoints/test_agents.py"
+      relevance: "Tests agent endpoints but doesn't verify node_content path"
+
+    - path: "backend/tests/api/v1/endpoints/test_agents_learning_event.py"
+      relevance: "Tests Story 12.A.5 learning event recording, uses node_id but not node_content"
+
+# ============================================================================
+# INTEGRATION POINTS VERIFIED
+# ============================================================================
+integration_verification:
+  frontend_to_backend:
+    status: VERIFIED
+    details: |
+      TypeScript interface matches Python schema:
+      - ExplainRequest.node_content (TS) -> ExplainRequest.node_content (Pydantic)
+      - Both use optional string type
+
+  context_menu_to_api:
+    status: VERIFIED
+    details: |
+      ContextMenuManager extracts node content and passes through MenuActionContext.
+      All 5 explanation menu items send node_content via ApiClient.
+
+  api_to_agent_service:
+    status: VERIFIED
+    details: |
+      effective_content is passed to agent_service.generate_explanation()
+      with content_source tracked for logging.
+
+# ============================================================================
+# PERFORMANCE IMPACT
+# ============================================================================
+performance:
+  impact: NEGLIGIBLE
+  details: |
+    - Eliminates disk read when realtime content provided (slight improvement)
+    - No additional API calls or database queries
+    - Logging overhead is minimal (debug level for detailed info)
+
+# ============================================================================
+# RECOMMENDATIONS
+# ============================================================================
+recommendations:
+  must_fix:
+    - id: "REC-001"
+      priority: P1
+      title: "Add dedicated unit tests"
+      description: |
+        Create test cases in test_agents.py that verify:
+        1. node_content is used when provided
+        2. Fallback to disk read when node_content is None
+        3. Correct content_source logging
+
+  should_fix:
+    - id: "REC-002"
+      priority: P2
+      title: "Add input length validation"
+      description: |
+        Add max_length constraint to ExplainRequest.node_content to prevent
+        potential performance issues with extremely large inputs.
+
+    - id: "REC-003"
+      priority: P2
+      title: "Create formal Story file"
+      description: |
+        Story 12.B.2 is implemented in code but lacks a formal story file in
+        docs/stories/. Consider creating one for traceability.
+
+  nice_to_have:
+    - id: "REC-004"
+      priority: P3
+      title: "Add metrics tracking"
+      description: |
+        Track percentage of requests using realtime vs disk content to
+        measure adoption and validate the fix is effective.
+
+# ============================================================================
+# GATE CONDITIONS FOR PASS
+# ============================================================================
+pass_conditions:
+  - condition: "Add at least 3 unit tests for node_content feature"
+    status: NOT_MET
+    blocking: true
+
+  - condition: "Add max_length validation to node_content field"
+    status: NOT_MET
+    blocking: false
+
+  - condition: "All existing tests pass"
+    status: MET
+    blocking: true
+
+  - condition: "No security vulnerabilities identified"
+    status: MET
+    blocking: true
+
+# ============================================================================
+# FINAL NOTES
+# ============================================================================
+notes: |
+  Story 12.B.2 solves a real bug where Canvas disk content differs from UI display.
+  The implementation is clean, well-documented, and follows the existing patterns.
+
+  The CONCERNS decision is primarily due to missing test coverage. Once REC-001
+  is addressed, this story should be re-evaluated for PASS.
+
+  Epic 12.B is a set of incremental improvements implemented directly in code
+  without formal story files. This is acceptable for small bug fixes but
+  traceability would benefit from Story file creation (REC-003).
+
+# ============================================================================
+# REVIEW METADATA
+# ============================================================================
+metadata:
+  review_date: "2025-12-15"
+  reviewer: "Quinn (QA Agent)"
+  review_method: "UltraThink Comprehensive Review"
+  files_reviewed:
+    - "backend/app/models/schemas.py"
+    - "backend/app/api/v1/endpoints/agents.py"
+    - "canvas-progress-tracker/obsidian-plugin/main.ts"
+    - "canvas-progress-tracker/obsidian-plugin/src/api/types.ts"
+    - "canvas-progress-tracker/obsidian-plugin/src/managers/ContextMenuManager.ts"
+    - "backend/tests/api/v1/endpoints/test_agents.py"
+    - "backend/tests/api/v1/endpoints/test_agents_learning_event.py"
+  time_spent: "~45 minutes"

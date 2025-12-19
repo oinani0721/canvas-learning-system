@@ -96,7 +96,7 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "1"  # Red
+                "color": "1"  # Gray (Obsidian Canvas: "1"=gray)
             },
             {
                 "id": "node2",
@@ -106,7 +106,7 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "3"  # Green
+                "color": "3"  # Purple (Obsidian Canvas: "3"=purple)
             },
             {
                 "id": "node3",
@@ -116,7 +116,7 @@ def sample_canvas_data() -> dict:
                 "y": 0,
                 "width": 250,
                 "height": 60,
-                "color": "4"  # Purple
+                "color": "4"  # Red (Obsidian Canvas: "4"=red)
             }
         ],
         "edges": [

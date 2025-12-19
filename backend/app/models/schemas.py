@@ -36,6 +36,94 @@ class HealthCheckResponse(BaseModel):
     timestamp: datetime = Field(..., description="Check timestamp")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.G.3: Agent Health Check Response Models
+# [Source: docs/stories/story-12.G.3-api-health-check.md]
+# [Source: specs/data/health-check-response.schema.json]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AgentHealthStatus(str, Enum):
+    """
+    Agent system health status enum.
+
+    - healthy: All checks pass
+    - degraded: Configuration OK but some templates missing
+    - unhealthy: API Key not configured or GeminiClient not initialized
+
+    [Source: specs/data/health-check-response.schema.json#L20-22]
+    [Source: specs/api/agent-api.openapi.yml#AgentHealthCheckResponse]
+    """
+    healthy = "healthy"
+    degraded = "degraded"
+    unhealthy = "unhealthy"
+
+
+class PromptTemplateCheck(BaseModel):
+    """
+    Prompt template check result.
+
+    [Source: specs/data/health-check-response.schema.json#L37-58]
+    """
+    total: int = Field(..., ge=0, description="Expected total number of templates")
+    available: int = Field(..., ge=0, description="Number of available templates")
+    missing: List[str] = Field(default_factory=list, description="List of missing template names")
+
+
+class ApiTestResult(BaseModel):
+    """
+    Optional API call test result.
+
+    [Source: specs/data/health-check-response.schema.json#L61-74]
+    """
+    enabled: bool = Field(..., description="Whether API call test was enabled")
+    result: Optional[str] = Field(None, description="Test result: 'success' or error message")
+
+
+class AgentHealthChecks(BaseModel):
+    """
+    Individual health check results.
+
+    [Source: specs/data/health-check-response.schema.json#L24-75]
+    """
+    api_key_configured: bool = Field(
+        ...,
+        description="Whether API Key is configured (does not return actual key value)"
+    )
+    gemini_client_initialized: bool = Field(
+        ...,
+        description="Whether GeminiClient is successfully initialized"
+    )
+    prompt_templates: PromptTemplateCheck = Field(
+        ...,
+        description="Prompt template check results"
+    )
+    api_test: Optional[ApiTestResult] = Field(
+        None,
+        description="Optional API call test result"
+    )
+
+
+class AgentHealthCheckResponse(BaseModel):
+    """
+    Agent system health check response.
+
+    [Source: docs/stories/story-12.G.3-api-health-check.md]
+    [Source: specs/data/health-check-response.schema.json]
+    [Source: specs/api/agent-api.openapi.yml#AgentHealthCheckResponse]
+    """
+    status: AgentHealthStatus = Field(
+        ...,
+        description="Overall health status: healthy=all checks pass, "
+                    "degraded=some templates missing, unhealthy=critical components unavailable"
+    )
+    checks: AgentHealthChecks = Field(..., description="Individual check results")
+    cached: bool = Field(
+        default=False,
+        description="Whether this is a cached result (cache TTL: 60s, ref: ADR-007)"
+    )
+    timestamp: datetime = Field(..., description="Check timestamp (ISO 8601 format)")
+
+
 class ErrorResponse(BaseModel):
     """
     Standard error response model.
@@ -61,15 +149,28 @@ class NodeType(str, Enum):
 
 class NodeColor(str, Enum):
     """
-    Node color codes.
-    1=red, 2=orange, 3=yellow, 4=green, 5=cyan, 6=purple
+    Node color codes (Obsidian Canvas actual display).
+
+    Verified from docs/issues/canvas-layout-lessons-learned.md:
+    - "1" = gray (灰白色)
+    - "2" = green (绿色) - 完全理解/已通过
+    - "3" = purple (紫色) - 似懂非懂/待检验
+    - "4" = red (红色) - 不理解/未通过
+    - "5" = blue (蓝色) - AI解释
+    - "6" = yellow (黄色) - 个人理解输出区
+
+    PRD语义映射:
+    - 红色(不理解) → "4"
+    - 绿色(完全理解) → "2"
+    - 紫色(似懂非懂) → "3"
+    - 黄色(个人理解) → "6"
     """
-    red = "1"
-    orange = "2"
-    yellow = "3"
-    green = "4"
-    cyan = "5"
-    purple = "6"
+    gray = "1"      # 灰白色
+    green = "2"     # 完全理解/已通过
+    purple = "3"    # 似懂非懂/待检验
+    red = "4"       # 不理解/未通过 (PRD红色语义)
+    blue = "5"      # AI解释
+    yellow = "6"    # 个人理解输出区 (PRD定义正确)
 
 
 class EdgeSide(str, Enum):
@@ -117,7 +218,9 @@ class NodeRead(BaseModel):
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeRead]
     """
-    id: str = Field(..., description="Node ID", pattern=r"^[a-f0-9]+$")
+    # Pattern relaxed to accept semantic prefixes (vq-, qd-, explain-, etc.)
+    # ✅ Verified from Epic 12.K.1: NodeRead Schema Pattern Fix
+    id: str = Field(..., description="Node ID", pattern=r"^[a-zA-Z0-9][-a-zA-Z0-9]*$")
     type: NodeType = Field(..., description="Node type")
     text: Optional[str] = Field(None, description="Text content")
     file: Optional[str] = Field(None, description="File path")
@@ -188,9 +291,11 @@ class DecomposeResponse(BaseModel):
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/DecomposeResponse]
     [Source: specs/data/decompose-response.schema.json]
+    [Story 12.M.2: Added created_edges for Canvas edge connections]
     """
     questions: List[str] = Field(..., description="Generated guiding questions")
     created_nodes: List[NodeRead] = Field(..., description="Created nodes")
+    created_edges: List[EdgeRead] = Field(default_factory=list, description="Created edges connecting nodes")
 
 
 class ScoreRequest(BaseModel):
@@ -233,9 +338,15 @@ class ExplainRequest(BaseModel):
     Request model for explanation generation.
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/ExplainRequest]
+    [Story 12.B.2: 节点内容实时传递]
     """
     canvas_name: str = Field(..., description="Canvas file name")
     node_id: str = Field(..., description="Target node ID")
+    node_content: Optional[str] = Field(
+        None,
+        description="Real-time node content from plugin (Story 12.B.2). "
+                    "If provided, used directly instead of reading from disk."
+    )
 
 
 class ExplainResponse(BaseModel):

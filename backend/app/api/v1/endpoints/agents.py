@@ -36,6 +36,7 @@ from app.models import (
     ApiTestResult,
     DecomposeRequest,
     DecomposeResponse,
+    EdgeRead,  # Story 12.M.2: For created_edges in DecomposeResponse
     ErrorResponse,
     ExplainRequest,
     ExplainResponse,
@@ -170,6 +171,66 @@ agents_router = APIRouter(
         500: {"model": ErrorResponse, "description": "Agent service error"},
     }
 )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 12.J.4: UnicodeEncodeError Helper Function
+# [Source: docs/stories/story-12.J.4-unicode-exception-handling.md]
+# [Source: specs/api/agent-api.openapi.yml#AgentError]
+# [Source: ADR-009 - 错误分类体系]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _create_encoding_error_response(
+    e: UnicodeEncodeError,
+    endpoint_name: str,
+    cache_key: str = ""
+) -> HTTPException:
+    """
+    Story 12.J.4: Create standardized HTTP response for encoding errors.
+
+    Uses ASCII-safe diagnostic information to avoid secondary encoding errors
+    when logging on Windows GBK console.
+
+    Args:
+        e: The UnicodeEncodeError exception
+        endpoint_name: Name of the endpoint where error occurred
+        cache_key: Optional cache key for request dedup cleanup
+
+    Returns:
+        HTTPException with structured ENCODING_ERROR response
+
+    [Source: specs/api/agent-api.openapi.yml#AgentError]
+    [Source: ADR-009 - 错误分类体系: ENCODING_ERROR is RETRYABLE]
+    """
+    # Story 12.H.5: Cancel request to allow retry
+    if cache_key:
+        cancel_request(cache_key)
+
+    # AC4: Safe diagnostic info (ASCII only to prevent secondary encoding errors)
+    safe_diagnostic = f"position {e.start}"
+    if hasattr(e, 'object') and e.start < len(e.object):
+        try:
+            char_code = ord(e.object[e.start])
+            safe_diagnostic += f", char U+{char_code:04X}"
+        except Exception:
+            pass
+
+    # AC2: ASCII-safe logging (no emoji or special Unicode)
+    logger.error(
+        f"[Story 12.J.4] Encoding error in {endpoint_name}: {safe_diagnostic}"
+    )
+
+    # AC1: Structured response (aligned with AgentError schema)
+    return HTTPException(
+        status_code=500,
+        detail={
+            "error_type": "ENCODING_ERROR",
+            "message": "Text encoding error - please ensure content uses UTF-8",
+            "is_retryable": True,
+            "diagnostic": safe_diagnostic,
+        }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -435,16 +496,17 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         source_groups[source].append(result)
 
     # Format each source group
+    # [Source: Story 12.I.2 - Remove emoji to fix Windows GBK encoding issue]
     source_labels = {
-        "graphiti": "🔗 知识图谱关联",
-        "lancedb": "📊 语义相似内容",
-        "multimodal": "🖼️ 图表/公式",
-        "textbook": "📖 教材参考",
-        "cross_canvas": "🗂️ 跨Canvas关联",
+        "graphiti": "[Graph] 知识图谱关联",
+        "lancedb": "[Vector] 语义相似内容",
+        "multimodal": "[Media] 图表/公式",
+        "textbook": "[Book] 教材参考",
+        "cross_canvas": "[Canvas] 跨Canvas关联",
     }
 
     for source, results in source_groups.items():
-        label = source_labels.get(source, f"📌 {source}")
+        label = source_labels.get(source, f"[{source}]")
         content_lines = []
         for r in results[:3]:  # Limit to 3 results per source
             content = r.get("content", "")
@@ -705,11 +767,15 @@ async def decompose_basic(
         # Story 12.H.5: Mark request as completed on success
         complete_request(cache_key)
 
-        # 转换为响应模型
+        # Story 12.M.2: Include created_edges in response
         return DecomposeResponse(
             questions=result.get("questions", []),
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
+            created_edges=[EdgeRead(**e) for e in result.get("created_edges", [])],
         )
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, "decompose_basic", cache_key) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
@@ -804,10 +870,15 @@ async def decompose_deep(
         # Story 12.H.5: Mark request as completed on success
         complete_request(cache_key)
 
+        # Story 12.M.2: Include created_edges in response
         return DecomposeResponse(
             questions=result.get("questions", []),
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
+            created_edges=[EdgeRead(**e) for e in result.get("created_edges", [])],
         )
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, "decompose_deep", cache_key) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
@@ -905,6 +976,9 @@ async def score_understanding(
         complete_request(cache_key)
 
         return ScoreResponse(scores=scores)
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, "score_understanding", cache_key) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
@@ -1141,6 +1215,9 @@ async def _call_explanation(
             status_code=503,
             detail="AI service unavailable: Cannot connect to the AI provider."
         ) from e
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, f"explain_{explanation_type}", cache_key) from e
     except Exception as e:
         # Story 12.B.1: 其他Agent错误
         # Story 12.H.5: Cancel request to allow retry
@@ -1444,6 +1521,9 @@ async def generate_verification_questions(
             generated_at=datetime.now(),
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, "generate_verification_questions", cache_key) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)
@@ -1544,6 +1624,9 @@ async def decompose_question(
             questions=questions,
             created_nodes=[NodeRead(**n) for n in result.get("created_nodes", [])],
         )
+    except UnicodeEncodeError as e:
+        # Story 12.J.4: Explicit encoding error handling
+        raise _create_encoding_error_response(e, "decompose_question", cache_key) from e
     except Exception as e:
         # Story 12.H.5: Cancel request to allow retry
         cancel_request(cache_key)

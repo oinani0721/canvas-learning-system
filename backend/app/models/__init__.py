@@ -2,6 +2,10 @@
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: response model)
 """Pydantic models for request/response validation."""
 
+# Story 12.G.2: Agent Error Type Enum
+# [Source: specs/api/agent-api.openapi.yml:617-627]
+from app.models.enums import AgentErrorType
+
 # Rollback models (Story 18.1)
 # [Source: docs/architecture/rollback-recovery-architecture.md:296-400]
 # Review models (Story 24.4)
@@ -35,6 +39,11 @@ from app.models.rollback import (
     SnapshotTypeEnum,
 )
 from app.models.schemas import (
+    # Story 12.G.3: Agent Health Check
+    AgentHealthCheckResponse,
+    AgentHealthChecks,
+    AgentHealthStatus,
+    ApiTestResult,
     CanvasResponse,
     # Agents
     DecomposeRequest,
@@ -57,6 +66,7 @@ from app.models.schemas import (
     # Canvas
     NodeType,
     NodeUpdate,
+    PromptTemplateCheck,
     # Story 12.A.6: verification-question and question-decomposition Agents
     QuestionDecomposeRequest,
     QuestionDecomposeResponse,
@@ -80,6 +90,14 @@ __all__ = [
     "HealthStatus",
     "HealthCheckResponse",
     "ErrorResponse",
+    # Story 12.G.2: Agent Error Types
+    "AgentErrorType",
+    # Story 12.G.3: Agent Health Check
+    "AgentHealthStatus",
+    "PromptTemplateCheck",
+    "ApiTestResult",
+    "AgentHealthChecks",
+    "AgentHealthCheckResponse",
     # Canvas
     "NodeType",
     "NodeColor",

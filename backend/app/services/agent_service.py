@@ -439,7 +439,8 @@ def create_error_response(
     retry_hint = "请重试" if is_retryable else "请检查配置后重试"
 
     # Story 12.G.2 AC3: 更友好的错误节点格式
-    error_text = f"""⚠️ Agent 调用失败
+    # [Story 12.I.4] Removed emoji to fix Windows GBK encoding issue
+    error_text = f"""[ERROR] Agent 调用失败
 
 **错误类型**: {error_type_str}
 **错误信息**: {error_message}
@@ -1137,12 +1138,14 @@ class AgentService:
 
             # 写回 Canvas 文件
             await self._canvas_service.write_canvas(canvas_name, canvas_data)
-            logger.info(f"[FIX-Canvas-Write] ✅ Successfully written {len(nodes)} nodes and {len(edges)} edges to {canvas_name}")
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
+            logger.info(f"[FIX-Canvas-Write] SUCCESS: Written {len(nodes)} nodes and {len(edges)} edges to {canvas_name}")
 
             return True
 
         except Exception as e:
-            logger.error(f"[FIX-Canvas-Write] ❌ Failed to write nodes to canvas {canvas_name}: {e}")
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
+            logger.error(f"[FIX-Canvas-Write] FAILED: Could not write nodes to canvas {canvas_name}: {e}")
             return False
 
     async def _call_gemini_api(
@@ -1238,8 +1241,9 @@ class AgentService:
             f"  - enriched_context preview: {(enriched_context[:300] if enriched_context else 'None')}..."
         )
         if enriched_context and len(enriched_context) > 0:
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
             logger.warning(
-                f"[Story 12.C.2] ⚠️ CONTEXT BEING INJECTED ({len(enriched_context)} chars). "
+                f"[Story 12.C.2] WARNING: CONTEXT BEING INJECTED ({len(enriched_context)} chars). "
                 f"If content is unrelated to topic, this is the pollution source!"
             )
 
@@ -1952,6 +1956,7 @@ class AgentService:
         # Extract questions from AI result
         questions = []
         created_nodes = []
+        created_edges = []  # Story 12.M.2: Add edges connecting questions to source node
 
         if result.success and result.data:
             sub_questions = result.data.get("sub_questions", [])
@@ -1985,8 +1990,9 @@ class AgentService:
                 y = source_y + 150 + row * (node_height + gap_y)  # 150px below source
 
                 # Create node object matching frontend NodeRead type
+                question_node_id = f"q-{node_id}-{idx}-{uuid.uuid4().hex[:8]}"
                 created_nodes.append({
-                    "id": f"q-{node_id}-{idx}-{uuid.uuid4().hex[:8]}",
+                    "id": question_node_id,
                     "type": "text",
                     "text": node_text,
                     "x": x,
@@ -1996,11 +2002,21 @@ class AgentService:
                     "color": "3",  # Yellow - indicates question/understanding area
                 })
 
-        logger.info(f"Basic decomposition created {len(created_nodes)} nodes")
+                # Story 12.M.2: Create edge from source node to question node
+                created_edges.append({
+                    "id": f"edge-basic-{uuid.uuid4().hex[:8]}",
+                    "fromNode": node_id,
+                    "toNode": question_node_id,
+                    "fromSide": "bottom",
+                    "toSide": "top"
+                })
+
+        logger.info(f"Basic decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
         return {
             "node_id": node_id,
             "questions": questions,
             "created_nodes": created_nodes,
+            "created_edges": created_edges,  # Story 12.M.2: Include edges in response
             "status": "completed",
             "result": result.data,
         }
@@ -2037,6 +2053,7 @@ class AgentService:
 
         verification_questions = []
         created_nodes = []
+        created_edges = []  # Story 12.M.2: Add edges connecting questions to source node
 
         if result.success and result.data:
             # Extract sub_questions from AI result
@@ -2071,8 +2088,9 @@ class AgentService:
 
                 # Create node object matching frontend NodeRead type
                 # Deep decomposition uses purple color (indicating "partially understood")
+                question_node_id = f"vq-{node_id}-{idx}-{uuid.uuid4().hex[:8]}"
                 created_nodes.append({
-                    "id": f"vq-{node_id}-{idx}-{uuid.uuid4().hex[:8]}",
+                    "id": question_node_id,
                     "type": "text",
                     "text": node_text,
                     "x": x,
@@ -2082,11 +2100,21 @@ class AgentService:
                     "color": "6",  # Purple - indicates verification/deep question
                 })
 
-        logger.info(f"Deep decomposition created {len(created_nodes)} nodes")
+                # Story 12.M.2: Create edge from source node to question node
+                created_edges.append({
+                    "id": f"edge-deep-{uuid.uuid4().hex[:8]}",
+                    "fromNode": node_id,
+                    "toNode": question_node_id,
+                    "fromSide": "bottom",
+                    "toSide": "top"
+                })
+
+        logger.info(f"Deep decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
         return {
             "node_id": node_id,
             "verification_questions": verification_questions,
             "created_nodes": created_nodes,
+            "created_edges": created_edges,  # Story 12.M.2: Include edges in response
             "status": "completed",
             "result": result.data,
         }
@@ -2583,9 +2611,11 @@ class AgentService:
             edges=created_edges
         )
         if write_success:
-            logger.info(f"[FIX-Canvas-Write] ✅ Canvas {canvas_name} updated with {len(created_nodes)} nodes and {len(created_edges)} edges")
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
+            logger.info(f"[FIX-Canvas-Write] SUCCESS: Canvas {canvas_name} updated with {len(created_nodes)} nodes and {len(created_edges)} edges")
         else:
-            logger.warning(f"[FIX-Canvas-Write] ⚠️ Failed to write to Canvas {canvas_name}, nodes returned in response but not persisted")
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
+            logger.warning(f"[FIX-Canvas-Write] WARNING: Failed to write to Canvas {canvas_name}, nodes returned in response but not persisted")
 
         return {
             "node_id": node_id,

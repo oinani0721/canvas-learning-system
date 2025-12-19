@@ -91,13 +91,13 @@ class TestCanvasRouter:
             "text": "Red node",
             "x": 0,
             "y": 0,
-            "color": "1",  # Red
+            "color": "4",  # Red (actual red in Obsidian Canvas)
         }
         response = client.post("/api/v1/canvas/test-canvas/nodes", json=node_data)
         assert response.status_code == 201
 
         data = response.json()
-        assert data["color"] == "1"
+        assert data["color"] == "4"
 
     def test_update_node(self):
         """Test updating a node returns 200."""

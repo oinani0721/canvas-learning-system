@@ -34,8 +34,8 @@ export interface MenuItemConfig {
   /** Condition to check if item should be shown */
   condition?: () => boolean | Promise<boolean>;
 
-  /** Action to execute when clicked */
-  action: () => void | Promise<void>;
+  /** Action to execute when clicked - receives MenuContext for Epic 12.L fix */
+  action: (context: MenuContext) => void | Promise<void>;
 
   /** Tooltip/description for hover */
   description?: string;
@@ -54,14 +54,16 @@ export type CanvasNodeColor = '1' | '2' | '3' | '4' | '5' | '6';
 
 /**
  * Canvas node color names for display
+ * Story 12.B.4: Fixed to match actual Obsidian Canvas colors
+ * Verified from docs/issues/canvas-layout-lessons-learned.md
  */
 export const CANVAS_COLOR_NAMES: Record<CanvasNodeColor, string> = {
-  '1': '红色 (不理解)',
-  '2': '橙色',
-  '3': '黄色 (个人理解)',
-  '4': '绿色 (已掌握)',
-  '5': '青色',
-  '6': '紫色 (似懂非懂)',
+  '1': '灰色',
+  '2': '绿色 (完全理解)',
+  '3': '紫色 (似懂非懂)',
+  '4': '红色 (不理解)',
+  '5': '蓝色 (AI解释)',
+  '6': '黄色 (个人理解)',
 };
 
 /**
@@ -85,6 +87,12 @@ export interface MenuContext {
 
   /** Canvas node type */
   nodeType?: 'text' | 'file' | 'link' | 'group';
+
+  /**
+   * Real-time node text content (Story 12.B.2)
+   * Passed directly to backend to avoid stale disk reads
+   */
+  nodeContent?: string;
 
   /** Whether in backup folder */
   isBackupFile?: boolean;

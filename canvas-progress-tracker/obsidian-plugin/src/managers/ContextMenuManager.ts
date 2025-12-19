@@ -250,16 +250,21 @@ export class ContextMenuManager {
    */
   private registerBuiltInMenuItems(): void {
     // Primary actions - Decomposition
+    // Epic 12.L: All actions now receive context directly instead of calling getCurrentContext()
     this.registerMenuItem({
       id: 'decompose-node',
       title: '拆解此节点 🔍',
       icon: 'git-branch',
       section: 'primary',
       description: '将复杂概念拆解为子问题',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
+        console.log('[Story 12.K] MenuItem "拆解此节点" clicked');
         if (this.actionRegistry.executeDecomposition) {
-          await this.actionRegistry.executeDecomposition(this.getCurrentContext());
+          console.log('[Story 12.K] Calling executeDecomposition with context:', ctx);
+          await this.actionRegistry.executeDecomposition(ctx);
+          console.log('[Story 12.K] executeDecomposition completed');
         } else {
+          console.error('[Story 12.K] executeDecomposition not registered!');
           new Notice('拆解功能尚未初始化');
         }
       },
@@ -272,9 +277,9 @@ export class ContextMenuManager {
       icon: 'message-circle',
       section: 'primary',
       description: '生成易于理解的口语化解释',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeOralExplanation) {
-          await this.actionRegistry.executeOralExplanation(this.getCurrentContext());
+          await this.actionRegistry.executeOralExplanation(ctx);
         } else {
           new Notice('口语化解释功能尚未初始化');
         }
@@ -288,9 +293,9 @@ export class ContextMenuManager {
       icon: 'layers',
       section: 'primary',
       description: '从入门到精通的四层次解释',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeFourLevelExplanation) {
-          await this.actionRegistry.executeFourLevelExplanation(this.getCurrentContext());
+          await this.actionRegistry.executeFourLevelExplanation(ctx);
         } else {
           new Notice('四层次解答功能尚未初始化');
         }
@@ -304,10 +309,14 @@ export class ContextMenuManager {
       icon: 'flame',
       section: 'primary',
       description: '对复杂概念进行深度拆解分析',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
+        console.log('[Story 12.K] MenuItem "深度拆解" clicked');
         if (this.actionRegistry.executeDeepDecomposition) {
-          await this.actionRegistry.executeDeepDecomposition(this.getCurrentContext());
+          console.log('[Story 12.K] Calling executeDeepDecomposition with context:', ctx);
+          await this.actionRegistry.executeDeepDecomposition(ctx);
+          console.log('[Story 12.K] executeDeepDecomposition completed');
         } else {
+          console.error('[Story 12.K] executeDeepDecomposition not registered!');
           new Notice('深度拆解功能尚未初始化');
         }
       },
@@ -320,9 +329,9 @@ export class ContextMenuManager {
       icon: 'trending-up',
       section: 'primary',
       description: '生成系统化澄清路径',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeClarificationPath) {
-          await this.actionRegistry.executeClarificationPath(this.getCurrentContext());
+          await this.actionRegistry.executeClarificationPath(ctx);
         } else {
           new Notice('澄清路径功能尚未初始化');
         }
@@ -336,9 +345,9 @@ export class ContextMenuManager {
       icon: 'star',
       section: 'secondary',
       description: '对节点内容进行4维评分',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeScoring) {
-          await this.actionRegistry.executeScoring(this.getCurrentContext());
+          await this.actionRegistry.executeScoring(ctx);
         } else {
           new Notice('评分功能尚未初始化');
         }
@@ -352,9 +361,9 @@ export class ContextMenuManager {
       icon: 'table',
       section: 'secondary',
       description: '生成概念对比表',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.generateComparisonTable) {
-          await this.actionRegistry.generateComparisonTable(this.getCurrentContext());
+          await this.actionRegistry.generateComparisonTable(ctx);
         } else {
           new Notice('对比表生成功能尚未初始化');
         }
@@ -368,9 +377,9 @@ export class ContextMenuManager {
       icon: 'book-open',
       section: 'secondary',
       description: '生成例题和详细解答',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeExampleTeaching) {
-          await this.actionRegistry.executeExampleTeaching(this.getCurrentContext());
+          await this.actionRegistry.executeExampleTeaching(ctx);
         } else {
           new Notice('例题教学功能尚未初始化');
         }
@@ -384,9 +393,9 @@ export class ContextMenuManager {
       icon: 'anchor',
       section: 'secondary',
       description: '生成生动类比和记忆法',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.executeMemoryAnchor) {
-          await this.actionRegistry.executeMemoryAnchor(this.getCurrentContext());
+          await this.actionRegistry.executeMemoryAnchor(ctx);
         } else {
           new Notice('记忆锚点功能尚未初始化');
         }
@@ -400,9 +409,9 @@ export class ContextMenuManager {
       icon: 'help-circle',
       section: 'secondary',
       description: '生成深度检验问题测试理解',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.generateVerificationQuestions) {
-          await this.actionRegistry.generateVerificationQuestions(this.getCurrentContext());
+          await this.actionRegistry.generateVerificationQuestions(ctx);
         } else {
           new Notice('检验问题功能尚未初始化');
         }
@@ -416,9 +425,9 @@ export class ContextMenuManager {
       icon: 'split',
       section: 'secondary',
       description: '将检验问题拆解为子问题',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.decomposeQuestion) {
-          await this.actionRegistry.decomposeQuestion(this.getCurrentContext());
+          await this.actionRegistry.decomposeQuestion(ctx);
         } else {
           new Notice('问题拆解功能尚未初始化');
         }
@@ -432,9 +441,9 @@ export class ContextMenuManager {
       icon: 'history',
       section: 'utility',
       description: '查看此节点的学习历史',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.viewNodeHistory) {
-          await this.actionRegistry.viewNodeHistory(this.getCurrentContext());
+          await this.actionRegistry.viewNodeHistory(ctx);
         } else {
           new Notice('历史记录功能尚未初始化');
         }
@@ -448,9 +457,9 @@ export class ContextMenuManager {
       icon: 'calendar',
       section: 'utility',
       description: '将节点添加到艾宾浩斯复习计划',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.addToReviewPlan) {
-          await this.actionRegistry.addToReviewPlan(this.getCurrentContext());
+          await this.actionRegistry.addToReviewPlan(ctx);
         } else {
           new Notice('复习计划功能尚未初始化');
         }
@@ -464,9 +473,9 @@ export class ContextMenuManager {
       icon: 'bar-chart',
       section: 'primary',
       description: '打开Canvas复习仪表板',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.openReviewDashboard) {
-          await this.actionRegistry.openReviewDashboard(this.getCurrentContext());
+          await this.actionRegistry.openReviewDashboard(ctx);
         } else {
           new Notice('复习仪表板功能尚未初始化');
         }
@@ -480,9 +489,9 @@ export class ContextMenuManager {
       icon: 'check-circle',
       section: 'primary',
       description: '生成无提示检验白板',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.generateVerificationCanvas) {
-          await this.actionRegistry.generateVerificationCanvas(this.getCurrentContext());
+          await this.actionRegistry.generateVerificationCanvas(ctx);
         } else {
           new Notice('检验白板功能尚未初始化');
         }
@@ -501,9 +510,9 @@ export class ContextMenuManager {
       icon: 'link',
       section: 'utility',
       description: '创建与其他Canvas的关联',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.openCrossCanvasModal) {
-          await this.actionRegistry.openCrossCanvasModal(this.getCurrentContext());
+          await this.actionRegistry.openCrossCanvasModal(ctx);
         } else {
           new Notice('跨Canvas关联功能尚未初始化');
         }
@@ -518,9 +527,9 @@ export class ContextMenuManager {
       icon: 'external-link',
       section: 'utility',
       description: '查看并跳转到关联的Canvas',
-      action: async () => {
+      action: async (ctx: MenuContext) => {
         if (this.actionRegistry.viewAssociatedCanvas) {
-          await this.actionRegistry.viewAssociatedCanvas(this.getCurrentContext());
+          await this.actionRegistry.viewAssociatedCanvas(ctx);
         } else {
           new Notice('查看关联功能尚未初始化');
         }
@@ -1038,16 +1047,17 @@ export class ContextMenuManager {
       }
 
       // Story 12.G.5: Unified Agent error handling with retry support
+      // Epic 12.L: Pass context directly to action to fix cache race condition
       item.onClick(async () => {
         try {
           this.log(`ContextMenuManager: Menu item clicked - ${config.id}`);
-          await config.action();
+          await config.action(context);
         } catch (error) {
           // Story 12.G.5: Use AgentErrorHandler for ApiError instances
           if (error instanceof ApiError) {
             await this.agentErrorHandler.handleError(error, async () => {
-              // Retry callback: re-execute the same action
-              await config.action();
+              // Retry callback: re-execute the same action with same context
+              await config.action(context);
             });
           } else {
             // Fallback for non-ApiError errors

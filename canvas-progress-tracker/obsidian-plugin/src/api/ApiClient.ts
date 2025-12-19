@@ -63,7 +63,7 @@ import {
  * @source Story 13.3 Dev Notes - ApiClientConfig默认值
  * @modified Story 12.F.6 - Timeout increased from 30s to 60s for Agent calls
  */
-const DEFAULT_TIMEOUT = 60000; // 60 seconds (Story 12.F.6)
+const DEFAULT_TIMEOUT = 150000; // 150 seconds (Story 12.K: Match backend AI_TIMEOUT=120s + buffer)
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_BACKOFF_MS = 1000;
 const RETRYABLE_ERROR_TYPES: ErrorType[] = [
@@ -173,10 +173,11 @@ export class ApiClient {
 
         try {
           // ✅ Verified from Story 13.3 Dev Notes - 请求头设置
+          // ✅ Story 12.J.2: 添加 charset=utf-8 确保中文正确传输
           const response = await fetch(`${this.baseUrl}${path}`, {
             method,
             headers: {
-              'Content-Type': 'application/json',
+              'Content-Type': 'application/json; charset=utf-8',
               'User-Agent': 'Obsidian-Canvas-Review/1.0.0',
               ...options?.headers,
             },
@@ -716,17 +717,31 @@ export class ApiClient {
     let userCancelled = false;
 
     const effectiveTimeout = timeout ?? this.timeout;
+    const startTime = Date.now();
+
+    // Story 12.K: Debug logging for request tracing
+    const requestBody = JSON.stringify(data);
+    console.log(`[ApiClient] Sending request:`, {
+      lockKey,
+      url: `${this.baseUrl}${endpoint}`,
+      timeout: effectiveTimeout,
+      bodySize: requestBody.length,
+      startTime: new Date(startTime).toISOString(),
+    });
+
     const timeoutId = setTimeout(() => {
       // Don't mark as user-cancelled for timeout
+      console.log(`[ApiClient] Timeout triggered for "${lockKey}" after ${effectiveTimeout}ms`);
       controller.abort();
     }, effectiveTimeout);
 
     try {
       // ✅ Verified from MDN Web Docs - fetch with AbortController signal
+      // ✅ Story 12.J.2: 添加 charset=utf-8 确保中文正确传输
       const response = await fetch(`${this.baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'User-Agent': 'Obsidian-Canvas-Review/1.0.0',
         },
         body: JSON.stringify(data),
@@ -734,6 +749,12 @@ export class ApiClient {
       });
 
       clearTimeout(timeoutId);
+      const elapsed = Date.now() - startTime;
+      console.log(`[ApiClient] Response received for "${lockKey}":`, {
+        status: response.status,
+        elapsed: `${elapsed}ms`,
+        ok: response.ok,
+      });
 
       if (!response.ok) {
         let errorDetails: ErrorResponse | null = null;
@@ -756,7 +777,9 @@ export class ApiClient {
         );
       }
 
-      return (await response.json()) as T;
+      const result = (await response.json()) as T;
+      console.log(`[ApiClient] Request "${lockKey}" completed successfully in ${elapsed}ms`);
+      return result;
     } catch (error) {
       clearTimeout(timeoutId);
 

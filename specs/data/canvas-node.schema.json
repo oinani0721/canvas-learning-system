@@ -17,7 +17,7 @@
   "properties": {
     "id": {
       "type": "string",
-      "pattern": "^[a-f0-9]+$",
+      "pattern": "^[a-zA-Z0-9][-a-zA-Z0-9]*$",
       "description": "节点唯一标识，十六进制字符串格式 (Verified from JSON Canvas Spec 1.0)",
       "examples": ["b33c50660173e5d3", "node-test123"]
     },
