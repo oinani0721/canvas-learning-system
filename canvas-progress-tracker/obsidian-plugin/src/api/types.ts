@@ -349,24 +349,33 @@ export interface DecomposeResponse {
 /**
  * Scoring request for understanding evaluation
  * @source Story 13.3 Dev Notes - ScoreRequest
+ * @source Story 2.8 - Added node_content for real-time content passing
  */
 export interface ScoreRequest {
   canvas_name: string;
   node_ids: string[];
+  /** Node content to score (passed from plugin) - Story 2.8 */
+  node_content?: string;
 }
 
 /**
  * Individual node score with 4-dimension scoring
  * @source Story 13.3 Dev Notes - NodeScore
+ * @source Story 2.8 - Added feedback and color_action fields
+ * @source .claude/agents/scoring.md - Output Format
  */
 export interface NodeScore {
   node_id: string;
-  accuracy: number; // 0-10
-  imagery: number; // 0-10
-  completeness: number; // 0-10
-  originality: number; // 0-10
-  total: number; // 0-40
-  new_color: NodeColor; // 5=green(>=32), 3=yellow(24-31), 1=red(<24)
+  accuracy: number; // 0-25 (updated from 0-10)
+  imagery: number; // 0-25 (updated from 0-10)
+  completeness: number; // 0-25 (updated from 0-10)
+  originality: number; // 0-25 (updated from 0-10)
+  total: number; // 0-100 (updated from 0-40)
+  new_color: NodeColor; // 2=green(>=80), 3=purple(60-79), 4=red(<60)
+  /** Specific improvement suggestions from Agent (100-200 chars) */
+  feedback?: string;
+  /** Color action: change_to_green/change_to_purple/keep_red */
+  color_action?: string;
 }
 
 /**
@@ -674,4 +683,87 @@ export interface RetryPolicy {
 export interface RequestOptions {
   headers?: Record<string, string>;
   signal?: AbortSignal;
+}
+
+// =============================================================================
+// Textbook API Types (Epic 28 - Bidirectional Textbook Links)
+// =============================================================================
+
+/**
+ * Textbook section from parsed document
+ * @source Epic 28 - 方案A: 前端同步到后端
+ */
+export interface TextbookSectionApi {
+  id: string;
+  title: string;
+  level: number;
+  preview: string;
+  start_offset: number;
+  end_offset: number;
+  page_number?: number;
+}
+
+/**
+ * Mounted textbook information for sync
+ * @source Epic 28 - 方案A: 前端同步到后端
+ */
+export interface MountedTextbookApi {
+  id: string;
+  path: string;
+  name: string;
+  type: 'markdown' | 'pdf' | 'canvas';
+  sections: TextbookSectionApi[];
+}
+
+/**
+ * Request to sync mounted textbook to backend
+ * @source Epic 28 - 方案A: 前端同步到后端
+ * @verified backend/app/api/v1/endpoints/textbook.py#SyncMountRequest
+ */
+export interface SyncMountRequest {
+  canvas_path: string;
+  textbook: MountedTextbookApi;
+}
+
+/**
+ * Response after syncing mounted textbook
+ * @source Epic 28 - 方案A: 前端同步到后端
+ * @verified backend/app/api/v1/endpoints/textbook.py#SyncMountResponse
+ */
+export interface SyncMountResponse {
+  success: boolean;
+  config_path: string;
+  message: string;
+  association_id: string;
+}
+
+/**
+ * Request to unmount a textbook
+ * @source Epic 28 - 方案A: 前端同步到后端
+ * @verified backend/app/api/v1/endpoints/textbook.py#UnmountRequest
+ */
+export interface UnmountTextbookRequest {
+  canvas_path: string;
+  textbook_id: string;
+}
+
+/**
+ * Response after unmounting textbook
+ * @source Epic 28 - 方案A: 前端同步到后端
+ * @verified backend/app/api/v1/endpoints/textbook.py#UnmountResponse
+ */
+export interface UnmountTextbookResponse {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * Response listing mounted textbooks for a canvas
+ * @source Epic 28 - 方案A: 前端同步到后端
+ * @verified backend/app/api/v1/endpoints/textbook.py#ListMountedResponse
+ */
+export interface ListMountedTextbooksResponse {
+  canvas_path: string;
+  associations: Record<string, unknown>[];
+  config_path: string;
 }

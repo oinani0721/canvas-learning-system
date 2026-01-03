@@ -152,8 +152,10 @@ class TestCanvasNodeSchema:
             validate(instance=node, schema=schema)
 
     def test_all_valid_colors(self, schema):
-        """All valid colors should pass validation"""
-        valid_colors = ["1", "2", "3", "5", "6"]
+        """All valid colors should pass validation
+        Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+        """
+        valid_colors = ["1", "2", "3", "4", "5", "6"]
         for color in valid_colors:
             node = {
                 "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",

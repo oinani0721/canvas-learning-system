@@ -52,6 +52,34 @@ _lancedb_client: Optional[LanceDBClient] = None
 _temporal_client: Optional[TemporalClient] = None
 
 
+def _safe_get_config(
+    runtime: Runtime[CanvasRAGConfig],
+    key: str,
+    default: Any = None
+) -> Any:
+    """
+    Safely access runtime context with None protection.
+
+    Story 12.K.2: Prevents 'NoneType' object has no attribute 'get' errors
+    when runtime.context is None (e.g., when config is not properly passed).
+
+    Args:
+        runtime: LangGraph Runtime object
+        key: Config key to retrieve
+        default: Default value if key not found or context is None
+
+    Returns:
+        Config value or default
+    """
+    if runtime is None:
+        logger.warning(f"[_safe_get_config] runtime is None, using default for '{key}'")
+        return default
+    if runtime.context is None:
+        logger.warning(f"[_safe_get_config] runtime.context is None, using default for '{key}'")
+        return default
+    return runtime.context.get(key, default)
+
+
 async def _get_graphiti_client() -> GraphitiClient:
     """获取Graphiti客户端单例"""
     global _graphiti_client
@@ -135,8 +163,8 @@ async def retrieve_graphiti(
     # ✅ Story 23.3: 节点入口日志
     logger.debug(f"[retrieve_graphiti] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
 
-    # 获取配置
-    batch_size = runtime.context.get("graphiti_batch_size") or runtime.context.get("retrieval_batch_size", 10)
+    # 获取配置 (Story 12.K.2: Safe config access)
+    batch_size = _safe_get_config(runtime, "graphiti_batch_size") or _safe_get_config(runtime, "retrieval_batch_size", 10)
     canvas_file = state.get("canvas_file")
 
     # ✅ Story 12.1: 使用真实Graphiti客户端
@@ -205,8 +233,8 @@ async def retrieve_lancedb(
     # ✅ Story 23.3: 节点入口日志
     logger.debug(f"[retrieve_lancedb] START - query='{query[:50]}...' canvas={state.get('canvas_file')}")
 
-    # 获取配置
-    batch_size = runtime.context.get("lancedb_batch_size") or runtime.context.get("retrieval_batch_size", 10)
+    # 获取配置 (Story 12.K.2: Safe config access)
+    batch_size = _safe_get_config(runtime, "lancedb_batch_size") or _safe_get_config(runtime, "retrieval_batch_size", 10)
     canvas_file = state.get("canvas_file")
 
     # ✅ Story 12.2: 使用真实LanceDB客户端
@@ -291,10 +319,10 @@ async def fuse_results(
     textbook_results = state.get("textbook_results", [])
     cross_canvas_results = state.get("cross_canvas_results", [])
 
-    # 获取配置
-    fusion_strategy = runtime.context.get("fusion_strategy", "rrf")
-    source_weights = runtime.context.get("source_weights", DEFAULT_SOURCE_WEIGHTS)
-    time_decay_factor = runtime.context.get("time_decay_factor", 0.05)
+    # 获取配置 (Story 12.K.2: Safe config access)
+    fusion_strategy = _safe_get_config(runtime, "fusion_strategy", "rrf")
+    source_weights = _safe_get_config(runtime, "source_weights", DEFAULT_SOURCE_WEIGHTS)
+    time_decay_factor = _safe_get_config(runtime, "time_decay_factor", 0.05)
 
     # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
     graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
@@ -601,7 +629,8 @@ async def rerank_results(
     start_time = time.perf_counter()
 
     fused_results = state.get("fused_results", [])
-    reranking_strategy = runtime.context.get("reranking_strategy", "hybrid_auto")
+    # Story 12.K.2: Safe config access
+    reranking_strategy = _safe_get_config(runtime, "reranking_strategy", "hybrid_auto")
 
     # ✅ Story 23.3: 节点入口日志
     logger.debug(f"[rerank_results] START - strategy={reranking_strategy}, input_count={len(fused_results)}")
@@ -701,7 +730,8 @@ async def check_quality(
     top3_scores = [r["score"] for r in reranked_results[:3]]
     avg_score = sum(top3_scores) / len(top3_scores) if top3_scores else 0.0
 
-    quality_threshold_high = runtime.context.get("quality_threshold", 0.7)
+    # Story 12.K.2: Safe config access
+    quality_threshold_high = _safe_get_config(runtime, "quality_threshold", 0.7)
     quality_threshold_medium = quality_threshold_high - 0.2  # 0.5
 
     if avg_score >= quality_threshold_high:
@@ -746,7 +776,8 @@ async def retrieve_weak_concepts(
     start_time = time.perf_counter()
 
     canvas_file = state.get("canvas_file", "")
-    limit = runtime.context.get("weak_concepts_limit", 10)
+    # Story 12.K.2: Safe config access
+    limit = _safe_get_config(runtime, "weak_concepts_limit", 10)
 
     try:
         client = await _get_temporal_client()

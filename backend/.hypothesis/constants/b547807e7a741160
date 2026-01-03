@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\models\enums.py
+# hypothesis_version: 6.148.1
+
+[1001, 1002, 1004, 2001, 3001, 4001, 9999, 'AI 响应格式异常', 'AI 响应超时，请重试', 'Agent 模板文件缺失', 'CONFIG_MISSING', 'FATAL', 'FILE_NOT_FOUND', 'LLM_INVALID_RESPONSE', 'LLM_RATE_LIMIT', 'LLM_TIMEOUT', 'NETWORK_TIMEOUT', 'NON_RETRYABLE', 'RETRYABLE', 'UNKNOWN', '发生未知错误', '网络连接失败，请检查网络', '请在插件设置中配置 API Key', '请求过于频繁，请稍后重试']

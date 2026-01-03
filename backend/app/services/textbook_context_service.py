@@ -31,12 +31,19 @@ class TextbookContext:
         node_id: ID of the matched node
         relevance_score: Relevance score (0.0-1.0)
         content_preview: Preview of matched content
+        page_number: PDF page number (None for non-PDF files)
+        file_type: File type - "canvas", "markdown", or "pdf"
+
+    [Source: Story 28.3 - PDF页码链接支持]
     """
     textbook_canvas: str
     section_name: str
     node_id: str
     relevance_score: float
     content_preview: str
+    # Story 28.3: PDF page link support
+    page_number: Optional[int] = None
+    file_type: str = "canvas"  # "canvas" | "markdown" | "pdf"
 
 
 @dataclass
@@ -62,10 +69,17 @@ class FullTextbookContext:
     Full context result including textbooks and prerequisites.
 
     Attributes:
-        contexts: List of textbook contexts
+        contexts: List of textbook contexts (supports PDF page_number and file_type)
         prerequisites: List of prerequisite concepts
         query_time_ms: Time taken for query in milliseconds
         timed_out: Whether the query timed out
+
+    Note:
+        Each TextbookContext in contexts may have:
+        - page_number: PDF page number for direct page links
+        - file_type: "canvas", "markdown", or "pdf"
+
+    [Source: Story 28.3 - PDF页码链接支持]
     """
     contexts: List[TextbookContext] = field(default_factory=list)
     prerequisites: List[Prerequisite] = field(default_factory=list)
@@ -477,6 +491,139 @@ class TextbookContextService:
             self._config_cache.pop(config_path, None)
         else:
             self._config_cache.clear()
+
+    async def sync_mounted_textbook(
+        self,
+        canvas_path: str,
+        association: Dict[str, Any]
+    ) -> str:
+        """
+        Sync a mounted textbook to .canvas-links.json.
+
+        Creates or updates the configuration file with the new association.
+        This bridges the frontend localStorage to backend filesystem.
+
+        Args:
+            canvas_path: Path to the Canvas file
+            association: Association dictionary with textbook info
+
+        Returns:
+            Path to the .canvas-links.json file
+
+        [Source: 方案A - 前端同步到后端]
+        """
+        config_path = self._get_config_path(canvas_path)
+        full_path = self._base_path / config_path
+
+        # Load existing config or create new
+        try:
+            if full_path.exists():
+                content = full_path.read_text(encoding='utf-8')
+                config = json.loads(content)
+            else:
+                config = {
+                    'version': '1.0.0',
+                    'associations': [],
+                    'settings': {'auto_link': True}
+                }
+        except Exception as e:
+            logger.warning(f"[TextbookContextService] Failed to load config, creating new: {e}")
+            config = {
+                'version': '1.0.0',
+                'associations': [],
+                'settings': {'auto_link': True}
+            }
+
+        # Check if association already exists (by ID)
+        associations = config.get('associations', [])
+        existing_idx = None
+        for i, a in enumerate(associations):
+            if a.get('association_id') == association.get('association_id'):
+                existing_idx = i
+                break
+
+        if existing_idx is not None:
+            # Update existing
+            associations[existing_idx] = association
+        else:
+            # Add new
+            associations.append(association)
+
+        config['associations'] = associations
+
+        # Ensure directory exists
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+
+        # Write config file
+        full_path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2),
+            encoding='utf-8'
+        )
+
+        # Invalidate cache
+        self._config_cache.pop(config_path, None)
+
+        logger.info(f"[TextbookContextService] Synced textbook to {config_path}")
+
+        return config_path
+
+    async def remove_mounted_textbook(
+        self,
+        canvas_path: str,
+        textbook_id: str
+    ) -> bool:
+        """
+        Remove a mounted textbook from .canvas-links.json.
+
+        Args:
+            canvas_path: Path to the Canvas file
+            textbook_id: Textbook ID to remove
+
+        Returns:
+            True if removed, False if not found
+
+        [Source: 方案A - 前端同步到后端]
+        """
+        config_path = self._get_config_path(canvas_path)
+        full_path = self._base_path / config_path
+
+        if not full_path.exists():
+            return False
+
+        try:
+            content = full_path.read_text(encoding='utf-8')
+            config = json.loads(content)
+        except Exception as e:
+            logger.warning(f"[TextbookContextService] Failed to load config for removal: {e}")
+            return False
+
+        # Find and remove the association
+        associations = config.get('associations', [])
+        original_count = len(associations)
+
+        # Remove by matching association_id that contains the textbook_id
+        associations = [
+            a for a in associations
+            if not a.get('association_id', '').endswith(textbook_id)
+        ]
+
+        if len(associations) == original_count:
+            return False  # Nothing removed
+
+        config['associations'] = associations
+
+        # Write back
+        full_path.write_text(
+            json.dumps(config, ensure_ascii=False, indent=2),
+            encoding='utf-8'
+        )
+
+        # Invalidate cache
+        self._config_cache.pop(config_path, None)
+
+        logger.info(f"[TextbookContextService] Removed textbook {textbook_id} from {config_path}")
+
+        return True
 
 
 # Singleton instance

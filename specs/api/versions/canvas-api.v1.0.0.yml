@@ -598,15 +598,16 @@ components:
 
     ColorCode:
       type: string
-      enum: ["1", "2", "3", "5", "6"]
+      enum: ["1", "2", "3", "4", "5", "6"]
       description: |
-        Canvas颜色代码:
-        - "1" (红色): 不理解/未通过
+        Canvas颜色代码 (Story 12.B.4 修正):
+        - "1" (灰色): 无特殊含义
         - "2" (绿色): 完全理解/已通过
         - "3" (紫色): 似懂非懂/待检验
+        - "4" (红色): 不理解/未通过
         - "5" (蓝色): AI补充解释
         - "6" (黄色): 个人理解输出区
-      example: "1"
+      example: "4"
 
     CanvasAnalysis:
       type: object

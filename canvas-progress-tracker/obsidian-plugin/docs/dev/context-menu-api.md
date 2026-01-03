@@ -136,13 +136,15 @@ interface MenuContext {
 Canvas Learning System 使用颜色编码来表示学习进度：
 
 ```typescript
+// Story 12.B.4: 正确的 Obsidian Canvas 颜色映射
+// 参考: docs/issues/canvas-layout-lessons-learned.md
 type CanvasNodeColor =
-  | '1'  // 红色 - 困难/未理解
-  | '2'  // 橙色 - 中等难度
-  | '3'  // 黄色 - 个人理解区
-  | '4'  // 绿色 - 已掌握
-  | '5'  // 青色 - 待复习
-  | '6'  // 紫色 - 部分理解
+  | '1'  // 灰色 - 无特殊含义
+  | '2'  // 绿色 - 完全理解
+  | '3'  // 紫色 - 似懂非懂
+  | '4'  // 红色 - 不理解
+  | '5'  // 蓝色 - AI解释
+  | '6'  // 黄色 - 个人理解
   | undefined;  // 无颜色
 ```
 

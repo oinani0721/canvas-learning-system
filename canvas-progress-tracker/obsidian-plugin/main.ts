@@ -49,6 +49,13 @@ import { ApiError } from './src/api/types';
 import { BackendProcessManager, createBackendProcessManager, BackendStatus } from './src/services/BackendProcessManager';
 import { CanvasFileManager } from './src/managers/CanvasFileManager';
 import type { CanvasData, CanvasTextNode } from './src/types/canvas';
+import { ScoringCheckpointService, SuggestionChoice } from './src/services/ScoringCheckpointService';
+// Story 16.1: Canvas Association UI - Textbook Mounting
+import { TextbookMountService } from './src/services/TextbookMountService';
+import { CanvasAssociationModal } from './src/modals/CanvasAssociationModal';
+import { AssociationFormModal } from './src/modals/AssociationFormModal';
+import type { CanvasAssociation, CanvasLinksConfig } from './src/types/AssociationTypes';
+import { DEFAULT_CANVAS_LINKS_CONFIG } from './src/types/AssociationTypes';
 
 /**
  * Story 12.H.2: Node-level Request Queue
@@ -197,6 +204,12 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Story 12.H.2: Node-level request queue - ensures one Agent per node at a time */
     private nodeRequestQueue: NodeRequestQueue = new NodeRequestQueue();
+
+    /** Story 2.8: Scoring Checkpoint Service - auto-scores before agent operations */
+    private scoringCheckpointService: ScoringCheckpointService | null = null;
+
+    /** Story 16.1: Textbook Mount Service - manages textbook mounting */
+    private textbookMountService: TextbookMountService | null = null;
 
     /**
      * Plugin load lifecycle method
@@ -403,6 +416,18 @@ export default class CanvasReviewPlugin extends Plugin {
                 timeout: 150000, // 150 seconds (backend AI timeout = 120s + 30s buffer)
             });
 
+            // Initialize Scoring Checkpoint Service (Story 2.8: 嵌入式评分检查点)
+            this.scoringCheckpointService = new ScoringCheckpointService(this.app, this.apiClient);
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: ScoringCheckpointService initialized');
+            }
+
+            // Initialize Textbook Mount Service (Story 16.1: Canvas关联UI - 教材挂载)
+            this.textbookMountService = new TextbookMountService(this.app, apiBaseUrl);
+            if (this.settings.debugMode) {
+                console.log('Canvas Review System: TextbookMountService initialized');
+            }
+
             // Register action callbacks for context menu (Fix for missing Agent options)
             this.contextMenuManager.setActionRegistry({
                 executeDecomposition: async (context: MenuContext) => {
@@ -420,6 +445,27 @@ export default class CanvasReviewPlugin extends Plugin {
                         return;
                     }
                     console.log('[Story 12.K] Validation passed, calling queue');
+
+                    // Story 2.8: Scoring checkpoint - auto-evaluate before decomposition
+                    // Check if auto-scoring is enabled in settings
+                    if (this.scoringCheckpointService && this.settings.enableAutoScoring) {
+                        const checkpointResult = await this.scoringCheckpointService.runCheckpoint(
+                            context,
+                            'decomposition',
+                            async (choice) => {
+                                if (choice.choice === 'accept_suggestion' && choice.suggestedAgent) {
+                                    // Execute suggested agent instead
+                                    await this.executeSuggestedAgent(choice.suggestedAgent, context);
+                                }
+                                // continue_original or cancel: handled by runCheckpoint return value
+                            }
+                        );
+                        if (checkpointResult.handled) {
+                            console.log('[Story 2.8] Checkpoint handled flow, skipping original operation');
+                            return;
+                        }
+                    }
+
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -493,6 +539,25 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice(validationError);
                         return;
                     }
+
+                    // Story 2.8: Scoring checkpoint - auto-evaluate before oral explanation
+                    // Check if auto-scoring is enabled in settings
+                    if (this.scoringCheckpointService && this.settings.enableAutoScoring) {
+                        const checkpointResult = await this.scoringCheckpointService.runCheckpoint(
+                            context,
+                            'oral-explanation',
+                            async (choice) => {
+                                if (choice.choice === 'accept_suggestion' && choice.suggestedAgent) {
+                                    await this.executeSuggestedAgent(choice.suggestedAgent, context);
+                                }
+                            }
+                        );
+                        if (checkpointResult.handled) {
+                            console.log('[Story 2.8] Checkpoint handled flow for oral-explanation');
+                            return;
+                        }
+                    }
+
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -540,6 +605,25 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice(validationError);
                         return;
                     }
+
+                    // Story 2.8: Scoring checkpoint - auto-evaluate before four-level explanation
+                    // Check if auto-scoring is enabled in settings
+                    if (this.scoringCheckpointService && this.settings.enableAutoScoring) {
+                        const checkpointResult = await this.scoringCheckpointService.runCheckpoint(
+                            context,
+                            'four-level-explanation',
+                            async (choice) => {
+                                if (choice.choice === 'accept_suggestion' && choice.suggestedAgent) {
+                                    await this.executeSuggestedAgent(choice.suggestedAgent, context);
+                                }
+                            }
+                        );
+                        if (checkpointResult.handled) {
+                            console.log('[Story 2.8] Checkpoint handled flow for four-level-explanation');
+                            return;
+                        }
+                    }
+
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -683,6 +767,25 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice(validationError);
                         return;
                     }
+
+                    // Story 2.8: Scoring checkpoint - auto-evaluate before deep decomposition
+                    // Check if auto-scoring is enabled in settings
+                    if (this.scoringCheckpointService && this.settings.enableAutoScoring) {
+                        const checkpointResult = await this.scoringCheckpointService.runCheckpoint(
+                            context,
+                            'deep-decomposition',
+                            async (choice) => {
+                                if (choice.choice === 'accept_suggestion' && choice.suggestedAgent) {
+                                    await this.executeSuggestedAgent(choice.suggestedAgent, context);
+                                }
+                            }
+                        );
+                        if (checkpointResult.handled) {
+                            console.log('[Story 2.8] Checkpoint handled flow for deep-decomposition');
+                            return;
+                        }
+                    }
+
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -756,6 +859,25 @@ export default class CanvasReviewPlugin extends Plugin {
                         new Notice(validationError);
                         return;
                     }
+
+                    // Story 2.8: Scoring checkpoint - auto-evaluate before clarification path
+                    // Check if auto-scoring is enabled in settings
+                    if (this.scoringCheckpointService && this.settings.enableAutoScoring) {
+                        const checkpointResult = await this.scoringCheckpointService.runCheckpoint(
+                            context,
+                            'clarification-path',
+                            async (choice) => {
+                                if (choice.choice === 'accept_suggestion' && choice.suggestedAgent) {
+                                    await this.executeSuggestedAgent(choice.suggestedAgent, context);
+                                }
+                            }
+                        );
+                        if (checkpointResult.handled) {
+                            console.log('[Story 2.8] Checkpoint handled flow for clarification-path');
+                            return;
+                        }
+                    }
+
                     // Story 12.H.2: Node-level queue with deduplication
                     await this.callAgentWithNodeQueue(
                         context.nodeId || '',
@@ -1395,6 +1517,50 @@ export default class CanvasReviewPlugin extends Plugin {
             callback: async () => {
                 await this.showCrossCanvasSidebar();
                 new Notice('Canvas关联管理面板已打开');
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════
+        // Story 16.1: Textbook Mount Commands (教材挂载)
+        // ══════════════════════════════════════════════════════════════════
+
+        // Register "Mount Textbook" command (Story 16.1)
+        // Opens the Canvas Association Modal for managing textbook references
+        this.addCommand({
+            id: 'mount-textbook',
+            name: 'Canvas: 挂载教材 (Mount Textbook)',
+            icon: 'book-open',
+            checkCallback: (checking: boolean) => {
+                const activeFile = this.app.workspace.getActiveFile();
+                const isCanvasView = activeFile?.extension === 'canvas';
+
+                if (isCanvasView) {
+                    if (!checking) {
+                        this.openTextbookMountModal(activeFile);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // Register "View Mounted Textbooks" command (Story 16.1)
+        // Shows all textbooks mounted to the current Canvas
+        this.addCommand({
+            id: 'view-mounted-textbooks',
+            name: 'Canvas: 查看挂载的教材 (View Mounted Textbooks)',
+            icon: 'book',
+            checkCallback: (checking: boolean) => {
+                const activeFile = this.app.workspace.getActiveFile();
+                const isCanvasView = activeFile?.extension === 'canvas';
+
+                if (isCanvasView) {
+                    if (!checking) {
+                        this.showMountedTextbooksModal(activeFile);
+                    }
+                    return true;
+                }
+                return false;
             }
         });
 
@@ -2052,6 +2218,170 @@ export default class CanvasReviewPlugin extends Plugin {
     }
 
     /**
+     * Open Textbook Mount Modal (Story 16.1)
+     *
+     * Opens the AssociationFormModal for creating a new textbook reference.
+     * User can select a PDF or Canvas file as a textbook reference.
+     *
+     * @param canvasFile - The current Canvas file
+     */
+    private openTextbookMountModal(canvasFile: TFile): void {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Opening TextbookMountModal for:', canvasFile.path);
+        }
+
+        // Open AssociationFormModal for creating new textbook reference
+        const modal = new AssociationFormModal(
+            this.app,
+            canvasFile.path,
+            null, // No existing association - creating new
+            async (association: CanvasAssociation) => {
+                // Save the association to .canvas-links.json
+                if (this.textbookMountService) {
+                    try {
+                        await this.saveTextbookAssociation(canvasFile, association);
+                        new Notice(`教材挂载成功: ${association.target_canvas}`);
+                    } catch (error) {
+                        console.error('Failed to save textbook association:', error);
+                        new Notice('教材挂载失败，请查看控制台');
+                    }
+                } else {
+                    new Notice('教材挂载服务未初始化');
+                }
+            }
+        );
+        modal.open();
+    }
+
+    /**
+     * Show Mounted Textbooks Modal (Story 16.1)
+     *
+     * Opens the CanvasAssociationModal showing all textbooks mounted to the current Canvas.
+     * User can view, edit, and delete existing textbook references.
+     *
+     * @param canvasFile - The current Canvas file
+     */
+    private async showMountedTextbooksModal(canvasFile: TFile): Promise<void> {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: Showing mounted textbooks for:', canvasFile.path);
+        }
+
+        // Load existing associations from .canvas-links.json
+        const config = await this.loadCanvasLinksConfig(canvasFile);
+        const associations = config.associations || [];
+
+        // Filter for textbook references only (references type)
+        const textbookAssociations = associations.filter(
+            a => a.association_type === 'references'
+        );
+
+        // Open CanvasAssociationModal
+        const modal = new CanvasAssociationModal(
+            this.app,
+            canvasFile.path,
+            textbookAssociations,
+            config,
+            async (updatedAssociations: CanvasAssociation[]) => {
+                // Save updated associations
+                await this.saveCanvasLinksConfig(canvasFile, {
+                    ...config,
+                    associations: updatedAssociations
+                });
+                new Notice('教材关联已更新');
+            },
+            () => {
+                // Open create modal when user clicks "New Association"
+                this.openTextbookMountModal(canvasFile);
+            },
+            async (targetCanvasPath: string) => {
+                // Navigate to target Canvas
+                const targetFile = this.app.vault.getAbstractFileByPath(targetCanvasPath);
+                if (targetFile && targetFile instanceof TFile) {
+                    await this.app.workspace.openLinkText(targetFile.path, '', false);
+                } else {
+                    new Notice(`找不到文件: ${targetCanvasPath}`);
+                }
+            }
+        );
+        modal.open();
+    }
+
+    /**
+     * Load Canvas Links Configuration (Story 16.2)
+     *
+     * Loads the .canvas-links.json configuration file for a Canvas.
+     *
+     * @param canvasFile - The Canvas file
+     * @returns The canvas links configuration
+     */
+    private async loadCanvasLinksConfig(canvasFile: TFile): Promise<CanvasLinksConfig> {
+        const configPath = canvasFile.path.replace('.canvas', '.canvas-links.json');
+        const configDir = canvasFile.parent?.path;
+        const configFilePath = configDir ? `${configDir}/.canvas-links.json` : '.canvas-links.json';
+
+        try {
+            const configFile = this.app.vault.getAbstractFileByPath(configFilePath);
+            if (configFile && configFile instanceof TFile) {
+                const content = await this.app.vault.read(configFile);
+                return JSON.parse(content) as CanvasLinksConfig;
+            }
+        } catch (error) {
+            if (this.settings.debugMode) {
+                console.log('Canvas links config not found, using defaults:', configFilePath);
+            }
+        }
+
+        return { ...DEFAULT_CANVAS_LINKS_CONFIG };
+    }
+
+    /**
+     * Save Canvas Links Configuration (Story 16.2)
+     *
+     * Saves the .canvas-links.json configuration file for a Canvas.
+     *
+     * @param canvasFile - The Canvas file
+     * @param config - The configuration to save
+     */
+    private async saveCanvasLinksConfig(canvasFile: TFile, config: CanvasLinksConfig): Promise<void> {
+        const configDir = canvasFile.parent?.path;
+        const configFilePath = configDir ? `${configDir}/.canvas-links.json` : '.canvas-links.json';
+
+        const content = JSON.stringify(config, null, 2);
+
+        const existingFile = this.app.vault.getAbstractFileByPath(configFilePath);
+        if (existingFile && existingFile instanceof TFile) {
+            await this.app.vault.modify(existingFile, content);
+        } else {
+            await this.app.vault.create(configFilePath, content);
+        }
+
+        if (this.settings.debugMode) {
+            console.log('Saved canvas links config:', configFilePath);
+        }
+    }
+
+    /**
+     * Save Textbook Association (Story 16.1)
+     *
+     * Saves a new textbook association to the Canvas links config.
+     *
+     * @param canvasFile - The Canvas file
+     * @param association - The association to save
+     */
+    private async saveTextbookAssociation(canvasFile: TFile, association: CanvasAssociation): Promise<void> {
+        const config = await this.loadCanvasLinksConfig(canvasFile);
+
+        // Add source canvas path
+        association.source_canvas = canvasFile.path;
+
+        // Add to associations array
+        config.associations.push(association);
+
+        // Save updated config
+        await this.saveCanvasLinksConfig(canvasFile, config);
+    }
+
+    /**
      * Show Cross-Canvas Sidebar (Story 25.1 AC4)
      *
      * Opens the Cross-Canvas sidebar view in a right split panel.
@@ -2229,6 +2559,51 @@ export default class CanvasReviewPlugin extends Plugin {
         }
 
         return null; // Valid
+    }
+
+    /**
+     * Story 2.8: Execute suggested agent from scoring checkpoint
+     *
+     * Maps agent type to action registry method and executes it.
+     *
+     * @param agentType - Agent type identifier (e.g., 'clarification-path')
+     * @param context - Menu context to pass to the agent
+     */
+    private async executeSuggestedAgent(agentType: string, context: MenuContext): Promise<void> {
+        const registry = this.contextMenuManager?.getActionRegistry();
+        if (!registry) {
+            console.warn('[Story 2.8] Action registry not available');
+            return;
+        }
+
+        console.log(`[Story 2.8] Executing suggested agent: ${agentType}`);
+
+        // Execute the appropriate agent based on type
+        switch (agentType) {
+            case 'clarification-path':
+                await registry.executeClarificationPath?.(context);
+                break;
+            case 'oral-explanation':
+                await registry.executeOralExplanation?.(context);
+                break;
+            case 'memory-anchor':
+                await registry.executeMemoryAnchor?.(context);
+                break;
+            case 'four-level-explanation':
+                await registry.executeFourLevelExplanation?.(context);
+                break;
+            case 'comparison-table':
+                await registry.executeComparisonTable?.(context);
+                break;
+            case 'deep-decomposition':
+                await registry.executeDeepDecomposition?.(context);
+                break;
+            case 'example-teaching':
+                await registry.executeExampleTeaching?.(context);
+                break;
+            default:
+                console.warn(`[Story 2.8] Unknown agent type: ${agentType}`);
+        }
     }
 
     /**

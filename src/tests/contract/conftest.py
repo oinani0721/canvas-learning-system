@@ -252,7 +252,8 @@ def validate_color_code(color: str) -> bool:
     Returns:
         bool: 是否合法
     """
-    valid_colors = {"1", "2", "3", "5", "6"}
+    # Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+    valid_colors = {"1", "2", "3", "4", "5", "6"}
     return color in valid_colors
 
 

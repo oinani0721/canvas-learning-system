@@ -36,6 +36,8 @@ import {
 import { HistoryService } from '../services/HistoryService';
 import { VerificationHistoryService, createVerificationHistoryService } from '../services/VerificationHistoryService';
 import { CrossCanvasService, createCrossCanvasService } from '../services/CrossCanvasService';
+import { TextbookMountService, createTextbookMountService } from '../services/TextbookMountService';
+import type { MountedTextbook, TextbookType } from '../types/UITypes';
 
 export const VIEW_TYPE_REVIEW_DASHBOARD = 'canvas-review-dashboard';
 
@@ -51,6 +53,7 @@ export class ReviewDashboardView extends ItemView {
     private historyService: HistoryService;
     private verificationService: VerificationHistoryService;
     private crossCanvasService: CrossCanvasService;
+    private textbookMountService: TextbookMountService;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasReviewPlugin) {
         super(leaf);
@@ -59,6 +62,7 @@ export class ReviewDashboardView extends ItemView {
         this.historyService = new HistoryService(this.app);
         this.verificationService = createVerificationHistoryService(this.app);
         this.crossCanvasService = createCrossCanvasService(this.app);
+        this.textbookMountService = createTextbookMountService(this.app);
     }
 
     getViewType(): string {
@@ -903,6 +907,9 @@ export class ReviewDashboardView extends ItemView {
 
         // Existing associations list
         this.renderAssociationsList(crossCanvasContainer);
+
+        // Textbook mount section (Epic 21: 多格式教材挂载系统)
+        this.renderTextbookMountSection(crossCanvasContainer);
     }
 
     /**
@@ -1284,6 +1291,275 @@ export class ReviewDashboardView extends ItemView {
         // TODO: Implement path creation dialog
     }
 
+    // =========================================================================
+    // Textbook Mount Section (Epic 21: 多格式教材挂载系统)
+    // =========================================================================
+
+    /**
+     * Render textbook mount section
+     * Allows users to mount PDF/Markdown/Canvas files as textbook references
+     */
+    private renderTextbookMountSection(container: HTMLElement): void {
+        const mountSection = container.createDiv({ cls: 'textbook-mount-section' });
+        mountSection.createEl('h3', { text: '📖 挂载教材', cls: 'section-title' });
+
+        // Mount form
+        this.renderTextbookMountForm(mountSection);
+
+        // Mounted textbooks list
+        this.renderMountedTextbooksList(mountSection);
+    }
+
+    /**
+     * Render textbook mount form
+     */
+    private renderTextbookMountForm(container: HTMLElement): void {
+        const formDiv = container.createDiv({ cls: 'textbook-mount-form' });
+
+        // File type selector
+        const typeGroup = formDiv.createDiv({ cls: 'mount-type-group' });
+        typeGroup.createSpan({ text: '文件类型:', cls: 'mount-label' });
+
+        const typeSelect = typeGroup.createEl('select', { cls: 'mount-type-select' });
+        typeSelect.createEl('option', { text: '全部', value: 'all' });
+        typeSelect.createEl('option', { text: 'PDF 文件', value: 'pdf' });
+        typeSelect.createEl('option', { text: 'Markdown', value: 'markdown' });
+        typeSelect.createEl('option', { text: 'Canvas', value: 'canvas' });
+
+        // File selector
+        const fileGroup = formDiv.createDiv({ cls: 'mount-file-group' });
+        fileGroup.createSpan({ text: '选择文件:', cls: 'mount-label' });
+
+        const fileSelect = fileGroup.createEl('select', { cls: 'mount-file-select' });
+        fileSelect.createEl('option', { text: '-- 选择教材文件 --', value: '' });
+
+        // Load available files
+        this.loadTextbookFilesIntoSelector(fileSelect, 'all');
+
+        // Update file list when type changes
+        typeSelect.addEventListener('change', () => {
+            const selectedType = typeSelect.value as TextbookType | 'all';
+            this.loadTextbookFilesIntoSelector(fileSelect, selectedType);
+        });
+
+        // Mount button
+        const mountBtn = formDiv.createEl('button', {
+            text: '挂载教材',
+            cls: 'mod-cta mount-textbook-btn',
+        });
+
+        mountBtn.addEventListener('click', async () => {
+            const filePath = fileSelect.value;
+            if (!filePath) {
+                new Notice('请选择要挂载的教材文件');
+                return;
+            }
+
+            try {
+                mountBtn.disabled = true;
+                mountBtn.textContent = '挂载中...';
+
+                await this.textbookMountService.mountTextbook(filePath);
+                new Notice('✅ 教材挂载成功');
+
+                // Refresh the list
+                this.refreshTextbookMountSection(container.parentElement!);
+
+                // Reset selection
+                fileSelect.value = '';
+            } catch (error) {
+                console.error('[ReviewDashboard] Failed to mount textbook:', error);
+                new Notice('❌ 挂载失败: ' + (error as Error).message);
+            } finally {
+                mountBtn.disabled = false;
+                mountBtn.textContent = '挂载教材';
+            }
+        });
+    }
+
+    /**
+     * Load available textbook files into selector
+     */
+    private async loadTextbookFilesIntoSelector(
+        select: HTMLSelectElement,
+        filterType: TextbookType | 'all'
+    ): Promise<void> {
+        // Clear existing options except first
+        while (select.options.length > 1) {
+            select.remove(1);
+        }
+
+        try {
+            const files = await this.textbookMountService.getAvailableTextbookFiles();
+            const mountedPaths = this.textbookMountService.getMountedTextbooks().map(tb => tb.path);
+
+            files
+                .filter(file => filterType === 'all' || file.type === filterType)
+                .filter(file => !mountedPaths.includes(file.path)) // Exclude already mounted
+                .forEach(file => {
+                    const typeIcon = file.type === 'pdf' ? '📕' : file.type === 'markdown' ? '📝' : '🎨';
+                    select.createEl('option', {
+                        text: `${typeIcon} ${file.basename}`,
+                        value: file.path,
+                    });
+                });
+        } catch (error) {
+            console.error('[ReviewDashboard] Failed to load textbook files:', error);
+        }
+    }
+
+    /**
+     * Render mounted textbooks list
+     */
+    private renderMountedTextbooksList(container: HTMLElement): void {
+        const listDiv = container.createDiv({ cls: 'mounted-textbooks-list' });
+        listDiv.createEl('h4', { text: '已挂载的教材', cls: 'mounted-list-title' });
+
+        const textbooks = this.textbookMountService.getMountedTextbooks();
+
+        if (textbooks.length === 0) {
+            listDiv.createDiv({
+                text: '暂无挂载的教材，请选择文件进行挂载',
+                cls: 'mounted-empty',
+            });
+            return;
+        }
+
+        const list = listDiv.createDiv({ cls: 'textbook-items' });
+
+        textbooks.forEach((textbook) => {
+            this.renderMountedTextbookItem(list, textbook);
+        });
+    }
+
+    /**
+     * Render single mounted textbook item
+     */
+    private renderMountedTextbookItem(container: HTMLElement, textbook: MountedTextbook): void {
+        const item = container.createDiv({ cls: 'textbook-item' });
+
+        // Icon based on type
+        const typeIcon = textbook.type === 'pdf' ? '📕' : textbook.type === 'markdown' ? '📝' : '🎨';
+
+        // Header row
+        const headerRow = item.createDiv({ cls: 'textbook-header' });
+        headerRow.createSpan({ text: typeIcon, cls: 'textbook-icon' });
+        headerRow.createSpan({ text: textbook.name, cls: 'textbook-name' });
+
+        // Type badge
+        const typeBadge = headerRow.createSpan({ cls: `textbook-type-badge type-${textbook.type}` });
+        typeBadge.textContent = textbook.type.toUpperCase();
+
+        // Info row
+        const infoRow = item.createDiv({ cls: 'textbook-info' });
+
+        // Sections count
+        const sectionsCount = textbook.sections?.length || 0;
+        infoRow.createSpan({
+            text: `${sectionsCount} 个章节`,
+            cls: 'textbook-sections',
+        });
+
+        // Reference count
+        infoRow.createSpan({
+            text: `引用: ${textbook.referenceCount} 次`,
+            cls: 'textbook-refs',
+        });
+
+        // Mounted date
+        const mountedDate = new Date(textbook.mountedDate);
+        infoRow.createSpan({
+            text: `挂载于 ${mountedDate.toLocaleDateString()}`,
+            cls: 'textbook-date',
+        });
+
+        // Actions row
+        const actionsRow = item.createDiv({ cls: 'textbook-actions' });
+
+        // Open file button
+        const openBtn = actionsRow.createEl('button', { cls: 'textbook-action-btn open-btn' });
+        setIcon(openBtn, 'external-link');
+        openBtn.setAttribute('aria-label', '打开文件');
+        openBtn.addEventListener('click', () => {
+            this.app.workspace.openLinkText(textbook.path, '', false);
+        });
+
+        // View sections button (if has sections)
+        if (sectionsCount > 0) {
+            const sectionsBtn = actionsRow.createEl('button', { cls: 'textbook-action-btn sections-btn' });
+            setIcon(sectionsBtn, 'list');
+            sectionsBtn.setAttribute('aria-label', '查看章节');
+            sectionsBtn.addEventListener('click', () => {
+                this.showTextbookSections(textbook);
+            });
+        }
+
+        // Unmount button
+        const unmountBtn = actionsRow.createEl('button', { cls: 'textbook-action-btn unmount-btn' });
+        setIcon(unmountBtn, 'trash-2');
+        unmountBtn.setAttribute('aria-label', '卸载教材');
+        unmountBtn.addEventListener('click', async () => {
+            this.textbookMountService.unmountTextbook(textbook.id);
+            new Notice('教材已卸载');
+            this.refreshTextbookMountSection(container.parentElement!.parentElement!);
+        });
+    }
+
+    /**
+     * Show textbook sections in a menu/popup
+     */
+    private showTextbookSections(textbook: MountedTextbook): void {
+        if (!textbook.sections || textbook.sections.length === 0) {
+            new Notice('此教材暂无章节信息');
+            return;
+        }
+
+        const menu = new Menu();
+
+        textbook.sections.forEach((section) => {
+            const levelIndent = '  '.repeat(section.level - 1);
+            menu.addItem((item) => {
+                item.setTitle(`${levelIndent}${section.title}`)
+                    .setIcon('bookmark')
+                    .onClick(async () => {
+                        // For PDF, open with page number
+                        if (textbook.type === 'pdf' && section.pageNumber) {
+                            // Try to open PDF at specific page
+                            await this.app.workspace.openLinkText(
+                                `${textbook.path}#page=${section.pageNumber}`,
+                                '',
+                                false
+                            );
+                        } else {
+                            // For markdown/canvas, just open the file
+                            await this.app.workspace.openLinkText(textbook.path, '', false);
+                        }
+                        this.textbookMountService.incrementReferenceCount(textbook.id);
+                    });
+            });
+        });
+
+        // Show at cursor position
+        const activeLeaf = this.app.workspace.activeLeaf;
+        if (activeLeaf) {
+            menu.showAtMouseEvent(new MouseEvent('click'));
+        }
+    }
+
+    /**
+     * Refresh textbook mount section
+     */
+    private refreshTextbookMountSection(container: HTMLElement): void {
+        // Find and remove existing section
+        const existingSection = container.querySelector('.textbook-mount-section');
+        if (existingSection) {
+            existingSection.remove();
+        }
+
+        // Re-render
+        this.renderTextbookMountSection(container);
+    }
+
     private renderHeader(container: HTMLElement): void {
         const header = container.createDiv({ cls: 'dashboard-header' });
 
@@ -1310,8 +1586,13 @@ export class ReviewDashboardView extends ItemView {
             'trending-up'
         );
 
-        // Refresh button
+        // Actions area
         const actions = header.createDiv({ cls: 'header-actions' });
+
+        // Auto-scoring toggle
+        this.renderAutoScoringToggle(actions);
+
+        // Refresh button
         const refreshBtn = actions.createEl('button', {
             cls: 'header-button',
             attr: { 'aria-label': '刷新' },
@@ -1321,6 +1602,60 @@ export class ReviewDashboardView extends ItemView {
             refreshBtn.addClass('spinning');
         }
         refreshBtn.addEventListener('click', () => this.loadData());
+    }
+
+    /**
+     * Render auto-scoring toggle button
+     *
+     * Controls whether scoring checkpoint runs before agent operations.
+     * Default: enabled (true)
+     *
+     * @param container - Parent container element
+     */
+    private renderAutoScoringToggle(container: HTMLElement): void {
+        const isEnabled = this.plugin.settings.enableAutoScoring;
+
+        // Create toggle container
+        const toggleContainer = container.createDiv({ cls: 'auto-scoring-toggle' });
+
+        // Label
+        toggleContainer.createSpan({
+            text: '自动评分',
+            cls: 'toggle-label'
+        });
+
+        // Toggle button
+        const toggleBtn = toggleContainer.createEl('button', {
+            cls: `toggle-button ${isEnabled ? 'active' : ''}`,
+            attr: {
+                'aria-label': isEnabled ? '禁用自动评分' : '启用自动评分',
+                'aria-pressed': String(isEnabled)
+            },
+        });
+
+        // Icon based on state
+        setIcon(toggleBtn, isEnabled ? 'check-circle' : 'circle');
+
+        // Status text
+        toggleBtn.createSpan({
+            text: isEnabled ? '开' : '关',
+            cls: 'toggle-status'
+        });
+
+        // Click handler
+        toggleBtn.addEventListener('click', async () => {
+            // Toggle the setting
+            this.plugin.settings.enableAutoScoring = !this.plugin.settings.enableAutoScoring;
+            await this.plugin.saveSettings();
+
+            // Refresh entire dashboard to update toggle state
+            this.render();
+
+            // Show feedback
+            new Notice(this.plugin.settings.enableAutoScoring
+                ? '自动评分已启用'
+                : '自动评分已禁用');
+        });
     }
 
     private createStatItem(

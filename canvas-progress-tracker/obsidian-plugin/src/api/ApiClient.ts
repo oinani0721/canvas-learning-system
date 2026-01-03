@@ -56,6 +56,11 @@ import {
   AgentErrorResponse,
   isAgentErrorRetryable,
   getAgentErrorMessage,
+  // Epic 28: Textbook Sync Types
+  MountedTextbookApi,
+  SyncMountResponse,
+  UnmountTextbookResponse,
+  ListMountedTextbooksResponse,
 } from './types';
 
 /**
@@ -566,6 +571,75 @@ export class ApiClient {
       'POST',
       '/review/record',
       request
+    );
+  }
+
+  // ===========================================================================
+  // Textbook API Methods (3 endpoints) - Epic 28: Bidirectional Textbook Links
+  // ===========================================================================
+
+  /**
+   * Sync a mounted textbook from frontend to backend
+   *
+   * This bridges the gap between frontend localStorage and backend filesystem,
+   * enabling Agent services to access textbook context when generating responses.
+   *
+   * @param canvasPath - Current Canvas path that the textbook is mounted to
+   * @param textbook - Mounted textbook information
+   * @returns Sync result with config file path
+   *
+   * @source Epic 28 - 方案A: 前端同步到后端
+   * @verified backend/app/api/v1/endpoints/textbook.py#sync_mount_textbook
+   */
+  async syncMountedTextbook(
+    canvasPath: string,
+    textbook: MountedTextbookApi
+  ): Promise<SyncMountResponse> {
+    return this.request<SyncMountResponse>('POST', '/textbook/sync-mount', {
+      canvas_path: canvasPath,
+      textbook: textbook,
+    });
+  }
+
+  /**
+   * Unmount a textbook from a canvas
+   *
+   * Removes the textbook association from .canvas-links.json
+   *
+   * @param canvasPath - Canvas path
+   * @param textbookId - Textbook ID to unmount
+   * @returns Unmount result
+   *
+   * @source Epic 28 - 方案A: 前端同步到后端
+   * @verified backend/app/api/v1/endpoints/textbook.py#unmount_textbook
+   */
+  async unmountTextbook(
+    canvasPath: string,
+    textbookId: string
+  ): Promise<UnmountTextbookResponse> {
+    return this.request<UnmountTextbookResponse>('POST', '/textbook/unmount', {
+      canvas_path: canvasPath,
+      textbook_id: textbookId,
+    });
+  }
+
+  /**
+   * List all mounted textbooks for a canvas
+   *
+   * Returns textbook associations from .canvas-links.json
+   *
+   * @param canvasPath - Canvas path
+   * @returns List of mounted textbook associations
+   *
+   * @source Epic 28 - 方案A: 前端同步到后端
+   * @verified backend/app/api/v1/endpoints/textbook.py#list_mounted_textbooks
+   */
+  async listMountedTextbooks(
+    canvasPath: string
+  ): Promise<ListMountedTextbooksResponse> {
+    return this.request<ListMountedTextbooksResponse>(
+      'GET',
+      `/textbook/mounted/${encodeURIComponent(canvasPath)}`
     );
   }
 

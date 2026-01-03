@@ -292,8 +292,8 @@ def create_canvas_api() -> Flask:
         if not color_data or 'color' not in color_data:
             return jsonify({"error": "ValidationError", "message": "Missing required field: color"}), 400
 
-        # 验证颜色代码
-        valid_colors = ["1", "2", "3", "5", "6"]
+        # 验证颜色代码 (Story 12.B.4: 1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+        valid_colors = ["1", "2", "3", "4", "5", "6"]
         if color_data['color'] not in valid_colors:
             return jsonify({"error": "ValidationError", "message": f"Invalid color code: {color_data['color']}"}), 400
 

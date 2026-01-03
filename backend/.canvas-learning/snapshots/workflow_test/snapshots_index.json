@@ -1,6 +1,58 @@
 [
   {
     "canvas_path": "workflow_test.canvas",
+    "id": "57660990-db05-4d77-b3f6-6507894500ff",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T10:26:27.250497+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "1b847413-84bb-48fb-aced-fc13c67eb82b",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T10:26:27.184137+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "141f1e43-bf8a-40df-9fe2-e5cb9e629229",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T05:46:34.024820+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "4cb4569b-206f-4328-9e9e-662b3d1e4504",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T05:46:33.976424+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
     "id": "b67c8e1b-e3b1-4314-b38a-e309894978b6",
     "last_operation_id": null,
     "metadata": {

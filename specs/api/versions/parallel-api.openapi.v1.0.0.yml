@@ -217,8 +217,10 @@ components:
           example: "离散数学.canvas"
         target_color:
           type: string
-          description: 目标节点颜色（默认黄色）
-          enum: ["1", "2", "3", "5", "6"]
+          description: |
+            目标节点颜色（默认紫色）
+            Story 12.B.4: 1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄
+          enum: ["1", "2", "3", "4", "5", "6"]
           default: "3"
         max_groups:
           type: integer

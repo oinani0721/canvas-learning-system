@@ -260,14 +260,16 @@ class TestCanvasValidator:
         assert 'invalid' in result.error.lower()
 
     def test_validate_color_code_valid(self, validator):
-        """Test validating valid color codes"""
-        valid_colors = ['1', '2', '3', '5', '6']
+        """Test validating valid color codes
+        Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+        """
+        valid_colors = ['1', '2', '3', '4', '5', '6']
         for color in valid_colors:
             assert validator.validate_color_code(color)
 
     def test_validate_color_code_invalid(self, validator):
         """Test validating invalid color codes"""
-        invalid_colors = ['0', '4', '7', 'red', '#FF0000']
+        invalid_colors = ['0', '7', 'red', '#FF0000']
         for color in invalid_colors:
             assert not validator.validate_color_code(color)
 

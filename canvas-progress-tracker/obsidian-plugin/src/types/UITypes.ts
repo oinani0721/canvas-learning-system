@@ -538,3 +538,57 @@ export interface CrossCanvasViewState {
     /** Selected association for details */
     selectedAssociationId?: string;
 }
+
+// ============================================================================
+// Textbook Mount Types (Epic 21 - 多格式教材挂载系统)
+// ============================================================================
+
+/**
+ * Textbook file type
+ * [Source: Epic 21 - 多格式教材挂载系统]
+ */
+export type TextbookType = 'markdown' | 'pdf' | 'canvas';
+
+/**
+ * Section extracted from a textbook
+ * [Source: Epic 21 - 多格式教材挂载系统]
+ */
+export interface TextbookSection {
+    /** Unique section ID */
+    id: string;
+    /** Section title (heading text) */
+    title: string;
+    /** Heading level (1-6 for markdown, page number for PDF) */
+    level: number;
+    /** Content preview (first ~200 chars) */
+    preview: string;
+    /** Start offset in file */
+    startOffset: number;
+    /** End offset in file */
+    endOffset: number;
+    /** Page number (for PDF) */
+    pageNumber?: number;
+}
+
+/**
+ * Mounted textbook information
+ * [Source: Epic 21 - 多格式教材挂载系统]
+ */
+export interface MountedTextbook {
+    /** Unique textbook ID */
+    id: string;
+    /** File path in vault */
+    path: string;
+    /** Display name (file basename) */
+    name: string;
+    /** Textbook type */
+    type: TextbookType;
+    /** Date when mounted */
+    mountedDate: Date;
+    /** Last accessed date */
+    lastAccessedDate?: Date;
+    /** Parsed sections (for navigation) */
+    sections?: TextbookSection[];
+    /** Number of times referenced by agents */
+    referenceCount: number;
+}

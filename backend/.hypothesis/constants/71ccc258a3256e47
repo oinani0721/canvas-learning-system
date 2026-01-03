@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\src\agentic_rag\retrievers\cross_canvas_retriever.py
+# hypothesis_version: 6.148.1
+
+[0.3, 1000.0, 400, 500, 1000, 'CrossCanvasService', 'canvas_file', 'canvas_nodes', 'content', 'cosine', 'cross_canvas', 'cross_canvas_results', 'messages', 'metadata', 'retrieval_batch_size', 'score', 'source', 'unknown', '~/.lancedb']

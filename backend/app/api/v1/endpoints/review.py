@@ -113,8 +113,8 @@ def _extract_review_nodes(
     """
     Extract nodes for verification canvas based on PRD F8 + Story 4.1.
 
-    PRD Requirements:
-    - 红色(color="1"): 不理解的内容 → 突破型问题
+    PRD Requirements (修复颜色代码 - docs/issues/canvas-layout-lessons-learned.md):
+    - 红色(color="4"): 不理解的内容 → 突破型问题
     - 紫色(color="3"): 似懂非懂的内容 → 检验型问题
 
     Modes (v1.1.8):
@@ -129,9 +129,9 @@ def _extract_review_nodes(
         node_id_set = set(node_ids)
         return [n for n in source_nodes if n.get("id") in node_id_set]
 
-    # PRD F8: Extract RED (color="1") and PURPLE (color="3") nodes
-    # ✅ FIXED: Previously extracted GREEN (color="4") - WRONG
-    target_colors = {"1", "3"}  # Red=1, Purple=3
+    # PRD F8: Extract RED (color="4") and PURPLE (color="3") nodes
+    # 修复: "4"才是红色, "1"是灰色 (docs/issues/canvas-layout-lessons-learned.md)
+    target_colors = {"4", "3"}  # Red=4, Purple=3
 
     # Filter text nodes with target colors
     all_target_nodes = [
@@ -145,7 +145,7 @@ def _extract_review_nodes(
 
     elif mode == "targeted":
         # Targeted mode: 70% weak (red) + 30% partial (purple)
-        red_nodes = [n for n in all_target_nodes if n.get("color") == "1"]
+        red_nodes = [n for n in all_target_nodes if n.get("color") == "4"]
         purple_nodes = [n for n in all_target_nodes if n.get("color") == "3"]
 
         # Calculate counts
@@ -268,7 +268,7 @@ async def generate_verification_canvas(
         )
 
     # Step 3: Extract nodes to review (PRD F8 + Story 4.1)
-    # ✅ FIXED: Now extracts RED (color="1") + PURPLE (color="3") instead of GREEN
+    # ✅ FIXED: Now extracts RED (color="4") + PURPLE (color="3")
     # ✅ Story 24.1: Use mode from request (default: "fresh")
     source_nodes = canvas_data.get("nodes", [])
     review_mode = request.mode  # Now comes from GenerateReviewRequest schema
@@ -351,7 +351,8 @@ async def generate_verification_canvas(
                 question_text = questions[0] if questions else f"请解释：{original_text}"
             else:
                 # Fallback: simple question format
-                if node_color == "1":  # Red - breakthrough
+                # Color codes: "4"=red, "3"=purple (docs/issues/canvas-layout-lessons-learned.md)
+                if node_color == "4":  # Red - breakthrough
                     question_text = f"🔴 突破型问题：请用自己的话解释 {original_text}"
                 else:  # Purple - verification
                     question_text = f"🟣 检验型问题：请详细描述 {original_text}"
@@ -380,7 +381,7 @@ async def generate_verification_canvas(
                 "width": node_width,
                 "height": answer_height,
                 "text": "",  # Blank for user to fill
-                "color": "3",  # Yellow - personal understanding area
+                "color": "6",  # Yellow - personal understanding area (修复: '6'=Yellow, '3'=Purple)
             }
             verification_nodes.append(answer_node)
 
@@ -415,8 +416,9 @@ async def generate_verification_canvas(
             mode_used=review_mode  # ✅ Story 24.1: Include mode in response
         )
 
+    # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
     logging.info(
-        f"✅ Generated verification canvas: {verification_canvas_name} "
+        f"SUCCESS: Generated verification canvas: {verification_canvas_name} "
         f"with {len(nodes_to_review)} concepts in {len(clusters)} topic groups (mode={review_mode})"
     )
 

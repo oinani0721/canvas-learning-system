@@ -216,6 +216,13 @@ export interface PluginSettings {
      */
     difficultyWeight: number;
 
+    /**
+     * Enable automatic scoring before agent operations
+     * When disabled, agents run without triggering scoring checkpoint
+     * @default true
+     */
+    enableAutoScoring: boolean;
+
     // ========== Notification Settings (Story 14.7) ==========
     /**
      * Enable daily review notifications
@@ -427,6 +434,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     passingScore: 60,
     enableSpacedRepetition: true,
     difficultyWeight: 1.0,
+    enableAutoScoring: true,
 
     // Notification Settings (Story 14.7)
     enableNotifications: true,
@@ -701,6 +709,7 @@ export function migrateSettings(settings: Partial<PluginSettings>): PluginSettin
         migrated.passingScore = settings.passingScore ?? 60;
         migrated.enableSpacedRepetition = settings.enableSpacedRepetition ?? true;
         migrated.difficultyWeight = settings.difficultyWeight ?? 1.0;
+        migrated.enableAutoScoring = settings.enableAutoScoring ?? true;
         migrated.enablePerformanceMonitoring = settings.enablePerformanceMonitoring ?? false;
         migrated.enableTelemetry = settings.enableTelemetry ?? false;
         migrated.enableExperimentalFeatures = settings.enableExperimentalFeatures ?? false;

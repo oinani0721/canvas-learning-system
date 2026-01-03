@@ -80,7 +80,7 @@ describe('ApiClient Constructor', () => {
     });
 
     expect(client.getBaseUrl()).toBe('http://localhost:8000/api/v1');
-    expect(client.getTimeout()).toBe(30000);
+    expect(client.getTimeout()).toBe(60000); // Story 12.F.6: increased from 30s to 60s
     expect(client.getRetryPolicy().maxRetries).toBe(3);
   });
 
@@ -134,7 +134,7 @@ describe('Health Check API', () => {
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
         }),
       })
     );
@@ -653,7 +653,7 @@ describe('Error Handling', () => {
 
     const http5xxError = new ApiError('Server error', 'HttpError5xx', 500);
     expect(http5xxError.getUserFriendlyMessage()).toBe(
-      '服务器错误，正在重试...'
+      '服务器错误: Server error'
     );
 
     // Test ValidationError message
@@ -900,7 +900,7 @@ describe('Request Headers', () => {
       expect.any(String),
       expect.objectContaining({
         headers: expect.objectContaining({
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json; charset=utf-8',
           'User-Agent': 'Obsidian-Canvas-Review/1.0.0',
         }),
       })
@@ -926,5 +926,294 @@ describe('204 No Content Handling', () => {
     await expect(
       client.deleteNode('test.canvas', 'node1')
     ).resolves.toBeUndefined();
+  });
+});
+
+// ===========================================================================
+// Story 12.H.4: AbortController Request Cancellation Tests
+// ===========================================================================
+
+describe('AbortController Request Cancellation (Story 12.H.4)', () => {
+  let client: ApiClient;
+
+  beforeEach(() => {
+    client = new ApiClient({
+      baseUrl: 'http://localhost:8000/api/v1',
+      maxRetries: 0,
+      timeout: 60000,
+    });
+  });
+
+  describe('callAgentWithCancel', () => {
+    test('AC1/AC2: should register AbortController for pending requests', async () => {
+      const lockKey = 'test-oral-node123';
+
+      // Mock a slow response
+      mockFetchImpl.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => {
+              resolve(createMockResponse({ explanation: 'test' }));
+            }, 100);
+          })
+      );
+
+      // Start the request but don't await yet
+      const promise = client.callAgentWithCancel<{ explanation: string }>(
+        lockKey,
+        '/agents/explain/oral',
+        { canvas_name: 'test.canvas', node_id: 'node123' }
+      );
+
+      // AC2: Verify request is tracked while pending
+      expect(client.isRequestPending(lockKey)).toBe(true);
+      expect(client.getPendingRequests()).toContain(lockKey);
+
+      // Complete the request
+      jest.advanceTimersByTime(100);
+      const result = await promise;
+
+      expect(result?.explanation).toBe('test');
+
+      // AC6: Verify cleanup after completion
+      expect(client.isRequestPending(lockKey)).toBe(false);
+      expect(client.getPendingRequests()).not.toContain(lockKey);
+    });
+
+    test('AC3: cancelRequest should abort pending request and return true', async () => {
+      jest.useRealTimers();
+      const lockKey = 'test-cancel-1';
+
+      // Mock a long-running request that will be cancelled
+      let abortCalled = false;
+      mockFetchImpl.mockImplementationOnce(
+        (_url: string, options: RequestInit) =>
+          new Promise((resolve, reject) => {
+            const signal = options?.signal as AbortSignal;
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                abortCalled = true;
+                const error = new Error('Aborted');
+                error.name = 'AbortError';
+                reject(error);
+              });
+            }
+            // Request would take 5 seconds normally
+            setTimeout(() => resolve(createMockResponse({ data: 'done' })), 5000);
+          })
+      );
+
+      // Start the request
+      const promise = client.callAgentWithCancel<{ data: string }>(
+        lockKey,
+        '/agents/test',
+        {}
+      );
+
+      // Small delay to ensure request started
+      await new Promise((r) => setTimeout(r, 10));
+
+      // AC3: Cancel the request
+      const cancelled = client.cancelRequest(lockKey);
+
+      // Verify cancel returned true
+      expect(cancelled).toBe(true);
+
+      // AC5: Result should be null (not an error throw)
+      const result = await promise;
+      expect(result).toBeNull();
+
+      // Verify abort was actually called
+      expect(abortCalled).toBe(true);
+
+      // AC6: Verify cleanup
+      expect(client.isRequestPending(lockKey)).toBe(false);
+
+      jest.useFakeTimers();
+    });
+
+    test('AC3: cancelRequest should return false for non-existent request', () => {
+      const result = client.cancelRequest('non-existent-key');
+      expect(result).toBe(false);
+    });
+
+    test('AC5: cancelled request should return null, not throw', async () => {
+      jest.useRealTimers();
+      const lockKey = 'test-null-return';
+
+      // Mock request that will be cancelled
+      mockFetchImpl.mockImplementationOnce(
+        (_url: string, options: RequestInit) =>
+          new Promise((resolve, reject) => {
+            const signal = options?.signal as AbortSignal;
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                const error = new Error('Aborted');
+                error.name = 'AbortError';
+                reject(error);
+              });
+            }
+            setTimeout(() => resolve(createMockResponse({})), 10000);
+          })
+      );
+
+      const promise = client.callAgentWithCancel(lockKey, '/test', {});
+
+      await new Promise((r) => setTimeout(r, 10));
+      client.cancelRequest(lockKey);
+
+      // AC5: Should return null, not throw an error
+      const result = await promise;
+      expect(result).toBeNull();
+
+      jest.useFakeTimers();
+    });
+
+    test('AC6: should cleanup AbortController after request completion', async () => {
+      const lockKey = 'test-cleanup';
+
+      mockFetchImpl.mockResolvedValueOnce(
+        createMockResponse({ success: true })
+      );
+
+      await client.callAgentWithCancel(lockKey, '/test', {});
+
+      // AC6: After completion, request should no longer be pending
+      expect(client.isRequestPending(lockKey)).toBe(false);
+      expect(client.getPendingRequests()).not.toContain(lockKey);
+    });
+  });
+
+  describe('cancelAllRequests', () => {
+    test('should cancel all pending requests', async () => {
+      jest.useRealTimers();
+
+      // Create mock that tracks abort for multiple requests
+      const abortCounts: Record<string, boolean> = {};
+      mockFetchImpl.mockImplementation(
+        (_url: string, options: RequestInit) =>
+          new Promise((resolve, reject) => {
+            const lockKey = _url.includes('req-1')
+              ? 'req-1'
+              : _url.includes('req-2')
+                ? 'req-2'
+                : 'req-3';
+
+            const signal = options?.signal as AbortSignal;
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                abortCounts[lockKey] = true;
+                const error = new Error('Aborted');
+                error.name = 'AbortError';
+                reject(error);
+              });
+            }
+            setTimeout(() => resolve(createMockResponse({})), 10000);
+          })
+      );
+
+      // Start multiple requests
+      const promise1 = client.callAgentWithCancel('req-1', '/api/req-1', {});
+      const promise2 = client.callAgentWithCancel('req-2', '/api/req-2', {});
+      const promise3 = client.callAgentWithCancel('req-3', '/api/req-3', {});
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // Verify all are pending
+      expect(client.getPendingRequests().length).toBe(3);
+
+      // Cancel all
+      client.cancelAllRequests();
+
+      // Verify all cleared
+      expect(client.getPendingRequests().length).toBe(0);
+
+      // All should return null
+      const results = await Promise.all([promise1, promise2, promise3]);
+      results.forEach((r) => expect(r).toBeNull());
+
+      jest.useFakeTimers();
+    });
+
+    test('should handle cancelAllRequests when no requests pending', () => {
+      // Should not throw
+      expect(() => client.cancelAllRequests()).not.toThrow();
+      expect(client.getPendingRequests().length).toBe(0);
+    });
+  });
+
+  describe('isRequestPending and getPendingRequests', () => {
+    test('should track multiple concurrent requests', async () => {
+      // Mock delayed responses
+      mockFetchImpl.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            setTimeout(() => resolve(createMockResponse({})), 100);
+          })
+      );
+
+      // Start multiple requests
+      const p1 = client.callAgentWithCancel('key-1', '/test1', {});
+      const p2 = client.callAgentWithCancel('key-2', '/test2', {});
+      const p3 = client.callAgentWithCancel('key-3', '/test3', {});
+
+      // All should be pending
+      expect(client.isRequestPending('key-1')).toBe(true);
+      expect(client.isRequestPending('key-2')).toBe(true);
+      expect(client.isRequestPending('key-3')).toBe(true);
+
+      const pending = client.getPendingRequests();
+      expect(pending).toHaveLength(3);
+      expect(pending).toContain('key-1');
+      expect(pending).toContain('key-2');
+      expect(pending).toContain('key-3');
+
+      // Complete all
+      jest.advanceTimersByTime(100);
+      await Promise.all([p1, p2, p3]);
+
+      // All should be cleared
+      expect(client.getPendingRequests()).toHaveLength(0);
+    });
+  });
+
+  describe('User Cancel vs Timeout Distinction', () => {
+    test('should distinguish user cancel from timeout', async () => {
+      jest.useRealTimers();
+
+      const consoleSpy = jest.spyOn(console, 'log');
+      const lockKey = 'test-user-cancel';
+
+      mockFetchImpl.mockImplementationOnce(
+        (_url: string, options: RequestInit) =>
+          new Promise((resolve, reject) => {
+            const signal = options?.signal as AbortSignal;
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                const error = new Error('Aborted');
+                error.name = 'AbortError';
+                reject(error);
+              });
+            }
+            setTimeout(() => resolve(createMockResponse({})), 10000);
+          })
+      );
+
+      const promise = client.callAgentWithCancel(lockKey, '/test', {});
+
+      await new Promise((r) => setTimeout(r, 10));
+
+      // User-initiated cancel
+      client.cancelRequest(lockKey);
+      await promise;
+
+      // Should log as "cancelled by user"
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('cancelled by user')
+      );
+
+      consoleSpy.mockRestore();
+      jest.useFakeTimers();
+    });
   });
 });

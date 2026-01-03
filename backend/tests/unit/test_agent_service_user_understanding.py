@@ -44,7 +44,7 @@ class TestUserUnderstandingDualChannel:
 
     @pytest.fixture
     def canvas_with_yellow_node(self, temp_canvas_dir: str) -> Dict[str, Any]:
-        """Create canvas data with a yellow understanding node (color: '3')."""
+        """Create canvas data with a yellow understanding node (color: '6')."""
         canvas_data = {
             "nodes": [
                 {
@@ -65,7 +65,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "3"  # Yellow - understanding node (Story 12.E.2 uses color "3")
+                    "color": "6"  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
                 }
             ],
             "edges": [

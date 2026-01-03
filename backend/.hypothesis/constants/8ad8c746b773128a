@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\markdown_image_extractor.py
+# hypothesis_version: 6.148.1
+
+['../', './', '.bmp', '.gif', '.jpeg', '.jpg', '.png', '.svg', '.webp', 'absolute_path', 'data:', 'exists', 'http://', 'https://', 'markdown', 'obsidian', 'reference']

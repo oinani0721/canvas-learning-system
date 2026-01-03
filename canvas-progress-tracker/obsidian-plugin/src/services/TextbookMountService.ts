@@ -31,18 +31,54 @@ const TEXTBOOKS_STORAGE_KEY = 'canvas-mounted-textbooks';
 const PDF_PARSE_ENDPOINT = '/api/v1/textbook/parse-pdf';
 
 /**
+ * Backend API endpoint for textbook sync
+ * @source Epic 28 - 方案A: 前端同步到后端
+ */
+const TEXTBOOK_SYNC_ENDPOINT = '/api/v1/textbook/sync-mount';
+const TEXTBOOK_UNMOUNT_ENDPOINT = '/api/v1/textbook/unmount';
+
+/**
  * Service for managing textbook mounting and parsing
  * [Source: Epic 21 - 多格式教材挂载系统]
+ * [Enhanced: Epic 28 - 方案A: 前端同步到后端]
  */
 export class TextbookMountService {
     private app: App;
     private mountedTextbooks: MountedTextbook[] = [];
     private backendUrl: string;
+    /**
+     * Current active canvas path for textbook mounting context
+     * @source Epic 28 - 方案A: 前端同步到后端
+     */
+    private currentCanvasPath: string | null = null;
 
     constructor(app: App, backendUrl: string = 'http://127.0.0.1:8000') {
         this.app = app;
         this.backendUrl = backendUrl;
         this.loadMountedTextbooks();
+    }
+
+    // ============================================================================
+    // Canvas Context (Epic 28 - Backend Sync)
+    // ============================================================================
+
+    /**
+     * Set the current canvas path for mounting context
+     * Must be called before mounting textbooks so sync knows which canvas to associate
+     *
+     * @param canvasPath - Active canvas file path
+     * @source Epic 28 - 方案A: 前端同步到后端
+     */
+    setCurrentCanvasPath(canvasPath: string): void {
+        this.currentCanvasPath = canvasPath;
+        console.log('[TextbookMountService] Set current canvas:', canvasPath);
+    }
+
+    /**
+     * Get the current canvas path
+     */
+    getCurrentCanvasPath(): string | null {
+        return this.currentCanvasPath;
     }
 
     // ============================================================================
@@ -138,20 +174,126 @@ export class TextbookMountService {
         this.mountedTextbooks.push(textbook);
         this.saveMountedTextbooks();
 
+        // Epic 28: Sync to backend if we have a current canvas context
+        if (this.currentCanvasPath) {
+            await this.syncToBackend(textbook, this.currentCanvasPath);
+        } else {
+            console.warn('[TextbookMountService] No canvas context set, skipping backend sync');
+        }
+
         console.log('[TextbookMountService] Mounted textbook:', textbook.name, 'sections:', sections.length);
         return textbook;
     }
 
     /**
+     * Mount a textbook and associate it with a specific canvas
+     *
+     * @param filePath - Path to the textbook file
+     * @param canvasPath - Canvas path to associate with
+     * @returns Mounted textbook
+     *
+     * @source Epic 28 - 方案A: 前端同步到后端
+     */
+    async mountTextbookForCanvas(filePath: string, canvasPath: string): Promise<MountedTextbook> {
+        this.setCurrentCanvasPath(canvasPath);
+        return this.mountTextbook(filePath);
+    }
+
+    /**
+     * Sync mounted textbook to backend .canvas-links.json
+     *
+     * @param textbook - Textbook to sync
+     * @param canvasPath - Canvas path to associate with
+     * @source Epic 28 - 方案A: 前端同步到后端
+     */
+    private async syncToBackend(textbook: MountedTextbook, canvasPath: string): Promise<void> {
+        try {
+            const response = await fetch(`${this.backendUrl}${TEXTBOOK_SYNC_ENDPOINT}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+                body: JSON.stringify({
+                    canvas_path: canvasPath,
+                    textbook: {
+                        id: textbook.id,
+                        path: textbook.path,
+                        name: textbook.name,
+                        type: textbook.type,
+                        sections: (textbook.sections || []).map(s => ({
+                            id: s.id,
+                            title: s.title,
+                            level: s.level,
+                            preview: s.preview,
+                            start_offset: s.startOffset,
+                            end_offset: s.endOffset,
+                            page_number: s.pageNumber,
+                        })),
+                    },
+                }),
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('[TextbookMountService] Synced to backend:', data.config_path);
+            } else {
+                console.warn('[TextbookMountService] Backend sync failed:', response.status, await response.text());
+            }
+        } catch (error) {
+            console.error('[TextbookMountService] Backend sync error:', error);
+            // Don't fail the mount operation if sync fails
+        }
+    }
+
+    /**
      * Unmount a textbook
      * @param textbookId - Textbook ID to unmount
+     * @param canvasPath - Optional canvas path for backend sync
+     * @source Enhanced: Epic 28 - 方案A: 前端同步到后端
      */
-    unmountTextbook(textbookId: string): void {
+    async unmountTextbook(textbookId: string, canvasPath?: string): Promise<void> {
         const index = this.mountedTextbooks.findIndex(tb => tb.id === textbookId);
         if (index !== -1) {
             const removed = this.mountedTextbooks.splice(index, 1)[0];
             this.saveMountedTextbooks();
+
+            // Epic 28: Sync unmount to backend
+            const effectiveCanvasPath = canvasPath || this.currentCanvasPath;
+            if (effectiveCanvasPath) {
+                await this.syncUnmountToBackend(textbookId, effectiveCanvasPath);
+            }
+
             console.log('[TextbookMountService] Unmounted textbook:', removed.name);
+        }
+    }
+
+    /**
+     * Sync textbook unmount to backend
+     *
+     * @param textbookId - Textbook ID to unmount
+     * @param canvasPath - Canvas path
+     * @source Epic 28 - 方案A: 前端同步到后端
+     */
+    private async syncUnmountToBackend(textbookId: string, canvasPath: string): Promise<void> {
+        try {
+            const response = await fetch(`${this.backendUrl}${TEXTBOOK_UNMOUNT_ENDPOINT}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json; charset=utf-8',
+                },
+                body: JSON.stringify({
+                    canvas_path: canvasPath,
+                    textbook_id: textbookId,
+                }),
+            });
+
+            if (response.ok) {
+                console.log('[TextbookMountService] Unmount synced to backend');
+            } else {
+                console.warn('[TextbookMountService] Backend unmount sync failed:', response.status);
+            }
+        } catch (error) {
+            console.error('[TextbookMountService] Backend unmount sync error:', error);
         }
     }
 
@@ -334,7 +476,7 @@ export class TextbookMountService {
         const textbook = this.mountedTextbooks.find(tb => tb.id === textbookId);
         if (!textbook) return '';
 
-        const section = textbook.sections?.find(s => s.id === sectionId);
+        const section = textbook.sections?.find((s: TextbookSection) => s.id === sectionId);
         if (!section) return '';
 
         if (textbook.type === 'markdown') {

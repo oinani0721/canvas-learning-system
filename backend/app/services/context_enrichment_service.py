@@ -658,40 +658,92 @@ class ContextEnrichmentService:
         }
         return color_map.get(color, "")
 
+    def _format_textbook_link(self, ctx) -> str:
+        """
+        Format textbook context to Obsidian bidirectional link.
+
+        Generates Obsidian-compatible [[link]] format based on file type.
+        - PDF files: [[file.pdf#page=N|section]] for direct page navigation
+        - Canvas/Markdown: [[file#section]] for section navigation
+
+        [Source: Story 28.3 - PDF页码链接支持]
+        [Source: ADR-001 - Obsidian链接格式规范]
+
+        Args:
+            ctx: TextbookContext with textbook_canvas, section_name,
+                 and optionally page_number and file_type
+
+        Returns:
+            Obsidian-compatible [[link]] format string
+        """
+        # PDF with page number: [[file.pdf#page=N|section]]
+        if getattr(ctx, 'file_type', 'canvas') == "pdf" and getattr(ctx, 'page_number', None):
+            return f"[[{ctx.textbook_canvas}#page={ctx.page_number}|{ctx.section_name}]]"
+        else:
+            # Canvas/Markdown: [[file#section]]
+            return f"[[{ctx.textbook_canvas}#{ctx.section_name}]]"
+
     def _format_textbook_context(self, textbook_ctx) -> str:
         """
         Format textbook context for inclusion in enriched context.
 
+        Generates Obsidian bidirectional links for textbook references.
+        Preserves complete file paths for double-bracket [[links]].
+
         [Source: FIX-3.1 集成教材上下文到后端]
+        [Source: Story 28.1 - 教材路径元数据传递]
+        [Source: Story 28.3 - PDF页码链接支持]
 
         Args:
             textbook_ctx: FullTextbookContext from TextbookContextService
 
         Returns:
-            Formatted textbook context string
+            Formatted textbook context string with Obsidian [[links]]
         """
-        from pathlib import Path
+        # AC 3: Handle empty context case (backward compatibility)
+        if not textbook_ctx:
+            return ""
 
-        parts = ["--- 相关教材参考 (Textbook References) ---"]
+        # Check if there's any content to format
+        has_contexts = textbook_ctx.contexts and len(textbook_ctx.contexts) > 0
+        has_prerequisites = textbook_ctx.prerequisites and len(textbook_ctx.prerequisites) > 0
 
-        # Add textbook contexts
+        if not has_contexts and not has_prerequisites:
+            return ""
+
+        parts = []
+        if has_contexts:
+            parts.append("--- 相关教材参考 (Textbook References) ---")
+
+        # Add textbook contexts with Obsidian bidirectional links
         for ctx in textbook_ctx.contexts:
-            display_name = Path(ctx.textbook_canvas).stem
-            parts.append(f"[textbook|{display_name}] {ctx.section_name}")
-            parts.append(f"  预览: {ctx.content_preview}...")
+            # Generate Obsidian link using _format_textbook_link
+            link = self._format_textbook_link(ctx)
 
-        # Add prerequisites
+            parts.append(f"### 教材参考: {ctx.section_name}")
+            parts.append(f"- **来源文件**: {link}")
+            parts.append(f"- **相关度**: {ctx.relevance_score:.0%}")
+            preview_text = ctx.content_preview[:200] if len(ctx.content_preview) > 200 else ctx.content_preview
+            parts.append(f"- **内容预览**: {preview_text}...")
+            parts.append(f"\n> 引用此内容时，请使用链接: {link}")
+            parts.append("")  # Empty line between entries
+
+        # Add prerequisites with Obsidian links (Story 28.1 AC 1, AC 2)
         if textbook_ctx.prerequisites:
-            parts.append("\n--- 建议先复习 (Prerequisites) ---")
+            parts.append("\n### 建议先复习 (Prerequisites)")
+            importance_map = {
+                'required': '必修',
+                'recommended': '推荐',
+                'optional': '可选'
+            }
             for prereq in textbook_ctx.prerequisites:
-                display_name = Path(prereq.source_canvas).stem if prereq.source_canvas else "未知"
-                importance_map = {
-                    'required': '必修',
-                    'recommended': '推荐',
-                    'optional': '可选'
-                }
-                importance_str = importance_map.get(prereq.importance, '')
-                parts.append(f"[prerequisite|{importance_str}] {prereq.concept_name} ({display_name})")
+                importance_str = importance_map.get(prereq.importance, '推荐')
+                # Generate Obsidian link preserving full path (fixes path loss)
+                if prereq.source_canvas:
+                    link = f"[[{prereq.source_canvas}#{prereq.concept_name}]]"
+                    parts.append(f"- **[{importance_str}]** {prereq.concept_name}: {link}")
+                else:
+                    parts.append(f"- **[{importance_str}]** {prereq.concept_name}")
 
         return "\n".join(parts)
 

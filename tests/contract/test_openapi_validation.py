@@ -183,8 +183,10 @@ class TestOpenAPIColorEnum:
             return yaml.safe_load(f)
 
     def test_color_enum_values(self, canvas_api_spec):
-        """Color enum should only contain valid values: 1, 2, 3, 5, 6"""
-        valid_colors = ["1", "2", "3", "5", "6"]
+        """Color enum should only contain valid values: 1, 2, 3, 4, 5, 6
+        Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+        """
+        valid_colors = ["1", "2", "3", "4", "5", "6"]
 
         # Find color parameters in paths
         paths = canvas_api_spec["paths"]

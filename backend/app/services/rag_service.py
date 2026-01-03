@@ -175,6 +175,28 @@ class RAGService:
         logger.info("RAGService initialized successfully")
         return True
 
+    def _get_fallback_result(self, fallback_reason: str = "unknown") -> Dict[str, Any]:
+        """
+        Return a safe fallback result dict.
+
+        Story 12.K.2: Ensures RAG queries never return None.
+
+        Args:
+            fallback_reason: Reason for using fallback (for logging/debugging)
+
+        Returns:
+            Dict with empty but valid structure for downstream processing
+        """
+        logger.warning(f"RAGService: Using fallback result, reason: {fallback_reason}")
+        return {
+            "messages": [],
+            "reranked_results": [],
+            "fused_results": [],
+            "quality_grade": None,
+            "fallback_used": True,
+            "fallback_reason": fallback_reason,
+        }
+
     async def query(
         self,
         query: str,
@@ -247,6 +269,14 @@ class RAGService:
                 initial_state,
                 config=runtime_config
             )
+
+            # ✅ Epic 12.K.2: None value protection - ainvoke may return None
+            if result is None:
+                logger.warning(
+                    f"RAGService: ainvoke returned None for query: {query[:50]}..."
+                )
+                return self._get_fallback_result(fallback_reason="ainvoke_returned_none")
+
             return result
 
         except RAGServiceError:

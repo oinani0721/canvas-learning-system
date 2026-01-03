@@ -353,7 +353,8 @@ async def textbook_retrieval_node(
 
     canvas_file = state.get("canvas_file", "")
     batch_size = 10
-    if runtime:
+    # Story 12.K.2: Safe config access (handle None runtime.context)
+    if runtime and runtime.context:
         batch_size = runtime.context.get("retrieval_batch_size", 10)
 
     try:

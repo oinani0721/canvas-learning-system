@@ -21,6 +21,7 @@ from app.api.v1.endpoints.monitoring import monitoring_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.textbook import textbook_router
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
 # Pattern: Create main router and include sub-routers with prefixes/tags
@@ -149,5 +150,21 @@ router.include_router(
     responses={
         503: {"description": "RAG service unavailable"},
         500: {"description": "RAG query failed"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Textbook Routes (方案A: 前端同步到后端)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# [Source: 计划文件 - 关键架构缺陷修复]
+# Bridges frontend localStorage to backend .canvas-links.json
+router.include_router(
+    textbook_router,
+    prefix="/textbook",
+    tags=["Textbook"],
+    responses={
+        404: {"description": "Textbook not found"},
+        500: {"description": "Textbook sync failed"}
     }
 )

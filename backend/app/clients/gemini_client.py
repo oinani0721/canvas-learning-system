@@ -355,6 +355,23 @@ class GeminiClient:
         if context:
             system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
 
+        # ✅ Story 12.C.2: 添加调试日志追踪最终发送给AI的内容
+        # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.2]
+        logger.info(
+            f"[Story 12.C.2] GeminiClient.call_agent FINAL PROMPT:\n"
+            f"  - agent_type: {agent_type}\n"
+            f"  - model: {self.model}\n"
+            f"  - system_prompt length: {len(system_prompt)} chars\n"
+            f"  - user_prompt length: {len(user_prompt)} chars\n"
+            f"  - user_prompt preview: {user_prompt[:400]}..."
+        )
+        if context:
+            # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
+            logger.warning(
+                f"[Story 12.C.2] WARNING: CONTEXT APPENDED TO SYSTEM PROMPT ({len(context)} chars)\n"
+                f"  - context preview: {context[:300]}..."
+            )
+
         logger.info(f"Calling API with agent={agent_type}, model={self.model}")
 
         # Route to appropriate API

@@ -1,0 +1,15 @@
+[
+  {
+    "canvas_path": "𝓣𝓱𝓮 𝓺𝓾𝓲𝓬𝓴 𝓫𝓻𝓸𝔀𝓷 𝓯𝓸𝔁 𝓳𝓾𝓶𝓹𝓼 𝓸𝓿𝓮𝓻 𝓽𝓱𝓮 𝓵𝓪𝔃𝔂 𝓭𝓸𝓰",
+    "id": "26f010ba-174b-4358-9e8f-3496a68bbec6",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (timepoint)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T00:08:24.192536+00:00",
+    "type": "checkpoint"
+  }
+]

@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\core\logging.py
+# hypothesis_version: 6.148.1
+
+['INFO', 'httpcore', 'httpx', 'replace', 'utf-8', 'uvicorn', 'uvicorn.access', 'uvicorn.error']

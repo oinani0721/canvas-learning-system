@@ -254,13 +254,16 @@ NODE_TYPE_GROUP = "group"
 
 # ========== 颜色系统常量 ==========
 # Canvas颜色编码（字符串格式）
-# 根据CLAUDE.md官方文档和测试验证
-# 标准映射: 1=红色, 2=绿色, 3=紫色, 5=蓝色, 6=黄色
-COLOR_CODE_RED = "1"        # 不理解/未通过 (红色)
+# 根据 docs/issues/canvas-layout-lessons-learned.md 权威验证
+# Obsidian Canvas实际显示:
+#   "1" = 灰白色, "2" = 绿色, "3" = 紫色, "4" = 红色, "5" = 蓝色, "6" = 黄色
+# PRD语义映射: 红色(不理解)="4", 绿色(完全理解)="2", 紫色(似懂非懂)="3", 黄色(个人理解)="6"
+COLOR_CODE_RED = "4"        # 不理解/未通过 (红色) - 修复: 4才是真正的红色
 COLOR_CODE_GREEN = "2"      # 完全理解/已通过 (绿色)
 COLOR_CODE_PURPLE = "3"     # 似懂非懂/待检验 (紫色)
 COLOR_CODE_BLUE = "5"       # AI生成的说明节点 (蓝色)
-COLOR_CODE_YELLOW = "6"     # 个人理解输出区 (黄色)
+COLOR_CODE_YELLOW = "6"     # 个人理解输出区 (黄色) - PRD定义正确
+COLOR_CODE_GRAY = "1"       # 灰白色（无特殊含义）
 
 # 保留旧的常量名以保持向后兼容
 COLOR_RED = COLOR_CODE_RED
@@ -268,6 +271,7 @@ COLOR_GREEN = COLOR_CODE_GREEN
 COLOR_PURPLE = COLOR_CODE_PURPLE
 COLOR_BLUE = COLOR_CODE_BLUE
 COLOR_YELLOW = COLOR_CODE_YELLOW
+COLOR_GRAY = COLOR_CODE_GRAY
 
 # 颜色语义名称（小写）
 COLOR_SEMANTIC_RED = "red"

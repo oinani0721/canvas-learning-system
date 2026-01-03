@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\rag_service.py
+# hypothesis_version: 6.148.1
+
+['LANGGRAPH_AVAILABLE', 'RAGService', 'RAGServiceError', 'RAGUnavailableError', 'ainvoke', 'available', 'canvas_file', 'content', 'error', 'fallback_reason', 'fallback_used', 'fused_results', 'fusion_strategy', 'get_rag_service', 'graphiti_results', 'hybrid_auto', 'import_error', 'initialized', 'is_review_canvas', 'lancedb_results', 'langgraph_available', 'messages', 'multimodal_results', 'quality_grade', 'query_rewritten', 'reranked_results', 'reranking_strategy', 'rewrite_count', 'role', 'rrf', 'src', 'unknown', 'user', 'weighted']

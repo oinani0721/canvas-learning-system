@@ -938,13 +938,21 @@ async def score_understanding(
 
     logger.info(
         f"score_understanding: canvas={request.canvas_name}, nodes={request.node_ids}, "
-        f"has_rag_context={rag_context is not None}"
+        f"has_rag_context={rag_context is not None}, has_node_content={request.node_content is not None}"
     )
+
+    # Story 2.8: Build node_contents dict if content is provided from plugin
+    node_contents = None
+    if request.node_content and request.node_ids:
+        # Map the first node_id to the provided content
+        node_contents = {request.node_ids[0]: request.node_content}
+        logger.info(f"[Story 2.8] Using provided node_content ({len(request.node_content)} chars)")
 
     try:
         result = await agent_service.score_node(
             canvas_name=request.canvas_name,
             node_ids=request.node_ids,
+            node_contents=node_contents,  # Story 2.8: Pass content from plugin
             rag_context=rag_context,  # Story 12.A.2: RAG context injection
         )
 
@@ -959,6 +967,8 @@ async def score_understanding(
                 originality=score_data.get("originality", 0.0),
                 total=score_data.get("total", 0.0),
                 new_color=score_data.get("new_color", "3"),
+                feedback=score_data.get("feedback"),  # Story 2.8: Pass feedback to frontend
+                color_action=score_data.get("color_action"),  # Story 2.8: Pass color_action
             ))
 
             # Story 12.A.5: 后台记录学习事件 (每个评分节点)

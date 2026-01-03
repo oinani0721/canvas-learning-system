@@ -185,12 +185,13 @@ def test_color_update_contract(canvas_api_schema, mock_canvas_server_url):
     测试PATCH /canvas/{canvasId}/nodes/{nodeId} endpoint的颜色更新Contract
 
     验证:
-    - 请求body包含有效的ColorCode ("1", "2", "3", "5", "6")
+    - 请求body包含有效的ColorCode ("1", "2", "3", "4", "5", "6")
     - 200响应符合Node schema
     - 404响应符合NotFound schema（节点不存在）
+    Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
     """
     # 测试有效颜色代码更新（使用PATCH /nodes/{nodeId}）
-    valid_colors = ["1", "2", "3", "5", "6"]
+    valid_colors = ["1", "2", "3", "4", "5", "6"]
     for color in valid_colors:
         case = canvas_api_schema["/canvas/{canvasId}/nodes/{nodeId}"]["PATCH"].Case(
             path_parameters={"canvasId": "test-canvas-001", "nodeId": "yellow-001"},
@@ -317,12 +318,13 @@ def test_color_code_enum_validation():
     from conftest import validate_color_code
 
     # 合法颜色
-    valid_colors = ["1", "2", "3", "5", "6"]
+    # Story 12.B.4: 正确的颜色映射 (1=灰, 2=绿, 3=紫, 4=红, 5=蓝, 6=黄)
+    valid_colors = ["1", "2", "3", "4", "5", "6"]
     for color in valid_colors:
         assert validate_color_code(color), f"颜色{color}应该合法"
 
     # 非法颜色
-    invalid_colors = ["0", "4", "7", "red", ""]
+    invalid_colors = ["0", "7", "red", ""]
     for color in invalid_colors:
         assert not validate_color_code(color), f"颜色{color}应该非法"
 

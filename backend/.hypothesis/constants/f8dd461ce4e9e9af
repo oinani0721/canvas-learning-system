@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\context_enrichment_service.py
+# hypothesis_version: 6.148.1
+
+[0.0, 100, 200, 300, 400, ' (🔴红色-未理解)', ' (🔵蓝色)', ' (🟠橙色)', ' (🟡黄色-待填写)', ' (🟢绿色-已掌握)', ' (🟣紫色-部分理解)', ', ', '...', '.canvas', '1', '2', '3', '4', '5', '6', 'child', 'color', 'common_concepts', 'concept', 'confidence', 'connects_to', 'edges', 'empty', 'file', 'file_not_found', 'file_read', 'file_read_error', 'file_read_success', 'fromNode', 'get_node_content', 'group', 'height', 'id', 'json_text', 'label', 'lecture_canvas_path', 'lecture_canvas_title', 'link', 'nodes', 'optional', 'parent', 'recommended', 'relevance', 'relevant_nodes', 'required', 'resolving_file_path', 'score', 'text', 'timestamp', 'toNode', 'type', 'unknown', 'unknown_node_type', 'url', 'user_understanding', 'utf-8', 'width', 'x', 'y', '可选', '必修', '推荐', '未知', '未知概念', '未知讲座']

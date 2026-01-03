@@ -926,6 +926,17 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         // Scoring Settings Group
         this.createSettingGroup(container, '评分设置');
 
+        // Enable Auto Scoring
+        new Setting(container)
+            .setName('启用自动评分')
+            .setDesc('在执行Agent操作前自动评估理解程度（拆解、解释、检验等场景）')
+            .addToggle(toggle => toggle
+                .setValue(settings.enableAutoScoring)
+                .onChange(async (value) => {
+                    settings.enableAutoScoring = value;
+                    await this.plugin.saveSettings();
+                }));
+
         // Passing Score
         new Setting(container)
             .setName('及格分数')

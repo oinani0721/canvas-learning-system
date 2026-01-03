@@ -1,0 +1,4 @@
+# file: C:\Users\ROG\托福\Canvas\backend\app\services\question_generator.py
+# hypothesis_version: 6.148.1
+
+[' - ', '. ', '...', '3', '4', '\\*([^*]+)\\*', '\\*\\*([^*]+)\\*\\*', '\\1', '^#+\\s*', 'application', 'breakthrough', 'color', 'id', 'text', 'verification', '{concept} 的核心原理是什么？', '。', '设计一个使用 {concept} 的案例', '请用自己的话解释：{concept}', '，', '：']

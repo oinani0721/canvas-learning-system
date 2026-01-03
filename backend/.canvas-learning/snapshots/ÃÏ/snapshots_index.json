@@ -1,0 +1,15 @@
+[
+  {
+    "canvas_path": "ÃÏ",
+    "id": "4a9b03a6-4947-4997-9ead-fba03819b08a",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2025-12-16T05:42:11.743840+00:00",
+    "type": "checkpoint"
+  }
+]

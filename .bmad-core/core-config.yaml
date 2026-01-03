@@ -38,8 +38,12 @@ project:
   #     - 12.D.1: 前端支持FILE类型节点 [P0 BLOCKER] 待实施
   #     - 12.D.2: 后端支持FILE类型节点 [P0 BLOCKER] 待实施
   #     - 12.D.3: 节点类型日志追踪链 [P1] 待实施
-  epics_completed: [1, 2, 3, 4, 5, 10, 11, 12, "12.A", "12.F", "12.G", 13, 14, 15, 16, 18]
-  epics_in_progress: ["12.D", "12.H"]  # 12.D: FILE节点支持, 12.H: 并发控制+任务面板
+  # - Epic 12.I: Agent端点日志编码修复 (100%完成) ✅ 2025-12-17
+  #     - 12.I.1: 日志编码UTF-8配置 [P0 BLOCKER] ✅ 完成 (logging.py)
+  #     - 12.I.2: RAG标签ASCII化 [P0] ✅ 完成 (agents.py emoji移除)
+  #     - 12.I.3: 编码错误诊断增强 [P2] 未实施 (可选)
+  epics_completed: [1, 2, 3, 4, 5, 10, 11, 12, "12.A", "12.F", "12.G", "12.H", "12.I", "12.K", 13, 14, 15, 16, 18]
+  epics_in_progress: ["12.D"]  # 12.D: FILE节点支持
 
 # ====================
 # BMad Core Configuration (Original)

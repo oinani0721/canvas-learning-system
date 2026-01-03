@@ -303,9 +303,11 @@ class ScoreRequest(BaseModel):
     Request model for scoring understanding.
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/ScoreRequest]
+    [Story 2.8: Added node_content for real-time content passing]
     """
     canvas_name: str = Field(..., description="Canvas file name")
     node_ids: List[str] = Field(..., description="Node IDs to score")
+    node_content: Optional[str] = Field(None, description="Node content to score (passed from plugin)")
 
 
 class NodeScore(BaseModel):
@@ -314,14 +316,17 @@ class NodeScore(BaseModel):
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/NodeScore]
     [Source: specs/data/node-score.schema.json]
+    [Source: .claude/agents/scoring.md - Output Format]
     """
     node_id: str = Field(..., description="Node ID")
-    accuracy: float = Field(..., ge=0, le=10, description="Accuracy score")
-    imagery: float = Field(..., ge=0, le=10, description="Imagery score")
-    completeness: float = Field(..., ge=0, le=10, description="Completeness score")
-    originality: float = Field(..., ge=0, le=10, description="Originality score")
-    total: float = Field(..., ge=0, le=40, description="Total score")
-    new_color: str = Field(..., description="New node color: 2=green(>=32), 3=yellow(24-31), 4=red(<24)")
+    accuracy: float = Field(..., ge=0, le=25, description="Accuracy score (0-25)")
+    imagery: float = Field(..., ge=0, le=25, description="Imagery score (0-25)")
+    completeness: float = Field(..., ge=0, le=25, description="Completeness score (0-25)")
+    originality: float = Field(..., ge=0, le=25, description="Originality score (0-25)")
+    total: float = Field(..., ge=0, le=100, description="Total score (0-100)")
+    new_color: str = Field(..., description="New node color: 2=green(>=80), 3=purple(60-79), 4=red(<60)")
+    feedback: Optional[str] = Field(None, description="Specific improvement suggestions (100-200 chars)")
+    color_action: Optional[str] = Field(None, description="Color action: change_to_green/change_to_purple/keep_red")
 
 
 class ScoreResponse(BaseModel):

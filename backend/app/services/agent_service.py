@@ -27,10 +27,10 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 # [Source: specs/api/agent-api.openapi.yml:617-627]
 from app.models.enums import AgentErrorType
 
-# ✅ Story 12.C.1: 环境变量开关 - 禁用上下文增强以消除污染
+# ✅ Story 12.C.1: 环境变量开关 - 上下文增强开关
 # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.1]
-# ⚠️ TEMPORARY: Default to True for testing - set to "false" after fixing pollution
-DISABLE_CONTEXT_ENRICHMENT = os.getenv("DISABLE_CONTEXT_ENRICHMENT", "true").lower() == "true"
+# ✅ Fixed 2025-12-24: Default to False - enable context enrichment to fix hallucination
+DISABLE_CONTEXT_ENRICHMENT = os.getenv("DISABLE_CONTEXT_ENRICHMENT", "false").lower() == "true"
 
 if TYPE_CHECKING:
     from app.clients.gemini_client import GeminiClient
@@ -652,7 +652,7 @@ PERSONAL_UNDERSTANDING_TEMPLATE = {
     "text": PERSONAL_NODE_PROMPT_TEXT,
     "width": 400,
     "height": 150,
-    "color": "3"  # 黄色 - 表示待填写的个人理解区域
+    "color": "6"  # 黄色 - 表示待填写的个人理解区域 (修复: '6'=Yellow, '3'=Purple)
 }
 
 
@@ -728,7 +728,7 @@ def create_personal_understanding_edge(
         "fromSide": "bottom",
         "toSide": "top",
         "label": label,
-        "color": "3"  # 黄色，与个人理解节点匹配
+        "color": "6"  # 黄色，与个人理解节点匹配 (修复: '6'=Yellow)
     }
 
     logger.debug(f"Created personal understanding edge: {explanation_node_id} → {personal_node_id}")
@@ -1999,7 +1999,7 @@ class AgentService:
                     "y": y,
                     "width": node_width,
                     "height": node_height,
-                    "color": "3",  # Yellow - indicates question/understanding area
+                    "color": "6",  # Yellow - indicates question/understanding area (修复: '6'=Yellow)
                 })
 
                 # Story 12.M.2: Create edge from source node to question node
@@ -2097,7 +2097,7 @@ class AgentService:
                     "y": y,
                     "width": node_width,
                     "height": node_height,
-                    "color": "6",  # Purple - indicates verification/deep question
+                    "color": "3",  # Purple - indicates verification/deep question
                 })
 
                 # Story 12.M.2: Create edge from source node to question node
@@ -2157,27 +2157,61 @@ class AgentService:
             # Story 12.A.2: Pass rag_context to call_scoring
             result = await self.call_scoring("", content, context=rag_context)
 
+            # Debug: Log Agent response for troubleshooting
+            logger.info(f"[Story 2.8] Scoring Agent response: success={result.success}, data_keys={list(result.data.keys()) if result.data else 'None'}")
+            if result.data:
+                logger.info(f"[Story 2.8] Scoring data: total_score={result.data.get('total_score')}, feedback_len={len(result.data.get('feedback', ''))}")
+
             # Determine color based on score
+            # scoring.md template uses "total_score" (0-100 scale), fallback to "total" for compatibility
             total_score = 0.0
             if result.success and result.data:
-                total_score = result.data.get("total", 0.0)
+                # Try both field names for compatibility
+                total_score = result.data.get("total_score", result.data.get("total", 0.0))
+                # Ensure score is in 0-100 range (normalize if needed)
+                if total_score <= 1.0 and total_score > 0:
+                    total_score = total_score * 100  # Convert 0-1 to 0-100
 
-            # Color mapping: 0-40% red, 40-70% yellow, 70%+ green
-            if total_score >= 0.7:
+            # Color mapping: scoring.md defines ≥80=green, 60-79=purple, <60=red (0-100 scale)
+            if total_score >= 80:
                 new_color = "2"  # green (完全理解/已通过)
-            elif total_score >= 0.6:
+            elif total_score >= 60:
                 new_color = "3"  # purple (似懂非懂/待检验)
             else:
                 new_color = "4"  # red (不理解/未通过)
 
+            # Extract feedback from Agent response (scoring.md defines 100-200 char feedback)
+            feedback = ""
+            color_action = ""
+            if result.success and result.data:
+                feedback = result.data.get("feedback", "")
+                color_action = result.data.get("color_action", "")
+                # Also check breakdown structure from scoring.md template
+                breakdown = result.data.get("breakdown", {})
+                if breakdown:
+                    # Use breakdown values if available (0-25 scale per dimension)
+                    accuracy = breakdown.get("accuracy", result.data.get("accuracy", 0.0))
+                    imagery = breakdown.get("imagery", result.data.get("imagery", 0.0))
+                    completeness = breakdown.get("completeness", result.data.get("completeness", 0.0))
+                    originality = breakdown.get("originality", result.data.get("originality", 0.0))
+                else:
+                    accuracy = result.data.get("accuracy", 0.0)
+                    imagery = result.data.get("imagery", 0.0)
+                    completeness = result.data.get("completeness", 0.0)
+                    originality = result.data.get("originality", 0.0)
+            else:
+                accuracy = imagery = completeness = originality = 0.0
+
             scores.append({
                 "node_id": node_id,
-                "accuracy": result.data.get("accuracy", 0.0) if result.data else 0.0,
-                "imagery": result.data.get("imagery", 0.0) if result.data else 0.0,
-                "completeness": result.data.get("completeness", 0.0) if result.data else 0.0,
-                "originality": result.data.get("originality", 0.0) if result.data else 0.0,
+                "accuracy": accuracy,
+                "imagery": imagery,
+                "completeness": completeness,
+                "originality": originality,
                 "total": total_score,
                 "new_color": new_color,
+                "feedback": feedback,  # Story 2.8: Pass feedback to frontend
+                "color_action": color_action,  # Story 2.8: Pass color_action to frontend
             })
 
             # Record learning episode
@@ -2238,10 +2272,11 @@ class AgentService:
 
         logger.info(f"[FIX-4.4] Found {len(related_node_ids)} related nodes for {source_node_id}")
 
-        # 从关联节点中找出黄色节点（color: "3"）并读取内容
+        # 从关联节点中找出黄色节点（color: "6"）并读取内容
+        # 颜色定义与前端一致：Yellow="6", Purple="3", Red="4", Green="2", Blue="5"
         for node_id in related_node_ids:
             node = nodes.get(node_id)
-            if node and node.get("color") == "3":  # Yellow node
+            if node and node.get("color") == "6":  # Yellow node (个人理解)
                 logger.debug(f"[FIX-4.4] Found yellow node: {node_id}, type={node.get('type')}")
 
                 if node.get("type") == "file" and node.get("file"):
@@ -2258,6 +2293,46 @@ class AgentService:
 
         logger.info(f"[FIX-4.4] Total user understandings found: {len(understanding_contents)}")
         return understanding_contents
+
+    def _find_adjacent_content_nodes(
+        self,
+        node_id: str,
+        canvas_data: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        FIX-4.5: 查找与指定节点直接相连的内容节点（非黄色节点）。
+
+        用于当用户从黄色理解节点调用Agent时，找到相邻的教材节点作为 material_content。
+        搜索双向边（fromNode 和 toNode），但只返回非黄色节点（教材/解释节点）。
+
+        Args:
+            node_id: 当前节点 ID（黄色理解节点）
+            canvas_data: Canvas 数据字典
+
+        Returns:
+            相邻的非黄色内容节点列表
+        """
+        edges = canvas_data.get("edges", [])
+        nodes = {n["id"]: n for n in canvas_data.get("nodes", [])}
+        adjacent_nodes = []
+
+        # 查找所有与当前节点直接相连的节点（双向）
+        for edge in edges:
+            connected_node_id = None
+            if edge.get("fromNode") == node_id:
+                connected_node_id = edge.get("toNode")
+            elif edge.get("toNode") == node_id:
+                connected_node_id = edge.get("fromNode")
+
+            if connected_node_id and connected_node_id in nodes:
+                connected_node = nodes[connected_node_id]
+                # 只返回非黄色节点（教材/解释节点）
+                if connected_node.get("color") != "6":
+                    adjacent_nodes.append(connected_node)
+                    logger.debug(f"[FIX-4.5] Found adjacent content node: {connected_node_id}, color={connected_node.get('color')}")
+
+        logger.info(f"[FIX-4.5] Found {len(adjacent_nodes)} adjacent content nodes for yellow node {node_id}")
+        return adjacent_nodes
 
     async def generate_explanation(
         self,
@@ -2318,10 +2393,37 @@ class AgentService:
                 with open(canvas_path, 'r', encoding='utf-8') as f:
                     canvas_data = json_module.load(f)
 
-                # 查找关联的黄色理解节点内容
-                user_understandings = await self.find_related_understanding_content(
-                    canvas_name, node_id, canvas_data
-                )
+                # ✅ FIX-4.5: 检测当前节点是否为黄色节点（用户理解节点）
+                # 当用户右键黄色节点调用Agent时，黄色节点内容应作为user_understanding
+                current_node = next((n for n in canvas_data.get("nodes", []) if n.get("id") == node_id), None)
+                is_yellow_node = current_node and current_node.get("color") == "6"
+                logger.info(f"[FIX-4.5] Node {node_id} is_yellow={is_yellow_node}, color={current_node.get('color') if current_node else 'N/A'}")
+
+                if is_yellow_node:
+                    # ✅ FIX-4.5: 当前节点是黄色理解节点
+                    # 将当前节点内容作为 user_understanding，从邻接节点获取教材内容
+                    logger.info(f"[FIX-4.5] Yellow node detected! content will be treated as user_understanding")
+                    user_understandings = [content]  # 黄色节点内容作为用户理解
+
+                    # 从邻接节点中查找教材内容（非黄色节点）
+                    adjacent_content_nodes = self._find_adjacent_content_nodes(node_id, canvas_data)
+                    if adjacent_content_nodes:
+                        # 用邻接教材节点内容替换 content
+                        material_texts = [n.get("text", "") for n in adjacent_content_nodes if n.get("type") == "text" and n.get("text")]
+                        if material_texts:
+                            # 更新 content 为教材内容，用于后续 topic 提取和 call_explanation
+                            content = "\n\n---\n\n".join(material_texts)
+                            logger.info(f"[FIX-4.5] Replaced content with {len(adjacent_content_nodes)} adjacent teaching nodes ({len(content)} chars)")
+                        else:
+                            logger.warning(f"[FIX-4.5] Adjacent nodes found but no text content")
+                    else:
+                        logger.warning(f"[FIX-4.5] No adjacent content nodes found for yellow node {node_id}")
+                else:
+                    # 原有逻辑：当前节点是教材节点，从邻居查找黄色节点
+                    # 查找关联的黄色理解节点内容
+                    user_understandings = await self.find_related_understanding_content(
+                        canvas_name, node_id, canvas_data
+                    )
                 logger.info(f"[FIX-4.4] Found {len(user_understandings)} user understandings for node {node_id}")
         except Exception as e:
             logger.warning(f"[FIX-4.4] Failed to read user understandings: {e}")
@@ -2504,7 +2606,7 @@ class AgentService:
                         "y": yellow_y,
                         "width": node_width,
                         "height": yellow_height,
-                        "color": "6",  # ✅ FIX-4.11: Purple (matches user's reference node)
+                        "color": "3",  # Purple node (验证问题/待检验) - 修复: "3"=Purple
                     })
                     logger.info(f"[Story 21.5] Created PURPLE understanding node {yellow_node_id}")
 
@@ -2517,7 +2619,7 @@ class AgentService:
                         "fromSide": "bottom",
                         "toSide": "top",
                         "label": "个人理解",  # ✅ FIX-4.10: Add edge label
-                        "color": "6",  # ✅ Purple edge (matches user's reference)
+                        "color": "3",  # Purple edge - 修复: "3"=Purple
                     })
                 else:
                     logger.debug("[Story 21.5] AUTO_CREATE_PERSONAL_NODE=False, skipping personal node")
@@ -2583,7 +2685,7 @@ class AgentService:
                         "y": yellow_y,
                         "width": node_width,
                         "height": 120,
-                        "color": "3",  # Yellow - 待填写的个人理解区域
+                        "color": "6",  # Yellow - 待填写的个人理解区域 (修复: '6'=Yellow)
                     })
                     logger.info(f"[Story 21.5] Created yellow text node {yellow_node_id}")
 
@@ -2596,7 +2698,7 @@ class AgentService:
                         "fromSide": "bottom",
                         "toSide": "top",
                         "label": "个人理解",  # ✅ Story 21.5: Add edge label
-                        "color": "3",  # Yellow edge matches node
+                        "color": "6",  # Yellow edge matches node (修复: '6'=Yellow)
                     })
                     logger.info("[Story 21.5] Created edges for standard explanation with personal node")
                 else:
@@ -2943,7 +3045,7 @@ class AgentService:
                     "y": node_y,
                     "width": node_width,
                     "height": node_height,
-                    "color": "6",  # Purple - verification question
+                    "color": "3",  # Purple - verification question (修复: "3"=Purple)
                 })
 
                 # Create edge from source to question
@@ -3097,7 +3199,7 @@ class AgentService:
                     "y": node_y,
                     "width": node_width,
                     "height": node_height,
-                    "color": "6",  # Purple - verification question
+                    "color": "3",  # Purple - verification question (修复: "3"=Purple)
                 })
 
                 # Create edge from source to question

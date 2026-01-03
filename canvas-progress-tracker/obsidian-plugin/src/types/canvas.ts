@@ -30,26 +30,29 @@ export type CanvasColor = CanvasPresetColor | CanvasHexColor;
 
 /**
  * Canvas color mapping
- * ✅ Verified from @obsidian-canvas Skill (Quick Reference #6)
+ * ✅ Verified from menu.ts CANVAS_COLOR_NAMES and canvas_utils.py (权威来源)
+ * ✅ 已通过实际 Obsidian Canvas 渲染验证
  */
 export const CANVAS_COLORS: Record<CanvasPresetColor, string> = {
-  '1': 'Red',
-  '2': 'Orange',
-  '3': 'Yellow',
-  '4': 'Green',
-  '5': 'Cyan',
-  '6': 'Purple',
+  '1': 'Gray',    // 灰色 - 无特殊含义
+  '2': 'Green',   // 绿色 - 完全理解 (≥80分)
+  '3': 'Purple',  // 紫色 - 似懂非懂 (60-79分)
+  '4': 'Red',     // 红色 - 不理解 (<60分)
+  '5': 'Blue',    // 蓝色 - AI解释
+  '6': 'Yellow',  // 黄色 - 个人理解
 } as const;
 
 /**
  * Learning system semantic colors
+ * ✅ Verified from menu.ts CANVAS_COLOR_NAMES and canvas_utils.py (权威来源)
  * Project-specific color semantics for Canvas Learning System
  */
 export const LEARNING_COLORS = {
-  NOT_UNDERSTOOD: '1' as CanvasPresetColor, // Red - 不理解
-  PARTIAL: '6' as CanvasPresetColor, // Purple - 似懂非懂
-  UNDERSTOOD: '4' as CanvasPresetColor, // Green - 已理解
-  PERSONAL_UNDERSTANDING: '3' as CanvasPresetColor, // Yellow - 个人理解
+  NOT_UNDERSTOOD: '4' as CanvasPresetColor,        // Red - 不理解 (<60分)
+  PARTIAL: '3' as CanvasPresetColor,               // Purple - 似懂非懂 (60-79分)
+  UNDERSTOOD: '2' as CanvasPresetColor,            // Green - 已理解 (≥80分)
+  PERSONAL_UNDERSTANDING: '6' as CanvasPresetColor, // Yellow - 个人理解 (颜色不变)
+  AI_EXPLANATION: '5' as CanvasPresetColor,        // Blue - AI解释节点 (评分后变色)
 } as const;
 
 // ============================================================================

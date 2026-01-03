@@ -3,7 +3,7 @@ project:
   version: v1.3
   current_phase: implementation
   bmad_integration_status: aligned
-  last_updated: '2025-12-14'
+  last_updated: '2025-12-16'
 epics:
   epic-1:
     name: Basic Learning System
@@ -365,6 +365,87 @@ epics:
     - Bug追踪日志系统
     - 健康检查端点（/health, /health/ai, /health/agents, /health/full）
     - 端点测试脚本（scripts/test-agent-endpoint.py）
+  epic-12.I:
+    name: Agent端点日志编码修复
+    status: completed
+    started_date: 2025-12-17
+    completion_date: 2025-12-17
+    stories:
+    - 12.I.1
+    - 12.I.2
+    description: Agent端点日志编码修复（stdout UTF-8包装、RAG标签emoji移除）
+    prd_source: docs/prd/epics/EPIC-12I-AGENT-LOGGING-ENCODING-FIX.md
+    priority: P0
+    key_achievement: 部分修复Windows GBK编码问题（stdout已修复）
+    substories:
+      12.I.1: 日志编码UTF-8配置 ✅
+      12.I.2: RAG标签ASCII化 ✅
+      12.I.3: 编码错误诊断增强 (未实施，可选)
+    note: 此Epic只修复了stdout，stderr和Uvicorn仍有问题，需要Epic 12.J补充
+  epic-12.J:
+    name: Windows编码架构修复
+    status: ready
+    started_date: 2025-12-17
+    stories:
+    - 12.J.1
+    - 12.J.2
+    - 12.J.3
+    - 12.J.4
+    - 12.J.5
+    - 12.J.6
+    description: Windows编码架构完整修复（stderr UTF-8、charset强制、编码验证中间件、UnicodeEncodeError捕获、CORS编码安全、集成测试）
+    prd_source: docs/prd/epics/EPIC-12J-ENCODING-ARCHITECTURE-FIX.md
+    priority: P0
+    estimated_hours: 2-3
+    substories:
+      12.J.1: 完整日志UTF-8包装 (P0) - stderr + Uvicorn handlers
+      12.J.2: 前端请求Charset强制 (P1) - Content-Type charset=utf-8
+      12.J.3: 后端请求编码验证中间件 (P1) - EncodingValidationMiddleware
+      12.J.4: UnicodeEncodeError显式异常处理 (P0) - 13个Agent端点
+      12.J.5: CORSExceptionMiddleware编码安全 (P1)
+      12.J.6: 编码安全集成测试套件 (P2)
+    key_features:
+    - stderr UTF-8包装
+    - Uvicorn handlers重配置
+    - Content-Type charset=utf-8
+    - EncodingValidationMiddleware中间件
+    - 13个Agent端点UnicodeEncodeError显式捕获
+    - CORS异常处理器编码安全
+    - 编码集成测试套件
+    dependencies:
+    - Epic 12.I (部分修复，作为基础)
+    note: Epic 12.I的补充，完整解决Windows编码问题
+  epic-12.E:
+    name: Agent主题提取质量修复
+    status: completed
+    started_date: 2025-12-15
+    completion_date: 2025-12-16
+    stories:
+    - 12.E.1
+    - 12.E.2
+    - 12.E.3
+    - 12.E.4
+    - 12.E.5
+    - 12.E.6
+    description: Agent主题提取质量修复（提示词格式对齐、双通道传递、2-hop遍历、图片提取、多模态集成、集成测试）
+    prd_source: docs/epics/epic-12.E-topic-extraction-quality-fix.md
+    priority: P0
+    key_achievement: 修复Agent主题偏离问题，90测试全部通过
+    verification_source: 'Tests: 43 unit + 47 integration = 90/90 PASSED'
+    substories:
+      12.E.1: 提示词格式对齐 - comparison-table concepts数组 ✅
+      12.E.2: user_understanding双通道传递 ✅
+      12.E.3: 2-hop上下文遍历实现 ✅
+      12.E.4: Markdown图片引用提取器 ✅
+      12.E.5: Agent端点多模态集成 ✅
+      12.E.6: 集成测试与回归验证 ✅
+    key_features:
+    - 智能主题提取（跳过元数据行）
+    - 文件名topic提取
+    - 2-hop递归遍历（hop_distance分组）
+    - Obsidian/Markdown图片语法支持
+    - 多模态Agent集成（Gemini API）
+    - 完整测试覆盖（90测试）
 scp_006:
   name: 多模态文件关联
   status: completed
@@ -402,6 +483,7 @@ next_actions:
 - ✅ Epic 18 已完成 (5个Stories, 92测试, 完整回滚系统)
 - ✅ Epic 19 已完成 (5个Stories, 163测试, 进度追踪系统)
 - ✅ Epic 21.5 已完成 (6个Stories, Agent端点可靠性修复)
+- ✅ Epic 12.E 已完成 (6个Stories, 90测试, Agent主题提取质量修复)
 - ⏳ SCP-006: 多模态支持 (可选)
 blocked_items: []
 technical_debt:
@@ -427,8 +509,8 @@ devload_always_files:
 - docs/architecture/canvas-layer-architecture.md
 - CANVAS_ERROR_LOG.md
 stats:
-  total_epics: 16
-  completed_epics: 16
+  total_epics: 17
+  completed_epics: 17
   in_progress_epics: 0
   pending_epics: 5
   total_agents: 14

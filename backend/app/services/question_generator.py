@@ -85,8 +85,9 @@ class QuestionGenerator:
         concept = self._extract_concept(content)
 
         # Determine question type based on color if not specified
+        # Color codes (Obsidian Canvas actual): "4"=red, "3"=purple, "2"=green, "6"=yellow
         if question_type is None:
-            if color == "1":  # Red - not understood
+            if color == "4":  # Red - not understood (修复: 4才是红色)
                 question_type = "breakthrough"
             elif color == "3":  # Purple - partial understanding
                 question_type = "verification"
