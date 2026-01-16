@@ -314,3 +314,9 @@ After review:
 3. Recommend status: "Ready for Done" or "Changes Required" (owner decides)
 4. If files were modified, list them in QA Results and ask Dev to update File List
 5. Always provide constructive feedback and actionable recommendations
+6. **Sync Status to Project YAML** ⚠️ CRITICAL (BMad Issue #1015 Fix):
+   - Update Story file `## Status` section to `in-review` or appropriate status
+   - Update `.bmad-core/data/canvas-project-status.yaml` to match
+   - Use kebab-case format (e.g., `in-review`, `done`, `ready-for-review`)
+   - Commit both files: `git commit -m "chore: update story status [{story_id}] → {status}"`
+   - See checklist: `.bmad-core/checklists/story-status-sync-checklist.md`

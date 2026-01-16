@@ -62,7 +62,17 @@ The goal is quality delivery, not just checking boxes.]]
    - [ ] Any clarifications or decisions made during development are documented in the story file or linked appropriately.
    - [ ] The story wrap up section has been completed with notes of changes or information relevant to the next story or overall project, the agent model that was primarily used during development, and the changelog of any changes is properly updated.
 
-6. **Dependencies, Build & Configuration:**
+6. **Status Synchronization:** ⚠️ CRITICAL (BMad Issue #1015 Fix)
+
+   [[LLM: Status sync is MANDATORY. Failure to sync causes tracking issues across the project]]
+   - [ ] Story file `## Status` section updated to `ready-for-review` (or appropriate status)
+   - [ ] Status uses **kebab-case** format (e.g., `in-progress`, `ready-for-review`, `done`)
+   - [ ] `.bmad-core/data/canvas-project-status.yaml` updated to match Story status
+   - [ ] Both files committed together: `git commit -m "chore: update story status [Story-ID]"`
+
+   See full checklist: `.bmad-core/checklists/story-status-sync-checklist.md`
+
+7. **Dependencies, Build & Configuration:**
 
    [[LLM: Build issues block everyone. Ensure everything compiles and runs cleanly]]
    - [ ] Project builds successfully without errors.
@@ -72,7 +82,7 @@ The goal is quality delivery, not just checking boxes.]]
    - [ ] No known security vulnerabilities introduced by newly added and approved dependencies.
    - [ ] If new environment variables or configurations were introduced by the story, they are documented and handled securely.
 
-7. **Documentation (If Applicable):**
+8. **Documentation (If Applicable):**
 
    [[LLM: Good documentation prevents future confusion. What needs explaining?]]
    - [ ] Relevant inline code documentation (e.g., JSDoc, TSDoc, Python docstrings) for new public APIs or complex logic is complete.

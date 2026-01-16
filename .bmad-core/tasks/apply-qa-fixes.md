@@ -104,10 +104,29 @@ CRITICAL: Dev agent is ONLY authorized to update these sections of the story fil
 
 Status Rule:
 
-- If gate was PASS and all identified gaps are closed → set `Status: Ready for Done`
-- Otherwise → set `Status: Ready for Review` and notify QA to re-run the review
+- If gate was PASS and all identified gaps are closed → set `Status: done`
+- Otherwise → set `Status: ready-for-review` and notify QA to re-run the review
 
-### 6) Do NOT Edit Gate Files
+**IMPORTANT**: Use kebab-case for status values (e.g., `ready-for-review`, `done`, `in-progress`)
+
+### 6) Sync Status to Project YAML ⚠️ CRITICAL (BMad Issue #1015 Fix)
+
+After updating the Story file Status, you MUST also update the project status YAML:
+
+- Open `.bmad-core/data/canvas-project-status.yaml`
+- Find the story entry by `story_id`
+- Update `status` field to match the new Story status
+- Update `updated` timestamp
+
+```powershell
+# Commit both files together
+git add "docs/stories/{story_id}.story.md" ".bmad-core/data/canvas-project-status.yaml"
+git commit -m "chore: update story status [{story_id}] → {new_status}"
+```
+
+See checklist: `.bmad-core/checklists/story-status-sync-checklist.md`
+
+### 7) Do NOT Edit Gate Files
 
 - Dev does not modify gate YAML. If fixes address issues, request QA to re-run `review-story` to update the gate
 
