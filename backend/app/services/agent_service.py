@@ -2214,8 +2214,9 @@ class AgentService:
                 "color_action": color_action,  # Story 2.8: Pass color_action to frontend
             })
 
-            # Record learning episode
-            await self.record_learning_episode(
+            # Record learning episode (Story 30.4: fire-and-forget pattern)
+            await self._trigger_memory_write(
+                agent_type="scoring-agent",
                 canvas_name=canvas_name,
                 node_id=node_id,
                 concept=content[:50] if content else "Unknown",
@@ -2402,7 +2403,7 @@ class AgentService:
                 if is_yellow_node:
                     # ✅ FIX-4.5: 当前节点是黄色理解节点
                     # 将当前节点内容作为 user_understanding，从邻接节点获取教材内容
-                    logger.info(f"[FIX-4.5] Yellow node detected! content will be treated as user_understanding")
+                    logger.info("[FIX-4.5] Yellow node detected! content will be treated as user_understanding")
                     user_understandings = [content]  # 黄色节点内容作为用户理解
 
                     # 从邻接节点中查找教材内容（非黄色节点）
@@ -2415,7 +2416,7 @@ class AgentService:
                             content = "\n\n---\n\n".join(material_texts)
                             logger.info(f"[FIX-4.5] Replaced content with {len(adjacent_content_nodes)} adjacent teaching nodes ({len(content)} chars)")
                         else:
-                            logger.warning(f"[FIX-4.5] Adjacent nodes found but no text content")
+                            logger.warning("[FIX-4.5] Adjacent nodes found but no text content")
                     else:
                         logger.warning(f"[FIX-4.5] No adjacent content nodes found for yellow node {node_id}")
                 else:
@@ -2787,6 +2788,156 @@ class AgentService:
             return False
 
     # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 30.4: Agent Memory Write Trigger Mechanism
+    # [Source: docs/stories/30.4.story.md]
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def _trigger_memory_write(
+        self,
+        agent_type: str,
+        canvas_name: str,
+        node_id: str,
+        concept: str,
+        user_understanding: Optional[str] = None,
+        score: Optional[float] = None,
+        agent_feedback: Optional[str] = None
+    ) -> None:
+        """
+        Fire-and-forget memory write trigger for post-agent execution.
+
+        This method implements async non-blocking memory write with:
+        - AC-30.4.2: asyncio.create_task() for fire-and-forget pattern
+        - AC-30.4.3: Silent degradation on failure (log error but don't raise)
+        - 500ms timeout protection to prevent hanging
+
+        The method wraps record_learning_episode() and fires it asynchronously
+        so the agent response can return immediately.
+
+        Args:
+            agent_type: Name of the agent that completed (e.g., "scoring-agent")
+            canvas_name: Canvas file name
+            node_id: Node ID that was processed
+            concept: Concept name or summary
+            user_understanding: Optional user's understanding text
+            score: Optional score from scoring agent
+            agent_feedback: Optional feedback from agent
+
+        Returns:
+            None (fire-and-forget, no return value)
+
+        [Source: docs/stories/30.4.story.md#Task-2-3-4]
+        [Source: docs/architecture/decisions/0004-async-execution-engine.md]
+        """
+        from app.core.agent_memory_mapping import get_memory_type_for_agent
+
+        # AC-30.4.4: Check if this agent has memory write enabled
+        memory_type = get_memory_type_for_agent(agent_type)
+        if memory_type is None:
+            logger.debug(f"[Story 30.4] Agent {agent_type} not in memory mapping, skipping")
+            return
+
+        # AC-30.4.2: Fire-and-forget async pattern
+        async def _write_with_timeout():
+            """Inner coroutine with timeout protection."""
+            try:
+                # 500ms timeout to prevent hanging
+                await asyncio.wait_for(
+                    self.record_learning_episode(
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                        concept=concept,
+                        user_understanding=user_understanding,
+                        score=score,
+                        agent_feedback=agent_feedback
+                    ),
+                    timeout=0.5  # 500ms timeout per ADR-0004
+                )
+                logger.debug(
+                    f"[Story 30.4] Memory write completed for {agent_type}",
+                    extra={"agent_type": agent_type, "memory_type": memory_type.value}
+                )
+            except asyncio.TimeoutError:
+                # AC-30.4.3: Silent degradation - log but don't raise
+                logger.warning(
+                    f"[Story 30.4] Memory write timeout for {agent_type}",
+                    extra={"agent_type": agent_type, "timeout_ms": 500}
+                )
+            except Exception as e:
+                # AC-30.4.3: Silent degradation - log but don't raise
+                logger.error(
+                    f"[Story 30.4] Memory write failed for {agent_type}: {e}",
+                    extra={"agent_type": agent_type, "error": str(e)[:200]}
+                )
+
+        # Fire-and-forget: create task but don't await it
+        try:
+            asyncio.create_task(_write_with_timeout())
+            logger.debug(f"[Story 30.4] Memory write task created for {agent_type}")
+        except Exception as e:
+            # Even task creation failure should be silent
+            logger.error(f"[Story 30.4] Failed to create memory write task: {e}")
+
+    def trigger_memory_write_sync(
+        self,
+        agent_type: str,
+        canvas_name: str,
+        node_id: str,
+        concept: str,
+        user_understanding: Optional[str] = None,
+        score: Optional[float] = None,
+        agent_feedback: Optional[str] = None
+    ) -> None:
+        """
+        Synchronous wrapper for triggering memory write.
+
+        This method can be called from non-async contexts to trigger
+        a fire-and-forget memory write. It schedules the async task
+        on the current event loop.
+
+        Args:
+            agent_type: Name of the agent that completed
+            canvas_name: Canvas file name
+            node_id: Node ID that was processed
+            concept: Concept name or summary
+            user_understanding: Optional user's understanding text
+            score: Optional score from scoring agent
+            agent_feedback: Optional feedback from agent
+
+        [Source: docs/stories/30.4.story.md#Task-2]
+        """
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Schedule in running loop
+                asyncio.ensure_future(
+                    self._trigger_memory_write(
+                        agent_type=agent_type,
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                        concept=concept,
+                        user_understanding=user_understanding,
+                        score=score,
+                        agent_feedback=agent_feedback
+                    )
+                )
+            else:
+                # Create new loop if none running
+                loop.run_until_complete(
+                    self._trigger_memory_write(
+                        agent_type=agent_type,
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                        concept=concept,
+                        user_understanding=user_understanding,
+                        score=score,
+                        agent_feedback=agent_feedback
+                    )
+                )
+        except Exception as e:
+            # Silent degradation
+            logger.error(f"[Story 30.4] Sync memory trigger failed: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════════
     # Story 21.5.4: AI Connection Health Check
     # [Source: docs/stories/21.5.4.story.md]
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -3062,8 +3213,9 @@ class AgentService:
             if created_nodes:
                 await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
 
-            # AC3c: Record learning episode
-            await self.record_learning_episode(
+            # AC3c: Record learning episode (Story 30.4: fire-and-forget pattern)
+            await self._trigger_memory_write(
+                agent_type="verification-question-agent",
                 canvas_name=canvas_name,
                 node_id=node_id,
                 concept=content[:50] if content else "Unknown",
@@ -3216,8 +3368,9 @@ class AgentService:
             if created_nodes:
                 await self._write_nodes_to_canvas(canvas_name, created_nodes, created_edges)
 
-            # AC3c: Record learning episode
-            await self.record_learning_episode(
+            # AC3c: Record learning episode (Story 30.4: fire-and-forget pattern)
+            await self._trigger_memory_write(
+                agent_type="question-decomposition",
                 canvas_name=canvas_name,
                 node_id=node_id,
                 concept=topic or content[:50] if content else "Unknown",
