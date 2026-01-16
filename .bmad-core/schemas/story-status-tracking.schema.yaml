@@ -1,0 +1,123 @@
+# Story Status Tracking Schema
+# Part of BMad Issue #1015 Fix - Phase 3.1
+# Created: 2026-01-17
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "story-status-tracking.schema.yaml"
+title: "Story Status Tracking Schema"
+description: |
+  Schema for tracking individual story statuses in canvas-project-status.yaml.
+  Ensures consistency between Story files and project tracking YAML.
+
+  This schema extends the existing parallel_development.status_definitions
+  to provide a dedicated section for all story statuses.
+
+definitions:
+  # Standard status values (kebab-case)
+  story_status:
+    type: string
+    enum:
+      - draft          # Story being written by SM
+      - approved       # PO approved, ready for dev
+      - ready-for-dev  # Assigned to sprint, ready to start
+      - in-progress    # Active development
+      - dev-complete   # Development done, tests passed
+      - ready-for-review  # Submitted for QA review
+      - in-review      # QA actively reviewing
+      - done           # QA approved, merged
+      - blocked        # Waiting on dependency
+      - deferred       # Moved to future sprint
+    description: "Story status using kebab-case format"
+
+  story_entry:
+    type: object
+    required:
+      - status
+    properties:
+      status:
+        $ref: "#/definitions/story_status"
+      last_updated:
+        type: string
+        format: date-time
+        description: "ISO-8601 timestamp of last status change"
+      updated_by:
+        type: string
+        description: "Agent or person who updated status (e.g., dev-agent, qa-agent)"
+      branch:
+        type: string
+        description: "Git branch name if using worktree"
+      qa_date:
+        type: string
+        format: date
+        description: "Date of QA review if applicable"
+      qa_result:
+        type: string
+        description: "QA gate result (PASS/CONCERNS/FAIL)"
+      notes:
+        type: string
+        description: "Optional notes about status"
+
+# Main schema for story_statuses section
+type: object
+properties:
+  story_statuses:
+    type: object
+    description: |
+      Map of story ID to status entry.
+      Key format: "{epic_id}.{story_number}" (e.g., "30.4", "12.E.1")
+    additionalProperties:
+      $ref: "#/definitions/story_entry"
+    examples:
+      "30.1":
+        status: done
+        last_updated: "2026-01-17T10:00:00Z"
+        updated_by: dev-agent
+      "30.4":
+        status: in-progress
+        last_updated: "2026-01-16T15:30:00Z"
+        updated_by: dev-agent
+        notes: "75% complete - 3/14 agents integrated"
+      "30.7":
+        status: done
+        last_updated: "2026-01-17T09:00:00Z"
+        updated_by: dev-agent
+        qa_date: "2026-01-17"
+        qa_result: "PASS"
+
+# Validation rules
+additionalProperties: true  # Allow other sections in YAML
+
+# Usage instructions
+$comment: |
+  ## How to Use
+
+  Add a `story_statuses` section to canvas-project-status.yaml:
+
+  ```yaml
+  story_statuses:
+    "30.1":
+      status: done
+      last_updated: "2026-01-17T10:00:00Z"
+      updated_by: dev-agent
+    "30.4":
+      status: in-progress
+      last_updated: "2026-01-16T15:30:00Z"
+      updated_by: dev-agent
+  ```
+
+  ## Sync Workflow
+
+  1. When updating Story file Status → also update story_statuses section
+  2. Use validate-story-status-sync.ps1 to check consistency
+  3. Both files should be committed together
+
+  ## Status Mapping
+
+  | Story File Status | YAML story_statuses |
+  |-------------------|---------------------|
+  | Draft             | draft               |
+  | Approved          | approved            |
+  | Ready for Dev     | ready-for-dev       |
+  | In Progress       | in-progress         |
+  | Ready for Review  | ready-for-review    |
+  | Done / Complete   | done                |

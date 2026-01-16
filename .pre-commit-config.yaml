@@ -22,6 +22,21 @@ repos:
         # Note: Epic 1-20 stories are skipped (legacy data)
         # Epic 21+ stories MUST have status >= Review to commit
 
+      # Story Status YAML Sync Validation (BMad Issue #1015 Fix)
+      # Reference: .bmad-core/schemas/story-status-tracking.schema.yaml
+      - id: validate-story-status-yaml-sync
+        name: Validate Story Status YAML Sync
+        description: Ensure Story file status matches canvas-project-status.yaml
+        entry: python -X utf8 scripts/validate-story-status-yaml-sync.py
+        language: python
+        files: ^docs/stories/.*\.md$
+        pass_filenames: false
+        stages: [pre-commit]
+        verbose: true
+        # Note: This hook warns (but does not block) when Story files are committed
+        # without corresponding updates to canvas-project-status.yaml story_statuses section.
+        # To fix: also stage .bmad-core/data/canvas-project-status.yaml
+
       # PRD-Spec Drift Detection
       - id: check-prd-spec-sync
         name: Check PRD-Spec Synchronization
