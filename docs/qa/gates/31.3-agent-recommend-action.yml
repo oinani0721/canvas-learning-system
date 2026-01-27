@@ -1,0 +1,108 @@
+schema: 1
+story: '31.3'
+story_title: 'Agent决策推荐端点'
+gate: PASS
+status_reason: 'All ACs complete. Backend 29/29 tests passing. Frontend SCORE_THRESHOLDS fixed to 60/80 scale (2026-01-21).'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-01-21T07:56:00Z'
+
+top_issues:
+  - severity: low
+    description: 'Missing frontend tests for ApiClient.recommendAction() (non-blocking)'
+    file: 'canvas-progress-tracker/obsidian-plugin/tests/views/ScoringResultPanel.test.ts'
+    suggested_owner: dev
+
+resolved_issues:
+  - description: 'Frontend SCORE_THRESHOLDS mismatch (24/32 vs 60/80)'
+    file: 'canvas-progress-tracker/obsidian-plugin/src/views/ScoringResultPanel.ts'
+    resolution: 'Fixed by QA 2026-01-21 - updated to 60/80 scale'
+
+waiver:
+  active: false
+
+quality_score: 90  # 100 - (0*FAILs=0) - (1*LOW_CONCERN=10) = 90
+expires: '2026-02-04T07:50:00Z'
+
+evidence:
+  tests_reviewed: 29
+  risks_identified: 1
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]  # All ACs now covered
+    ac_gaps: []  # No gaps - AC-31.3.5 fixed 2026-01-21
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'Input validation via Pydantic, score bounds 0-100, no sensitive data exposure'
+  performance:
+    status: PASS
+    notes: 'Non-blocking history lookup with graceful degradation'
+  reliability:
+    status: PASS
+    notes: 'Exception handling with fallback for history query failures'
+  maintainability:
+    status: PASS
+    notes: 'Frontend/backend threshold values synchronized at 60/80 (fixed 2026-01-21)'
+
+recommendations:
+  immediate:
+    - action: 'Add frontend test for ApiClient.recommendAction() (optional enhancement)'
+      refs: ['canvas-progress-tracker/obsidian-plugin/tests/views/ScoringResultPanel.test.ts']
+  completed:
+    - action: 'Update ScoringResultPanel.ts SCORE_THRESHOLDS to 60/80 scale'
+      refs: ['canvas-progress-tracker/obsidian-plugin/src/views/ScoringResultPanel.ts:54-58']
+      completed_date: '2026-01-21'
+  future:
+    - action: 'Consider removing frontend hardcoded thresholds entirely in favor of API response'
+      refs: ['ScoringResultPanel.ts', 'AC-31.3.5']
+    - action: 'Add tenacity retry decorator per ADR-009'
+      refs: ['backend/app/api/v1/endpoints/agents.py:1778']
+
+# Detailed AC Traceability
+ac_validation:
+  AC-31.3.1:
+    status: PASS
+    test_coverage:
+      - 'test_basic_request_low_score'
+      - 'test_basic_request_medium_score'
+      - 'test_basic_request_high_score'
+    implementation:
+      - 'agents.py:1761-1778 (@agents_router.post /recommend-action)'
+  AC-31.3.2:
+    status: PASS
+    test_coverage:
+      - 'test_request_validation_valid'
+      - 'test_request_validation_score_bounds'
+    implementation:
+      - 'schemas.py:1003-1034 (RecommendActionRequest)'
+      - 'recommend-action-request.schema.json'
+  AC-31.3.3:
+    status: PASS
+    test_coverage:
+      - 'test_low_score_recommends_decompose'
+      - 'test_medium_score_recommends_explain'
+      - 'test_high_score_recommends_next'
+      - 'test_boundary_59_recommends_decompose'
+      - 'test_boundary_60_recommends_explain'
+      - 'test_boundary_80_recommends_next'
+    implementation:
+      - 'agents.py:1699-1758 (_recommend_action_from_score)'
+  AC-31.3.4:
+    status: PASS
+    test_coverage:
+      - 'test_with_history_context'
+      - 'test_review_suggested_for_declining_trend'
+      - 'test_consecutive_low_scores_adds_alternatives'
+      - 'test_improving_trend'
+      - 'test_declining_trend'
+    implementation:
+      - 'agents.py:1670-1696 (_calculate_trend)'
+      - 'agents.py:1817-1857 (history query in recommend_action)'
+  AC-31.3.5:
+    status: PASS
+    test_coverage: []
+    implementation:
+      - 'ApiClient.ts:473-475 (recommendAction method exists)'
+      - 'ScoringResultPanel.ts:193-211 (calls API with correct fallback thresholds)'
+      - 'ScoringResultPanel.ts:54-58 (SCORE_THRESHOLDS 60/80 - fixed 2026-01-21)'
+    notes: 'Frontend integration complete. Optional: add frontend unit tests.'

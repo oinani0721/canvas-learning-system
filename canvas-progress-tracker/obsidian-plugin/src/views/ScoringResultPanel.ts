@@ -16,7 +16,7 @@
 
 import { App, Modal, Notice } from 'obsidian';
 import { ApiClient } from '../api/ApiClient';
-import { NodeScore } from '../api/types';
+import { NodeScore, RecommendActionResponse } from '../api/types';
 
 /**
  * Scoring result with node context
@@ -48,13 +48,17 @@ export interface ScoringResultCallbacks {
 }
 
 /**
- * Score thresholds for decision logic
- * [Source: PRD F2 - 4-dimension scoring system]
+ * Score thresholds for decision logic (0-100 scale)
+ * [Source: specs/data/scoring-response.schema.json]
+ * [Source: Story 31.3 - AC-31.3.3, AC-31.3.5]
+ *
+ * Note: These thresholds are used as fallback when API recommendation fails.
+ * Primary recommendation comes from POST /agents/recommend-action endpoint.
  */
 const SCORE_THRESHOLDS = {
-    LOW: 24,      // Total score < 24 = Red (need decomposition)
-    MEDIUM: 32,   // Total score 24-31 = Yellow (need clarification)
-    HIGH: 32,     // Total score >= 32 = Green (mastered)
+    LOW: 60,      // Total score < 60 = Red (need decomposition)
+    MEDIUM: 80,   // Total score 60-79 = Yellow (need clarification)
+    HIGH: 80,     // Total score >= 80 = Green (mastered)
 };
 
 /**
@@ -158,6 +162,8 @@ export class ScoringResultPanel extends Modal {
     private apiClient: ApiClient;
     private callbacks: ScoringResultCallbacks;
     private isProcessing: boolean = false;
+    /** Story 31.3: Cached API recommendations keyed by nodeId */
+    private apiRecommendations: Map<string, RecommendActionResponse> = new Map();
 
     /**
      * Creates a new ScoringResultPanel
@@ -181,6 +187,100 @@ export class ScoringResultPanel extends Modal {
     }
 
     /**
+     * Story 31.3: Fetch intelligent action recommendation from API
+     *
+     * @param result - Current scoring result item
+     * @returns API recommendation or undefined on failure
+     */
+    private async fetchRecommendation(result: ScoringResultItem): Promise<RecommendActionResponse | undefined> {
+        // Check cache first
+        if (this.apiRecommendations.has(result.nodeId)) {
+            return this.apiRecommendations.get(result.nodeId);
+        }
+
+        try {
+            const recommendation = await this.apiClient.recommendAction({
+                score: result.score.total,
+                node_id: result.nodeId,
+                canvas_name: result.canvasName,
+                include_history: true,
+            });
+
+            // Cache the result
+            this.apiRecommendations.set(result.nodeId, recommendation);
+            return recommendation;
+        } catch (error) {
+            console.warn('[Story 31.3] Failed to fetch recommendation, using fallback:', error);
+            return undefined;
+        }
+    }
+
+    /**
+     * Story 31.3: Convert API recommendation to AgentSuggestion format
+     *
+     * @param recommendation - API recommendation response
+     * @returns Array of agent suggestions
+     */
+    private convertRecommendationToSuggestions(recommendation: RecommendActionResponse): AgentSuggestion[] {
+        const suggestions: AgentSuggestion[] = [];
+
+        // Primary recommendation
+        const actionMap: Record<string, { label: string; emoji: string; description: string }> = {
+            'decompose': {
+                label: '进一步拆解',
+                emoji: '🔍',
+                description: recommendation.reason,
+            },
+            'explain': {
+                label: '补充解释',
+                emoji: '💡',
+                description: recommendation.reason,
+            },
+            'next': {
+                label: '继续下一个',
+                emoji: '✅',
+                description: recommendation.reason,
+            },
+        };
+
+        const primaryAction = actionMap[recommendation.action];
+        if (primaryAction) {
+            suggestions.push({
+                action: recommendation.action as AgentSuggestion['action'],
+                ...primaryAction,
+            });
+        }
+
+        // Add alternatives from API
+        if (recommendation.alternative_agents) {
+            for (const alt of recommendation.alternative_agents) {
+                // Map agent endpoint to action type
+                const altAction = alt.agent.includes('memory') ? 'memory-anchor' :
+                                 alt.agent.includes('clarify') ? 'clarify' :
+                                 alt.agent.includes('explain') ? 'explain' : 'explain';
+                suggestions.push({
+                    action: altAction,
+                    label: altAction === 'memory-anchor' ? '记忆锚点' : '补充解释',
+                    emoji: altAction === 'memory-anchor' ? '⚓' : '💡',
+                    description: alt.reason,
+                });
+            }
+        }
+
+        // Add review suggestion if needed
+        if (recommendation.review_suggested && !suggestions.some(s => s.action === 'explain')) {
+            suggestions.push({
+                action: 'explain',
+                label: '建议复习',
+                emoji: '📖',
+                description: '历史成绩显示需要加强复习',
+            });
+        }
+
+        return suggestions;
+    }
+
+    /**
      * Called when the modal is opened
      */
     onOpen(): void {
@@ -188,7 +288,10 @@ export class ScoringResultPanel extends Modal {
         contentEl.empty();
         contentEl.addClass('scoring-result-panel');
 
-        this.renderCurrentResult();
+        // Story 31.3: renderCurrentResult is now async, handle promise
+        this.renderCurrentResult().catch(error => {
+            console.error('[ScoringResultPanel] Failed to render:', error);
+        });
     }
 
     /**
@@ -202,8 +305,9 @@ export class ScoringResultPanel extends Modal {
 
     /**
      * Render current result
+     * Story 31.3: Now fetches intelligent recommendations from API
      */
-    private renderCurrentResult(): void {
+    private async renderCurrentResult(): Promise<void> {
         const { contentEl } = this;
         contentEl.empty();
 
@@ -213,7 +317,18 @@ export class ScoringResultPanel extends Modal {
         }
 
         const result = this.results[this.currentIndex];
-        const suggestions = getSuggestionsForScore(result.score.total);
+
+        // Story 31.3: Try to get API recommendations, fall back to score-based logic
+        let suggestions: AgentSuggestion[];
+        const recommendation = await this.fetchRecommendation(result);
+
+        if (recommendation) {
+            suggestions = this.convertRecommendationToSuggestions(recommendation);
+            console.log('[Story 31.3] Using API recommendation:', recommendation.action);
+        } else {
+            suggestions = getSuggestionsForScore(result.score.total);
+            console.log('[Story 31.3] Using fallback suggestions');
+        }
 
         // Header
         this.renderHeader(result);
@@ -368,7 +483,8 @@ export class ScoringResultPanel extends Modal {
             });
             prevBtn.addEventListener('click', () => {
                 this.currentIndex--;
-                this.renderCurrentResult();
+                // Story 31.3: Handle async render
+                this.renderCurrentResult().catch(e => console.error('[ScoringResultPanel] Nav error:', e));
             });
         }
 
@@ -380,7 +496,8 @@ export class ScoringResultPanel extends Modal {
             });
             nextBtn.addEventListener('click', () => {
                 this.currentIndex++;
-                this.renderCurrentResult();
+                // Story 31.3: Handle async render
+                this.renderCurrentResult().catch(e => console.error('[ScoringResultPanel] Nav error:', e));
             });
         }
     }
@@ -403,7 +520,7 @@ export class ScoringResultPanel extends Modal {
                 // Move to next node or close
                 if (this.currentIndex < this.results.length - 1) {
                     this.currentIndex++;
-                    this.renderCurrentResult();
+                    await this.renderCurrentResult();
                 } else {
                     new Notice('所有节点已完成评分！');
                     this.close();
@@ -456,7 +573,7 @@ export class ScoringResultPanel extends Modal {
             // Move to next or close
             if (this.currentIndex < this.results.length - 1) {
                 this.currentIndex++;
-                this.renderCurrentResult();
+                await this.renderCurrentResult();
             } else {
                 this.close();
             }
