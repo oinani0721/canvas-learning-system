@@ -11,7 +11,7 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 
 # ✅ Verified from Context7:/pydantic/pydantic (topic: BaseModel, Field)
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class OperationTypeEnum(str, Enum):
@@ -70,8 +70,8 @@ class OperationResponse(BaseModel):
         default_factory=OperationMetadataResponse, description="操作元数据"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "550e8400-e29b-41d4-a716-446655440000",
                 "type": "node_add",
@@ -91,6 +91,7 @@ class OperationResponse(BaseModel):
                 },
             }
         }
+    )
 
 
 class OperationHistoryResponse(BaseModel):
@@ -107,8 +108,8 @@ class OperationHistoryResponse(BaseModel):
         default_factory=list, description="操作历史列表 (按时间倒序)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "canvas_path": "离散数学.canvas",
                 "total": 25,
@@ -136,6 +137,7 @@ class OperationHistoryResponse(BaseModel):
                 ],
             }
         }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

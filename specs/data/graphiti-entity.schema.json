@@ -2,15 +2,16 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/graphiti-entity.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T19:15:00Z",
+    "verified_at": "2026-01-17T00:00:00Z",
     "sources": [
       {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
       {"type": "context7", "library_id": "/getzep/graphiti", "topic": "entity node structure"},
-      {"type": "prd", "section": "FR2", "epic": "Epic 12"}
+      {"type": "prd", "section": "FR2", "epic": "Epic 12"},
+      {"type": "story", "section": "Task-6.1", "story": "30.8"}
     ]
   },
   "title": "Graphiti知识图谱实体",
-  "description": "Graphiti知识图谱中的实体节点定义 (Epic 12). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
+  "description": "Graphiti知识图谱中的实体节点定义 (Epic 12, Story 30.8). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "uuid": {
@@ -26,6 +27,13 @@
       "type": "string",
       "enum": ["concept", "canvas", "node", "document", "user"],
       "description": "实体类型"
+    },
+    "group_id": {
+      "type": "string",
+      "description": "命名空间隔离ID，用于多学科隔离 (AC-30.8.1). 格式: {subject} 或 {subject}:{canvas_name}. 支持Unicode字符(中文等)",
+      "pattern": "^[\\w]+(:[\\w]+)?$",
+      "x-story": "30.8",
+      "examples": ["数学", "math", "托福_listening", "物理:力学"]
     },
     "summary": {
       "type": "string",

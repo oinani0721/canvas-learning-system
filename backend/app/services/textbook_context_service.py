@@ -10,9 +10,9 @@ textbook Canvas files and searches for relevant content.
 [Source: docs/prd/sprint-change-proposal-20251208.md - Phase 3]
 """
 
+import asyncio
 import json
 import logging
-import asyncio
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional

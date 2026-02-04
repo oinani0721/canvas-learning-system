@@ -1,0 +1,65 @@
+schema: 1
+story: '32.7'
+story_title: 'OpenAPI规范更新'
+gate: PASS
+status_reason: '所有5个AC已验证通过：FSRS端点、Schema、响应格式均已正确添加到fastapi-backend-api.openapi.yml'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-01-30T21:45:00Z'
+
+history:
+  - at: '2026-01-26T23:35:00Z'
+    gate: PASS
+    note: '初次审查 - 所有AC验证通过'
+  - at: '2026-01-30T21:45:00Z'
+    gate: PASS
+    note: '二次验证审查 - 确认实现完整性'
+
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-02-09T23:35:00Z'
+
+evidence:
+  tests_reviewed: 0  # 纯文档更新，无测试代码
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5]
+    ac_gaps: []
+
+ac_verification:
+  AC-32.7.1:
+    status: PASS
+    evidence: "GET /api/v1/review/fsrs-state/{concept_id} 端点已添加 (L1039-1067)"
+  AC-32.7.2:
+    status: PASS
+    evidence: "Memory API subject参数已存在 (L414-420, L549-555) - Story 30.8实现"
+  AC-32.7.3:
+    status: PASS
+    evidence: "FSRSCardState (L2144-2189) 和 FSRSRating (L2191-2199) Schema已添加"
+  AC-32.7.4:
+    status: PASS
+    evidence: "RecordReviewResponse 已添加 fsrs_state 字段 (L2137-2139)，端点描述已更新 (L1018-1021)"
+  AC-32.7.5:
+    status: PASS
+    evidence: "YAML语法验证通过，所有$ref引用可解析，operationId唯一"
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: 'OpenAPI规范更新不涉及安全相关代码'
+  performance:
+    status: PASS
+    notes: 'OpenAPI规范更新不影响性能'
+  reliability:
+    status: PASS
+    notes: 'Schema定义符合fsrs-card.schema.json规范'
+  maintainability:
+    status: PASS
+    notes: '代码组织清晰，有注释分隔，引用现有Schema定义'
+
+recommendations:
+  immediate: []
+  future:
+    - action: '考虑使用schemathesis进行契约测试验证实际API响应符合Schema'
+      refs: ['specs/api/fastapi-backend-api.openapi.yml']

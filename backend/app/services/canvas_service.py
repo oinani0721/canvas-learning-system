@@ -5,20 +5,40 @@ Canvas Service - Business logic for Canvas operations.
 This service provides async methods for Canvas file operations,
 wrapping the core canvas_utils.py functionality with async support.
 
+Story 30.5: Canvas CRUD Operations Memory Trigger
+- AC-30.5.1: node_created event on node creation
+- AC-30.5.2: edge_created event on edge creation
+- AC-30.5.3: node_updated event on node update
+
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
+[Source: docs/stories/30.5.story.md]
 """
+from __future__ import annotations
+
 import asyncio
 import json
 import logging
+import time
 import uuid
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from app.core.exceptions import (
     CanvasNotFoundException,
     NodeNotFoundException,
     ValidationError,
 )
+from app.models.canvas_events import CanvasEventContext, CanvasEventType
+
+if TYPE_CHECKING:
+    from app.services.memory_service import MemoryService
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +53,22 @@ class CanvasService:
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
     """
 
-    def __init__(self, canvas_base_path: str = None):
+    def __init__(
+        self,
+        canvas_base_path: str = None,
+        memory_client: Optional[MemoryService] = None,
+        session_id: Optional[str] = None
+    ):
         """
         Initialize CanvasService.
 
         Args:
             canvas_base_path: Base path for Canvas files (positional or keyword)
+            memory_client: Optional MemoryService for temporal event storage (Story 30.5)
+            session_id: Optional session ID for event tracking (defaults to generated UUID)
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
+        [Source: docs/stories/30.5.story.md#Task-2.1]
         """
         self.canvas_base_path = canvas_base_path or "./"
         self._initialized = True
@@ -48,6 +76,11 @@ class CanvasService:
         # Per-canvas locks prevent race conditions during concurrent writes
         self._write_locks: Dict[str, asyncio.Lock] = {}
         self._locks_lock = asyncio.Lock()  # Protects _write_locks dictionary
+
+        # Story 30.5: Memory client for temporal event triggers
+        self._memory_client: Optional[MemoryService] = memory_client
+        self._session_id = session_id or str(uuid.uuid4())
+
         logger.debug(f"CanvasService initialized with base_path: {canvas_base_path}")
 
     def _validate_canvas_name(self, canvas_name: str) -> None:
@@ -109,6 +142,284 @@ class CanvasService:
                 self._write_locks[canvas_name] = asyncio.Lock()
                 logger.debug(f"Created new write lock for canvas: {canvas_name}")
             return self._write_locks[canvas_name]
+
+    async def _trigger_memory_event(
+        self,
+        event_type: CanvasEventType,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        edge_id: Optional[str] = None,
+        node_data: Optional[Dict[str, Any]] = None,
+        edge_data: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Trigger memory event asynchronously (fire-and-forget).
+
+        Story 30.5: Non-blocking memory write pattern.
+        Uses asyncio.create_task() for fire-and-forget execution.
+        Does NOT block the CRUD operation waiting for memory write.
+
+        Args:
+            event_type: Canvas event type (node_created, node_updated, edge_created)
+            canvas_name: Canvas name (without .canvas extension)
+            node_id: Node ID (for node events)
+            edge_id: Edge ID (for edge events)
+            node_data: Node data dictionary (for metadata extraction)
+            edge_data: Edge data dictionary (for metadata extraction)
+
+        [Source: ADR-0004 - asyncio.create_task for fire-and-forget]
+        [Source: docs/stories/30.5.story.md#Task-2.2]
+        """
+        if self._memory_client is None:
+            logger.debug("Memory client not configured, skipping event trigger")
+            return
+
+        try:
+            # Build context for metadata extraction
+            context = CanvasEventContext(
+                canvas_name=canvas_name,
+                node_id=node_id,
+                edge_id=edge_id,
+                node_data=node_data,
+                edge_data=edge_data
+            )
+
+            # Fire-and-forget with timeout protection (ADR-0003: 500ms timeout)
+            asyncio.create_task(
+                asyncio.wait_for(
+                    self._write_memory_event(event_type, context),
+                    timeout=0.5  # 500ms timeout per ADR-0003
+                )
+            )
+            logger.debug(f"Triggered memory event: {event_type.value} for {canvas_name}")
+
+        except Exception as e:
+            # Task 4: Silent degradation - log but don't raise
+            logger.error(
+                f"Memory event trigger failed: {event_type.value} "
+                f"for {canvas_name}: {e}"
+            )
+            # Don't re-raise - CRUD operation should succeed
+
+    async def _write_memory_event(
+        self,
+        event_type: CanvasEventType,
+        context: CanvasEventContext
+    ) -> None:
+        """
+        Write memory event to MemoryService (called by fire-and-forget task).
+
+        Story 30.5: Actual memory write operation.
+
+        Args:
+            event_type: Canvas event type
+            context: Event context with canvas/node/edge info
+
+        [Source: docs/stories/30.5.story.md#Task-3.1]
+        """
+        try:
+            # Build canvas path for storage
+            canvas_path = f"{context.canvas_name}.canvas"
+
+            # Extract metadata from context
+            metadata = context.to_metadata()
+
+            # Call MemoryService to record the temporal event
+            await self._memory_client.record_temporal_event(
+                event_type=event_type.value,
+                session_id=self._session_id,
+                canvas_path=canvas_path,
+                node_id=context.node_id,
+                edge_id=context.edge_id,
+                metadata=metadata
+            )
+
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"Memory write timed out for {event_type.value}: {context.canvas_name}"
+            )
+        except Exception as e:
+            # Task 4: Silent degradation
+            logger.error(
+                f"Memory write failed for {event_type.value}: "
+                f"{context.canvas_name}: {e}"
+            )
+
+    async def _sync_edge_to_neo4j(
+        self,
+        canvas_path: str,
+        edge_id: str,
+        from_node_id: str,
+        to_node_id: str,
+        edge_label: Optional[str] = None
+    ) -> Optional[bool]:
+        """
+        Sync edge to Neo4j with retry mechanism (fire-and-forget).
+
+        Story 36.3: Canvas Edge automatic sync to Neo4j.
+        - AC-1: Triggered after add_edge() completes successfully
+        - AC-2: Fire-and-forget pattern - Canvas operation returns immediately
+        - AC-3: Retry mechanism with 3 attempts, exponential backoff (1s, 2s, 4s)
+        - AC-5: Creates CONNECTS_TO relationship in Neo4j with edge metadata
+
+        Args:
+            canvas_path: Canvas file path (e.g., "笔记库/离散数学.canvas")
+            edge_id: Edge unique identifier
+            from_node_id: Source node ID
+            to_node_id: Target node ID
+            edge_label: Optional edge label
+
+        Returns:
+            True if sync successful, False if skipped, None if failed after retries
+
+        [Source: docs/stories/36.3.story.md#Task-1]
+        [Source: ADR-009 - tenacity retry with exponential backoff]
+        """
+        if self._memory_client is None:
+            logger.debug("Memory client not configured, skipping edge sync to Neo4j")
+            return False
+
+        # Access Neo4jClient through MemoryService
+        neo4j = self._memory_client.neo4j
+        if neo4j is None:
+            logger.debug("Neo4j client not available in memory_client")
+            return False
+
+        # Inner function with retry decorator
+        @retry(
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=1, max=4),
+            retry=retry_if_exception_type(Exception),
+            reraise=True  # We catch RetryError at outer level
+        )
+        async def _do_sync() -> bool:
+            result = await neo4j.create_edge_relationship(
+                canvas_path=canvas_path,
+                edge_id=edge_id,
+                from_node_id=from_node_id,
+                to_node_id=to_node_id,
+                edge_label=edge_label
+            )
+            if not result:
+                raise Exception("Neo4j returned False")
+            return result
+
+        try:
+            result = await _do_sync()
+            logger.debug(
+                f"Edge synced to Neo4j: {edge_id} "
+                f"({from_node_id} -> {to_node_id})"
+            )
+            return result
+        except Exception as e:
+            # AC-4: Silent degradation after all retries exhausted
+            logger.warning(
+                f"Edge sync to Neo4j failed after retries: {edge_id}, "
+                f"error: {type(e).__name__}: {e}"
+            )
+            return None  # Fire-and-forget: don't raise
+
+    async def sync_all_edges_to_neo4j(
+        self,
+        canvas_name: str
+    ) -> Dict[str, Any]:
+        """
+        Sync all Canvas edges to Neo4j (idempotent operation).
+
+        Story 36.4: Canvas打开时全量Edge同步
+        - AC-1: POST /api/v1/canvas/{canvas_path}/sync-edges endpoint
+        - AC-2: Reads all edges from Canvas and syncs each to Neo4j
+        - AC-3: Idempotent - MERGE semantics, no duplicates on repeated calls
+        - AC-4: Returns summary with total, synced, failed counts
+        - AC-5: Async processing - concurrent edge syncs
+        - AC-6: Partial failure handling - single edge failure doesn't block batch
+        - AC-7: Response time < 5s for up to 100 edges
+
+        Args:
+            canvas_name: Canvas file name (without .canvas extension)
+
+        Returns:
+            Dict containing:
+                - canvas_path: str
+                - total_edges: int
+                - synced_count: int
+                - failed_count: int
+                - skipped_count: int
+                - sync_time_ms: float
+
+        [Source: docs/stories/36.4.story.md]
+        [Source: ADR-0003 - MERGE idempotency]
+        [Source: ADR-0004 - asyncio.gather with Semaphore]
+        """
+        start_time = time.time()
+
+        # Read Canvas data using existing method
+        canvas_data = await self.read_canvas(canvas_name)
+        edges = canvas_data.get("edges", [])
+        total_edges = len(edges)
+
+        # Early return for empty Canvas
+        if total_edges == 0:
+            return {
+                "canvas_path": canvas_name,
+                "total_edges": 0,
+                "synced_count": 0,
+                "failed_count": 0,
+                "skipped_count": 0,
+                "sync_time_ms": 0.0
+            }
+
+        # ADR-0004: Semaphore limits concurrent Neo4j connections
+        semaphore = asyncio.Semaphore(12)
+
+        async def sync_single_edge(edge: Dict[str, Any]) -> Optional[bool]:
+            """Sync single edge with concurrency control."""
+            async with semaphore:
+                try:
+                    return await self._sync_edge_to_neo4j(
+                        canvas_path=f"{canvas_name}.canvas",
+                        edge_id=edge["id"],
+                        from_node_id=edge["fromNode"],
+                        to_node_id=edge["toNode"],
+                        edge_label=edge.get("label")
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Edge sync failed in batch: {edge.get('id')}, error: {e}"
+                    )
+                    return None
+
+        # ADR-009: return_exceptions=True for partial failure handling
+        results = await asyncio.gather(
+            *[sync_single_edge(edge) for edge in edges],
+            return_exceptions=True
+        )
+
+        # Calculate statistics
+        synced_count = sum(1 for r in results if r is True)
+        failed_count = sum(
+            1 for r in results
+            if r is None or isinstance(r, Exception)
+        )
+        skipped_count = sum(1 for r in results if r is False)
+
+        elapsed_ms = (time.time() - start_time) * 1000
+
+        logger.info(
+            f"Edge bulk sync completed for {canvas_name}: "
+            f"total={total_edges}, synced={synced_count}, "
+            f"failed={failed_count}, skipped={skipped_count}, "
+            f"time={elapsed_ms:.1f}ms"
+        )
+
+        return {
+            "canvas_path": canvas_name,
+            "total_edges": total_edges,
+            "synced_count": synced_count,
+            "failed_count": failed_count,
+            "skipped_count": skipped_count,
+            "sync_time_ms": elapsed_ms
+        }
 
     async def read_canvas(self, canvas_name: str) -> Dict[str, Any]:
         """
@@ -227,6 +538,7 @@ class CanvasService:
             Added node data with generated ID
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
+        [Source: docs/stories/30.5.story.md#AC-30.5.1]
         """
         logger.debug(f"Adding node to {canvas_name}: {node_data}")
 
@@ -242,6 +554,14 @@ class CanvasService:
 
         canvas_data["nodes"].append(new_node)
         await self.write_canvas(canvas_name, canvas_data)
+
+        # Story 30.5 AC-30.5.1: Trigger node_created memory event (fire-and-forget)
+        await self._trigger_memory_event(
+            event_type=CanvasEventType.NODE_CREATED,
+            canvas_name=canvas_name,
+            node_id=new_node["id"],
+            node_data=new_node
+        )
 
         return new_node
 
@@ -266,6 +586,7 @@ class CanvasService:
             NodeNotFoundException: If node doesn't exist
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
+        [Source: docs/stories/30.5.story.md#AC-30.5.3]
         """
         logger.debug(f"Updating node {node_id} in {canvas_name}")
 
@@ -278,6 +599,15 @@ class CanvasService:
                 updated_node = {**node, **node_data, "id": node_id}
                 canvas_data["nodes"][i] = updated_node
                 await self.write_canvas(canvas_name, canvas_data)
+
+                # Story 30.5 AC-30.5.3: Trigger node_updated memory event (fire-and-forget)
+                await self._trigger_memory_event(
+                    event_type=CanvasEventType.NODE_UPDATED,
+                    canvas_name=canvas_name,
+                    node_id=node_id,
+                    node_data=updated_node
+                )
+
                 return updated_node
 
         raise NodeNotFoundException(f"Node not found: {node_id}")
@@ -350,6 +680,8 @@ class CanvasService:
 
         Returns:
             Added edge data with generated ID
+
+        [Source: docs/stories/30.5.story.md#AC-30.5.2]
         """
         logger.debug(f"Adding edge to {canvas_name}: {edge_data}")
 
@@ -364,6 +696,33 @@ class CanvasService:
         canvas_data["edges"].append(new_edge)
 
         await self.write_canvas(canvas_name, canvas_data)
+
+        # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
+        await self._trigger_memory_event(
+            event_type=CanvasEventType.EDGE_CREATED,
+            canvas_name=canvas_name,
+            edge_id=new_edge["id"],
+            edge_data=new_edge
+        )
+
+        # Story 36.3: Fire-and-forget Neo4j edge sync
+        # AC-2: Canvas operation returns immediately without waiting
+        # AC-4: Sync failure does not affect Canvas operation result
+        try:
+            asyncio.create_task(
+                self._sync_edge_to_neo4j(
+                    canvas_path=f"{canvas_name}.canvas",
+                    edge_id=new_edge["id"],
+                    from_node_id=new_edge["fromNode"],
+                    to_node_id=new_edge["toNode"],
+                    edge_label=new_edge.get("label")
+                )
+            )
+            logger.debug(f"Scheduled edge sync to Neo4j: {new_edge['id']}")
+        except Exception as e:
+            # AC-4: Silent degradation - log but don't raise
+            logger.warning(f"Failed to schedule edge sync to Neo4j: {e}")
+
         return new_edge
 
     async def delete_edge(self, canvas_name: str, edge_id: str) -> bool:

@@ -12,7 +12,7 @@ from datetime import date, datetime
 from enum import Enum
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Common Schemas
@@ -34,6 +34,181 @@ class HealthCheckResponse(BaseModel):
     app_name: str = Field(..., description="Application name")
     version: str = Field(..., description="Application version")
     timestamp: datetime = Field(..., description="Check timestamp")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 36.5: Canvas Association Models
+# [Source: docs/stories/36.5.story.md]
+# [Source: specs/data/canvas-association.schema.json]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AssociationType(str, Enum):
+    """
+    Canvas association type enum.
+
+    Story 36.5 AC-2, AC-5: Schema-defined association types.
+
+    [Source: specs/data/canvas-association.schema.json#/properties/association_type/enum]
+    """
+    prerequisite = "prerequisite"
+    related = "related"
+    extends = "extends"
+    references = "references"
+
+
+class CanvasAssociationCreate(BaseModel):
+    """
+    Request model for creating a canvas association.
+
+    Story 36.5 Task 4.1: Pydantic model validation.
+
+    [Source: specs/data/canvas-association.schema.json]
+    [Source: docs/stories/36.5.story.md#Task-4.1]
+    """
+    source_canvas: str = Field(
+        ...,
+        description="Source canvas file path",
+        min_length=1
+    )
+    target_canvas: str = Field(
+        ...,
+        description="Target canvas file path",
+        min_length=1
+    )
+    association_type: AssociationType = Field(
+        ...,
+        description="Type of association: prerequisite, related, extends, references"
+    )
+    shared_concepts: Optional[List[str]] = Field(
+        default=None,
+        description="List of shared concept names"
+    )
+    relevance_score: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="Relevance score (0-1)"
+    )
+    bidirectional: bool = Field(
+        default=False,
+        description="Whether association is bidirectional"
+    )
+    auto_generated: bool = Field(
+        default=False,
+        description="Whether association was auto-generated"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "source_canvas": "exercises/math_exam.canvas",
+                "target_canvas": "lectures/calculus_intro.canvas",
+                "association_type": "prerequisite",
+                "shared_concepts": ["derivatives", "integrals"],
+                "relevance_score": 0.85,
+                "bidirectional": False,
+                "auto_generated": False
+            }
+        }
+    )
+
+
+class CanvasAssociationResponse(BaseModel):
+    """
+    Response model for a canvas association.
+
+    Story 36.5 Task 4.1: Pydantic model validation.
+
+    [Source: specs/data/canvas-association.schema.json]
+    [Source: docs/stories/36.5.story.md#Task-4.2]
+    """
+    association_id: str = Field(
+        ...,
+        description="Unique association identifier (UUID)"
+    )
+    source_canvas: str = Field(
+        ...,
+        description="Source canvas file path"
+    )
+    target_canvas: str = Field(
+        ...,
+        description="Target canvas file path"
+    )
+    association_type: AssociationType = Field(
+        ...,
+        description="Type of association"
+    )
+    shared_concepts: List[str] = Field(
+        default_factory=list,
+        description="List of shared concept names"
+    )
+    confidence: float = Field(
+        default=1.0,
+        ge=0.0,
+        le=1.0,
+        description="Confidence score (0-1)"
+    )
+    bidirectional: bool = Field(
+        default=False,
+        description="Whether association is bidirectional"
+    )
+    auto_generated: bool = Field(
+        default=False,
+        description="Whether association was auto-generated"
+    )
+    created_at: Optional[datetime] = Field(
+        default=None,
+        description="Creation timestamp"
+    )
+    updated_at: Optional[datetime] = Field(
+        default=None,
+        description="Last update timestamp"
+    )
+
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "association_id": "cca-a1b2c3d4e5f6",
+                "source_canvas": "exercises/math_exam.canvas",
+                "target_canvas": "lectures/calculus_intro.canvas",
+                "association_type": "prerequisite",
+                "shared_concepts": ["derivatives", "integrals"],
+                "confidence": 0.85,
+                "bidirectional": False,
+                "auto_generated": False,
+                "created_at": "2026-01-20T10:30:00Z",
+                "updated_at": "2026-01-20T10:30:00Z"
+            }
+        }
+    )
+
+
+class CanvasAssociationUpdate(BaseModel):
+    """
+    Request model for updating a canvas association.
+
+    Story 36.5 Task 4.1: Pydantic model validation.
+
+    [Source: docs/stories/36.5.story.md#Task-4.1]
+    """
+    association_type: Optional[AssociationType] = Field(
+        default=None,
+        description="New association type"
+    )
+    shared_concepts: Optional[List[str]] = Field(
+        default=None,
+        description="New list of shared concepts"
+    )
+    confidence: Optional[float] = Field(
+        default=None,
+        ge=0.0,
+        le=1.0,
+        description="New confidence score (0-1)"
+    )
+    bidirectional: Optional[bool] = Field(
+        default=None,
+        description="New bidirectional flag"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -549,21 +724,122 @@ class RecordReviewRequest(BaseModel):
     """
     Request model for recording review result.
 
+    Story 32.2 AC-32.2.2: Accepts FSRS ratings (1-4) in addition to legacy score.
+    Story 32.2 AC-32.2.4: Backward compatible - either rating OR score must be provided.
+
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/RecordReviewRequest]
+    [Source: specs/api/review-api.openapi.yml#L542-L563]
+    [Source: docs/stories/32.2.story.md]
     """
     canvas_name: str = Field(..., description="Canvas file name")
-    node_id: str = Field(..., description="Node ID")
-    score: float = Field(..., ge=0, le=40, description="Review score (0-40)")
+    node_id: str = Field(..., description="Node ID (maps to concept_id)")
+    # Story 32.2: FSRS rating field (primary)
+    rating: Optional[int] = Field(
+        None,
+        ge=1,
+        le=4,
+        description="FSRS rating: 1=Again (forgot), 2=Hard, 3=Good, 4=Easy"
+    )
+    # Story 32.2 AC-32.2.4: Legacy score field (backward compatibility)
+    score: Optional[float] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Legacy score (0-100). Auto-converted to rating: <40=Again, 40-59=Hard, 60-84=Good, >=85=Easy"
+    )
+    # Optional card state for persistence
+    card_state: Optional[str] = Field(
+        None,
+        description="Serialized FSRS card JSON from previous review (for card state continuity)"
+    )
+    review_duration: Optional[int] = Field(
+        None,
+        description="Review time in seconds (for metrics)"
+    )
+
+    @property
+    def concept_id(self) -> str:
+        """Alias node_id as concept_id for FSRS integration."""
+        return self.node_id
+
+
+class FSRSStateResponse(BaseModel):
+    """
+    FSRS card state in response.
+
+    Story 32.2: Exposes FSRS algorithm internal state for transparency.
+    Story 32.3: Extended with retrievability and due for plugin priority calculation.
+
+    [Source: specs/data/fsrs-card.schema.json]
+    [Source: docs/stories/32.3.story.md]
+    """
+    stability: float = Field(..., description="Memory stability (days)")
+    difficulty: float = Field(..., ge=1, le=10, description="Card difficulty (1-10)")
+    state: int = Field(..., description="Card state: 0=New, 1=Learning, 2=Review, 3=Relearning")
+    reps: int = Field(0, description="Successful review count")
+    lapses: int = Field(0, description="Failed review count (rating=1)")
+    # Story 32.3: Additional fields for plugin priority calculation
+    retrievability: Optional[float] = Field(
+        None,
+        ge=0,
+        le=1,
+        description="Current retrievability probability (0-1)"
+    )
+    due: Optional[datetime] = Field(
+        None,
+        description="Next due date/time for review"
+    )
+
+
+class FSRSStateQueryResponse(BaseModel):
+    """
+    Response model for GET /api/v1/review/fsrs-state/{concept_id} endpoint.
+
+    Story 32.3: Plugin queries this endpoint to get FSRS state for priority calculation.
+
+    [Source: specs/api/review-api.openapi.yml#FSRSStateQueryResponse]
+    [Source: docs/stories/32.3.story.md#Task-1]
+    """
+    concept_id: str = Field(..., description="Concept identifier")
+    fsrs_state: Optional[FSRSStateResponse] = Field(
+        None,
+        description="FSRS algorithm state (None if no card exists)"
+    )
+    card_state: Optional[str] = Field(
+        None,
+        description="Serialized FSRS card JSON for plugin to deserialize"
+    )
+    found: bool = Field(
+        True,
+        description="Whether a card was found for this concept"
+    )
 
 
 class RecordReviewResponse(BaseModel):
     """
     Response model for recorded review result.
 
+    Story 32.2: Enhanced with FSRS state and dynamic interval.
+
     [Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/RecordReviewResponse]
+    [Source: specs/api/review-api.openapi.yml#L565-L594]
+    [Source: docs/stories/32.2.story.md]
     """
-    next_review_date: date = Field(..., description="Next review date")
-    new_interval: int = Field(..., description="New review interval in days")
+    next_review_date: date = Field(..., description="Next review date (FSRS calculated)")
+    new_interval: int = Field(..., description="New review interval in days (dynamic)")
+    # Story 32.2: FSRS state for client persistence
+    fsrs_state: Optional[FSRSStateResponse] = Field(
+        None,
+        description="FSRS algorithm state (stability, difficulty, etc.)"
+    )
+    card_data: Optional[str] = Field(
+        None,
+        description="Serialized FSRS card JSON for next review"
+    )
+    algorithm: str = Field(
+        "fsrs-4.5",
+        description="Algorithm used: 'fsrs-4.5' or 'ebbinghaus-fallback'"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -651,3 +927,155 @@ class MultiReviewProgressResponse(BaseModel):
     review_count: int = Field(..., description="Total number of reviews")
     reviews: List[ReviewSessionSummary] = Field(..., description="List of review sessions")
     trends: Optional[TrendsData] = Field(None, description="Trend analysis (only if ≥2 reviews)")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 31.3: Intelligent Action Recommendation Schemas
+# [Source: specs/data/recommend-action-request.schema.json]
+# [Source: specs/data/recommend-action-response.schema.json]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class ActionType(str, Enum):
+    """
+    Recommended action type based on score thresholds.
+
+    [Source: specs/data/recommend-action-response.schema.json#action]
+    [Source: docs/stories/31.3.story.md#AC-31.3.3]
+
+    Thresholds (0-100 scale):
+    - decompose: score < 60
+    - explain: score 60-79
+    - next: score >= 80
+    """
+    decompose = "decompose"
+    explain = "explain"
+    next = "next"
+
+
+class ActionTrend(str, Enum):
+    """
+    Score trend direction for history analysis.
+
+    [Source: specs/data/recommend-action-response.schema.json#history_context.trend]
+    """
+    improving = "improving"
+    stable = "stable"
+    declining = "declining"
+
+
+class HistoryContext(BaseModel):
+    """
+    Historical score context for recommendation.
+
+    [Source: specs/data/recommend-action-response.schema.json#history_context]
+    [Source: docs/stories/31.3.story.md#AC-31.3.4]
+    """
+    recent_scores: List[int] = Field(
+        default_factory=list,
+        description="Recent score history (most recent first, up to 5)",
+        max_length=5
+    )
+    average_score: Optional[float] = Field(
+        None,
+        ge=0,
+        le=100,
+        description="Average of recent scores"
+    )
+    trend: Optional[ActionTrend] = Field(
+        None,
+        description="Score trend direction"
+    )
+    consecutive_low_count: int = Field(
+        default=0,
+        ge=0,
+        description="Number of consecutive scores below 60"
+    )
+
+
+class AlternativeAgent(BaseModel):
+    """
+    Alternative agent recommendation.
+
+    [Source: specs/data/recommend-action-response.schema.json#alternative_agents]
+    """
+    agent: str = Field(..., description="Agent endpoint path")
+    reason: str = Field(..., description="Reason for this alternative")
+
+
+class RecommendActionRequest(BaseModel):
+    """
+    Request model for intelligent action recommendation.
+
+    [Source: specs/data/recommend-action-request.schema.json]
+    [Source: docs/stories/31.3.story.md#AC-31.3.1, AC-31.3.2]
+    """
+    score: int = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Current total score (0-100 scale)"
+    )
+    node_id: str = Field(
+        ...,
+        min_length=1,
+        description="Canvas node ID being evaluated"
+    )
+    canvas_name: str = Field(
+        ...,
+        min_length=1,
+        description="Canvas file name"
+    )
+    include_history: bool = Field(
+        default=True,
+        description="Whether to include historical score analysis"
+    )
+    concept: Optional[str] = Field(
+        None,
+        description="Concept name (optional, used for history lookup)"
+    )
+
+
+class RecommendActionResponse(BaseModel):
+    """
+    Response model for intelligent action recommendation.
+
+    [Source: specs/data/recommend-action-response.schema.json]
+    [Source: docs/stories/31.3.story.md#AC-31.3.3, AC-31.3.4]
+
+    Recommendation Logic (0-100 scale):
+    - score < 60: decompose (basic-decomposition)
+    - score 60-79: explain (oral-explanation)
+    - score >= 80: next (mastered)
+    """
+    action: ActionType = Field(
+        ...,
+        description="Recommended action type"
+    )
+    agent: Optional[str] = Field(
+        None,
+        description="Recommended agent endpoint path, null for 'next' action"
+    )
+    reason: str = Field(
+        ...,
+        min_length=1,
+        description="Human-readable explanation for the recommendation"
+    )
+    priority: int = Field(
+        default=3,
+        ge=1,
+        le=5,
+        description="Recommendation priority (1=highest, 5=lowest)"
+    )
+    review_suggested: bool = Field(
+        default=False,
+        description="Whether additional review is suggested based on declining trend"
+    )
+    history_context: Optional[HistoryContext] = Field(
+        None,
+        description="Historical score context (when include_history=true)"
+    )
+    alternative_agents: List[AlternativeAgent] = Field(
+        default_factory=list,
+        description="Alternative agent recommendations",
+        max_length=3
+    )

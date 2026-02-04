@@ -307,25 +307,28 @@ export interface PluginSettings {
     // ========== Memory System Settings (P1 Task #8) ==========
     /**
      * Neo4j database URI
-     * Used for Graphiti knowledge graph storage
+     * @deprecated 此配置不再使用。Neo4j 配置由后端 backend/.env 统一管理。
+     * 保留此字段仅为向后兼容旧配置文件。
      * @default 'bolt://localhost:7687'
      */
     neo4jUri: string;
 
     /**
      * Neo4j database username
+     * @deprecated 此配置不再使用。Neo4j 配置由后端 backend/.env 统一管理。
      * @default 'neo4j'
      */
     neo4jUser: string;
 
     /**
      * Neo4j database password
+     * @deprecated 此配置不再使用。Neo4j 配置由后端 backend/.env 统一管理。
      * @default ''
      */
     neo4jPassword: string;
 
     /**
-     * Enable Neo4j connection
+     * Enable Neo4j connection (controls whether plugin checks memory system)
      * @default false
      */
     neo4jEnabled: boolean;
@@ -352,12 +355,14 @@ export interface PluginSettings {
 
     /**
      * Graphiti group ID for memory isolation
+     * @deprecated 此配置不再使用。Graphiti 配置由后端 backend/.env 统一管理。
      * @default 'canvas-learning-system'
      */
     graphitiGroupId: string;
 
     /**
      * Graphiti MCP server URL
+     * @deprecated 此配置不再使用。Graphiti 配置由后端 backend/.env 统一管理。
      * @default 'http://localhost:8000/sse'
      */
     graphitiMcpUrl: string;

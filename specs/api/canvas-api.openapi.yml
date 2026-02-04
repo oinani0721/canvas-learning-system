@@ -396,6 +396,49 @@ paths:
         '204':
           description: 成功删除边
 
+  # Story 36.4: Canvas Edge Bulk Sync to Neo4j
+  /canvas/{canvas_path}/sync-edges:
+    post:
+      summary: 同步Canvas所有edges到Neo4j
+      operationId: syncCanvasEdges
+      tags: [Layer4-Knowledge]
+      description: |
+        同步Canvas所有edges到Neo4j知识图谱。
+
+        **特性**:
+        - 幂等操作: 使用MERGE语法，重复调用不创建重复关系
+        - 并发处理: 最多12个edge同时同步
+        - 部分失败: 单个edge失败不阻塞整体批处理
+        - 性能目标: 100 edges < 5秒
+
+        **Story 36.4**: Canvas打开时全量Edge同步
+        [Source: docs/stories/36.4.story.md]
+      parameters:
+        - name: canvas_path
+          in: path
+          required: true
+          description: Canvas文件路径（不含.canvas扩展名）
+          schema:
+            type: string
+            example: "离散数学"
+      responses:
+        '200':
+          description: 同步完成，返回摘要
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncEdgesSummary'
+        '404':
+          description: Canvas文件不存在
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Canvas not found: 离散数学"
+
   # 回滚操作
   /canvas/rollback:
     post:
@@ -513,6 +556,49 @@ paths:
           description: 参数错误
         '409':
           description: 关联已存在
+
+  # Story 36.6: Auto-discovery endpoint
+  /canvas/associations/auto-discover:
+    post:
+      summary: 自动发现Canvas关联
+      operationId: autoDiscoverAssociations
+      tags: [CrossCanvas]
+      description: |
+        扫描Vault中的所有Canvas，基于文件名模式和共同概念自动发现关联。
+
+        **发现算法**:
+        1. 扫描vault_path下所有.canvas文件
+        2. 识别习题/讲座Canvas类型 (文件名模式)
+        3. 查询Neo4j获取共同概念
+        4. 共同概念 >= min_common_concepts 时生成关联建议
+
+        **置信度计算**:
+        - 文件名匹配: +0.4
+        - 每个共同概念: +0.15 (最高 +0.55)
+        - 总分最高: 0.95
+
+        [Source: Story 36.6 - 跨Canvas讲座自动发现]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AutoDiscoverRequest'
+      responses:
+        '200':
+          description: 自动发现完成
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutoDiscoverResponse'
+        '400':
+          description: 无效的vault路径 (非目录)
+        '403':
+          description: 访问vault路径权限不足
+        '404':
+          description: vault路径不存在
+        '500':
+          description: 发现过程失败
 
   /canvas/associations/{association_id}:
     get:
@@ -867,6 +953,55 @@ components:
           description: 边标签（可选）
       required: [fromNode, toNode]
 
+    # Story 36.4: Edge Bulk Sync Summary
+    SyncEdgesSummary:
+      type: object
+      description: |
+        Edge同步结果摘要。
+
+        Story 36.4: Canvas打开时全量Edge同步
+        [Source: docs/stories/36.4.story.md#Task-5.2]
+      properties:
+        canvas_path:
+          type: string
+          description: Canvas文件路径
+          example: "离散数学"
+        total_edges:
+          type: integer
+          description: Canvas中的总边数
+          example: 50
+        synced_count:
+          type: integer
+          description: 成功同步到Neo4j的边数
+          example: 48
+        failed_count:
+          type: integer
+          description: 同步失败的边数
+          example: 2
+        skipped_count:
+          type: integer
+          description: 跳过的边数（如memory client不可用）
+          example: 0
+        sync_time_ms:
+          type: number
+          format: float
+          description: 同步耗时（毫秒）
+          example: 1250.5
+      required:
+        - canvas_path
+        - total_edges
+        - synced_count
+        - failed_count
+        - skipped_count
+        - sync_time_ms
+      example:
+        canvas_path: "离散数学"
+        total_edges: 50
+        synced_count: 50
+        failed_count: 0
+        skipped_count: 0
+        sync_time_ms: 1250.5
+
     HealthCheckResponse:
       type: object
       description: 健康检查响应
@@ -983,6 +1118,89 @@ components:
           default: false
           description: 是否创建双向关联
       required: [source_canvas, target_canvas, association_type]
+
+    # Story 36.6: Auto-discovery schemas
+    AutoDiscoverRequest:
+      type: object
+      description: |
+        自动发现Canvas关联请求
+
+        [Source: Story 36.6 Task 8.2]
+      properties:
+        vault_path:
+          type: string
+          description: Vault根目录路径
+          example: "C:/Users/ROG/托福/Canvas/笔记库"
+        min_common_concepts:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 3
+          description: 最小共同概念数阈值
+        include_existing:
+          type: boolean
+          default: false
+          description: 是否包含已存在的关联
+      required: [vault_path]
+
+    AutoDiscoverSuggestion:
+      type: object
+      description: |
+        自动发现的关联建议
+
+        [Source: Story 36.6 AC3]
+      properties:
+        source_canvas:
+          type: string
+          description: 源Canvas路径
+        target_canvas:
+          type: string
+          description: 目标Canvas路径
+        association_type:
+          type: string
+          description: 关联类型 (exercise_lecture | related)
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 0.95
+          description: |
+            置信度分数 (0-0.95)
+            计算公式: 文件名匹配(+0.4) + 概念匹配(+0.15每个, 最高+0.55)
+        reason:
+          type: string
+          description: 关联原因描述
+        shared_concepts:
+          type: array
+          items:
+            type: string
+          description: 共享概念列表
+        auto_generated:
+          type: boolean
+          default: true
+          description: 是否自动生成 (始终为true)
+      required: [source_canvas, target_canvas, association_type, confidence, reason, auto_generated]
+
+    AutoDiscoverResponse:
+      type: object
+      description: |
+        自动发现结果响应
+
+        [Source: Story 36.6 Task 8.3]
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AutoDiscoverSuggestion'
+          description: 发现的关联建议列表
+        total_scanned:
+          type: integer
+          minimum: 0
+          description: 扫描的Canvas总数
+        discovered_count:
+          type: integer
+          minimum: 0
+          description: 发现的关联数量
+      required: [suggestions, total_scanned, discovered_count]
 
     MetricsSummary:
       type: object

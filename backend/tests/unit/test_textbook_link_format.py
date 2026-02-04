@@ -21,15 +21,15 @@ Story 28.3 Tests:
 [Verified from ADR-011 - pathlib路径处理规范]
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from backend.app.services.textbook_context_service import (
-    TextbookContext,
-    FullTextbookContext,
-)
-from backend.app.services.context_enrichment_service import ContextEnrichmentService
+import pytest
 from backend.app.services.canvas_service import CanvasService
+from backend.app.services.context_enrichment_service import ContextEnrichmentService
+from backend.app.services.textbook_context_service import (
+    FullTextbookContext,
+    TextbookContext,
+)
 
 
 class TestTextbookContextDataclass:

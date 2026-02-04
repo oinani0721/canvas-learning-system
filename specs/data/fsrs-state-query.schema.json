@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/fsrs-state-query.schema.json",
+  "x-source-verification": {
+    "verified_at": "2026-01-20T06:00:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "context7", "library_id": "/open-spaced-repetition/py-fsrs", "topic": "Card state and retrievability"},
+      {"type": "story", "id": "32.3", "path": "docs/stories/32.3.story.md"},
+      {"type": "openapi", "path": "specs/api/review-api.openapi.yml", "endpoint": "/review/fsrs-state/{concept_id}"}
+    ],
+    "changelog": [
+      {"date": "2026-01-20", "change": "Initial schema creation for FSRS state query response", "story": "32.3"}
+    ]
+  },
+  "title": "FSRS状态查询响应",
+  "description": "GET /api/v1/review/fsrs-state/{concept_id} 端点的响应格式。Story 32.3: 插件查询FSRS状态用于优先级计算。",
+  "type": "object",
+  "properties": {
+    "concept_id": {
+      "type": "string",
+      "description": "查询的概念ID"
+    },
+    "fsrs_state": {
+      "oneOf": [
+        {"type": "null"},
+        {"$ref": "#/definitions/FSRSState"}
+      ],
+      "description": "FSRS算法状态（无卡片时为null）"
+    },
+    "card_state": {
+      "oneOf": [
+        {"type": "null"},
+        {"type": "string"}
+      ],
+      "description": "完整FSRS卡片JSON字符串（供插件缓存/反序列化）"
+    },
+    "found": {
+      "type": "boolean",
+      "description": "是否找到该概念的FSRS卡片"
+    }
+  },
+  "required": ["concept_id", "found"],
+  "definitions": {
+    "FSRSState": {
+      "type": "object",
+      "description": "FSRS算法内部状态",
+      "properties": {
+        "stability": {
+          "type": "number",
+          "minimum": 0,
+          "description": "记忆稳定性（天数）- 达到90%遗忘概率所需天数"
+        },
+        "difficulty": {
+          "type": "number",
+          "minimum": 1,
+          "maximum": 10,
+          "description": "难度系数（1-10）- 越高越难记忆"
+        },
+        "state": {
+          "type": "integer",
+          "enum": [0, 1, 2, 3],
+          "description": "卡片状态: 0=New（新建）, 1=Learning（学习中）, 2=Review（复习）, 3=Relearning（重新学习）"
+        },
+        "reps": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "成功复习次数（rating >= 2 的次数）"
+        },
+        "lapses": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "遗忘次数（rating = 1 的次数）"
+        },
+        "retrievability": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "number", "minimum": 0, "maximum": 1}
+          ],
+          "description": "当前可提取性概率（0-1）- 基于FSRS遗忘曲线计算的当前记忆强度"
+        },
+        "due": {
+          "oneOf": [
+            {"type": "null"},
+            {"type": "string", "format": "date-time"}
+          ],
+          "description": "下次复习时间（ISO 8601格式）"
+        }
+      },
+      "required": ["stability", "difficulty", "state", "reps", "lapses"]
+    }
+  },
+  "examples": [
+    {
+      "concept_id": "node-abc123",
+      "fsrs_state": {
+        "stability": 8.5,
+        "difficulty": 5.2,
+        "state": 2,
+        "reps": 5,
+        "lapses": 1,
+        "retrievability": 0.85,
+        "due": "2026-01-22T10:00:00Z"
+      },
+      "card_state": "{\"stability\":8.5,\"difficulty\":5.2,\"state\":2,\"reps\":5,\"lapses\":1,\"due\":\"2026-01-22T10:00:00Z\"}",
+      "found": true
+    },
+    {
+      "concept_id": "node-xyz789",
+      "fsrs_state": null,
+      "card_state": null,
+      "found": false
+    }
+  ]
+}

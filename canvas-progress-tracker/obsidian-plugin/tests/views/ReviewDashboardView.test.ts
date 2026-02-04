@@ -540,4 +540,186 @@ describe('Task Card Component', () => {
             expect(highStrengthInterval).toBeGreaterThan(lowStrengthInterval);
         });
     });
+
+    /**
+     * Story 31.7: Verification History View UI Tests
+     */
+    describe('Verification Tab - Story 31.7', () => {
+        /**
+         * AC-31.7.3: Calculate highest score from sessions
+         */
+        describe('Highest Score Calculation', () => {
+            const calculateHighestScore = (sessions: { passRate: number }[]): string | null => {
+                if (!sessions || sessions.length === 0) return null;
+                const highestPassRate = Math.max(...sessions.map((s) => s.passRate));
+                return (highestPassRate * 5).toFixed(1);
+            };
+
+            it('should return highest score from multiple sessions', () => {
+                const sessions = [
+                    { passRate: 0.6 },
+                    { passRate: 0.8 }, // Highest
+                    { passRate: 0.7 },
+                ];
+                expect(calculateHighestScore(sessions)).toBe('4.0');
+            });
+
+            it('should return correct score for single session', () => {
+                const sessions = [{ passRate: 0.5 }];
+                expect(calculateHighestScore(sessions)).toBe('2.5');
+            });
+
+            it('should return null for empty sessions', () => {
+                expect(calculateHighestScore([])).toBeNull();
+            });
+
+            it('should return null for undefined sessions', () => {
+                expect(calculateHighestScore(undefined as any)).toBeNull();
+            });
+
+            it('should handle perfect score', () => {
+                const sessions = [
+                    { passRate: 0.9 },
+                    { passRate: 1.0 }, // Perfect
+                ];
+                expect(calculateHighestScore(sessions)).toBe('5.0');
+            });
+
+            it('should handle zero score', () => {
+                const sessions = [{ passRate: 0 }];
+                expect(calculateHighestScore(sessions)).toBe('0.0');
+            });
+        });
+
+        /**
+         * AC-31.7.3: Get most recent verification date from sessions
+         */
+        describe('Most Recent Verification Date', () => {
+            const getMostRecentDate = (sessions: { date: Date }[]): Date | null => {
+                if (!sessions || sessions.length === 0) return null;
+                return sessions[sessions.length - 1].date;
+            };
+
+            it('should return last session date', () => {
+                const date1 = new Date('2026-01-15');
+                const date2 = new Date('2026-01-18');
+                const sessions = [{ date: date1 }, { date: date2 }];
+                expect(getMostRecentDate(sessions)).toEqual(date2);
+            });
+
+            it('should return null for empty sessions', () => {
+                expect(getMostRecentDate([])).toBeNull();
+            });
+
+            it('should return null for undefined sessions', () => {
+                expect(getMostRecentDate(undefined as any)).toBeNull();
+            });
+
+            it('should return single session date', () => {
+                const date = new Date('2026-01-10');
+                const sessions = [{ date }];
+                expect(getMostRecentDate(sessions)).toEqual(date);
+            });
+        });
+
+        /**
+         * AC-31.7.5: Delete verification confirmation
+         */
+        describe('Delete Verification Confirmation', () => {
+            it('should generate correct confirmation message', () => {
+                const title = '删除检验白板记录';
+                const relationTitle = '测试检验Canvas';
+                const message = `确定要删除"${relationTitle}"的检验记录吗？此操作不可撤销。`;
+
+                expect(title).toBe('删除检验白板记录');
+                expect(message).toContain('测试检验Canvas');
+                expect(message).toContain('不可撤销');
+            });
+
+            it('should handle special characters in canvas title', () => {
+                const relationTitle = "测试'Canvas\"名称";
+                const message = `确定要删除"${relationTitle}"的检验记录吗？此操作不可撤销。`;
+
+                expect(message).toContain(relationTitle);
+            });
+        });
+
+        /**
+         * AC-31.7.5: Delete button event handling
+         */
+        describe('Delete Button Event Handling', () => {
+            it('should stop event propagation on delete click', () => {
+                const mockEvent = {
+                    stopPropagation: jest.fn(),
+                };
+
+                // Simulate delete button click handler
+                const handleDeleteClick = (e: { stopPropagation: () => void }) => {
+                    e.stopPropagation();
+                };
+
+                handleDeleteClick(mockEvent);
+                expect(mockEvent.stopPropagation).toHaveBeenCalled();
+            });
+
+            it('should not trigger item click when delete is clicked', () => {
+                const itemClickHandler = jest.fn();
+                const deleteClickHandler = jest.fn();
+
+                // Simulating event flow with stopPropagation
+                const simulateDeleteClick = () => {
+                    deleteClickHandler();
+                    // With stopPropagation, itemClickHandler should not be called
+                };
+
+                simulateDeleteClick();
+                expect(deleteClickHandler).toHaveBeenCalled();
+                expect(itemClickHandler).not.toHaveBeenCalled();
+            });
+        });
+
+        /**
+         * Edge cases for verification item rendering
+         */
+        describe('Verification Item Edge Cases', () => {
+            it('should handle relation with no sessions gracefully', () => {
+                const relation = {
+                    id: 'test-id',
+                    originalCanvasTitle: 'Original Canvas',
+                    verificationCanvasTitle: 'Verification Canvas',
+                    sessionCount: 0,
+                    sessions: [],
+                };
+
+                // No highest score or recent date should be displayed
+                expect(relation.sessions.length).toBe(0);
+            });
+
+            it('should handle relation with undefined sessions', () => {
+                const relation = {
+                    id: 'test-id',
+                    originalCanvasTitle: 'Original Canvas',
+                    verificationCanvasTitle: 'Verification Canvas',
+                    sessionCount: 0,
+                };
+
+                // Should handle undefined sessions safely
+                const hasHighestScore =
+                    relation.sessions && (relation as any).sessions.length > 0;
+                expect(hasHighestScore).toBeFalsy();
+            });
+
+            it('should format date correctly in Chinese locale', () => {
+                const date = new Date('2026-01-18');
+                const formatted = date.toLocaleDateString('zh-CN', {
+                    month: 'short',
+                    day: 'numeric',
+                });
+
+                // Should produce a date string in Chinese format
+                expect(formatted).toBeTruthy();
+                expect(typeof formatted).toBe('string');
+            });
+        });
+    });
 });

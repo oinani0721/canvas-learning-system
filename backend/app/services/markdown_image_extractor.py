@@ -156,7 +156,8 @@ class MarkdownImageExtractor:
         self,
         refs: List[ImageReference],
         vault_path: Path,
-        canvas_dir: Optional[Path] = None
+        canvas_dir: Optional[Path] = None,
+        source_file_dir: Optional[Path] = None
     ) -> List[Dict]:
         """解析相对路径为绝对路径 (AC 4.4)
 
@@ -166,6 +167,8 @@ class MarkdownImageExtractor:
             refs: 图片引用列表
             vault_path: Obsidian vault 根目录
             canvas_dir: Canvas 文件所在目录 (用于 ./ 相对路径)
+            source_file_dir: 图片引用来源文件的目录 (用于MD文件内部图片引用)
+                            当Canvas引用MD文件时，MD内的图片引用应相对于MD文件目录解析
 
         Returns:
             包含绝对路径和存在性的字典列表:
@@ -197,8 +200,10 @@ class MarkdownImageExtractor:
             # ✅ Verified from ADR-011: Use pathlib for path operations
             candidates: List[Path] = []
 
-            # 1. Relative to vault root (Obsidian default)
-            candidates.append(vault_path / ref.path)
+            # 1. Relative to source file directory (HIGHEST PRIORITY for MD embedded images)
+            # When Canvas references an MD file, images in MD should resolve relative to MD file
+            if source_file_dir:
+                candidates.append(source_file_dir / ref.path)
 
             # 2. Relative to canvas file directory (for ./ and ../ paths)
             if canvas_dir:
@@ -208,6 +213,9 @@ class MarkdownImageExtractor:
                 else:
                     # Also try canvas directory for non-prefixed paths
                     candidates.append(canvas_dir / ref.path)
+
+            # 3. Relative to vault root (Obsidian default)
+            candidates.append(vault_path / ref.path)
 
             # Check each candidate path
             for candidate in candidates:

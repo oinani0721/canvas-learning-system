@@ -14,6 +14,7 @@ Cross-Canvas Association API Endpoints
 
 import logging
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import List, Literal, Optional
 from uuid import uuid4
 
@@ -28,6 +29,8 @@ from app.services.cross_canvas_service import (
     CanvasAssociationSuggestion,
     KnowledgePath,
     KnowledgePathNode,
+    AutoDiscoverySuggestion,
+    AutoDiscoveryResult,
 )
 
 # Get logger for this module
@@ -183,6 +186,53 @@ class CanvasAssociationSuggestionResponse(BaseModel):
     relationship_type: str = Field(..., description="建议的关系类型")
     confidence: float = Field(..., ge=0, le=1, description="置信度(0-1)")
     reason: str = Field(..., description="建议原因")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Auto-Discovery Models (Story 36.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AutoDiscoverRequest(BaseModel):
+    """Request to auto-discover canvas associations
+
+    [Source: Story 36.6 - Cross-Canvas Auto-Discovery]
+    """
+    vault_path: str = Field(..., description="Vault根目录路径")
+    min_common_concepts: int = Field(default=3, ge=1, le=10, description="最小共同概念数阈值")
+    include_existing: bool = Field(default=False, description="是否包含已存在的关联")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "vault_path": "C:/Users/ROG/托福/Canvas/笔记库",
+                "min_common_concepts": 3,
+                "include_existing": False
+            }
+        }
+
+
+class AutoDiscoverSuggestionResponse(BaseModel):
+    """Auto-discovered association suggestion response
+
+    [Source: Story 36.6 AC3 - Confidence score and reason]
+    """
+    source_canvas: str = Field(..., description="源Canvas路径")
+    target_canvas: str = Field(..., description="目标Canvas路径")
+    association_type: str = Field(..., description="关联类型: exercise_lecture | related")
+    confidence: float = Field(..., ge=0, le=1, description="置信度分数(0-0.95)")
+    reason: str = Field(..., description="关联原因描述")
+    shared_concepts: List[str] = Field(default_factory=list, description="共享概念列表")
+    auto_generated: bool = Field(default=True, description="是否自动生成")
+
+
+class AutoDiscoverResponse(BaseModel):
+    """Auto-discovery results response
+
+    [Source: Story 36.6 AC4 - Batch scanning results]
+    """
+    suggestions: List[AutoDiscoverSuggestionResponse] = Field(default_factory=list, description="发现的关联建议")
+    total_scanned: int = Field(..., ge=0, description="扫描的Canvas总数")
+    discovered_count: int = Field(..., ge=0, description="发现的关联数量")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -562,3 +612,92 @@ async def get_association_suggestions(
         )
         for s in suggestions
     ]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Auto-Discovery Endpoints (Story 36.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@cross_canvas_router.post(
+    "/associations/auto-discover",
+    response_model=AutoDiscoverResponse,
+    summary="自动发现Canvas关联",
+    description="扫描Vault中的所有Canvas，基于文件名模式和共同概念自动发现关联 [Story 36.6]",
+    operation_id="auto_discover_associations"
+)
+async def auto_discover_associations(
+    cross_canvas_service: CrossCanvasServiceDep,
+    request: AutoDiscoverRequest
+) -> AutoDiscoverResponse:
+    """Auto-discover canvas associations based on filename patterns and common concepts.
+
+    [Source: Story 36.6 - Cross-Canvas Auto-Discovery]
+
+    Discovery algorithm:
+    1. Scan vault for all .canvas files
+    2. Identify exercise vs lecture canvases via filename patterns
+    3. Query Neo4j for common concepts between canvas pairs
+    4. Generate associations when common_concepts >= min_common_concepts
+    5. Calculate confidence score: name_match (+0.4) + concepts (+0.15 each, max +0.55)
+
+    Args:
+        request: AutoDiscoverRequest with vault_path, min_common_concepts, include_existing
+
+    Returns:
+        AutoDiscoverResponse with suggestions, total_scanned, discovered_count
+    """
+    logger.info(f"Auto-discovering associations in vault: {request.vault_path}, min_concepts={request.min_common_concepts}")
+
+    try:
+        # Task 4.2: Scan vault for all .canvas files
+        vault_path = Path(request.vault_path)
+        if not vault_path.exists():
+            raise FileNotFoundError(f"Vault path does not exist: {request.vault_path}")
+        if not vault_path.is_dir():
+            raise ValueError(f"Vault path is not a directory: {request.vault_path}")
+
+        canvas_files = list(vault_path.rglob("*.canvas"))
+        canvas_paths = [str(f) for f in canvas_files]
+
+        logger.info(f"Found {len(canvas_paths)} canvas files in vault")
+
+        result = await cross_canvas_service.auto_discover_associations(
+            canvas_paths=canvas_paths,
+            min_common_concepts=request.min_common_concepts,
+            include_existing=request.include_existing
+        )
+
+        # Convert dataclass results to Pydantic response models
+        suggestion_responses = [
+            AutoDiscoverSuggestionResponse(
+                source_canvas=s.source_canvas,
+                target_canvas=s.target_canvas,
+                association_type=s.association_type,
+                confidence=s.confidence,
+                reason=s.reason,
+                shared_concepts=s.shared_concepts,
+                auto_generated=s.auto_generated
+            )
+            for s in result.suggestions
+        ]
+
+        logger.info(f"Auto-discovery completed: scanned={result.total_scanned}, discovered={result.discovered_count}")
+
+        return AutoDiscoverResponse(
+            suggestions=suggestion_responses,
+            total_scanned=result.total_scanned,
+            discovered_count=result.discovered_count
+        )
+
+    except FileNotFoundError as e:
+        logger.error(f"Vault path not found: {request.vault_path}")
+        raise HTTPException(status_code=404, detail=f"Vault path not found: {request.vault_path}")
+    except ValueError as e:
+        logger.error(f"Invalid vault path: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except PermissionError as e:
+        logger.error(f"Permission denied accessing vault: {request.vault_path}")
+        raise HTTPException(status_code=403, detail=f"Permission denied: {request.vault_path}")
+    except Exception as e:
+        logger.error(f"Auto-discovery failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Auto-discovery failed: {str(e)}")

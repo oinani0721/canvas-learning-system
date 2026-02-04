@@ -386,6 +386,68 @@ export interface ScoreResponse {
   scores: NodeScore[];
 }
 
+// =============================================================================
+// Story 31.3: Recommend Action Types
+// =============================================================================
+
+/**
+ * Action type for recommendation
+ * @source Story 31.3 - Agent决策推荐端点
+ */
+export type ActionType = 'decompose' | 'explain' | 'next';
+
+/**
+ * Score trend direction
+ * @source Story 31.3 - Historical score analysis
+ */
+export type ActionTrend = 'improving' | 'stable' | 'declining';
+
+/**
+ * Historical score context
+ * @source Story 31.3 AC-31.3.4 - History analysis
+ */
+export interface HistoryContext {
+  recent_scores: number[];
+  average_score?: number;
+  trend?: ActionTrend;
+  consecutive_low_count: number;
+}
+
+/**
+ * Alternative agent recommendation
+ * @source Story 31.3 - Advanced recommendations
+ */
+export interface AlternativeAgent {
+  agent: string;
+  reason: string;
+}
+
+/**
+ * Recommend action request
+ * @source Story 31.3 AC-31.3.2 - Request params
+ */
+export interface RecommendActionRequest {
+  score: number;
+  node_id: string;
+  canvas_name: string;
+  include_history?: boolean;
+  concept?: string;
+}
+
+/**
+ * Recommend action response
+ * @source Story 31.3 AC-31.3.3 - Score-based recommendations
+ */
+export interface RecommendActionResponse {
+  action: ActionType;
+  agent: string | null;
+  reason: string;
+  priority: number;
+  review_suggested: boolean;
+  history_context?: HistoryContext;
+  alternative_agents?: AlternativeAgent[];
+}
+
 /**
  * Explanation request for various explanation agents
  * @source Story 13.3 Dev Notes - ExplainRequest
@@ -536,6 +598,57 @@ export interface RecordReviewRequest {
 export interface RecordReviewResponse {
   next_review_date: string; // YYYY-MM-DD
   new_interval: number; // days
+}
+
+// =============================================================================
+// Session Progress Types (Story 31.6 - Real-time Verification Progress)
+// =============================================================================
+
+/**
+ * Verification session status enum
+ * @source Story 31.6 AC-31.6.4: Support pause/resume session
+ */
+export type VerificationSessionStatus =
+  | 'pending'
+  | 'in_progress'
+  | 'paused'
+  | 'completed'
+  | 'cancelled';
+
+/**
+ * Real-time verification session progress
+ * @source Story 31.6 AC-31.6.1: Frontend displays "已验证 X/Y 个概念" progress bar
+ * @source Story 31.6 AC-31.6.2: Color distribution real-time updates
+ * @source Story 31.6 AC-31.6.3: Mastery percentage = green / total * 100%
+ */
+export interface SessionProgressResponse {
+  session_id: string;
+  canvas_name: string;
+  total_concepts: number;
+  completed_concepts: number;
+  current_concept: string;
+  current_concept_idx: number;
+  green_count: number;
+  yellow_count: number;
+  purple_count: number;
+  red_count: number;
+  status: VerificationSessionStatus;
+  progress_percentage: number; // 0-100
+  mastery_percentage: number; // 0-100
+  hints_given: number;
+  max_hints: number;
+  started_at: string; // ISO timestamp
+  updated_at: string; // ISO timestamp
+}
+
+/**
+ * Response for session pause/resume operations
+ * @source Story 31.6 AC-31.6.4: Support pause/resume session
+ */
+export interface SessionPauseResumeResponse {
+  session_id: string;
+  status: VerificationSessionStatus;
+  message: string;
 }
 
 // =============================================================================
@@ -766,4 +879,141 @@ export interface ListMountedTextbooksResponse {
   canvas_path: string;
   associations: Record<string, unknown>[];
   config_path: string;
+}
+
+// =============================================================================
+// Multimodal API Types (Story 35.3 - Obsidian Plugin ApiClient Multimodal)
+// =============================================================================
+
+/**
+ * Media content type enumeration
+ * @source specs/data/multimodal-content.schema.json#properties/media_type
+ * @verified 2026-01-20
+ */
+export type MediaType = 'image' | 'pdf' | 'audio' | 'video';
+
+/**
+ * Multimodal content item for display in MediaPanel
+ * @source Epic 35 API Design Reference
+ * @source specs/data/multimodal-content.schema.json
+ * @verified 2026-01-20
+ */
+export interface MediaItem {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Media type */
+  type: MediaType;
+  /** File path in vault */
+  path: string;
+  /** Display title (optional, derived from filename or AI-generated) */
+  title?: string;
+  /** Relevance score from search (0-1, 1 being most relevant) */
+  relevanceScore: number;
+  /** Associated concept node ID */
+  conceptId?: string;
+  /** Additional metadata (dimensions, duration, file size, etc.) */
+  metadata?: Record<string, unknown>;
+  /** Base64 thumbnail or thumbnail path */
+  thumbnail?: string;
+  /** AI-generated description of the content */
+  description?: string;
+  /** OCR-extracted text content (for images/PDFs) */
+  extractedText?: string;
+  /** Creation timestamp (ISO 8601) */
+  createdAt?: string;
+}
+
+/**
+ * Response from multimodal upload endpoint
+ * @source POST /api/v1/multimodal/upload response
+ * @source specs/data/multimodal-content.schema.json
+ * @verified 2026-01-20
+ */
+export interface MultimodalUploadResponse {
+  /** Unique identifier (UUID) */
+  id: string;
+  /** Media type */
+  media_type: MediaType;
+  /** File path in vault */
+  path: string;
+  /** Thumbnail path or base64 (optional) */
+  thumbnail?: string;
+  /** Additional metadata */
+  metadata?: Record<string, unknown>;
+  /** Creation timestamp (ISO 8601) */
+  created_at: string;
+  /** AI-generated description (optional) */
+  description?: string;
+  /** Associated concept node ID */
+  related_concept_id: string;
+}
+
+/**
+ * Request body for multimodal search
+ * @source POST /api/v1/multimodal/search request
+ * @verified 2026-01-20
+ */
+export interface MultimodalSearchRequest {
+  /** Search query text for vector similarity search */
+  query: string;
+  /** Maximum number of results to return (default: 20) */
+  limit?: number;
+  /** Filter by media types (optional, returns all types if not specified) */
+  media_types?: MediaType[];
+  /** Minimum relevance score threshold (0-1, default: 0) */
+  min_score?: number;
+}
+
+/**
+ * Individual search result from multimodal search
+ * @source POST /api/v1/multimodal/search response item
+ * @verified 2026-01-20
+ */
+export interface MultimodalSearchResult {
+  /** Content ID (UUID) */
+  id: string;
+  /** Media type */
+  media_type: MediaType;
+  /** File path */
+  file_path: string;
+  /** Relevance score (0-1) */
+  score: number;
+  /** Associated concept node ID */
+  related_concept_id: string;
+  /** Thumbnail path or base64 */
+  thumbnail?: string;
+  /** AI-generated description */
+  description?: string;
+  /** OCR-extracted text */
+  extracted_text?: string;
+  /** Additional metadata */
+  metadata?: Record<string, unknown>;
+}
+
+/**
+ * Response from multimodal search endpoint
+ * @source POST /api/v1/multimodal/search response
+ * @verified 2026-01-20
+ */
+export interface MultimodalSearchResponse {
+  /** Search results ranked by relevance */
+  results: MultimodalSearchResult[];
+  /** Total number of results found */
+  total_count: number;
+  /** Query that was executed */
+  query: string;
+}
+
+/**
+ * Response from multimodal delete endpoint
+ * @source DELETE /api/v1/multimodal/{content_id} response
+ * @verified 2026-01-20
+ */
+export interface MultimodalDeleteResponse {
+  /** Whether deletion was successful */
+  success: boolean;
+  /** Deleted content ID */
+  deleted_id: string;
+  /** Deletion message */
+  message: string;
 }

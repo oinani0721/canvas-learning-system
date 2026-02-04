@@ -1,0 +1,66 @@
+schema: 1
+story: '34.4'
+story_title: '复习历史分页与默认限制'
+gate: PASS
+status_reason: '所有3个验收标准完整实现，37个测试全部通过，代码质量优秀'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-01-31T03:50:00Z'
+
+top_issues: []
+waiver: { active: false }
+
+quality_score: 100
+expires: '2026-02-14T03:50:00Z'
+
+evidence:
+  tests_reviewed: 37
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: '分页参数有边界验证 (limit: 1-100)，防止过大请求'
+  performance:
+    status: PASS
+    notes: 'limit 参数在服务层正确应用切片，避免返回过多数据'
+  reliability:
+    status: PASS
+    notes: '完整的错误处理，空结果返回 records: [] 和 total_count: 0'
+  maintainability:
+    status: PASS
+    notes: '代码结构清晰，async/await 模式，类型注解完整'
+
+recommendations:
+  immediate: []
+  future:
+    - action: '补充 Story 文件的 Dev Agent Record 和 File List 部分'
+      refs: ['docs/stories/34.4.story.md']
+
+implementation_files:
+  backend:
+    - path: 'backend/app/api/v1/endpoints/review.py'
+      lines: 'L240-L363'
+      description: 'GET /review/history 端点实现'
+    - path: 'backend/app/services/review_service.py'
+      lines: 'L834-L940'
+      description: 'get_history() 服务层分页逻辑'
+    - path: 'backend/app/models/review_models.py'
+      description: 'HistoryResponse, PaginationInfo Pydantic 模型'
+  frontend:
+    - path: 'canvas-progress-tracker/obsidian-plugin/src/views/ReviewDashboardView.ts'
+      lines: 'L441-L476, L701-L750'
+      description: 'loadHistoryData(), toggleShowAllHistory(), renderHistoryList()'
+    - path: 'canvas-progress-tracker/obsidian-plugin/src/services/HistoryService.ts'
+      description: 'loadHistoryState() with showAll 参数'
+  specs:
+    - path: 'specs/api/review-api.openapi.yml'
+      lines: 'L191-L244'
+      description: 'OpenAPI 规范更新，包含 limit/show_all 参数'
+  tests:
+    - path: 'backend/tests/unit/test_review_history_pagination.py'
+      description: '17个单元测试 - 全部通过'
+    - path: 'backend/tests/integration/test_review_history_pagination.py'
+      description: '20个集成测试 - 全部通过'

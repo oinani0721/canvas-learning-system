@@ -42,6 +42,11 @@
       "type": "string",
       "enum": ["fresh", "targeted"],
       "description": "实际使用的复习模式 (AC5: Mode metadata storage)"
+    },
+    "fallback_used": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否使用了 fallback 逻辑 (AC2 of Story 24.6: Graphiti 不可用时标记为 true)"
     }
   },
   "required": ["review_canvas_name", "source_canvas_name", "question_count"]

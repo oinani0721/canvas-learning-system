@@ -23,7 +23,7 @@
     },
     "status": {
       "type": "string",
-      "enum": ["pending", "running", "completed", "failed", "cancelled"],
+      "enum": ["pending", "running", "completed", "partial_failure", "failed", "cancelled"],
       "description": "任务状态"
     },
     "groups": {
@@ -76,35 +76,83 @@
   "definitions": {
     "NodeGroup": {
       "type": "object",
+      "description": "节点分组定义 - 与OpenAPI parallel-api.openapi.yml#NodeGroup对齐 (Story 33.4 Task 0.1)",
       "properties": {
         "group_id": {
           "type": "string",
-          "description": "分组ID"
+          "description": "分组ID (e.g., 'group-1')",
+          "examples": ["group-1", "group-2"]
         },
-        "node_ids": {
+        "group_name": {
+          "type": "string",
+          "description": "分组名称（自动生成）",
+          "examples": ["对比类概念", "定义类概念"]
+        },
+        "group_emoji": {
+          "type": "string",
+          "description": "分组图标",
+          "examples": ["📊", "📖", "🔬"]
+        },
+        "nodes": {
           "type": "array",
+          "description": "分组内的节点列表（包含node_id和text）",
           "items": {
-            "type": "string"
-          },
-          "description": "节点ID列表"
+            "type": "object",
+            "properties": {
+              "node_id": {
+                "type": "string",
+                "description": "节点ID"
+              },
+              "text": {
+                "type": "string",
+                "description": "节点文本内容"
+              }
+            },
+            "required": ["node_id", "text"]
+          }
         },
         "recommended_agent": {
           "type": "string",
-          "description": "推荐Agent类型"
+          "description": "推荐Agent类型",
+          "enum": [
+            "basic-decomposition",
+            "deep-decomposition",
+            "oral-explanation",
+            "clarification-path",
+            "comparison-table",
+            "memory-anchor",
+            "four-level-explanation",
+            "example-teaching"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "description": "推荐置信度",
+          "minimum": 0,
+          "maximum": 1,
+          "examples": [0.85, 0.72]
+        },
+        "priority": {
+          "type": "string",
+          "description": "优先级",
+          "enum": ["urgent", "high", "medium", "low"],
+          "default": "medium"
         },
         "keywords": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "分组关键词"
+          "description": "分组关键词（top-3高频词）",
+          "examples": [["逆否命题", "充分条件", "逻辑"]]
         },
         "status": {
           "type": "string",
-          "enum": ["pending", "running", "completed", "failed"]
+          "enum": ["pending", "running", "completed", "failed"],
+          "default": "pending"
         }
       },
-      "required": ["group_id", "node_ids", "recommended_agent"]
+      "required": ["group_id", "group_name", "nodes", "recommended_agent"]
     }
   },
   "required": ["task_id", "canvas_path", "status", "groups"]

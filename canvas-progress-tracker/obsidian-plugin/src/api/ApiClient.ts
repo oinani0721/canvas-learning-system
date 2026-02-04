@@ -34,6 +34,9 @@ import {
   DecomposeResponse,
   ScoreRequest,
   ScoreResponse,
+  // Story 31.3: Recommend Action Types
+  RecommendActionRequest,
+  RecommendActionResponse,
   ExplainRequest,
   ExplainResponse,
   ReviewScheduleResponse,
@@ -41,6 +44,9 @@ import {
   GenerateReviewResponse,
   RecordReviewRequest,
   RecordReviewResponse,
+  // Story 31.6: Session Progress Types
+  SessionProgressResponse,
+  SessionPauseResumeResponse,
   // RAG Types (Story 12.5 - Plugin RAG API Client)
   RAGQueryRequest,
   RAGQueryResponse,
@@ -61,6 +67,14 @@ import {
   SyncMountResponse,
   UnmountTextbookResponse,
   ListMountedTextbooksResponse,
+  // Story 35.3: Multimodal API Types
+  MediaType,
+  MediaItem,
+  MultimodalUploadResponse,
+  MultimodalSearchRequest,
+  MultimodalSearchResult,
+  MultimodalSearchResponse,
+  MultimodalDeleteResponse,
 } from './types';
 
 /**
@@ -119,6 +133,18 @@ export class ApiClient {
    * @source Story 12.H.4 - AC1, AC2
    */
   private abortControllers: Map<string, AbortController> = new Map();
+
+  /**
+   * Story 35.3: Multimodal query cache (ADR-007 L1 Memory Cache)
+   *
+   * Caches getMediaByConceptId results with 5-minute TTL.
+   * Key: conceptId, Value: { data: MediaItem[], timestamp: number }
+   *
+   * @source ADR-007 - Tiered Cache Strategy (L1 memory, 5min TTL)
+   * @source Story 35.3 AC 35.3.2 - Add response caching
+   */
+  private multimodalCache: Map<string, { data: MediaItem[]; timestamp: number }> = new Map();
+  private readonly MULTIMODAL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   /**
    * Create a new API client instance
@@ -437,6 +463,18 @@ export class ApiClient {
   }
 
   /**
+   * Get intelligent action recommendation based on score
+   * @param request - Recommend action request with score and node info
+   * @returns Recommended action with agent endpoint and reasoning
+   *
+   * @source Story 31.3 - Agent决策推荐端点
+   * @source specs/data/recommend-action-request.schema.json
+   */
+  async recommendAction(request: RecommendActionRequest): Promise<RecommendActionResponse> {
+    return this.request<RecommendActionResponse>('POST', '/agents/recommend-action', request);
+  }
+
+  /**
    * Generate oral-style explanation
    * @param request - Explanation request
    * @returns Generated oral explanation
@@ -575,6 +613,53 @@ export class ApiClient {
   }
 
   // ===========================================================================
+  // Session Progress API Methods (3 endpoints) - Story 31.6
+  // ===========================================================================
+
+  /**
+   * Get real-time progress for a verification session
+   * @param sessionId - Unique session identifier
+   * @returns Session progress with concept counts and color distribution
+   *
+   * @source Story 31.6 AC-31.6.1: Frontend displays "已验证 X/Y 个概念" progress bar
+   * @source Story 31.6 AC-31.6.2: Color distribution real-time updates
+   */
+  async getSessionProgress(sessionId: string): Promise<SessionProgressResponse> {
+    return this.request<SessionProgressResponse>(
+      'GET',
+      `/review/session/${encodeURIComponent(sessionId)}/progress`
+    );
+  }
+
+  /**
+   * Pause an active verification session
+   * @param sessionId - Session identifier to pause
+   * @returns New session status and operation result
+   *
+   * @source Story 31.6 AC-31.6.4: Support pause/resume session
+   */
+  async pauseSession(sessionId: string): Promise<SessionPauseResumeResponse> {
+    return this.request<SessionPauseResumeResponse>(
+      'POST',
+      `/review/session/${encodeURIComponent(sessionId)}/pause`
+    );
+  }
+
+  /**
+   * Resume a paused verification session
+   * @param sessionId - Session identifier to resume
+   * @returns New session status and operation result
+   *
+   * @source Story 31.6 AC-31.6.4: Support pause/resume session
+   */
+  async resumeSession(sessionId: string): Promise<SessionPauseResumeResponse> {
+    return this.request<SessionPauseResumeResponse>(
+      'POST',
+      `/review/session/${encodeURIComponent(sessionId)}/resume`
+    );
+  }
+
+  // ===========================================================================
   // Textbook API Methods (3 endpoints) - Epic 28: Bidirectional Textbook Links
   // ===========================================================================
 
@@ -641,6 +726,309 @@ export class ApiClient {
       'GET',
       `/textbook/mounted/${encodeURIComponent(canvasPath)}`
     );
+  }
+
+  // ===========================================================================
+  // Multimodal API Methods (4 endpoints) - Story 35.3: Plugin Multimodal API
+  // ===========================================================================
+
+  /**
+   * Upload multimodal content to the backend
+   *
+   * Uploads image/pdf/audio/video files (max 50MB) associated with a concept.
+   * Uses FormData for file upload with extended timeout (60s).
+   *
+   * @param file - File to upload (image/pdf/audio/video, max 50MB)
+   * @param conceptId - Associated concept node ID (must be non-empty)
+   * @param onProgress - Optional progress callback (percent: 0-100)
+   * @returns Upload response with content metadata
+   * @throws ApiError if conceptId is empty or upload fails
+   *
+   * @source Story 35.3 AC 35.3.1 - Upload multimodal method
+   * @source POST /api/v1/multimodal/upload
+   * @source ADR-009 - Error handling with retry for transient failures
+   */
+  async uploadMultimodal(
+    file: File,
+    conceptId: string,
+    onProgress?: (percent: number) => void
+  ): Promise<MultimodalUploadResponse> {
+    // ✅ Verified from Story 35.3 Task 2 - Validate conceptId is non-empty
+    if (!conceptId || conceptId.trim() === '') {
+      throw new ApiError(
+        'conceptId is required and cannot be empty',
+        'ValidationError',
+        400,
+        { field: 'conceptId' }
+      );
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('related_concept_id', conceptId);
+
+    // Use longer timeout for file uploads (60s per Story 35.3 Task 2)
+    const uploadTimeout = 60000;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), uploadTimeout);
+
+    // Retry logic for transient failures (ADR-009)
+    let lastError: ApiError | null = null;
+    for (let attempt = 0; attempt <= this.retryPolicy.maxRetries; attempt++) {
+      try {
+        // Note: Progress tracking requires XMLHttpRequest, not supported with basic fetch
+        // If onProgress is provided, we'll call it at start/end (simplified)
+        if (onProgress) {
+          onProgress(0);
+        }
+
+        const response = await fetch(
+          `${this.baseUrl}/multimodal/upload`,
+          {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal,
+            headers: {
+              'User-Agent': 'Obsidian-Canvas-Review/1.0.0',
+              // Note: Don't set Content-Type for FormData, browser sets it with boundary
+            },
+          }
+        );
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          let errorDetails: ErrorResponse | null = null;
+          try {
+            errorDetails = (await response.json()) as ErrorResponse;
+          } catch {
+            // Response body might not be JSON
+          }
+
+          const errorType: ErrorType =
+            response.status >= 500 ? 'HttpError5xx' : 'HttpError4xx';
+          const errorMessage =
+            errorDetails?.message ?? response.statusText ?? 'Upload failed';
+
+          throw new ApiError(
+            `HTTP ${response.status}: ${errorMessage}`,
+            errorType,
+            response.status,
+            errorDetails?.details
+          );
+        }
+
+        if (onProgress) {
+          onProgress(100);
+        }
+
+        return (await response.json()) as MultimodalUploadResponse;
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        const apiError = this.normalizeError(error);
+        lastError = apiError;
+
+        // Retry only for retryable errors (ADR-009)
+        if (
+          attempt < this.retryPolicy.maxRetries &&
+          this.isRetryable(apiError)
+        ) {
+          const delay = this.retryPolicy.backoffMs * Math.pow(2, attempt);
+          console.log(
+            `[ApiClient] Upload failed, retrying in ${delay}ms ` +
+              `(attempt ${attempt + 1}/${this.retryPolicy.maxRetries}): ${apiError.message}`
+          );
+          await this.sleep(delay);
+          continue;
+        }
+
+        throw apiError;
+      }
+    }
+
+    throw lastError ?? new ApiError('Upload failed', 'UnknownError');
+  }
+
+  /**
+   * Get media items by concept ID
+   *
+   * Retrieves all media items associated with a concept node.
+   * Results are cached for 5 minutes (ADR-007 L1 memory cache).
+   *
+   * @param conceptId - Concept node ID to query (must be non-empty)
+   * @returns Array of media items
+   * @throws ApiError if conceptId is empty
+   *
+   * @source Story 35.3 AC 35.3.2 - Get media by concept
+   * @source GET /api/v1/multimodal/by-concept/{concept_id}
+   * @source ADR-007 - Tiered Cache Strategy (L1 memory, 5min TTL)
+   */
+  async getMediaByConceptId(conceptId: string): Promise<MediaItem[]> {
+    // ✅ Verified from Story 35.3 Task 3 - Validate conceptId is non-empty
+    if (!conceptId || conceptId.trim() === '') {
+      throw new ApiError(
+        'conceptId is required and cannot be empty',
+        'ValidationError',
+        400,
+        { field: 'conceptId' }
+      );
+    }
+
+    // Check cache first (ADR-007 L1 memory cache)
+    const cached = this.multimodalCache.get(conceptId);
+    if (cached && Date.now() - cached.timestamp < this.MULTIMODAL_CACHE_TTL_MS) {
+      console.log(`[ApiClient] Cache hit for multimodal concept: ${conceptId}`);
+      return cached.data;
+    }
+
+    // Fetch from backend
+    const searchResults = await this.request<MultimodalSearchResult[]>(
+      'GET',
+      `/multimodal/by-concept/${encodeURIComponent(conceptId)}`
+    );
+
+    // Transform backend response to frontend MediaItem format
+    const mediaItems: MediaItem[] = searchResults.map((result) => ({
+      id: result.id,
+      type: result.media_type,
+      path: result.file_path,
+      relevanceScore: result.score ?? 1.0, // Default to 1.0 for direct concept queries
+      conceptId: result.related_concept_id,
+      thumbnail: result.thumbnail,
+      description: result.description,
+      extractedText: result.extracted_text,
+      metadata: result.metadata,
+    }));
+
+    // Update cache (ADR-007)
+    this.multimodalCache.set(conceptId, {
+      data: mediaItems,
+      timestamp: Date.now(),
+    });
+    console.log(`[ApiClient] Cached multimodal for concept: ${conceptId} (${mediaItems.length} items)`);
+
+    return mediaItems;
+  }
+
+  /**
+   * Search multimodal content using vector similarity
+   *
+   * Performs semantic search across all multimodal content using embeddings.
+   * Returns ranked results with relevance scores.
+   *
+   * @param query - Search query text (must be non-empty)
+   * @param options - Optional search parameters (limit, media_types)
+   * @returns Ranked search results transformed to MediaItem[]
+   * @throws ApiError if query is empty
+   *
+   * @source Story 35.3 AC 35.3.3 - Search multimodal
+   * @source POST /api/v1/multimodal/search
+   */
+  async searchMultimodal(
+    query: string,
+    options?: { limit?: number; media_types?: MediaType[] }
+  ): Promise<MediaItem[]> {
+    // ✅ Verified from Story 35.3 Task 4 - Validate query is non-empty
+    if (!query || query.trim() === '') {
+      throw new ApiError(
+        'query is required and cannot be empty',
+        'ValidationError',
+        400,
+        { field: 'query' }
+      );
+    }
+
+    const searchRequest: MultimodalSearchRequest = {
+      query,
+      limit: options?.limit ?? 20,
+      media_types: options?.media_types,
+    };
+
+    const response = await this.request<MultimodalSearchResponse>(
+      'POST',
+      '/multimodal/search',
+      searchRequest
+    );
+
+    // Transform backend response to frontend MediaItem format
+    return response.results.map((result) => ({
+      id: result.id,
+      type: result.media_type,
+      path: result.file_path,
+      relevanceScore: result.score,
+      conceptId: result.related_concept_id,
+      thumbnail: result.thumbnail,
+      description: result.description,
+      extractedText: result.extracted_text,
+      metadata: result.metadata,
+    }));
+  }
+
+  /**
+   * Delete multimodal content by ID
+   *
+   * Deletes content from both LanceDB (vector store) and Neo4j (graph).
+   * Also invalidates related caches on success.
+   *
+   * @param contentId - Content ID to delete (must be non-empty)
+   * @returns Success status
+   * @throws ApiError if contentId is empty or deletion fails
+   *
+   * @source Story 35.3 AC 35.3.4 - Delete multimodal
+   * @source DELETE /api/v1/multimodal/{content_id}
+   */
+  async deleteMultimodal(contentId: string): Promise<boolean> {
+    // ✅ Verified from Story 35.3 Task 5 - Validate contentId is non-empty
+    if (!contentId || contentId.trim() === '') {
+      throw new ApiError(
+        'contentId is required and cannot be empty',
+        'ValidationError',
+        400,
+        { field: 'contentId' }
+      );
+    }
+
+    const response = await this.request<MultimodalDeleteResponse>(
+      'DELETE',
+      `/multimodal/${encodeURIComponent(contentId)}`
+    );
+
+    // Invalidate all multimodal caches on successful deletion (ADR-007)
+    if (response.success) {
+      this.invalidateMultimodalCache();
+      console.log(`[ApiClient] Deleted multimodal content: ${contentId}`);
+    }
+
+    return response.success;
+  }
+
+  /**
+   * Invalidate all multimodal caches
+   *
+   * Called after delete operations to ensure stale data is not served.
+   *
+   * @source Story 35.3 Task 5 - Invalidate related caches on success
+   * @source ADR-007 - Cache invalidation strategy
+   */
+  private invalidateMultimodalCache(): void {
+    const count = this.multimodalCache.size;
+    this.multimodalCache.clear();
+    if (count > 0) {
+      console.log(`[ApiClient] Invalidated ${count} multimodal cache entries`);
+    }
+  }
+
+  /**
+   * Invalidate multimodal cache for a specific concept
+   *
+   * @param conceptId - Concept ID to invalidate cache for
+   */
+  invalidateMultimodalCacheForConcept(conceptId: string): void {
+    if (this.multimodalCache.has(conceptId)) {
+      this.multimodalCache.delete(conceptId);
+      console.log(`[ApiClient] Invalidated multimodal cache for concept: ${conceptId}`);
+    }
   }
 
   // ===========================================================================

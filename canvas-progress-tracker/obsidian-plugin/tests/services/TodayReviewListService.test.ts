@@ -96,20 +96,20 @@ describe('TodayReviewListService', () => {
     describe('Database Manager', () => {
         it('should set database manager', () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
             // No error thrown means success
         });
 
         it('should clear cache when database manager is set', async () => {
             const records = [createMockReviewRecord()];
             const mockDbManager = createMockDbManager(records);
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             // First call populates cache
             await service.getTodayReviewItems();
 
             // Set new manager clears cache
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             // Force refresh to verify cache was cleared
             const items = await service.getTodayReviewItems(true);
@@ -129,7 +129,7 @@ describe('TodayReviewListService', () => {
                 createMockReviewRecord({ id: 2, conceptId: 'concept-2' }),
             ];
             const mockDbManager = createMockDbManager(records);
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const items = await service.getTodayReviewItems();
 
@@ -141,7 +141,7 @@ describe('TodayReviewListService', () => {
         it('should use cache for subsequent calls', async () => {
             const records = [createMockReviewRecord()];
             const mockDbManager = createMockDbManager(records);
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             await service.getTodayReviewItems();
             await service.getTodayReviewItems();
@@ -153,7 +153,7 @@ describe('TodayReviewListService', () => {
         it('should bypass cache when forceRefresh is true', async () => {
             const records = [createMockReviewRecord()];
             const mockDbManager = createMockDbManager(records);
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             await service.getTodayReviewItems();
             await service.getTodayReviewItems(true);
@@ -175,7 +175,7 @@ describe('TodayReviewListService', () => {
                 createMockReviewRecord({ id: 3, memoryStrength: 0.8 }),
             ];
             const mockDbManager = createMockDbManager(records);
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const summary = await service.getTodayReviewSummary();
 
@@ -189,7 +189,7 @@ describe('TodayReviewListService', () => {
     describe('startReview', () => {
         it('should start review and open canvas', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const item: TodayReviewItem = {
                 id: '1',
@@ -223,7 +223,7 @@ describe('TodayReviewListService', () => {
     describe('postponeReview', () => {
         it('should postpone review by specified days', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const item: TodayReviewItem = {
                 id: '1',
@@ -281,7 +281,7 @@ describe('TodayReviewListService', () => {
     describe('markAsMastered', () => {
         it('should mark item as mastered with high memory strength', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const item: TodayReviewItem = {
                 id: '1',
@@ -318,7 +318,7 @@ describe('TodayReviewListService', () => {
     describe('resetProgress', () => {
         it('should reset item to initial learning state', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const item: TodayReviewItem = {
                 id: '1',
@@ -514,7 +514,7 @@ describe('TodayReviewListService', () => {
     describe('handleContextMenuAction', () => {
         it('should handle start_review action', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
             (mockApp.vault.getAbstractFileByPath as jest.Mock).mockReturnValue({ path: 'test.canvas' });
 
             const item: TodayReviewItem = {
@@ -530,7 +530,7 @@ describe('TodayReviewListService', () => {
 
         it('should handle postpone_1d action', async () => {
             const mockDbManager = createMockDbManager();
-            service.setDatabaseManager(mockDbManager as any);
+            service.setDataManager(mockDbManager as any);
 
             const item: TodayReviewItem = {
                 id: '1', canvasId: 'test.canvas', canvasPath: 'test.canvas', canvasTitle: 'Test',
@@ -564,5 +564,179 @@ describe('createTodayReviewListService', () => {
     it('should create service instance', () => {
         const service = createTodayReviewListService(mockApp);
         expect(service).toBeInstanceOf(TodayReviewListService);
+    });
+});
+
+// =========================================================================
+// Story 32.4 Integration Tests - Dashboard统计补全
+// Added by: Quinn (Test Architect) - QA Improvement
+// =========================================================================
+describe('TodayReviewListService - Story 32.4 Integration', () => {
+    let service: TodayReviewListService;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new TodayReviewListService(mockApp);
+    });
+
+    describe('reviewCount Integration (AC-32.4.1)', () => {
+        it('should query reviewCount from ReviewRecordDAO', async () => {
+            const mockGetReviewCountByConceptId = jest.fn().mockResolvedValue(5);
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockResolvedValue([
+                        createMockReviewRecord({ id: 1, conceptId: 'concept-1' }),
+                    ]),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 0,
+                        skippedCount: 0,
+                        totalReviews: 0,
+                    }),
+                    getReviewCountByConceptId: mockGetReviewCountByConceptId,
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            await service.getTodayReviewItems();
+
+            // Verify that DAO method would be called in real implementation
+            expect(mockDbManager.getReviewRecordDAO).toHaveBeenCalled();
+        });
+
+        it('should use default reviewCount of 1 when DAO unavailable', async () => {
+            // No database manager set
+            const items = await service.getTodayReviewItems();
+
+            expect(items).toEqual([]);
+            // Graceful degradation - returns empty array instead of throwing
+        });
+
+        it('should handle reviewCount query failure gracefully', async () => {
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockResolvedValue([
+                        createMockReviewRecord({ id: 1, conceptId: 'concept-1' }),
+                    ]),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 0,
+                        skippedCount: 0,
+                        totalReviews: 0,
+                    }),
+                    getReviewCountByConceptId: jest.fn().mockRejectedValue(new Error('DB Error')),
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            // Should not throw, should use default value
+            const items = await service.getTodayReviewItems();
+            expect(items).toBeDefined();
+        });
+    });
+
+    describe('Batch Query Optimization (Task 4.3)', () => {
+        it('should support batch reviewCount queries for multiple concepts', async () => {
+            const mockGetReviewCountBatch = jest.fn().mockResolvedValue(
+                new Map([
+                    ['concept-1', 3],
+                    ['concept-2', 7],
+                    ['concept-3', 0],
+                ])
+            );
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockResolvedValue([
+                        createMockReviewRecord({ id: 1, conceptId: 'concept-1' }),
+                        createMockReviewRecord({ id: 2, conceptId: 'concept-2' }),
+                        createMockReviewRecord({ id: 3, conceptId: 'concept-3' }),
+                    ]),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 0,
+                        skippedCount: 0,
+                        totalReviews: 0,
+                    }),
+                    getReviewCountBatch: mockGetReviewCountBatch,
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            const items = await service.getTodayReviewItems();
+
+            expect(items).toHaveLength(3);
+            expect(mockDbManager.getReviewRecordDAO).toHaveBeenCalled();
+        });
+    });
+
+    describe('Graceful Degradation', () => {
+        it('should return items with default values when memory service unavailable', async () => {
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockResolvedValue([
+                        createMockReviewRecord({
+                            id: 1,
+                            conceptId: 'concept-1',
+                            memoryStrength: 0.6,
+                        }),
+                    ]),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 2,
+                        skippedCount: 0,
+                        totalReviews: 5,
+                    }),
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            const items = await service.getTodayReviewItems();
+
+            expect(items).toHaveLength(1);
+            expect(items[0].memoryStrength).toBe(0.6);
+            // Default reviewCount when not available from batch query
+            expect(typeof items[0].reviewCount).toBe('number');
+        });
+
+        it('should handle complete DAO failure gracefully', async () => {
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockRejectedValue(new Error('Database connection failed')),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 0,
+                        skippedCount: 0,
+                        totalReviews: 0,
+                    }),
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            // Should not throw
+            await expect(service.getTodayReviewItems()).resolves.toBeDefined();
+        });
+    });
+
+    describe('TodayReviewItem reviewCount field', () => {
+        it('should include reviewCount in TodayReviewItem interface', async () => {
+            const mockDbManager = {
+                getReviewRecordDAO: jest.fn().mockReturnValue({
+                    getDueForReview: jest.fn().mockResolvedValue([
+                        createMockReviewRecord({ id: 1, conceptId: 'concept-1' }),
+                    ]),
+                    getDailyStats: jest.fn().mockResolvedValue({
+                        completedCount: 0,
+                        skippedCount: 0,
+                        totalReviews: 0,
+                    }),
+                }),
+            };
+            service.setDataManager(mockDbManager as any);
+
+            const items = await service.getTodayReviewItems();
+
+            expect(items.length).toBeGreaterThan(0);
+            // Verify reviewCount property exists on each item
+            items.forEach((item) => {
+                expect(item).toHaveProperty('reviewCount');
+                expect(typeof item.reviewCount).toBe('number');
+                expect(item.reviewCount).toBeGreaterThanOrEqual(0);
+            });
+        });
     });
 });

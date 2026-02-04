@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from typing import Annotated, List, Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.services.rag_service import (
     RAGService,
@@ -48,14 +48,15 @@ class RAGQueryRequest(BaseModel):
         None, description="Reranking 策略 (默认: hybrid_auto)"
     )
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "什么是逆否命题？",
                 "canvas_file": "离散数学.canvas",
                 "is_review_canvas": False
             }
         }
+    )
 
 
 class SearchResultItem(BaseModel):
@@ -64,6 +65,20 @@ class SearchResultItem(BaseModel):
     content: str = Field(..., description="内容")
     score: float = Field(..., description="相关度分数")
     metadata: dict = Field(default_factory=dict, description="元数据")
+
+
+class MultimodalResultItem(BaseModel):
+    """
+    多模态检索结果项 (Story 35.8 AC-35.8.1)
+
+    ✅ Verified from OpenAPI: specs/api/fastapi-backend-api.openapi.yml#MultimodalResultItem
+    """
+    id: str = Field(..., description="内容ID")
+    media_type: Literal["image", "pdf", "audio", "video"] = Field(..., description="媒体类型")
+    path: str = Field(..., description="文件路径")
+    thumbnail: Optional[str] = Field(None, description="缩略图Base64或URL")
+    relevance_score: float = Field(..., ge=0.0, le=1.0, description="相关度分数 (0-1)")
+    metadata: dict = Field(default_factory=dict, description="额外元数据")
 
 
 class LatencyInfo(BaseModel):
@@ -84,16 +99,24 @@ class RAGQueryMetadata(BaseModel):
 
 
 class RAGQueryResponse(BaseModel):
-    """RAG 查询响应"""
+    """
+    RAG 查询响应 (Story 35.8 - 含multimodal_results)
+
+    ✅ Verified from OpenAPI: specs/api/fastapi-backend-api.openapi.yml#RAGQueryResponse
+    """
     results: List[SearchResultItem] = Field(default_factory=list, description="检索结果列表")
+    multimodal_results: List[MultimodalResultItem] = Field(
+        default_factory=list,
+        description="多模态检索结果 (Story 35.8 AC-35.8.1)"
+    )
     quality_grade: str = Field("low", description="质量评级 (high/medium/low)")
     result_count: int = Field(0, description="结果数量")
     latency_ms: LatencyInfo = Field(default_factory=LatencyInfo, description="延迟信息")
     total_latency_ms: float = Field(0.0, description="总延迟 (ms)")
     metadata: RAGQueryMetadata = Field(default_factory=RAGQueryMetadata, description="元数据")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "results": [
                     {
@@ -103,15 +126,26 @@ class RAGQueryResponse(BaseModel):
                         "metadata": {"source": "graphiti", "canvas": "离散数学.canvas"}
                     }
                 ],
+                "multimodal_results": [
+                    {
+                        "id": "mm-001",
+                        "media_type": "image",
+                        "path": "笔记库/images/逆否命题图解.png",
+                        "thumbnail": "data:image/png;base64,...",
+                        "relevance_score": 0.87,
+                        "metadata": {"width": 800, "height": 600}
+                    }
+                ],
                 "quality_grade": "high",
                 "result_count": 1,
                 "latency_ms": {
                     "graphiti": 45.2,
                     "lancedb": 32.1,
+                    "multimodal": 58.5,
                     "fusion": 5.3,
                     "reranking": 12.8
                 },
-                "total_latency_ms": 95.4,
+                "total_latency_ms": 153.9,
                 "metadata": {
                     "query_rewritten": False,
                     "rewrite_count": 0,
@@ -120,6 +154,7 @@ class RAGQueryResponse(BaseModel):
                 }
             }
         }
+    )
 
 
 class WeakConceptItem(BaseModel):
@@ -197,7 +232,7 @@ async def rag_query(
             reranking_strategy=request.reranking_strategy
         )
 
-        # 转换结果格式
+        # 转换结果格式 (Story 35.8: 含multimodal_results)
         return RAGQueryResponse(
             results=[
                 SearchResultItem(
@@ -207,6 +242,17 @@ async def rag_query(
                     metadata=r.get("metadata", {})
                 )
                 for r in result.get("results", [])
+            ],
+            multimodal_results=[
+                MultimodalResultItem(
+                    id=mm.get("id", ""),
+                    media_type=mm.get("media_type", "image"),
+                    path=mm.get("path", mm.get("file_path", "")),
+                    thumbnail=mm.get("thumbnail", mm.get("content_preview")),
+                    relevance_score=mm.get("relevance_score", 0.0),
+                    metadata=mm.get("metadata", {})
+                )
+                for mm in result.get("multimodal_results", [])
             ],
             quality_grade=result.get("quality_grade", "low"),
             result_count=result.get("result_count", 0),

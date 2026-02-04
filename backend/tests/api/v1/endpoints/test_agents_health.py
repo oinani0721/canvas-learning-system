@@ -18,21 +18,16 @@ Tests for GET /api/v1/agents/health endpoint:
 
 import time
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from app.api.v1.endpoints.agents import (
     HEALTH_CHECK_CACHE_TTL,
-    _health_check_cache,
-    _health_check_cache_time,
     get_agent_health,
 )
 from app.models import (
     AgentHealthCheckResponse,
     AgentHealthChecks,
     AgentHealthStatus,
-    ApiTestResult,
     PromptTemplateCheck,
 )
 

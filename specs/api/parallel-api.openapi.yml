@@ -51,7 +51,7 @@ tags:
     description: WebSocket实时通信
 
 paths:
-  /parallel/analyze:
+  /canvas/intelligent-parallel:
     post:
       tags: [parallel]
       summary: 智能分组分析
@@ -93,10 +93,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /parallel/execute:
+  /canvas/intelligent-parallel/confirm:
     post:
       tags: [parallel]
-      summary: 执行并行处理
+      summary: 确认并执行并行处理
       description: |
         根据分组结果执行并行Agent调用。
 
@@ -130,10 +130,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /parallel/status/{task_id}:
+  /canvas/intelligent-parallel/{session_id}:
     get:
       tags: [parallel]
-      summary: 获取任务状态
+      summary: 获取会话状态
       description: |
         查询并行处理任务的执行状态和结果。
 
@@ -141,21 +141,20 @@ paths:
         - pending: 等待执行
         - running: 正在执行
         - completed: 全部成功
-        - partial_failure: 部分失败
-        - failed: 全部失败
+        - failed: 全部失败（包括部分节点失败，通过failed_nodes字段区分）
         - cancelled: 已取消
       operationId: getParallelStatus
       parameters:
-        - name: task_id
+        - name: session_id
           in: path
           required: true
-          description: 任务ID
+          description: 会话ID
           schema:
             type: string
             example: "parallel-20250118-001"
       responses:
         '200':
-          description: 任务状态
+          description: 会话状态
           content:
             application/json:
               schema:
@@ -167,20 +166,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /parallel/cancel/{task_id}:
-    delete:
+  /canvas/intelligent-parallel/cancel/{session_id}:
+    post:
       tags: [parallel]
-      summary: 取消任务
+      summary: 取消会话
       description: |
-        取消正在执行或等待中的并行处理任务。
+        取消正在执行或等待中的并行处理会话。
+        使用POST方法符合ADR-006设计规范。
 
         **注意**: 已完成的子任务不会被回滚。
       operationId: cancelParallel
       parameters:
-        - name: task_id
+        - name: session_id
           in: path
           required: true
-          description: 任务ID
+          description: 会话ID
           schema:
             type: string
             example: "parallel-20250118-001"
@@ -210,6 +210,44 @@ paths:
                 $ref: '#/components/schemas/Error'
         '409':
           description: 任务已完成，无法取消
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /canvas/single-agent:
+    post:
+      tags: [parallel]
+      summary: 单节点Agent重试
+      description: |
+        对单个失败节点重新执行Agent调用。
+        独立于批处理会话，可用于重试失败的节点。
+
+        **使用场景**:
+        - 批处理中某个节点失败后的重试
+        - 单独对一个节点执行Agent分析
+      operationId: singleAgentRetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SingleAgentRequest'
+      responses:
+        '200':
+          description: Agent执行成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SingleAgentResponse'
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: 节点或Canvas不存在
           content:
             application/json:
               schema:
@@ -247,6 +285,9 @@ components:
 
     ParallelAnalyzeResponse:
       type: object
+      description: |
+        智能分组分析响应
+        Story 33.4 Task 0.2: 添加subject和subject_group_id支持多学科隔离
       required: [canvas_path, total_nodes, groups]
       properties:
         canvas_path:
@@ -269,15 +310,43 @@ components:
           type: string
           description: 资源警告（如果有）
           example: "CPU使用率较高，建议减少并发数"
+        subject:
+          type: string
+          description: |
+            从canvas_path提取的学科名称
+            使用subject_config.extract_subject_from_canvas_path()
+            Story 33.4 AC-33.4.5 (依赖30.8)
+          example: "数学"
+        subject_group_id:
+          type: string
+          description: |
+            学科隔离group_id，格式为"{subject}:{canvas_name}"
+            使用subject_config.build_group_id()
+            用于下游session tracking和memory namespace隔离
+            Story 33.4 AC-33.4.5 (依赖30.8)
+          example: "数学:离散数学"
+        silhouette_score:
+          type: number
+          description: |
+            聚类质量评估（Silhouette Score）
+            范围0-1，低于0.3建议重新聚类
+            Story 33.4 AC-33.4.3
+          minimum: 0
+          maximum: 1
+          example: 0.72
+        recommended_k:
+          type: integer
+          description: 自动确定的最优聚类数量
+          example: 4
 
     NodeGroup:
       type: object
       required: [group_id, group_name, nodes, recommended_agent]
       properties:
         group_id:
-          type: integer
+          type: string
           description: 分组ID
-          example: 1
+          example: "group-1"
         group_name:
           type: string
           description: 分组名称（自动生成）
@@ -330,8 +399,8 @@ components:
             required: [group_id, agent_type, node_ids]
             properties:
               group_id:
-                type: integer
-                example: 1
+                type: string
+                example: "group-1"
               agent_type:
                 type: string
                 description: Agent类型
@@ -387,7 +456,7 @@ components:
         websocket_url:
           type: string
           description: WebSocket进度订阅URL
-          example: "ws://localhost:8000/ws/parallel/progress?task_id=parallel-20250118-001"
+          example: "ws://localhost:8000/ws/intelligent-parallel/parallel-20250118-001"
 
     ParallelTaskStatus:
       type: object
@@ -398,7 +467,7 @@ components:
           example: "parallel-20250118-001"
         status:
           type: string
-          enum: [pending, running, completed, partial_failure, failed, cancelled]
+          enum: [pending, running, completed, failed, cancelled]
           example: "completed"
         total_groups:
           type: integer
@@ -443,8 +512,8 @@ components:
             type: object
             properties:
               group_id:
-                type: integer
-                example: 1
+                type: string
+                example: "group-1"
               status:
                 type: string
                 enum: [pending, running, completed, failed]
@@ -504,6 +573,45 @@ components:
               description: 峰值并发数
               example: 8
 
+    SingleAgentRequest:
+      type: object
+      required: [node_id, agent_type, canvas_path]
+      properties:
+        node_id:
+          type: string
+          description: 要处理的节点ID
+          example: "node-005"
+        agent_type:
+          type: string
+          description: Agent类型
+          example: "oral-explanation"
+        canvas_path:
+          type: string
+          description: Canvas文件路径
+          example: "离散数学.canvas"
+
+    SingleAgentResponse:
+      type: object
+      required: [node_id, status]
+      properties:
+        node_id:
+          type: string
+          description: 处理的节点ID
+          example: "node-005"
+        file_path:
+          type: string
+          description: 生成的文件路径
+          example: "离散数学/逻辑表达式-explanation.md"
+        status:
+          type: string
+          enum: [success, failed]
+          description: 执行状态
+          example: "success"
+        error_message:
+          type: string
+          description: 错误信息（如果失败）
+          example: null
+
     Error:
       type: object
       required: [error, message]
@@ -521,39 +629,53 @@ components:
           additionalProperties: true
 
 # WebSocket端点说明（OpenAPI 3.0不原生支持WebSocket，此处作为文档）
-# WebSocket: ws://localhost:8000/ws/parallel/progress
+# WebSocket: ws://localhost:8000/ws/intelligent-parallel/{sessionId}
 #
-# 连接参数:
-#   - task_id: 任务ID (required)
+# 路径参数:
+#   - sessionId: 会话ID (required, path parameter)
+#
+# 连接生命周期:
+#   - 心跳: 每30秒发送ping
+#   - 超时: 10分钟无活动自动关闭
+#   - 会话完成时自动关闭连接
 #
 # 消息格式 (JSON):
 # {
-#   "type": "progress" | "group_complete" | "node_complete" | "error" | "complete",
+#   "type": "progress_update" | "task_completed" | "task_failed" | "session_completed" | "error",
 #   "task_id": "parallel-20250118-001",
 #   "timestamp": "2025-01-18T10:30:45Z",
 #   "data": {
-#     // type=progress
+#     // type=progress_update
 #     "progress_percent": 67,
 #     "completed_nodes": 8,
 #     "total_nodes": 12,
 #
-#     // type=group_complete
-#     "group_id": 1,
-#     "agent_type": "comparison-table",
-#     "results": [...],
-#
-#     // type=node_complete
+#     // type=task_completed
 #     "node_id": "node-001",
 #     "file_path": "逆否命题 vs 否命题.md",
+#     "file_size": "3.2KB",
+#     "group_id": 1,
 #
-#     // type=error
+#     // type=task_failed
 #     "node_id": "node-005",
 #     "error_message": "Agent timeout",
+#     "group_id": 1,
 #
-#     // type=complete
+#     // type=session_completed
 #     "status": "completed",
 #     "total_duration": 135,
 #     "success_count": 11,
-#     "failure_count": 1
+#     "failure_count": 1,
+#
+#     // type=error
+#     "error_type": "CONNECTION_ERROR",
+#     "message": "Session not found",
+#     "recoverable": true,
+#     "retry_after": 5
 #   }
 # }
+#
+# 更新历史:
+# - 2026-01-20: 端点路径从 /ws/parallel/progress?task_id 改为 /ws/intelligent-parallel/{sessionId}
+#               事件类型重命名以匹配Epic 33规范 (Story 33.2验证 - Conflict Resolution #1, #2)
+#               参考: ADR-007-WEBSOCKET-BATCH-PROCESSING.md

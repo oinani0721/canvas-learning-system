@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: FastAPI CORSMiddleware)
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -32,6 +32,15 @@ from app.middleware.metrics import MetricsMiddleware
 from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
 from app.services.notification_channels import create_default_dispatcher
 from app.services.resource_monitor import get_default_monitor
+
+# ✅ Story 30.3 Fix: Import MemoryService for startup pre-warm
+from app.api.v1.endpoints.memory import get_memory_service, cleanup_memory_service
+
+# ✅ Story 33.2: WebSocket endpoint import
+from app.api.v1.endpoints.websocket import (
+    websocket_intelligent_parallel,
+    set_session_validator,
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Logging Setup
@@ -97,6 +106,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Set global alert manager for monitoring endpoint dependency injection
     set_alert_manager(alert_manager)
 
+    # ✅ Story 30.3 Fix: Pre-warm MemoryService singleton to avoid first-call latency
+    # This ensures the first /api/v1/memory/health call is fast (<100ms vs 21s)
+    try:
+        logger.info("Pre-warming MemoryService singleton...")
+        await get_memory_service()
+        logger.info("MemoryService pre-warmed successfully")
+    except Exception as e:
+        logger.warning(f"MemoryService pre-warm failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown
@@ -109,6 +127,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ✅ Stop resource monitoring gracefully
     await resource_monitor.stop_background_collection()
     logger.info("Resource monitoring stopped")
+
+    # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
+    await cleanup_memory_service()
+    logger.info("MemoryService cleaned up")
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # FastAPI Application
@@ -343,6 +365,27 @@ app.add_middleware(MetricsMiddleware)
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: include_router prefix)
 # Pattern: app.include_router(router, prefix="/api/v1")
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WebSocket Routes (Story 33.2)
+# [Source: docs/stories/33.2.story.md - Task 1]
+# [Source: specs/api/parallel-api.openapi.yml#L523-L559]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.websocket("/ws/intelligent-parallel/{session_id}")
+async def websocket_endpoint(websocket: WebSocket, session_id: str):
+    """
+    WebSocket endpoint for intelligent parallel batch processing progress.
+
+    [Source: docs/stories/33.2.story.md - AC1]
+    [Source: docs/architecture/decisions/ADR-007-WEBSOCKET-BATCH-PROCESSING.md]
+
+    Args:
+        websocket: WebSocket connection
+        session_id: Session ID to subscribe to
+    """
+    await websocket_intelligent_parallel(websocket, session_id)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Root Endpoint

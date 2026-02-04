@@ -38,6 +38,12 @@ import { VerificationHistoryService, createVerificationHistoryService } from '..
 import { CrossCanvasService, createCrossCanvasService } from '../services/CrossCanvasService';
 import { TextbookMountService, createTextbookMountService } from '../services/TextbookMountService';
 import type { MountedTextbook, TextbookType } from '../types/UITypes';
+// Story 30.7 AC-30.7.3: Import PriorityCalculatorService for real memory-based priority
+import {
+    PriorityCalculatorService,
+    createPriorityCalculatorService,
+    PriorityResult,
+} from '../services/PriorityCalculatorService';
 
 export const VIEW_TYPE_REVIEW_DASHBOARD = 'canvas-review-dashboard';
 
@@ -54,6 +60,8 @@ export class ReviewDashboardView extends ItemView {
     private verificationService: VerificationHistoryService;
     private crossCanvasService: CrossCanvasService;
     private textbookMountService: TextbookMountService;
+    /** Story 30.7 AC-30.7.3: PriorityCalculatorService for 4-dimensional priority */
+    private priorityCalculatorService: PriorityCalculatorService;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasReviewPlugin) {
         super(leaf);
@@ -63,6 +71,8 @@ export class ReviewDashboardView extends ItemView {
         this.verificationService = createVerificationHistoryService(this.app);
         this.crossCanvasService = createCrossCanvasService(this.app);
         this.textbookMountService = createTextbookMountService(this.app);
+        // Story 30.7 AC-30.7.3: Initialize PriorityCalculatorService
+        this.priorityCalculatorService = createPriorityCalculatorService(this.app);
     }
 
     getViewType(): string {
@@ -122,24 +132,65 @@ export class ReviewDashboardView extends ItemView {
             const dueReviews = await dataManager.getDueReviews();
             const dailyStats = await dataManager.getDailyStatistics();
 
-            // Convert to ReviewTask format
-            const tasks: ReviewTask[] = dueReviews.map((review) => ({
-                id: String(review.id),
-                canvasId: review.canvasId,
-                canvasTitle: review.canvasTitle,
-                conceptName: review.conceptName,
-                priority: this.calculatePriority(review),
-                dueDate: review.nextReviewDate || new Date(),
-                overdueDays: this.calculateOverdueDays(review.nextReviewDate),
-                memoryStrength: review.memoryStrength,
-                retentionRate: review.retentionRate,
-                reviewCount: 1, // TODO: Track review count
-                lastReviewDate: review.reviewDate,
-                status: 'pending',
-            }));
+            // Story 32.4 AC-32.4.2: Query streak days from ReviewRecordDAO
+            let streakDays = 0;
+            try {
+                const reviewRecordDAO = dataManager.getReviewRecordDAO();
+                streakDays = await reviewRecordDAO.calculateStreakDays();
+            } catch (error) {
+                console.warn('[ReviewDashboard] Streak calculation failed, using default:', error);
+            }
+
+            // Story 32.4 Task 4.3: Batch query reviewCount for performance
+            const conceptIds = dueReviews
+                .map((r) => r.conceptId || r.conceptName || '')
+                .filter(Boolean);
+            let reviewCountMap = new Map<string, number>();
+            try {
+                const reviewRecordDAO = dataManager.getReviewRecordDAO();
+                reviewCountMap = await reviewRecordDAO.getReviewCountBatch(conceptIds);
+            } catch (error) {
+                console.warn('[ReviewDashboard] Batch review count query failed:', error);
+            }
+
+            // Story 30.7 AC-30.7.3: Convert to ReviewTask format with real memory-based priority
+            const tasks: ReviewTask[] = await Promise.all(
+                dueReviews.map(async (review) => {
+                    // Query real memory result from MemoryQueryService if available
+                    const memoryResult = await this.queryConceptMemory(review.conceptName || review.conceptId || '');
+
+                    // Use PriorityCalculatorService with real memoryResult
+                    const priorityResult = this.priorityCalculatorService.calculatePriority(
+                        review.conceptId || review.conceptName || '',
+                        null, // FSRS state - can be enhanced to pass real state
+                        memoryResult,
+                        review.canvasId
+                    );
+
+                    // Story 32.4 AC-32.4.1: Use real reviewCount from batch query
+                    const conceptId = review.conceptId || review.conceptName || '';
+                    const reviewCount = reviewCountMap.get(conceptId) || 1;
+
+                    return {
+                        id: String(review.id),
+                        canvasId: review.canvasId,
+                        canvasTitle: review.canvasTitle,
+                        conceptName: review.conceptName,
+                        priority: priorityResult.priorityTier,
+                        dueDate: review.nextReviewDate || new Date(),
+                        overdueDays: this.calculateOverdueDays(review.nextReviewDate),
+                        memoryStrength: review.memoryStrength,
+                        retentionRate: review.retentionRate,
+                        reviewCount, // Story 32.4: Real review count from database
+                        lastReviewDate: review.reviewDate,
+                        status: 'pending',
+                    };
+                })
+            );
 
             // Calculate dashboard statistics
-            const statistics = this.calculateStatistics(tasks, dailyStats);
+            // Story 32.4 AC-32.4.2: Pass real streakDays to statistics calculation
+            const statistics = this.calculateStatistics(tasks, dailyStats, streakDays);
 
             this.updateViewState({
                 tasks,
@@ -156,7 +207,37 @@ export class ReviewDashboardView extends ItemView {
         }
     }
 
-    private calculatePriority(review: any): TaskPriority {
+    /**
+     * Story 30.7 AC-30.7.3: Query concept memory from MemoryQueryService
+     *
+     * Returns real memory result if MemoryQueryService is available,
+     * otherwise returns null for graceful degradation.
+     *
+     * @param conceptName - Concept name to query
+     * @returns MemoryQueryResult or null
+     */
+    private async queryConceptMemory(conceptName: string): Promise<import('../services/MemoryQueryService').MemoryQueryResult | null> {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const memoryService = (this.plugin as any).memoryQueryService;
+            if (!memoryService || !conceptName) {
+                return null;
+            }
+            return await memoryService.queryConceptMemory(conceptName);
+        } catch (error) {
+            // Silent degradation - memory query failure shouldn't block dashboard
+            if (this.plugin.settings?.debugMode) {
+                console.warn('[ReviewDashboard] Memory query failed for:', conceptName, error);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * @deprecated Use PriorityCalculatorService.calculatePriority() instead (Story 30.7)
+     * Kept for backwards compatibility fallback only.
+     */
+    private calculatePriorityLegacy(review: any): TaskPriority {
         if (review.memoryStrength < 0.3) return 'critical';
         if (review.memoryStrength < 0.5) return 'high';
         if (review.memoryStrength < 0.7) return 'medium';
@@ -171,7 +252,15 @@ export class ReviewDashboardView extends ItemView {
         return Math.floor(diff / (1000 * 60 * 60 * 24));
     }
 
-    private calculateStatistics(tasks: ReviewTask[], dailyStats: any): DashboardStatistics {
+    /**
+     * Calculate dashboard statistics from tasks and daily stats
+     * Story 32.4 AC-32.4.2: Added streakDays parameter for real streak calculation
+     *
+     * @param tasks - Array of review tasks
+     * @param dailyStats - Daily statistics from database
+     * @param streakDays - Consecutive review days (Story 32.4)
+     */
+    private calculateStatistics(tasks: ReviewTask[], dailyStats: any, streakDays: number = 0): DashboardStatistics {
         const pendingTasks = tasks.filter((t) => t.status === 'pending');
         const overdueTasks = tasks.filter((t) => t.overdueDays > 0);
 
@@ -186,7 +275,7 @@ export class ReviewDashboardView extends ItemView {
             averageScore: dailyStats.dailyAverageScore || 0,
             averageMemoryStrength: dailyStats.averageMemoryStrength || 0,
             averageRetentionRate: dailyStats.averageRetentionRate || 0,
-            streakDays: 0, // TODO: Calculate streak
+            streakDays, // Story 32.4: Real streak from database
             totalConcepts:
                 dailyStats.masteredConcepts + dailyStats.learningConcepts + dailyStats.strugglingConcepts,
             masteredConcepts: dailyStats.masteredConcepts || 0,
@@ -347,8 +436,10 @@ export class ReviewDashboardView extends ItemView {
 
     /**
      * Load history data (Story 14.6)
+     * Story 34.4: Added showAll parameter for pagination
+     * @param showAll - If true, load all records; if false, limit to 5 (default)
      */
-    private async loadHistoryData(): Promise<void> {
+    private async loadHistoryData(showAll: boolean = false): Promise<void> {
         const historyState = { ...this.state.historyState, loading: true };
         this.updateViewState({ historyState });
 
@@ -358,8 +449,10 @@ export class ReviewDashboardView extends ItemView {
                 this.historyService.setDataManager(dataManager);
             }
 
+            // Story 34.4: Pass showAll parameter to loadHistoryState
             const newHistoryState = await this.historyService.loadHistoryState(
-                this.state.historyState.timeRange
+                this.state.historyState.timeRange,
+                showAll
             );
 
             this.updateViewState({ historyState: newHistoryState });
@@ -370,9 +463,20 @@ export class ReviewDashboardView extends ItemView {
                     ...DEFAULT_HISTORY_STATE,
                     timeRange: this.state.historyState.timeRange,
                     loading: false,
+                    hasMore: false,
+                    totalCount: 0,
+                    showAll: false,
                 },
             });
         }
+    }
+
+    /**
+     * Story 34.4: Toggle between showing limited (5) and all history entries
+     */
+    private async toggleShowAllHistory(): Promise<void> {
+        const currentShowAll = this.state.historyState.showAll || false;
+        await this.loadHistoryData(!currentShowAll);
     }
 
     /**
@@ -593,17 +697,23 @@ export class ReviewDashboardView extends ItemView {
 
     /**
      * Render history list (Story 14.6)
+     * Story 34.4: Added "Show All" button for pagination
      */
     private renderHistoryList(container: HTMLElement): void {
         const listContainer = container.createDiv({ cls: 'history-list-container' });
-        listContainer.createEl('h3', { text: '复习记录', cls: 'history-list-title' });
+
+        // Story 34.4: Show count info in title
+        const { entries, hasMore, totalCount, showAll } = this.state.historyState;
+        const countText = totalCount && totalCount > 0
+            ? ` (${showAll ? '全部' : `最近${entries.length}条`}/${totalCount})`
+            : '';
+        listContainer.createEl('h3', { text: `复习记录${countText}`, cls: 'history-list-title' });
 
         if (this.state.historyState.loading) {
             listContainer.createDiv({ text: '加载中...', cls: 'history-loading' });
             return;
         }
 
-        const { entries } = this.state.historyState;
         if (entries.length === 0) {
             listContainer.createDiv({ text: '暂无复习记录', cls: 'history-empty' });
             return;
@@ -615,7 +725,7 @@ export class ReviewDashboardView extends ItemView {
         const groupedEntries = this.groupEntriesByDate(entries);
 
         Object.entries(groupedEntries)
-            .slice(0, 7) // Show last 7 days
+            .slice(0, showAll ? undefined : 7) // Story 34.4: Show all days when showAll=true
             .forEach(([date, dateEntries]) => {
                 const dateGroup = historyList.createDiv({ cls: 'history-date-group' });
                 dateGroup.createDiv({ text: date, cls: 'history-date-header' });
@@ -624,6 +734,26 @@ export class ReviewDashboardView extends ItemView {
                     this.renderHistoryEntry(dateGroup, entry);
                 });
             });
+
+        // Story 34.4 AC2: "Show All" button when hasMore=true
+        if (hasMore && !showAll) {
+            const showAllBtn = listContainer.createEl('button', {
+                text: `显示全部 (${totalCount || 0}条)`,
+                cls: 'history-show-all-btn',
+            });
+            showAllBtn.addEventListener('click', () => {
+                this.toggleShowAllHistory();
+            });
+        } else if (showAll && totalCount && totalCount > 5) {
+            // Show "Collapse" button when showing all
+            const collapseBtn = listContainer.createEl('button', {
+                text: '收起',
+                cls: 'history-collapse-btn',
+            });
+            collapseBtn.addEventListener('click', () => {
+                this.toggleShowAllHistory();
+            });
+        }
     }
 
     /**
@@ -800,6 +930,29 @@ export class ReviewDashboardView extends ItemView {
             cls: 'verification-stat-item',
         });
 
+        // Highest score from sessions (Story 31.7 AC-31.7.3)
+        if (relation.sessions && relation.sessions.length > 0) {
+            const highestPassRate = Math.max(...relation.sessions.map((s) => s.passRate));
+            const highestScore = (highestPassRate * 5).toFixed(1);
+            stats.createSpan({
+                text: `最高分: ${highestScore}/5`,
+                cls: 'verification-stat-item verification-stat-highest',
+            });
+        }
+
+        // Most recent verification time (Story 31.7 AC-31.7.3)
+        if (relation.sessions && relation.sessions.length > 0) {
+            const lastSession = relation.sessions[relation.sessions.length - 1];
+            const lastDateStr = lastSession.date.toLocaleDateString('zh-CN', {
+                month: 'short',
+                day: 'numeric',
+            });
+            stats.createSpan({
+                text: `最近: ${lastDateStr}`,
+                cls: 'verification-stat-item verification-stat-recent',
+            });
+        }
+
         // Score
         if (relation.currentScore !== undefined) {
             stats.createSpan({
@@ -818,12 +971,42 @@ export class ReviewDashboardView extends ItemView {
             cls: 'verification-stat-date',
         });
 
+        // Delete button (Story 31.7 AC-31.7.5)
+        const deleteBtn = item.createDiv({ cls: 'verification-item-delete' });
+        setIcon(deleteBtn, 'trash-2');
+        deleteBtn.setAttribute('title', '删除检验白板记录');
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent triggering item click
+            this.confirmDeleteVerification(relation);
+        });
+
         // Click to open
         item.addEventListener('click', () => {
             if (relation.verificationCanvasPath) {
                 this.app.workspace.openLinkText(relation.verificationCanvasPath, '', false);
             }
         });
+    }
+
+    /**
+     * Confirm and delete verification canvas relation (Story 31.7 AC-31.7.5)
+     */
+    private async confirmDeleteVerification(relation: VerificationCanvasRelation): Promise<void> {
+        const confirmed = await this.showConfirmDialog(
+            '删除检验白板记录',
+            `确定要删除"${relation.verificationCanvasTitle}"的检验记录吗？此操作不可撤销。`
+        );
+
+        if (confirmed) {
+            try {
+                await this.verificationService.deleteRelation(relation.id);
+                new Notice('检验白板记录已删除');
+                await this.loadVerificationData();
+            } catch (error) {
+                console.error('[ReviewDashboard] Failed to delete verification:', error);
+                new Notice('删除失败，请重试');
+            }
+        }
     }
 
     /**
@@ -1355,12 +1538,20 @@ export class ReviewDashboardView extends ItemView {
                 return;
             }
 
+            // Story 34.3 AC1: Get current canvas path for backend sync
+            const canvasPath = this.getCurrentCanvasPath();
+            if (!canvasPath) {
+                new Notice('⚠️ 请先打开一个Canvas文件，以便关联教材');
+                return;
+            }
+
             try {
                 mountBtn.disabled = true;
                 mountBtn.textContent = '挂载中...';
 
-                await this.textbookMountService.mountTextbook(filePath);
-                new Notice('✅ 教材挂载成功');
+                // Story 34.3 AC2: Use mountTextbookForCanvas to trigger backend sync
+                await this.textbookMountService.mountTextbookForCanvas(filePath, canvasPath);
+                new Notice(`✅ 教材挂载成功 (已关联到 ${canvasPath.split('/').pop()})`);
 
                 // Refresh the list
                 this.refreshTextbookMountSection(container.parentElement!);
@@ -1558,6 +1749,33 @@ export class ReviewDashboardView extends ItemView {
 
         // Re-render
         this.renderTextbookMountSection(container);
+    }
+
+    /**
+     * Story 34.3 Task 1: Get current active canvas file path
+     *
+     * Detects the currently active canvas file from Obsidian workspace.
+     * Used to associate mounted textbooks with the active canvas for backend sync.
+     *
+     * @returns Canvas file path if a canvas is active, null otherwise
+     * @source Story 34.3 AC1 - ReviewDashboardView自动检测当前Canvas
+     */
+    private getCurrentCanvasPath(): string | null {
+        const activeFile = this.app.workspace.getActiveFile();
+
+        // Check if there's an active file and it's a canvas
+        if (!activeFile) {
+            console.log('[ReviewDashboard] No active file');
+            return null;
+        }
+
+        if (!activeFile.path.endsWith('.canvas')) {
+            console.log('[ReviewDashboard] Active file is not a canvas:', activeFile.path);
+            return null;
+        }
+
+        console.log('[ReviewDashboard] Current canvas detected:', activeFile.path);
+        return activeFile.path;
     }
 
     private renderHeader(container: HTMLElement): void {
@@ -2433,18 +2651,6 @@ export class ReviewDashboardView extends ItemView {
                 overlay.remove();
             }
         });
-    }
-
-    /**
-     * Get the current active canvas file path
-     * Returns null if no canvas is currently open
-     */
-    private getCurrentCanvasPath(): string | null {
-        const activeFile = this.app.workspace.getActiveFile();
-        if (activeFile && activeFile.path.endsWith('.canvas')) {
-            return activeFile.path;
-        }
-        return null;
     }
 
     /**

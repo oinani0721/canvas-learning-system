@@ -930,3 +930,68 @@ class GraphitiClient:
             "batch_size": self.batch_size,
             "enable_fallback": self.enable_fallback
         }
+
+
+# =============================================================================
+# Story 36.1 AC-36.1.5: Re-exports from unified backend location
+# [Source: docs/stories/36.1.story.md#Task-6]
+#
+# This module provides MCP-based GraphitiClient for Claude Code environments.
+# For Neo4j-based operations, import from the unified backend location.
+#
+# Usage:
+#   # MCP-based client (this file)
+#   from src.agentic_rag.clients.graphiti_client import GraphitiClient
+#
+#   # Neo4j-based clients (unified backend)
+#   from src.agentic_rag.clients.graphiti_client import (
+#       GraphitiEdgeClient,
+#       GraphitiClientBase,
+#       EdgeRelationship,
+#   )
+# =============================================================================
+
+try:
+    # Re-export from unified backend location (Story 36.1)
+    from backend.app.clients.graphiti_client_base import (
+        GraphitiClientBase,
+        EdgeRelationship,
+    )
+    from backend.app.clients.graphiti_client import (
+        GraphitiEdgeClient,
+        GraphitiEdgeClientAdapter,
+    )
+
+    # Flag for availability check
+    UNIFIED_BACKEND_AVAILABLE = True
+
+except ImportError:
+    # Backend not available (e.g., running in isolated environment)
+    UNIFIED_BACKEND_AVAILABLE = False
+    GraphitiClientBase = None
+    EdgeRelationship = None
+    GraphitiEdgeClient = None
+    GraphitiEdgeClientAdapter = None
+
+
+# =============================================================================
+# Exported symbols
+# =============================================================================
+
+__all__ = [
+    # MCP-based client (this file)
+    "GraphitiClient",
+    # Entity types
+    "EntityType",
+    "CanvasEntity",
+    "ConceptEntity",
+    "LearningSessionEntity",
+    # Re-exports from unified backend (Story 36.1)
+    "GraphitiClientBase",
+    "EdgeRelationship",
+    "GraphitiEdgeClient",
+    "GraphitiEdgeClientAdapter",
+    # Availability flags
+    "UNIFIED_BACKEND_AVAILABLE",
+    "LOGURU_ENABLED",
+]

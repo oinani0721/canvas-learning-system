@@ -13,12 +13,10 @@ Tests for explicit UnicodeEncodeError handling in Agent endpoints:
 [Source: specs/api/agent-api.openapi.yml#AgentErrorType]
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-
 from app.api.v1.endpoints.agents import _create_encoding_error_response
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AC1: Structured ENCODING_ERROR Response Tests
@@ -287,10 +285,10 @@ async def test_decompose_basic_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-2.1]
     """
-    from app.api.v1.endpoints.agents import decompose_basic
-
     # Verify function source contains UnicodeEncodeError handling
     import inspect
+
+    from app.api.v1.endpoints.agents import decompose_basic
     source = inspect.getsource(decompose_basic)
     assert "except UnicodeEncodeError" in source
 
@@ -302,9 +300,9 @@ async def test_decompose_deep_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-2.2]
     """
-    from app.api.v1.endpoints.agents import decompose_deep
-
     import inspect
+
+    from app.api.v1.endpoints.agents import decompose_deep
     source = inspect.getsource(decompose_deep)
     assert "except UnicodeEncodeError" in source
 
@@ -316,9 +314,9 @@ async def test_decompose_question_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-2.3]
     """
-    from app.api.v1.endpoints.agents import decompose_question
-
     import inspect
+
+    from app.api.v1.endpoints.agents import decompose_question
     source = inspect.getsource(decompose_question)
     assert "except UnicodeEncodeError" in source
 
@@ -333,9 +331,9 @@ async def test_call_explanation_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-3]
     """
-    from app.api.v1.endpoints.agents import _call_explanation
-
     import inspect
+
+    from app.api.v1.endpoints.agents import _call_explanation
     source = inspect.getsource(_call_explanation)
     assert "except UnicodeEncodeError" in source
 
@@ -347,9 +345,9 @@ async def test_score_understanding_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-4.1]
     """
-    from app.api.v1.endpoints.agents import score_understanding
-
     import inspect
+
+    from app.api.v1.endpoints.agents import score_understanding
     source = inspect.getsource(score_understanding)
     assert "except UnicodeEncodeError" in source
 
@@ -361,8 +359,8 @@ async def test_generate_verification_questions_has_encoding_error_handler():
 
     [Source: docs/stories/story-12.J.4-unicode-exception-handling.md#Task-4.2]
     """
-    from app.api.v1.endpoints.agents import generate_verification_questions
-
     import inspect
+
+    from app.api.v1.endpoints.agents import generate_verification_questions
     source = inspect.getsource(generate_verification_questions)
     assert "except UnicodeEncodeError" in source

@@ -1089,8 +1089,8 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
 
         // Neo4j Enable Toggle
         new Setting(container)
-            .setName('启用 Neo4j')
-            .setDesc('启用 Neo4j 知识图谱存储（用于概念关系和学习路径）')
+            .setName('启用记忆系统（需后端运行）')
+            .setDesc('⚠️ 启用前请确保后端服务已启动。此开关控制是否检查和使用记忆服务。')
             .addToggle(toggle => toggle
                 .setValue(settings.neo4jEnabled)
                 .onChange(async (value) => {
@@ -1102,48 +1102,22 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
 
         // Only show Neo4j settings if enabled
         if (settings.neo4jEnabled) {
-            // Neo4j URI
-            new Setting(container)
-                .setName('Neo4j 连接地址')
-                .setDesc('Neo4j 数据库连接地址（例如: bolt://localhost:7687）')
-                .addText(text => text
-                    .setPlaceholder('bolt://localhost:7687')
-                    .setValue(settings.neo4jUri)
-                    .onChange(async (value) => {
-                        settings.neo4jUri = value;
-                        await this.plugin.saveSettings();
-                    }));
+            // Configuration location notice
+            const neo4jNotice = container.createDiv('setting-item-description');
+            neo4jNotice.innerHTML = `
+                <div class="memory-config-notice">
+                    <strong>📍 配置位置：后端 backend/.env</strong><br>
+                    <code>NEO4J_URI=bolt://localhost:7688</code><br>
+                    <code>NEO4J_USER=neo4j</code><br>
+                    <code>NEO4J_PASSWORD=your_password</code><br>
+                    <small>修改后端配置后需重启后端服务</small>
+                </div>
+            `;
 
-            // Neo4j User
-            new Setting(container)
-                .setName('Neo4j 用户名')
-                .setDesc('Neo4j 数据库用户名')
-                .addText(text => text
-                    .setPlaceholder('neo4j')
-                    .setValue(settings.neo4jUser)
-                    .onChange(async (value) => {
-                        settings.neo4jUser = value;
-                        await this.plugin.saveSettings();
-                    }));
-
-            // Neo4j Password
-            new Setting(container)
-                .setName('Neo4j 密码')
-                .setDesc('Neo4j 数据库密码')
-                .addText(text => {
-                    text.inputEl.type = 'password';
-                    text.setPlaceholder('输入密码')
-                        .setValue(settings.neo4jPassword)
-                        .onChange(async (value) => {
-                            settings.neo4jPassword = value;
-                            await this.plugin.saveSettings();
-                        });
-                });
-
-            // Test Neo4j Connection
+            // Test Neo4j Connection (via backend API)
             new Setting(container)
                 .setName('测试连接')
-                .setDesc('测试 Neo4j 数据库连接')
+                .setDesc('通过后端 API 测试 Neo4j 数据库连接')
                 .addButton(button => button
                     .setButtonText('测试连接')
                     .onClick(() => this.testNeo4jConnection()));
@@ -1239,29 +1213,15 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
-            // Graphiti MCP URL
-            new Setting(container)
-                .setName('Graphiti MCP 地址')
-                .setDesc('Graphiti MCP 服务地址（例如: http://localhost:8000/sse）')
-                .addText(text => text
-                    .setPlaceholder('http://localhost:8000/sse')
-                    .setValue(settings.graphitiMcpUrl)
-                    .onChange(async (value) => {
-                        settings.graphitiMcpUrl = value;
-                        await this.plugin.saveSettings();
-                    }));
-
-            // Graphiti Group ID
-            new Setting(container)
-                .setName('Graphiti 分组 ID')
-                .setDesc('用于隔离不同项目的记忆数据')
-                .addText(text => text
-                    .setPlaceholder('canvas-learning-system')
-                    .setValue(settings.graphitiGroupId)
-                    .onChange(async (value) => {
-                        settings.graphitiGroupId = value;
-                        await this.plugin.saveSettings();
-                    }));
+            // Configuration location notice
+            const graphitiNotice = container.createDiv('setting-item-description');
+            graphitiNotice.innerHTML = `
+                <div class="memory-config-notice">
+                    <strong>📍 配置位置：后端 backend/.env</strong><br>
+                    <code>ENABLE_GRAPHITI_JSON_DUAL_WRITE=true</code><br>
+                    <small>Graphiti MCP 配置由后端统一管理</small>
+                </div>
+            `;
 
             // Test Graphiti Connection
             new Setting(container)
@@ -1273,43 +1233,171 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         }
 
         // ========== Memory Status ==========
-        this.createSettingGroup(container, '记忆系统状态');
+        this.createSettingGroup(container, '实时服务状态');
 
-        // Status Display
+        // Real-time Status Display (initially shows loading state)
         const statusContainer = container.createDiv('memory-status-container');
-        statusContainer.createEl('div', {
+
+        // Backend status
+        const backendStatusEl = statusContainer.createEl('div', {
             cls: 'memory-status-item',
-            text: `Neo4j: ${settings.neo4jEnabled ? '✅ 已启用' : '❌ 未启用'}`
+            text: '后端 API: ⏳ 检查中...'
         });
-        statusContainer.createEl('div', {
+
+        // Neo4j status
+        const neo4jStatusEl = statusContainer.createEl('div', {
             cls: 'memory-status-item',
-            text: `LanceDB: ${settings.lancedbEnabled ? '✅ 已启用' : '❌ 未启用'}`
+            text: `Neo4j: ${settings.neo4jEnabled ? '⏳ 检查中...' : '⚪ 未启用'}`
         });
-        statusContainer.createEl('div', {
+
+        // LanceDB status (local check)
+        const lancedbStatusEl = statusContainer.createEl('div', {
             cls: 'memory-status-item',
-            text: `Graphiti: ${settings.graphitiEnabled ? '✅ 已启用' : '❌ 未启用'}`
+            text: `LanceDB: ${settings.lancedbEnabled ? (settings.lancedbPath ? '✅ 已配置' : '⚠️ 使用默认路径') : '⚪ 未启用'}`
         });
+
+        // Graphiti status
+        const graphitiStatusEl = statusContainer.createEl('div', {
+            cls: 'memory-status-item',
+            text: `Graphiti: ${settings.graphitiEnabled ? '⏳ 检查中...' : '⚪ 未启用'}`
+        });
+
+        // Auto-check real status on load
+        this.checkRealTimeStatus(backendStatusEl, neo4jStatusEl, graphitiStatusEl, settings);
 
         // Refresh Status Button
         new Setting(container)
             .setName('刷新状态')
-            .setDesc('检查所有记忆系统的连接状态')
+            .setDesc('重新检测所有服务的真实连接状态')
             .addButton(button => button
-                .setButtonText('刷新状态')
-                .onClick(() => this.refreshMemoryStatus()));
+                .setButtonText('🔄 立即检测')
+                .onClick(() => {
+                    backendStatusEl.textContent = '后端 API: ⏳ 检查中...';
+                    if (settings.neo4jEnabled) neo4jStatusEl.textContent = 'Neo4j: ⏳ 检查中...';
+                    if (settings.graphitiEnabled) graphitiStatusEl.textContent = 'Graphiti: ⏳ 检查中...';
+                    this.checkRealTimeStatus(backendStatusEl, neo4jStatusEl, graphitiStatusEl, settings);
+                }));
     }
 
     /**
-     * Test Neo4j connection
+     * Check real-time status of memory services
+     * Makes actual HTTP requests to verify service connectivity
      */
-    private async testNeo4jConnection(): Promise<void> {
-        const settings = this.plugin.settings;
-        if (!settings.neo4jUri) {
-            new Notice('❌ 请先配置 Neo4j 连接地址');
+    private async checkRealTimeStatus(
+        backendEl: HTMLElement,
+        neo4jEl: HTMLElement,
+        graphitiEl: HTMLElement,
+        settings: PluginSettings
+    ): Promise<void> {
+        const baseUrl = settings.claudeCodeUrl;
+
+        // Step 1: Check if backend is reachable
+        try {
+            const healthResponse = await fetch(`${baseUrl}/api/v1/health`, {
+                method: 'GET',
+                signal: AbortSignal.timeout(5000)
+            });
+
+            if (healthResponse.ok) {
+                backendEl.textContent = '后端 API: ✅ 已连接';
+                backendEl.addClass('status-success');
+            } else {
+                backendEl.textContent = `后端 API: ❌ 异常 (HTTP ${healthResponse.status})`;
+                backendEl.addClass('status-error');
+                // If backend is not OK, mark dependent services as unknown
+                if (settings.neo4jEnabled) {
+                    neo4jEl.textContent = 'Neo4j: ❓ 无法检测（后端异常）';
+                }
+                if (settings.graphitiEnabled) {
+                    graphitiEl.textContent = 'Graphiti: ❓ 无法检测（后端异常）';
+                }
+                return;
+            }
+        } catch (error) {
+            backendEl.textContent = '后端 API: ❌ 未启动或无法连接';
+            backendEl.addClass('status-error');
+            // Backend unreachable, can't check other services
+            if (settings.neo4jEnabled) {
+                neo4jEl.textContent = 'Neo4j: ❓ 无法检测（后端未启动）';
+            }
+            if (settings.graphitiEnabled) {
+                graphitiEl.textContent = 'Graphiti: ❓ 无法检测（后端未启动）';
+            }
             return;
         }
 
-        new Notice('⏳ 正在测试 Neo4j 连接...');
+        // Step 2: Check Neo4j if enabled
+        if (settings.neo4jEnabled) {
+            try {
+                const neo4jResponse = await fetch(`${baseUrl}/api/v1/health/neo4j`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+
+                if (neo4jResponse.ok) {
+                    const data = await neo4jResponse.json();
+                    // Check actual health status, not just HTTP 200
+                    if (data.status === 'healthy') {
+                        neo4jEl.textContent = `Neo4j: ✅ 已连接 (${data.message || '正常'})`;
+                        neo4jEl.addClass('status-success');
+                    } else {
+                        // HTTP 200 but unhealthy status
+                        const errorMsg = data.checks?.error || data.message || '连接失败';
+                        neo4jEl.textContent = `Neo4j: ❌ ${errorMsg}`;
+                        neo4jEl.addClass('status-error');
+                    }
+                } else {
+                    neo4jEl.textContent = `Neo4j: ❌ 连接失败 (HTTP ${neo4jResponse.status})`;
+                    neo4jEl.addClass('status-error');
+                }
+            } catch (error) {
+                neo4jEl.textContent = 'Neo4j: ❌ 连接超时或未运行';
+                neo4jEl.addClass('status-error');
+            }
+        }
+
+        // Step 3: Check Graphiti if enabled
+        if (settings.graphitiEnabled) {
+            try {
+                const graphitiResponse = await fetch(`${baseUrl}/api/v1/health/graphiti`, {
+                    method: 'GET',
+                    signal: AbortSignal.timeout(5000)
+                });
+
+                if (graphitiResponse.ok) {
+                    const data = await graphitiResponse.json();
+                    // Check actual health status, not just HTTP 200
+                    if (data.status === 'healthy') {
+                        graphitiEl.textContent = 'Graphiti: ✅ 已连接';
+                        graphitiEl.addClass('status-success');
+                    } else {
+                        const errorMsg = data.checks?.error || data.message || '连接失败';
+                        graphitiEl.textContent = `Graphiti: ❌ ${errorMsg}`;
+                        graphitiEl.addClass('status-error');
+                    }
+                } else {
+                    graphitiEl.textContent = `Graphiti: ❌ 连接失败 (HTTP ${graphitiResponse.status})`;
+                    graphitiEl.addClass('status-error');
+                }
+            } catch (error) {
+                graphitiEl.textContent = 'Graphiti: ❌ 连接超时或未运行';
+                graphitiEl.addClass('status-error');
+            }
+        }
+    }
+
+    /**
+     * Test Neo4j connection via backend API
+     * Note: Neo4j config is managed in backend/.env, not in plugin settings
+     */
+    private async testNeo4jConnection(): Promise<void> {
+        const settings = this.plugin.settings;
+        if (!settings.claudeCodeUrl) {
+            new Notice('❌ 请先配置后端 API 地址');
+            return;
+        }
+
+        new Notice('⏳ 正在通过后端 API 测试 Neo4j 连接...');
 
         try {
             // Use the backend API to test Neo4j connection
@@ -1330,16 +1418,16 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
     }
 
     /**
-     * Test Graphiti MCP connection
+     * Test Graphiti connection via backend API
      */
     private async testGraphitiConnection(): Promise<void> {
         const settings = this.plugin.settings;
-        if (!settings.graphitiMcpUrl) {
-            new Notice('❌ 请先配置 Graphiti MCP 地址');
+        if (!settings.claudeCodeUrl) {
+            new Notice('❌ 请先配置后端 API 地址');
             return;
         }
 
-        new Notice('⏳ 正在测试 Graphiti 连接...');
+        new Notice('⏳ 正在通过后端 API 测试 Graphiti 连接...');
 
         try {
             // Use the backend API to test Graphiti connection
@@ -1349,7 +1437,7 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             });
 
             if (response.ok) {
-                new Notice('✅ Graphiti MCP 连接成功！');
+                new Notice('✅ Graphiti 连接成功（通过后端 API）');
             } else {
                 new Notice(`❌ Graphiti 连接失败: HTTP ${response.status}`);
             }
@@ -1360,56 +1448,13 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
     }
 
     /**
-     * Refresh memory system status
+     * Legacy refresh function - kept for backward compatibility
+     * @deprecated Use checkRealTimeStatus instead for in-page updates
      */
     private async refreshMemoryStatus(): Promise<void> {
-        new Notice('⏳ 正在检查记忆系统状态...');
-
-        const settings = this.plugin.settings;
-        const results: string[] = [];
-
-        // Check Neo4j
-        if (settings.neo4jEnabled) {
-            try {
-                const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/neo4j`, {
-                    method: 'GET',
-                    signal: AbortSignal.timeout(5000)
-                });
-                results.push(response.ok ? '✅ Neo4j: 连接正常' : '❌ Neo4j: 连接失败');
-            } catch {
-                results.push('❌ Neo4j: 连接超时');
-            }
-        } else {
-            results.push('⚪ Neo4j: 未启用');
-        }
-
-        // Check LanceDB (local, just check if path is configured)
-        if (settings.lancedbEnabled) {
-            results.push(settings.lancedbPath ? '✅ LanceDB: 已配置' : '⚠️ LanceDB: 使用默认路径');
-        } else {
-            results.push('⚪ LanceDB: 未启用');
-        }
-
-        // Check Graphiti
-        if (settings.graphitiEnabled) {
-            try {
-                const response = await fetch(`${settings.claudeCodeUrl}/api/v1/health/graphiti`, {
-                    method: 'GET',
-                    signal: AbortSignal.timeout(5000)
-                });
-                results.push(response.ok ? '✅ Graphiti: 连接正常' : '❌ Graphiti: 连接失败');
-            } catch {
-                results.push('❌ Graphiti: 连接超时');
-            }
-        } else {
-            results.push('⚪ Graphiti: 未启用');
-        }
-
-        // Refresh display
+        // Refresh the settings display to trigger real-time status check
         this.displaySection('memory');
-
-        // Show summary
-        new Notice(`记忆系统状态:\n${results.join('\n')}`);
+        new Notice('✅ 状态已刷新，请查看设置面板中的实时状态');
     }
 
     /**

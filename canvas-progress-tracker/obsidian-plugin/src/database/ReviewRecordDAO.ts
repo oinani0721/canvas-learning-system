@@ -36,8 +36,20 @@ export class ReviewRecordDAO {
     private dbManager: DatabaseManager;
     private static readonly TABLE_NAME = 'review_records';
 
+    // Story 32.4 QA Improvement: Streak cache for performance optimization
+    private streakCache: { value: number; timestamp: number } | null = null;
+    private static readonly STREAK_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
     constructor(dbManager: DatabaseManager) {
         this.dbManager = dbManager;
+    }
+
+    /**
+     * Invalidate streak cache when data changes
+     * Story 32.4 QA Improvement: Cache invalidation on data mutation
+     */
+    private invalidateStreakCache(): void {
+        this.streakCache = null;
     }
 
     // =========================================================================
@@ -54,10 +66,12 @@ export class ReviewRecordDAO {
             updatedAt: new Date(),
         };
 
-        return await this.dbManager.insert<ReviewRecord>(
+        const result = await this.dbManager.insert<ReviewRecord>(
             ReviewRecordDAO.TABLE_NAME,
             fullRecord
         );
+        this.invalidateStreakCache(); // Story 32.4 QA: Invalidate cache on create
+        return result;
     }
 
     /**
@@ -79,18 +93,22 @@ export class ReviewRecordDAO {
             updatedAt: new Date(),
         };
 
-        return await this.dbManager.update<ReviewRecord>(
+        const result = await this.dbManager.update<ReviewRecord>(
             ReviewRecordDAO.TABLE_NAME,
             id,
             updatesWithTimestamp
         );
+        this.invalidateStreakCache(); // Story 32.4 QA: Invalidate cache on update
+        return result;
     }
 
     /**
      * Delete a review record
      */
     async delete(id: number): Promise<boolean> {
-        return await this.dbManager.delete(ReviewRecordDAO.TABLE_NAME, id);
+        const result = await this.dbManager.delete(ReviewRecordDAO.TABLE_NAME, id);
+        this.invalidateStreakCache(); // Story 32.4 QA: Invalidate cache on delete
+        return result;
     }
 
     // =========================================================================
@@ -436,6 +454,98 @@ export class ReviewRecordDAO {
         return allRecords
             .filter((r) => r.conceptId === conceptId)
             .sort((a, b) => new Date(b.reviewDate).getTime() - new Date(a.reviewDate).getTime());
+    }
+
+    /**
+     * Get review count for a specific concept
+     * Story 32.4 AC-32.4.1: reviewCount field filled with actual review history count
+     *
+     * @param conceptId - Unique concept identifier
+     * @returns Number of times this concept has been reviewed
+     */
+    async getReviewCountByConceptId(conceptId: string): Promise<number> {
+        const records = await this.getConceptReviews(conceptId);
+        return records.length;
+    }
+
+    /**
+     * Calculate consecutive review days (streak) ending today
+     * Story 32.4 AC-32.4.2: streakDays field calculates consecutive review days
+     * Story 32.4 QA Improvement: Added cache mechanism for performance optimization
+     *
+     * Algorithm:
+     * 1. Check cache validity (TTL: 5 minutes)
+     * 2. Get all review records if cache miss
+     * 3. Extract unique review dates (normalized to YYYY-MM-DD)
+     * 4. Starting from today, count consecutive days with reviews
+     *
+     * @returns Number of consecutive days with at least one review
+     */
+    async calculateStreakDays(): Promise<number> {
+        // Story 32.4 QA: Check cache first
+        const now = Date.now();
+        if (this.streakCache && (now - this.streakCache.timestamp) < ReviewRecordDAO.STREAK_CACHE_TTL_MS) {
+            return this.streakCache.value;
+        }
+
+        const allRecords = await this.getAll();
+        if (allRecords.length === 0) {
+            this.streakCache = { value: 0, timestamp: now };
+            return 0;
+        }
+
+        // Extract unique review dates
+        const reviewDates = new Set<string>();
+        for (const record of allRecords) {
+            if (record.reviewDate) {
+                const dateKey = new Date(record.reviewDate).toISOString().split('T')[0];
+                reviewDates.add(dateKey);
+            }
+        }
+
+        if (reviewDates.size === 0) {
+            this.streakCache = { value: 0, timestamp: now };
+            return 0;
+        }
+
+        // Count consecutive days starting from today
+        let streak = 0;
+        const checkDate = new Date();
+
+        while (reviewDates.has(checkDate.toISOString().split('T')[0])) {
+            streak++;
+            checkDate.setDate(checkDate.getDate() - 1);
+        }
+
+        // Story 32.4 QA: Update cache
+        this.streakCache = { value: streak, timestamp: now };
+        return streak;
+    }
+
+    /**
+     * Batch query for review counts (performance optimization)
+     * Story 32.4 Task 4.3: Batch query optimization
+     *
+     * @param conceptIds - Array of concept identifiers
+     * @returns Map of conceptId to review count
+     */
+    async getReviewCountBatch(conceptIds: string[]): Promise<Map<string, number>> {
+        const records = await this.getAll();
+        const countMap = new Map<string, number>();
+
+        // Initialize all requested concepts with 0
+        for (const conceptId of conceptIds) {
+            countMap.set(conceptId, 0);
+        }
+
+        // Count reviews for each concept
+        for (const record of records) {
+            if (record.conceptId && countMap.has(record.conceptId)) {
+                countMap.set(record.conceptId, (countMap.get(record.conceptId) || 0) + 1);
+            }
+        }
+
+        return countMap;
     }
 
     /**

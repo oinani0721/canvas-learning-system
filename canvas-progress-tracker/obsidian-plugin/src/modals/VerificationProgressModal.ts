@@ -118,6 +118,10 @@ export class VerificationProgressModal extends Modal {
     private startTime: Date;
     private elapsedTimeEl: HTMLElement | null = null;
 
+    // Story 31.6: Polling for real-time progress updates
+    private pollingInterval: number | null = null;
+    private readonly POLLING_INTERVAL_MS = 2000; // AC-31.6.1: 2-second polling
+
     /**
      * Creates a new VerificationProgressModal
      *
@@ -158,6 +162,7 @@ export class VerificationProgressModal extends Modal {
 
         this.renderContent();
         this.startElapsedTimer();
+        this.startPolling(); // Story 31.6: Start real-time progress polling
     }
 
     /**
@@ -176,6 +181,83 @@ export class VerificationProgressModal extends Modal {
         if (this.elapsedTimer) {
             window.clearInterval(this.elapsedTimer);
             this.elapsedTimer = null;
+        }
+        this.stopPolling();
+    }
+
+    // ===========================================================================
+    // Story 31.6: Real-time Progress Polling
+    // ===========================================================================
+
+    /**
+     * Start polling for progress updates
+     * AC-31.6.1: Frontend polls every 2 seconds
+     */
+    private startPolling(): void {
+        if (this.pollingInterval) {
+            return; // Already polling
+        }
+
+        this.pollingInterval = window.setInterval(async () => {
+            await this.fetchAndUpdateProgress();
+        }, this.POLLING_INTERVAL_MS);
+
+        console.log(`[VerificationProgressModal] Started polling for session ${this.sessionId}`);
+    }
+
+    /**
+     * Stop polling for progress updates
+     */
+    private stopPolling(): void {
+        if (this.pollingInterval) {
+            window.clearInterval(this.pollingInterval);
+            this.pollingInterval = null;
+            console.log(`[VerificationProgressModal] Stopped polling for session ${this.sessionId}`);
+        }
+    }
+
+    /**
+     * Fetch progress from API and update display
+     * AC-31.6.2: Color distribution real-time updates
+     */
+    private async fetchAndUpdateProgress(): Promise<void> {
+        // Don't poll if session is completed or cancelled
+        if (this.progress.status === 'completed' || this.progress.status === 'cancelled') {
+            this.stopPolling();
+            return;
+        }
+
+        try {
+            const response = await fetch(
+                `${this.apiBaseUrl}/review/session/${encodeURIComponent(this.sessionId)}/progress`,
+                {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            if (!response.ok) {
+                if (response.status === 404) {
+                    // Session no longer exists
+                    this.stopPolling();
+                    return;
+                }
+                console.warn(`[VerificationProgressModal] Failed to fetch progress: ${response.status}`);
+                return;
+            }
+
+            const progress: VerificationProgress = await response.json();
+            this.updateProgress(progress);
+
+            // Stop polling if session completed
+            if (progress.status === 'completed' || progress.status === 'cancelled') {
+                this.stopPolling();
+            }
+        } catch (error) {
+            console.warn(`[VerificationProgressModal] Error fetching progress:`, error);
+            // Don't stop polling on temporary network errors
         }
     }
 
@@ -592,11 +674,13 @@ export class VerificationProgressModal extends Modal {
 
     /**
      * Handle pause button
+     * Story 31.6 AC-31.6.4: Support pause/resume session
      */
     private async handlePause(): Promise<void> {
         try {
             await this.callbacks.onPause();
             this.isPaused = true;
+            this.stopPolling(); // Story 31.6: Stop polling when paused
             this.renderControlButtons();
             new Notice('Session paused', 3000);
 
@@ -612,11 +696,13 @@ export class VerificationProgressModal extends Modal {
 
     /**
      * Handle resume button
+     * Story 31.6 AC-31.6.4: Support pause/resume session
      */
     private async handleResume(): Promise<void> {
         try {
             const response = await this.callbacks.onResume();
             this.isPaused = false;
+            this.startPolling(); // Story 31.6: Resume polling when session resumes
             this.renderControlButtons();
             this.handleResponse(response);
             new Notice('Session resumed', 3000);

@@ -2,12 +2,13 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning-system.com/schemas/canvas-node.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T19:15:00Z",
+    "verified_at": "2026-01-20T13:30:00Z",
     "sources": [
       {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
       {"type": "official_doc", "url": "https://jsoncanvas.org/spec/1.0/"},
       {"type": "prd", "section": "FR1", "epic": "Epic 13"},
-      {"type": "sample_analysis", "files": ["离散数学.canvas", "线性代数.canvas"]}
+      {"type": "sample_analysis", "files": ["离散数学.canvas", "线性代数.canvas"]},
+      {"type": "story", "id": "35.5", "description": "Added customData field for media attachments"}
     ]
   },
   "title": "Canvas Node",
@@ -71,6 +72,28 @@
       "enum": ["1", "2", "3", "4", "5", "6"],
       "description": "节点颜色代码 (Verified from JSON Canvas Spec 1.0: https://jsoncanvas.org/spec/1.0/). 官方色值: 1=红, 2=橙, 3=黄, 4=绿, 5=青, 6=紫. 项目语义映射: 4=不理解(红色语义), 3=似懂非懂(紫色语义), 2=已理解(绿色语义), 6=个人理解(黄色语义)",
       "examples": ["1", "4", "6"]
+    },
+    "customData": {
+      "type": "object",
+      "description": "自定义扩展数据字段 (Story 35.5: 支持多模态媒体附件引用)",
+      "properties": {
+        "mediaCount": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "附加的媒体文件数量"
+        },
+        "mediaIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "description": "关联的媒体文件UUID列表",
+          "default": []
+        }
+      },
+      "additionalProperties": true
     }
   },
   "allOf": [
@@ -130,6 +153,20 @@
       "y": 300,
       "width": 300,
       "height": 400
+    },
+    {
+      "id": "node-with-media-001",
+      "type": "text",
+      "text": "带有媒体附件的概念节点",
+      "x": 800,
+      "y": 100,
+      "width": 280,
+      "height": 80,
+      "color": "6",
+      "customData": {
+        "mediaCount": 2,
+        "mediaIds": ["550e8400-e29b-41d4-a716-446655440000", "6ba7b810-9dad-11d1-80b4-00c04fd430c8"]
+      }
     }
   ],
   "additionalProperties": false

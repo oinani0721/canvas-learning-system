@@ -42,6 +42,10 @@ from .services.review_service import ReviewService
 from .services.textbook_context_service import TextbookContextConfig, TextbookContextService
 from .services.verification_service import VerificationService
 
+# Story 36.1: Unified GraphitiClient Architecture
+from .clients.neo4j_client import Neo4jClient, get_neo4j_client
+from .clients.graphiti_client import GraphitiEdgeClient
+
 logger = logging.getLogger(__name__)
 
 
@@ -139,7 +143,8 @@ CanvasServiceDep = Annotated[CanvasService, Depends(get_canvas_service)]
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
 async def get_agent_service(
     settings: SettingsDep,
-    canvas_service: CanvasServiceDep  # ✅ FIX-Canvas-Write: 注入 CanvasService
+    canvas_service: CanvasServiceDep,  # ✅ FIX-Canvas-Write: 注入 CanvasService
+    neo4j_client: Neo4jClientDep  # Story 36.7: 注入 Neo4jClient
 ) -> AsyncGenerator[AgentService, None]:
     """
     Get AgentService instance with automatic resource cleanup.
@@ -152,6 +157,7 @@ async def get_agent_service(
     Args:
         settings: Application settings (injected via Depends)
         canvas_service: CanvasService instance for writing nodes to Canvas
+        neo4j_client: Neo4jClient instance for learning memory queries (Story 36.7)
 
     Yields:
         AgentService: Agent call service instance
@@ -169,6 +175,7 @@ async def get_agent_service(
     [Source: docs/stories/15.3.story.md#Dev-Notes - 示例3: 链式依赖]
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
     [Source: FIX-Canvas-Write: Backend直接写入Canvas文件]
+    [Source: docs/stories/36.7.story.md - AC1 Neo4jClient注入]
     """
     logger.debug("Creating AgentService instance")
 
@@ -190,11 +197,13 @@ async def get_agent_service(
         logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
 
     # ✅ FIX-Canvas-Write: Pass canvas_service to AgentService for direct Canvas writes
+    # Story 36.7: Pass neo4j_client to AgentService for learning memory queries
     service = AgentService(
         gemini_client=gemini_client,
-        canvas_service=canvas_service  # ✅ FIX: 注入 canvas_service
+        canvas_service=canvas_service,  # ✅ FIX: 注入 canvas_service
+        neo4j_client=neo4j_client  # Story 36.7: 注入 Neo4jClient
     )
-    logger.debug("AgentService created with CanvasService for direct Canvas writes")
+    logger.debug("AgentService created with CanvasService and Neo4jClient for direct Canvas writes and memory queries")
 
     try:
         yield service
@@ -596,6 +605,185 @@ RAGServiceDep = Annotated[RAGService, Depends(get_rag_service_dep)]
 
 
 # =============================================================================
+# Neo4jClient Dependency (Story 30.2 + Story 36.1)
+# [Source: docs/stories/30.2.story.md#Neo4jClient-Real-Driver]
+# [Source: docs/stories/36.1.story.md#Unified-GraphitiClient-Architecture]
+# =============================================================================
+
+def get_neo4j_client_dep() -> Neo4jClient:
+    """
+    Get Neo4jClient singleton instance.
+
+    Story 30.2: Neo4jClient with real Bolt driver implementation.
+    - Connection pool: max_pool_size=50, connection_acquisition_timeout=30s
+    - Retry mechanism: tenacity 3x exponential backoff (1s, 2s, 4s)
+    - JSON fallback: NEO4J_MOCK=true or NEO4J_ENABLED=false
+
+    Story 36.1: Used for dependency injection into GraphitiClients.
+
+    Returns:
+        Neo4jClient: Singleton Neo4j client instance
+
+    Example:
+        ```python
+        @router.get("/health/neo4j")
+        async def neo4j_health(
+            neo4j: Neo4jClient = Depends(get_neo4j_client_dep)
+        ):
+            return await neo4j.health_check()
+        ```
+
+    [Source: docs/stories/30.2.story.md#AC-30.2.1]
+    [Source: docs/stories/36.1.story.md#AC-36.1.3]
+    """
+    logger.debug("Getting Neo4jClient singleton instance")
+    return get_neo4j_client()
+
+
+# Type alias for Neo4jClient dependency
+Neo4jClientDep = Annotated[Neo4jClient, Depends(get_neo4j_client_dep)]
+
+
+# =============================================================================
+# GraphitiClient Dependency (Story 36.1)
+# [Source: docs/stories/36.1.story.md#Unified-GraphitiClient-Architecture]
+# =============================================================================
+
+# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
+async def get_graphiti_client(
+    neo4j_client: Neo4jClientDep
+) -> AsyncGenerator[GraphitiEdgeClient, None]:
+    """
+    Get GraphitiEdgeClient instance with Neo4jClient dependency injection.
+
+    Story 36.1 AC-36.1.3: Neo4jClient injection
+    - Reuses Story 30.2 connection pool (50 connections, 30s timeout)
+    - Reuses existing retry mechanism (tenacity 3x exponential backoff)
+    - Reuses existing JSON fallback (NEO4J_MOCK=true)
+
+    This is the unified entry point for Graphiti operations. The GraphitiEdgeClient
+    inherits from GraphitiClientBase and delegates Neo4j operations to the injected
+    Neo4jClient, ensuring the entire application uses the same connection pool.
+
+    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
+
+    Dependency Chain:
+        get_neo4j_client_dep() → neo4j_client (singleton)
+        get_graphiti_client(neo4j_client) → graphiti_client
+
+    Args:
+        neo4j_client: Neo4jClient singleton (injected via Depends)
+
+    Yields:
+        GraphitiEdgeClient: Graphiti client with Neo4j dependency injection
+
+    Example:
+        ```python
+        @router.post("/canvas/{canvas_name}/edges")
+        async def add_edge(
+            canvas_name: str,
+            edge: EdgeData,
+            graphiti: GraphitiEdgeClient = Depends(get_graphiti_client)
+        ):
+            relationship = EdgeRelationship(
+                canvas_path=canvas_name,
+                from_node_id=edge.from_id,
+                to_node_id=edge.to_id,
+                edge_label=edge.label
+            )
+            return await graphiti.add_edge_relationship(relationship)
+        ```
+
+    [Source: docs/stories/36.1.story.md#AC-36.1.3]
+    [Source: docs/architecture/decisions/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
+    """
+    logger.debug("Creating GraphitiEdgeClient with Neo4jClient injection")
+
+    # Create GraphitiEdgeClient with injected Neo4jClient
+    # This ensures the same connection pool is used across the application
+    client = GraphitiEdgeClient(neo4j_client=neo4j_client)
+
+    # Initialize if needed
+    if not client._initialized:
+        await client.initialize()
+
+    try:
+        yield client
+    finally:
+        await client.cleanup()
+        logger.debug("GraphitiEdgeClient cleanup completed")
+
+
+# Type alias for GraphitiClient dependency
+GraphitiClientDep = Annotated[GraphitiEdgeClient, Depends(get_graphiti_client)]
+
+
+# =============================================================================
+# GraphitiTemporalClient Dependency (Story 31.4)
+# [Source: docs/stories/31.4.story.md#Task-4]
+# =============================================================================
+
+# Import GraphitiTemporalClient from src/agentic_rag
+import sys
+from pathlib import Path as _PathLib
+
+# Add src to path if needed
+_src_path = _PathLib(__file__).parent.parent.parent / "src"
+if str(_src_path) not in sys.path:
+    sys.path.insert(0, str(_src_path))
+
+# Lazy import to avoid circular dependency issues
+_graphiti_temporal_client_instance = None
+
+
+def get_graphiti_temporal_client():
+    """
+    Get GraphitiTemporalClient singleton instance.
+
+    Story 31.4 AC-31.4.1: Used for querying verification question history.
+    Story 31.4 AC-31.4.3: Required for the verification history endpoint.
+
+    This function returns a singleton instance of GraphitiTemporalClient
+    for efficient reuse across requests. Returns None if the client
+    cannot be initialized (graceful degradation).
+
+    Returns:
+        GraphitiTemporalClient or None: Client instance or None if unavailable
+
+    Example:
+        ```python
+        @router.get("/verification/history/{concept}")
+        async def get_history(concept: str):
+            client = get_graphiti_temporal_client()
+            if client:
+                return await client.search_verification_questions(concept)
+            return {"items": []}
+        ```
+
+    [Source: docs/stories/31.4.story.md#Task-4]
+    [Source: src/agentic_rag/clients/graphiti_temporal_client.py]
+    """
+    global _graphiti_temporal_client_instance
+
+    if _graphiti_temporal_client_instance is not None:
+        return _graphiti_temporal_client_instance
+
+    try:
+        from agentic_rag.clients.graphiti_temporal_client import GraphitiTemporalClient
+
+        _graphiti_temporal_client_instance = GraphitiTemporalClient()
+        logger.info("GraphitiTemporalClient singleton initialized")
+        return _graphiti_temporal_client_instance
+
+    except ImportError as e:
+        logger.warning(f"GraphitiTemporalClient not available: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Failed to initialize GraphitiTemporalClient: {e}")
+        return None
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -611,6 +799,9 @@ __all__ = [
     "get_rollback_service",
     "get_verification_service",
     "get_rag_service_dep",  # Story 12.A.2
+    "get_neo4j_client_dep",  # Story 36.1
+    "get_graphiti_client",  # Story 36.1
+    "get_graphiti_temporal_client",  # Story 31.4
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -621,4 +812,6 @@ __all__ = [
     "CrossCanvasServiceDep",
     "VerificationServiceDep",
     "RAGServiceDep",  # Story 12.A.2
+    "Neo4jClientDep",  # Story 36.1
+    "GraphitiClientDep",  # Story 36.1
 ]

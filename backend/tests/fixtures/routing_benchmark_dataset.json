@@ -1,0 +1,378 @@
+{
+  "_metadata": {
+    "description": "Benchmark dataset for Agent Routing Engine accuracy testing",
+    "story": "33.5",
+    "version": "1.0.0",
+    "total_examples": 60,
+    "agent_distribution": {
+      "oral-explanation": 12,
+      "comparison-table": 10,
+      "clarification-path": 10,
+      "example-teaching": 10,
+      "memory-anchor": 10,
+      "deep-decomposition": 8
+    }
+  },
+  "examples": [
+    {
+      "id": "bench-001",
+      "text": "什么是逆否命题",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-002",
+      "text": "集合的定义是什么",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-003",
+      "text": "什么是充分条件",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-004",
+      "text": "函数是什么意思",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-005",
+      "text": "极限是什么",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-006",
+      "text": "定义一下导数",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-007",
+      "text": "解释什么是向量",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-008",
+      "text": "矩阵是什么东西",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-009",
+      "text": "概率论是什么",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-010",
+      "text": "What is the Pythagorean theorem",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-011",
+      "text": "Define integration",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-012",
+      "text": "请解释一下什么叫做命题",
+      "expected_agent": "oral-explanation",
+      "category": "definition"
+    },
+    {
+      "id": "bench-013",
+      "text": "逆否命题和否命题的区别",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-014",
+      "text": "充分条件和必要条件有什么不同",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-015",
+      "text": "对比一下向量和标量",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-016",
+      "text": "行列式 vs 矩阵",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-017",
+      "text": "导数和微分的异同",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-018",
+      "text": "比较积分和求和",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-019",
+      "text": "连续和可导有什么区别",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-020",
+      "text": "What is the difference between mean and median",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-021",
+      "text": "Compare linear and quadratic functions",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-022",
+      "text": "全称量词和存在量词对比分析",
+      "expected_agent": "comparison-table",
+      "category": "comparison"
+    },
+    {
+      "id": "bench-023",
+      "text": "如何理解极限的概念",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-024",
+      "text": "怎么理解无穷大",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-025",
+      "text": "如何理解集合的包含关系",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-026",
+      "text": "理解一下函数的连续性",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-027",
+      "text": "怎么才能理解线性变换",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-028",
+      "text": "如何理解概率的含义",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-029",
+      "text": "How to understand vector spaces",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-030",
+      "text": "帮我理解一下递归的概念",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-031",
+      "text": "理解数学归纳法的原理",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-032",
+      "text": "如何理解泰勒展开",
+      "expected_agent": "clarification-path",
+      "category": "understanding"
+    },
+    {
+      "id": "bench-033",
+      "text": "举例说明逆否命题的应用",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-034",
+      "text": "给个例子说明导数的几何意义",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-035",
+      "text": "举个例子来解释极限",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-036",
+      "text": "用实例说明矩阵乘法",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-037",
+      "text": "举例说明条件概率",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-038",
+      "text": "Give an example of integration",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-039",
+      "text": "用例子解释什么是函数",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-040",
+      "text": "举个实际例子说明向量加法",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-041",
+      "text": "举例说明集合运算",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-042",
+      "text": "用一个例子来说明递归",
+      "expected_agent": "example-teaching",
+      "category": "example"
+    },
+    {
+      "id": "bench-043",
+      "text": "记忆逆否命题的定义",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-044",
+      "text": "怎么记住三角函数公式",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-045",
+      "text": "背诵这个定理",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-046",
+      "text": "记住求导公式",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-047",
+      "text": "如何记忆积分公式",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-048",
+      "text": "记住矩阵运算规则",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-049",
+      "text": "How to memorize the quadratic formula",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-050",
+      "text": "帮我记忆这个概念",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-051",
+      "text": "背诵极限的定义",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-052",
+      "text": "记住这个公式的技巧",
+      "expected_agent": "memory-anchor",
+      "category": "memory"
+    },
+    {
+      "id": "bench-053",
+      "text": "深度剖析命题逻辑",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-054",
+      "text": "深入分析极限的本质",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-055",
+      "text": "详细分析矩阵的性质",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-056",
+      "text": "深度剖析向量空间",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-057",
+      "text": "深入分析函数连续性",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-058",
+      "text": "Deep analysis of linear algebra concepts",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-059",
+      "text": "深度剖析微积分基本定理",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    },
+    {
+      "id": "bench-060",
+      "text": "深入分析概率论基础",
+      "expected_agent": "deep-decomposition",
+      "category": "analysis"
+    }
+  ]
+}

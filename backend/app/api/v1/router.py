@@ -16,8 +16,13 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
+from app.api.v1.endpoints.intelligent_parallel import (
+    intelligent_parallel_router,
+    single_agent_router,
+)
 from app.api.v1.endpoints.memory import memory_router
 from app.api.v1.endpoints.monitoring import monitoring_router
+from app.api.v1.endpoints.multimodal import multimodal_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
@@ -166,5 +171,53 @@ router.include_router(
     responses={
         404: {"description": "Textbook not found"},
         500: {"description": "Textbook sync failed"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Multimodal Routes (Story 35.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 35.1 - Multimodal Upload/Management API
+# [Source: docs/stories/35.1.story.md - AC 1-5]
+router.include_router(
+    multimodal_router,
+    prefix="/multimodal",
+    tags=["Multimodal"],
+    responses={
+        413: {"description": "File too large (max 50MB)"},
+        415: {"description": "Unsupported media type"},
+        500: {"description": "Multimodal service error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Intelligent Parallel Processing Routes (Story 33.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Verified from Story 33.1 - Backend REST Endpoints
+# [Source: docs/stories/33.1.story.md - AC 1-4]
+# [Source: specs/api/parallel-api.openapi.yml]
+router.include_router(
+    intelligent_parallel_router,
+    prefix="/canvas/intelligent-parallel",
+    tags=["Intelligent Parallel"],
+    responses={
+        400: {"description": "Invalid request"},
+        404: {"description": "Resource not found"},
+        409: {"description": "Conflict - session already completed"},
+        500: {"description": "Parallel processing error"}
+    }
+)
+
+# ✅ Verified from Story 33.1 - Single Agent Retry Endpoint
+# [Source: docs/stories/33.1.story.md - AC 5]
+router.include_router(
+    single_agent_router,
+    prefix="/canvas",
+    tags=["Intelligent Parallel"],
+    responses={
+        404: {"description": "Node or canvas not found"},
+        500: {"description": "Agent execution error"}
     }
 )

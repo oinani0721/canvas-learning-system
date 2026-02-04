@@ -23,10 +23,14 @@ Features:
 [Source: Story 25.3 - Exercise-Lecture Canvas Association]
 """
 
+import asyncio
 import logging
+import re
+import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 import structlog
 
@@ -190,6 +194,11 @@ class EnrichedContext:
     graphiti_relations: Optional[List[Dict]] = None
     has_graphiti_refs: bool = False
 
+    # Story 12.E.5-fix: Source file path for file type nodes
+    # When target node is a "file" type, this stores the absolute path to the MD file
+    # Used for resolving relative image paths in MD content
+    source_file_path: Optional[str] = None
+
 
 class ContextEnrichmentService:
     """
@@ -228,7 +237,405 @@ class ContextEnrichmentService:
         self._textbook_service = textbook_service
         self._cross_canvas_service = cross_canvas_service
         self._graphiti_service = graphiti_service
+
+        # Story 36.8: Cache for association lookups (30s TTL via _get_cached_time)
+        self._association_cache: Dict[str, Tuple[Any, float]] = {}
+        self._association_cache_ttl = 30.0  # seconds
+
         logger.debug("ContextEnrichmentService initialized")
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 36.8 Task 1: Exercise Canvas Detection
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    # Story 36.8 AC4: Patterns for identifying exercise canvases
+    # [Source: docs/stories/36.8.story.md#Task-1.1]
+    EXERCISE_PATTERNS = [
+        r'题目', r'习题', r'练习', r'作业', r'exam', r'exercise', r'problem',
+        r'quiz', r'test', r'期末', r'期中', r'复习题', r'真题', r'模拟'
+    ]
+
+    # Story 36.8 AC4: Confidence threshold for cross-canvas injection
+    CROSS_CANVAS_CONFIDENCE_THRESHOLD = 0.6
+
+    def is_exercise_canvas(self, canvas_path: str) -> bool:
+        """
+        Check if a canvas path matches exercise patterns.
+
+        Story 36.8 Task 1.1: Add is_exercise_canvas() method.
+
+        Checks canvas filename against EXERCISE_PATTERNS to determine if
+        this is an exercise canvas that should trigger cross-canvas injection.
+
+        Args:
+            canvas_path: Canvas file path (e.g., "线性代数-习题.canvas")
+
+        Returns:
+            True if canvas matches exercise patterns
+
+        [Source: docs/stories/36.8.story.md#Task-1.1]
+        [Source: specs/api/agent-api.openapi.yml#L205-L260]
+        """
+        path_lower = canvas_path.lower()
+        return any(re.search(pattern, path_lower) for pattern in self.EXERCISE_PATTERNS)
+
+    def _should_inject_cross_canvas_context(
+        self,
+        canvas_path: str,
+        confidence: float
+    ) -> bool:
+        """
+        Determine if cross-canvas context should be injected.
+
+        Story 36.8 Task 1.2, 1.3: Automatic trigger with confidence threshold.
+
+        Args:
+            canvas_path: Canvas file path
+            confidence: Association confidence score (0-1)
+
+        Returns:
+            True if:
+            - Canvas matches exercise patterns (AC4)
+            - Association confidence >= 0.6 (AC4)
+
+        [Source: docs/stories/36.8.story.md#Task-1.2]
+        [Source: docs/stories/36.8.story.md#Task-1.3]
+        """
+        if not self.is_exercise_canvas(canvas_path):
+            return False
+
+        if confidence < self.CROSS_CANVAS_CONFIDENCE_THRESHOLD:
+            struct_logger.debug(
+                "cross_canvas_confidence_below_threshold",
+                canvas_path=canvas_path,
+                confidence=confidence,
+                threshold=self.CROSS_CANVAS_CONFIDENCE_THRESHOLD
+            )
+            return False
+
+        return True
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 36.8 Task 3: Top 5 Knowledge Point Extraction
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    # Story 36.8 AC2: Color priority scoring
+    # green(4) > purple(6) > yellow(3) > red(1) > others
+    COLOR_PRIORITY_SCORES = {
+        "4": 4.0,  # Green - mastered, highest priority for reference
+        "2": 3.5,  # Orange - good understanding
+        "6": 3.0,  # Purple - partial understanding
+        "3": 2.0,  # Yellow - waiting for input
+        "1": 1.0,  # Red - not understood
+        "5": 1.5,  # Blue - misc
+    }
+
+    def _calculate_color_priority(self, color: str) -> float:
+        """
+        Calculate priority score based on node color.
+
+        Story 36.8 Task 3.2: Color-based prioritization.
+
+        Green (mastered) concepts are prioritized for reference.
+
+        Args:
+            color: Obsidian color code ("1"-"6" or empty)
+
+        Returns:
+            Priority score (0-4, higher = more relevant)
+
+        [Source: docs/stories/36.8.story.md#Task-3.2]
+        """
+        return self.COLOR_PRIORITY_SCORES.get(color, 0.5)
+
+    def _calculate_text_similarity(
+        self,
+        exercise_text: str,
+        node_text: str
+    ) -> float:
+        """
+        Calculate semantic similarity between exercise and node text.
+
+        Story 36.8 Task 3.2: Semantic similarity scoring (MVP: word overlap).
+
+        Uses simple word overlap ratio for MVP implementation.
+        Can be enhanced with embeddings in future iterations.
+
+        Args:
+            exercise_text: Text content from exercise node
+            node_text: Text content from lecture node
+
+        Returns:
+            Similarity score (0-1)
+
+        [Source: docs/stories/36.8.story.md#Task-3.2]
+        """
+        if not exercise_text or not node_text:
+            return 0.0
+
+        # Simple word-based overlap for MVP
+        # Normalize: lowercase, split by whitespace and punctuation
+        exercise_words = set(re.findall(r'[\u4e00-\u9fff]+|\w+', exercise_text.lower()))
+        node_words = set(re.findall(r'[\u4e00-\u9fff]+|\w+', node_text.lower()))
+
+        if not exercise_words or not node_words:
+            return 0.0
+
+        # Jaccard similarity
+        intersection = len(exercise_words & node_words)
+        union = len(exercise_words | node_words)
+
+        return intersection / union if union > 0 else 0.0
+
+    def _calculate_position_score(
+        self,
+        y_position: int,
+        max_y: int
+    ) -> float:
+        """
+        Calculate position score (earlier nodes = higher score).
+
+        Story 36.8 Task 3.2: Position-based prioritization.
+
+        Earlier concepts (smaller Y) are foundational and prioritized.
+
+        Args:
+            y_position: Node Y coordinate
+            max_y: Maximum Y coordinate in canvas
+
+        Returns:
+            Position score (0-1, higher = earlier in canvas)
+
+        [Source: docs/stories/36.8.story.md#Task-3.2]
+        """
+        if max_y <= 0:
+            return 0.5
+
+        # Normalize to 0-1, invert so smaller Y = higher score
+        return 1.0 - (y_position / max_y) if max_y > 0 else 0.5
+
+    def extract_top_knowledge_points(
+        self,
+        lecture_nodes: List[Dict[str, Any]],
+        exercise_content: str = "",
+        max_nodes: int = 5,
+        max_content_length: int = 300
+    ) -> List[Dict[str, Any]]:
+        """
+        Extract top N most relevant knowledge points from lecture nodes.
+
+        Story 36.8 Task 3.1, 3.2, 3.3: Intelligent knowledge point extraction.
+
+        Scoring algorithm combines:
+        - Semantic similarity to exercise content (40% weight)
+        - Position in lecture - earlier = foundational (30% weight)
+        - Color status - green/mastered prioritized (30% weight)
+
+        Args:
+            lecture_nodes: List of nodes from lecture canvas
+            exercise_content: Content from exercise node for relevance scoring
+            max_nodes: Maximum nodes to return (default: 5 per AC2)
+            max_content_length: Max chars per node content (default: 300 per Task 3.3)
+
+        Returns:
+            List of top N relevant knowledge point dicts, each containing:
+            - id: Node ID
+            - text: Node content (truncated to max_content_length)
+            - color: Node color
+            - x, y: Position
+            - relevance_score: Combined relevance score
+
+        [Source: docs/stories/36.8.story.md#Task-3.1]
+        [Source: docs/stories/36.8.story.md#Task-3.2]
+        [Source: docs/stories/36.8.story.md#Task-3.3]
+        """
+        if not lecture_nodes:
+            return []
+
+        # Filter to text nodes with content
+        text_nodes = [
+            node for node in lecture_nodes
+            if node.get("type") == "text" and node.get("text")
+        ]
+
+        if not text_nodes:
+            return []
+
+        # Find max Y for position normalization
+        max_y = max(node.get("y", 0) for node in text_nodes) if text_nodes else 1
+
+        scored_nodes = []
+        for node in text_nodes:
+            node_text = node.get("text", "")
+            node_color = node.get("color", "")
+            y_pos = node.get("y", 0)
+
+            # Calculate component scores
+            similarity_score = self._calculate_text_similarity(exercise_content, node_text)
+            position_score = self._calculate_position_score(y_pos, max_y)
+            color_score = self._calculate_color_priority(node_color) / 4.0  # Normalize to 0-1
+
+            # Story 36.8 Task 3.2: Weighted combination
+            # Similarity: 40%, Position: 30%, Color: 30%
+            relevance_score = (
+                similarity_score * 0.4 +
+                position_score * 0.3 +
+                color_score * 0.3
+            )
+
+            scored_nodes.append({
+                "id": node.get("id"),
+                "text": node_text[:max_content_length],  # Task 3.3: Limit content length
+                "color": node_color,
+                "x": node.get("x", 0),
+                "y": y_pos,
+                "relevance_score": round(relevance_score, 3)
+            })
+
+        # Sort by relevance score descending
+        scored_nodes.sort(key=lambda n: n["relevance_score"], reverse=True)
+
+        # Return top N nodes
+        top_nodes = scored_nodes[:max_nodes]
+
+        struct_logger.debug(
+            "knowledge_points_extracted",
+            total_nodes=len(text_nodes),
+            selected_nodes=len(top_nodes),
+            top_scores=[n["relevance_score"] for n in top_nodes]
+        )
+
+        return top_nodes
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 36.8 Task 5: Performance Optimization
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    def _get_cached_association(
+        self,
+        canvas_path: str
+    ) -> Optional[Tuple[Any, bool]]:
+        """
+        Get cached cross-canvas association if still valid.
+
+        Story 36.8 Task 5.1: Association lookup caching with 30s TTL.
+
+        Args:
+            canvas_path: Canvas file path as cache key
+
+        Returns:
+            Tuple of (cached_result, cache_hit) if found and valid,
+            None if not found or expired
+
+        [Source: docs/stories/36.8.story.md#Task-5.1]
+        """
+        if canvas_path not in self._association_cache:
+            return None
+
+        cached_result, cached_time = self._association_cache[canvas_path]
+        current_time = time.time()
+
+        # Check TTL (30 seconds)
+        if current_time - cached_time > self._association_cache_ttl:
+            # Cache expired, remove entry
+            del self._association_cache[canvas_path]
+            struct_logger.debug(
+                "association_cache_expired",
+                canvas_path=canvas_path,
+                age_seconds=current_time - cached_time
+            )
+            return None
+
+        struct_logger.debug(
+            "association_cache_hit",
+            canvas_path=canvas_path,
+            age_seconds=round(current_time - cached_time, 2)
+        )
+        return (cached_result, True)
+
+    def _cache_association(
+        self,
+        canvas_path: str,
+        result: Any
+    ) -> None:
+        """
+        Store cross-canvas association in cache.
+
+        Story 36.8 Task 5.1: Cache association with timestamp.
+
+        Args:
+            canvas_path: Canvas file path as cache key
+            result: Result to cache (can be None for negative caching)
+
+        [Source: docs/stories/36.8.story.md#Task-5.1]
+        """
+        self._association_cache[canvas_path] = (result, time.time())
+        struct_logger.debug(
+            "association_cached",
+            canvas_path=canvas_path,
+            has_result=result is not None
+        )
+
+    async def _fetch_lecture_data_parallel(
+        self,
+        associations: List[Any]
+    ) -> List[Dict[str, Any]]:
+        """
+        Fetch lecture canvas data in parallel for multiple associations.
+
+        Story 36.8 Task 5.2: Parallel fetch using asyncio.gather().
+
+        Enables future support for multiple lecture associations per exercise.
+        Currently single association is typical, but this prepares for
+        multi-association use cases.
+
+        Args:
+            associations: List of CrossCanvasAssociation objects
+
+        Returns:
+            List of lecture data dicts with nodes and metadata
+
+        [Source: docs/stories/36.8.story.md#Task-5.2]
+        """
+        if not associations:
+            return []
+
+        async def fetch_single_lecture(assoc) -> Optional[Dict[str, Any]]:
+            """Fetch data for a single lecture canvas."""
+            try:
+                lecture_path = assoc.target_canvas_path
+                canvas_name = lecture_path.replace(".canvas", "")
+                lecture_data = await self._canvas_service.read_canvas(canvas_name)
+
+                return {
+                    "association": assoc,
+                    "lecture_data": lecture_data,
+                    "lecture_path": lecture_path,
+                    "lecture_title": assoc.target_canvas_title,
+                }
+            except Exception as e:
+                logger.warning(f"Failed to fetch lecture {assoc.target_canvas_path}: {e}")
+                return None
+
+        # Use asyncio.gather for parallel fetching
+        results = await asyncio.gather(
+            *[fetch_single_lecture(assoc) for assoc in associations],
+            return_exceptions=True
+        )
+
+        # Filter out None and Exception results
+        valid_results = [
+            r for r in results
+            if r is not None and not isinstance(r, Exception)
+        ]
+
+        struct_logger.debug(
+            "parallel_lecture_fetch_complete",
+            requested=len(associations),
+            successful=len(valid_results)
+        )
+
+        return valid_results
 
     async def enrich_with_adjacent_nodes(
         self,
@@ -381,7 +788,8 @@ class ContextEnrichmentService:
         if textbook_context_str:
             enriched_context = f"{enriched_context}\n\n{textbook_context_str}"
 
-        # 7. Story 25.3: Get cross-canvas context (lecture references for exercise canvases)
+        # 7. Story 25.3 + 36.8: Get cross-canvas context (lecture references for exercise canvases)
+        # Story 36.8 AC1, AC4: Automatically detect exercise canvases and inject lecture context
         cross_canvas_context_str = None
         has_cross_canvas_refs = False
         lecture_canvas_path = None
@@ -389,22 +797,51 @@ class ContextEnrichmentService:
 
         if self._cross_canvas_service:
             try:
-                # Try to get associated lecture canvas
+                # Story 36.8 Task 1.2: Construct canvas path
                 canvas_path = f"{canvas_name}.canvas"
+
+                # Story 36.8 AC4: Check if this is an exercise canvas
+                is_exercise = self.is_exercise_canvas(canvas_path)
+
+                if is_exercise:
+                    struct_logger.debug(
+                        "exercise_canvas_detected",
+                        canvas_path=canvas_path,
+                        message="Triggering automatic cross-canvas context injection"
+                    )
+
+                # Get associated lecture canvas (with Neo4j fallback per Story 36.8 AC6)
                 cross_ctx = await self.get_cross_canvas_context(canvas_path)
 
                 if cross_ctx:
-                    has_cross_canvas_refs = True
-                    lecture_canvas_path = cross_ctx.get("lecture_canvas_path")
-                    lecture_canvas_title = cross_ctx.get("lecture_canvas_title")
-                    cross_canvas_context_str = self._format_cross_canvas_context(cross_ctx)
-                    logger.debug(
-                        f"Found cross-canvas ref: {lecture_canvas_title} "
-                        f"with {len(cross_ctx.get('relevant_nodes', []))} nodes"
-                    )
+                    confidence = cross_ctx.get("confidence", 0.0)
+
+                    # Story 36.8 Task 1.3: Check confidence threshold for exercise canvases
+                    if is_exercise and not self._should_inject_cross_canvas_context(
+                        canvas_path, confidence
+                    ):
+                        struct_logger.info(
+                            "cross_canvas_injection_skipped",
+                            canvas_path=canvas_path,
+                            confidence=confidence,
+                            reason="confidence below threshold"
+                        )
+                    else:
+                        has_cross_canvas_refs = True
+                        lecture_canvas_path = cross_ctx.get("lecture_canvas_path")
+                        lecture_canvas_title = cross_ctx.get("lecture_canvas_title")
+                        cross_canvas_context_str = self._format_cross_canvas_context(cross_ctx)
+                        struct_logger.info(
+                            "cross_canvas_context_injected",
+                            canvas_path=canvas_path,
+                            lecture_canvas=lecture_canvas_title,
+                            confidence=confidence,
+                            node_count=len(cross_ctx.get("relevant_nodes", [])),
+                            is_exercise=is_exercise
+                        )
             except Exception as e:
                 logger.warning(f"Failed to get cross-canvas context: {e}")
-                # Continue without cross-canvas context
+                # Story 36.8 AC6: Continue without cross-canvas context (graceful degradation)
 
         # 8. Combine cross-canvas context
         if cross_canvas_context_str:
@@ -757,8 +1194,11 @@ class ContextEnrichmentService:
         Retrieves the associated lecture canvas and extracts relevant
         knowledge point nodes for context enrichment.
 
+        Story 36.8 Task 5: Includes caching (30s TTL) and timing instrumentation.
+
         [Source: Story 25.3 AC2 - Auto-retrieve lecture content when solving problems]
         [Source: Story 25.3 Task 4.1 - Add get_cross_canvas_context method]
+        [Source: docs/stories/36.8.story.md#Task-5]
 
         Args:
             canvas_path: Path to the exercise canvas (e.g., "习题-线性代数.canvas")
@@ -771,13 +1211,38 @@ class ContextEnrichmentService:
                 - confidence: Association confidence score
             Or None if no association found
         """
+        # Story 36.8 Task 5.3: Start timing instrumentation
+        start_time = time.time()
+
         if not self._cross_canvas_service:
             return None
+
+        # Story 36.8 Task 5.1: Check cache first
+        cached = self._get_cached_association(canvas_path)
+        if cached is not None:
+            cached_result, cache_hit = cached
+            elapsed_ms = (time.time() - start_time) * 1000
+            struct_logger.info(
+                "cross_canvas_context_retrieved",
+                canvas_path=canvas_path,
+                cache_hit=True,
+                elapsed_ms=round(elapsed_ms, 2),
+                has_result=cached_result is not None
+            )
+            return cached_result
 
         # Get the associated lecture canvas for this exercise
         association = await self._cross_canvas_service.get_lecture_for_exercise(canvas_path)
 
         if not association:
+            # Story 36.8 Task 5.1: Cache negative result too
+            self._cache_association(canvas_path, None)
+            elapsed_ms = (time.time() - start_time) * 1000
+            struct_logger.debug(
+                "cross_canvas_no_association",
+                canvas_path=canvas_path,
+                elapsed_ms=round(elapsed_ms, 2)
+            )
             return None
 
         # Read the lecture canvas to extract relevant nodes
@@ -789,26 +1254,18 @@ class ContextEnrichmentService:
             canvas_name = lecture_path.replace(".canvas", "")
             lecture_data = await self._canvas_service.read_canvas(canvas_name)
 
-            # Extract text nodes from lecture canvas (knowledge points)
-            relevant_nodes = []
-            for node in lecture_data.get("nodes", []):
-                # Only include text nodes with content
-                if node.get("type") == "text" and node.get("text"):
-                    node_text = node.get("text", "")[:300]  # Limit to 300 chars
-                    node_color = node.get("color", "")
-                    relevant_nodes.append({
-                        "id": node.get("id"),
-                        "text": node_text,
-                        "color": node_color,
-                        "x": node.get("x", 0),
-                        "y": node.get("y", 0),
-                    })
+            # Story 36.8 Task 3: Use extract_top_knowledge_points() for intelligent extraction
+            # Pass all lecture nodes and use association common_concepts for relevance scoring
+            exercise_content = " ".join(association.common_concepts or [])
 
-            # Limit to top 5 most relevant nodes (by position - earlier nodes first)
-            relevant_nodes.sort(key=lambda n: (n["y"], n["x"]))
-            relevant_nodes = relevant_nodes[:5]
+            relevant_nodes = self.extract_top_knowledge_points(
+                lecture_nodes=lecture_data.get("nodes", []),
+                exercise_content=exercise_content,
+                max_nodes=5,  # AC2: Top 5 nodes
+                max_content_length=300  # Task 3.3: 300 char limit
+            )
 
-            return {
+            result = {
                 "lecture_canvas_path": lecture_path,
                 "lecture_canvas_title": lecture_title,
                 "relevant_nodes": relevant_nodes,
@@ -816,25 +1273,79 @@ class ContextEnrichmentService:
                 "common_concepts": association.common_concepts,
             }
 
+            # Story 36.8 Task 5.1: Cache the result
+            self._cache_association(canvas_path, result)
+
+            # Story 36.8 Task 5.3: Log timing for P95 monitoring
+            elapsed_ms = (time.time() - start_time) * 1000
+            struct_logger.info(
+                "cross_canvas_context_retrieved",
+                canvas_path=canvas_path,
+                lecture_canvas=lecture_title,
+                cache_hit=False,
+                node_count=len(relevant_nodes),
+                elapsed_ms=round(elapsed_ms, 2),
+                p95_target_ms=200,  # AC5: P95 < 200ms
+                within_target=elapsed_ms < 200
+            )
+
+            # AC5: Warn if P95 target exceeded
+            if elapsed_ms >= 200:
+                struct_logger.warning(
+                    "cross_canvas_retrieval_slow",
+                    canvas_path=canvas_path,
+                    elapsed_ms=round(elapsed_ms, 2),
+                    target_ms=200,
+                    message="P95 target exceeded - consider optimization"
+                )
+
+            return result
+
         except Exception as e:
             logger.warning(f"Failed to read lecture canvas {lecture_path}: {e}")
             # Return basic info even if we can't read the lecture canvas
-            return {
+            result = {
                 "lecture_canvas_path": lecture_path,
                 "lecture_canvas_title": lecture_title,
                 "relevant_nodes": [],
                 "confidence": association.confidence,
                 "common_concepts": association.common_concepts,
             }
+            # Still cache partial result
+            self._cache_association(canvas_path, result)
+
+            # Story 36.8 Task 5.3: Log timing even for errors
+            elapsed_ms = (time.time() - start_time) * 1000
+            struct_logger.info(
+                "cross_canvas_context_partial",
+                canvas_path=canvas_path,
+                lecture_canvas=lecture_title,
+                elapsed_ms=round(elapsed_ms, 2),
+                error=str(e)
+            )
+
+            return result
 
     def _format_cross_canvas_context(self, cross_ctx: Dict[str, Any]) -> str:
         """
         Format cross-canvas context for inclusion in enriched context.
 
-        Formats lecture references as "参见讲座: {name} > {node}" per AC3.
+        Story 36.8 Task 4: Updated format per AC3.
+
+        Output format (per Story 36.8 Dev Notes):
+        ```
+        --- 参见讲座知识点 (Lecture References) ---
+        [参见讲座: 线性代数-讲座] (置信度: 85%)
+        [共同概念] 矩阵乘法, 行列式, 特征值
+
+        [参见讲座: 线性代数-讲座] 矩阵乘法的定义...
+        [参见讲座: 线性代数-讲座] 行列式的几何意义...
+        ```
 
         [Source: Story 25.3 AC3 - Agent prompt includes lecture knowledge point references]
-        [Source: Story 25.3 Task 4.3 - Format lecture references]
+        [Source: docs/stories/36.8.story.md#Task-4.1]
+        [Source: docs/stories/36.8.story.md#Task-4.2]
+        [Source: docs/stories/36.8.story.md#Task-4.3]
 
         Args:
             cross_ctx: Cross-canvas context dict from get_cross_canvas_context()
@@ -853,24 +1364,27 @@ class ContextEnrichmentService:
         # Format display name
         display_name = Path(lecture_path).stem if lecture_path else lecture_title
 
-        parts = [f"--- 参见讲座: {display_name} (置信度: {confidence:.0%}) ---"]
+        # Story 36.8 Task 4.2: Section header
+        parts = ["--- 参见讲座知识点 (Lecture References) ---"]
+
+        # Story 36.8 Task 4.3: Confidence score in header line
+        parts.append(f"[参见讲座: {display_name}] (置信度: {confidence:.0%})")
 
         # Add common concepts if available
         if common_concepts:
             concepts_str = ", ".join(common_concepts[:5])  # Limit to 5
             parts.append(f"[共同概念] {concepts_str}")
 
-        # Add relevant knowledge point nodes
+        parts.append("")  # Empty line before knowledge points
+
+        # Story 36.8 Task 4.1: Format as [参见讲座: {name}] {content}
         if relevant_nodes:
-            parts.append("\n--- 相关知识点 (Lecture Knowledge Points) ---")
             for node in relevant_nodes:
                 node_text = node.get("text", "")
-                color = node.get("color", "")
-                color_desc = self._get_color_description(color)
-                # Format: 参见讲座: {name} > {node}
-                parts.append(f"[lecture|{display_name}]{color_desc} {node_text}")
+                # Story 36.8 Task 4.1: New format per AC3
+                parts.append(f"[参见讲座: {display_name}] {node_text}")
         else:
-            parts.append(f"[lecture|{display_name}] (暂无具体知识点信息)")
+            parts.append(f"[参见讲座: {display_name}] (暂无具体知识点信息)")
 
         return "\n".join(parts)
 

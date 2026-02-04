@@ -942,6 +942,7 @@ class AgentService:
         gemini_client: Optional["GeminiClient"] = None,
         memory_client: Optional["LearningMemoryClient"] = None,
         canvas_service: Optional[Any] = None,  # ✅ FIX: Canvas写入支持
+        neo4j_client: Optional[Any] = None,  # Story 36.7: Neo4j学习记忆注入
         max_concurrent: int = 10,
         ai_config: Optional[Any] = None  # AIConfig from dependencies.py
     ):
@@ -957,6 +958,9 @@ class AgentService:
                           If None, historical context is not included.
             canvas_service: CanvasService instance for writing nodes to Canvas.
                            If None, nodes are returned but not written to Canvas.
+            neo4j_client: Neo4jClient instance for querying learning memories from Neo4j.
+                         Story 36.7: Enables Neo4j-based memory queries with fallback.
+                         If None, uses memory_client for historical context.
             max_concurrent: Maximum concurrent agent calls (default: 10)
             ai_config: AIConfig dataclass with provider, model, base_url, api_key.
                       Used for future multi-provider support.
@@ -966,10 +970,12 @@ class AgentService:
         [Source: FIX-4.2 Agent调用时查询历史]
         [Source: Multi-Provider AI Architecture]
         [Source: FIX-Canvas-Write: Backend直接写入Canvas文件]
+        [Source: docs/stories/36.7.story.md - AC1 Neo4jClient注入]
         """
         self._gemini_client = gemini_client
         self._memory_client = memory_client
         self._canvas_service = canvas_service  # ✅ FIX: Store canvas_service
+        self._neo4j_client = neo4j_client  # Story 36.7: Store Neo4jClient
         self._max_concurrent = max_concurrent
         self._ai_config = ai_config  # Store for future multi-provider support
         self._semaphore = asyncio.Semaphore(max_concurrent)
@@ -995,6 +1001,12 @@ class AgentService:
         if self._memory_client:
             logger.info("AgentService will use LearningMemoryClient for historical context")
 
+        # Story 36.7: Log Neo4jClient injection status
+        if self._neo4j_client:
+            logger.info("AgentService will use Neo4jClient for learning memory queries")
+        else:
+            logger.debug("AgentService initialized without Neo4jClient - will fallback to memory_client")
+
         if self._canvas_service:
             logger.info("AgentService will use CanvasService for writing nodes to Canvas")
         else:
@@ -1013,8 +1025,9 @@ class AgentService:
         return self._active_calls
 
     # ═══════════════════════════════════════════════════════════════════════════════
-    # Story 12.A.4: Learning Memory Injection with Timeout and Cache
+    # Story 12.A.4 + Story 36.7: Learning Memory Injection with Neo4j Support
     # [Source: docs/stories/story-12.A.4-memory-injection.md]
+    # [Source: docs/stories/36.7.story.md - Neo4j数据源]
     # ═══════════════════════════════════════════════════════════════════════════════
 
     async def _get_learning_memories(
@@ -1026,9 +1039,13 @@ class AgentService:
         """
         Get learning history with cache and timeout support.
 
-        Queries LearningMemoryClient for relevant memories with:
+        Story 36.7: Neo4j-based memory queries with fallback to JSON storage.
+        - AC1: Uses Neo4jClient via dependency injection
+        - AC2: Real Neo4j Cypher queries
+        - AC3: Relevance-sorted, top 5 results
+        - AC4: 30-second cache to reduce redundant queries
         - AC5: 500ms timeout to ensure responsiveness
-        - AC6: 30-second cache to reduce redundant queries
+        - AC6: Fallback to memory_client when Neo4j unavailable
 
         Args:
             content: The concept/content to search memories for
@@ -1039,51 +1056,183 @@ class AgentService:
             Formatted memory context string, or empty string on failure/timeout
 
         [Source: docs/stories/story-12.A.4-memory-injection.md#Task-4-5-6]
+        [Source: docs/stories/36.7.story.md - AC1-AC6]
         [Source: ADR-0003 Graphiti Memory - 3-layer architecture]
         """
-        if not self._memory_client or not content:
+        if not content:
             return ""
 
-        # AC6: Build cache key
+        # Story 36.7 AC4: Build cache key
         cache_key = f"{canvas_name}:{node_id}:{content[:50]}"
 
-        # AC6: Check cache (30s TTL)
+        # Story 36.7 AC4: Check cache (30s TTL)
         if cache_key in self._memory_cache:
-            memories, timestamp = self._memory_cache[cache_key]
+            cached_data, timestamp = self._memory_cache[cache_key]
             if time.time() - timestamp < 30:
-                logger.debug(f"Memory cache hit for key: {cache_key[:30]}...")
-                return self._memory_client.format_for_context(memories)
+                logger.debug(f"[Story 36.7] Memory cache HIT for key: {cache_key[:30]}...")
+                # Return cached formatted string if it's a string, otherwise format
+                if isinstance(cached_data, str):
+                    return cached_data
+                return self._format_learning_memories(cached_data)
             else:
                 # Cache expired, remove stale entry
                 del self._memory_cache[cache_key]
-                logger.debug(f"Memory cache expired for key: {cache_key[:30]}...")
+                logger.debug(f"[Story 36.7] Memory cache EXPIRED for key: {cache_key[:30]}...")
 
-        # AC5: Query with 500ms timeout
+        # Story 36.7: Determine which data source to use
+        use_neo4j = self._neo4j_client and not getattr(self._neo4j_client, '_use_json_fallback', True)
+
+        # Story 36.7 AC5: Query with 500ms timeout
         try:
-            memories = await asyncio.wait_for(
-                self._memory_client.search_memories(
-                    query=content[:100],
-                    canvas_name=canvas_name,
-                    node_id=node_id,
-                    limit=5
-                ),
-                timeout=0.5  # 500ms timeout
-            )
+            if use_neo4j:
+                # Story 36.7 AC2: Real Neo4j query path
+                result = await asyncio.wait_for(
+                    self._query_neo4j_memories(content, canvas_name),
+                    timeout=0.5  # 500ms timeout
+                )
+                logger.debug(f"[Story 36.7] Neo4j query returned {len(result) if result else 0} memories")
+            elif self._memory_client:
+                # Story 36.7 AC6: Fallback to memory_client (JSON storage)
+                logger.debug("[Story 36.7] Fallback to memory_client (NEO4J_MOCK=true or Neo4j unavailable)")
+                memories = await asyncio.wait_for(
+                    self._memory_client.search_memories(
+                        query=content[:100],
+                        canvas_name=canvas_name,
+                        node_id=node_id,
+                        limit=5
+                    ),
+                    timeout=0.5
+                )
+                result = self._memory_client.format_for_context(memories) if memories else ""
+            else:
+                logger.debug("[Story 36.7] No memory source available (no Neo4jClient or memory_client)")
+                return ""
 
-            # AC6: Store in cache
-            if memories:
-                self._memory_cache[cache_key] = (memories, time.time())
-                logger.debug(f"Cached {len(memories)} memories for key: {cache_key[:30]}...")
-                return self._memory_client.format_for_context(memories)
+            # Story 36.7 AC4: Store in cache
+            if result:
+                self._memory_cache[cache_key] = (result, time.time())
+                logger.debug(f"[Story 36.7] Cached memories for key: {cache_key[:30]}...")
+                return result
 
             return ""
 
         except asyncio.TimeoutError:
-            logger.warning(f"Memory query timeout (500ms) for: {content[:30]}...")
+            logger.warning(f"[Story 36.7] Memory query timeout (500ms) for: {content[:30]}...")
             return ""
         except Exception as e:
-            logger.warning(f"Memory query failed: {e}")
+            logger.warning(f"[Story 36.7] Memory query failed: {e}")
             return ""
+
+    async def _query_neo4j_memories(
+        self,
+        content: str,
+        canvas_name: Optional[str] = None
+    ) -> str:
+        """
+        Query learning memories from Neo4j.
+
+        Story 36.7 AC2/AC3: Executes Cypher query with relevance sorting.
+
+        Args:
+            content: Query text to search for
+            canvas_name: Optional Canvas name filter
+
+        Returns:
+            Formatted memory context string
+
+        [Source: docs/stories/36.7.story.md - Task 2]
+        """
+        if not self._neo4j_client:
+            return ""
+
+        # Story 36.7: Cypher query with relevance ordering (AC3)
+        # [Source: docs/stories/36.7.story.md#Dev-Notes - Neo4j Cypher查询参考]
+        cypher_query = """
+        MATCH (m:LearningMemory)
+        WHERE m.content CONTAINS $query_text
+        """
+
+        # Add canvas filter if provided
+        if canvas_name:
+            cypher_query += " AND m.canvas_name = $canvas_name"
+
+        # Story 36.7 AC3: ORDER BY relevance DESC LIMIT 5
+        cypher_query += """
+        RETURN m.concept AS concept,
+               m.timestamp AS timestamp,
+               m.relevance AS relevance,
+               m.score AS score,
+               m.user_understanding AS user_understanding
+        ORDER BY m.relevance DESC
+        LIMIT 5
+        """
+
+        # Execute query
+        params = {"query_text": content[:100]}
+        if canvas_name:
+            params["canvas_name"] = canvas_name
+
+        try:
+            results = await self._neo4j_client.run_query(cypher_query, **params)
+
+            if not results:
+                return ""
+
+            # Format results for Agent context
+            return self._format_learning_memories(results)
+
+        except Exception as e:
+            logger.warning(f"[Story 36.7] Neo4j query error: {e}")
+            return ""
+
+    def _format_learning_memories(self, memories: List[Dict[str, Any]]) -> str:
+        """
+        Format learning memories for Agent prompt context.
+
+        Story 36.7: Converts Neo4j query results to formatted context string.
+
+        Args:
+            memories: List of memory dicts from Neo4j
+
+        Returns:
+            Formatted string for Agent prompt
+
+        [Source: docs/stories/36.7.story.md#Dev-Notes - LearningMemory数据结构]
+        """
+        if not memories:
+            return ""
+
+        lines = ["## 历史学习记忆"]
+
+        for m in memories:
+            concept = m.get("concept", "Unknown")
+            timestamp = m.get("timestamp", "")
+            relevance = m.get("relevance", 0.0)
+            score = m.get("score")
+
+            # Format timestamp if present
+            if timestamp:
+                try:
+                    from datetime import datetime
+                    if isinstance(timestamp, str):
+                        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                        timestamp_str = dt.strftime("%Y-%m-%d")
+                    else:
+                        timestamp_str = str(timestamp)[:10]
+                except Exception:
+                    timestamp_str = str(timestamp)[:10]
+            else:
+                timestamp_str = "N/A"
+
+            # Format relevance as percentage
+            relevance_str = f"{relevance * 100:.0f}%" if isinstance(relevance, (int, float)) else "N/A"
+
+            # Format score
+            score_str = str(score) if score is not None else "N/A"
+
+            lines.append(f"- [{timestamp_str}] {concept}: 相关度{relevance_str}, 评分{score_str}")
+
+        return "\n".join(lines)
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # FIX-Canvas-Write: 后端直接写入节点到Canvas文件
@@ -2012,6 +2161,17 @@ class AgentService:
                 })
 
         logger.info(f"Basic decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
+
+        # Story 30.4: Fire-and-forget memory write for basic-decomposition
+        await self._trigger_memory_write(
+            agent_type="basic-decomposition",
+            canvas_name=canvas_name,
+            node_id=node_id,
+            concept=content[:50] if content else "Unknown",
+            user_understanding=content,
+            agent_feedback=f"Decomposed into {len(questions)} basic questions"
+        )
+
         return {
             "node_id": node_id,
             "questions": questions,
@@ -2110,6 +2270,17 @@ class AgentService:
                 })
 
         logger.info(f"Deep decomposition created {len(created_nodes)} nodes and {len(created_edges)} edges")
+
+        # Story 30.4: Fire-and-forget memory write for deep-decomposition
+        await self._trigger_memory_write(
+            agent_type="deep-decomposition",
+            canvas_name=canvas_name,
+            node_id=node_id,
+            concept=content[:50] if content else "Unknown",
+            user_understanding=content,
+            agent_feedback=f"Deep decomposed into {len(verification_questions)} verification questions"
+        )
+
         return {
             "node_id": node_id,
             "verification_questions": verification_questions,
@@ -2719,6 +2890,28 @@ class AgentService:
         else:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
             logger.warning(f"[FIX-Canvas-Write] WARNING: Failed to write to Canvas {canvas_name}, nodes returned in response but not persisted")
+
+        # Story 30.4: Fire-and-forget memory write for explanation agents
+        # Map explanation_type to proper agent name for memory tracking
+        explanation_type_to_agent = {
+            "oral": "oral-explanation",
+            "four-level": "four-level-explanation",
+            "four_level": "four-level-explanation",
+            "four-level-explanation": "four-level-explanation",
+            "example": "example-teaching",
+            "comparison": "comparison-table",
+            "memory": "memory-anchor",
+            "clarification": "clarification-path",
+        }
+        agent_name = explanation_type_to_agent.get(explanation_type, f"{explanation_type}-explanation")
+        await self._trigger_memory_write(
+            agent_type=agent_name,
+            canvas_name=canvas_name,
+            node_id=node_id,
+            concept=content[:50] if content else "Unknown",
+            user_understanding=user_understanding,
+            agent_feedback=f"Generated {explanation_type} explanation ({len(explanation_text)} chars)"
+        )
 
         return {
             "node_id": node_id,

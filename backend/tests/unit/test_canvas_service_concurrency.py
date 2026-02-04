@@ -17,12 +17,9 @@ import tempfile
 import time
 from pathlib import Path
 from typing import List
-from unittest.mock import AsyncMock, patch
 
 import pytest
-
 from app.services.canvas_service import CanvasService
-
 
 # ============================================================================
 # Fixtures

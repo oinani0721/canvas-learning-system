@@ -317,6 +317,101 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Neo4j Configuration (Story 30.1)
+    # [Source: docs/stories/30.1.story.md - AC 2]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    NEO4J_ENABLED: bool = Field(
+        default=True,
+        description="Enable Neo4j connection (set to False for JSON fallback)"
+    )
+
+    NEO4J_URI: str = Field(
+        default="bolt://localhost:7687",
+        description="Neo4j Bolt connection URI"
+    )
+
+    NEO4J_USER: str = Field(
+        default="neo4j",
+        description="Neo4j username"
+    )
+
+    NEO4J_PASSWORD: str = Field(
+        default="",
+        description="Neo4j password (REQUIRED in production)"
+    )
+
+    NEO4J_DATABASE: str = Field(
+        default="neo4j",
+        description="Neo4j database name"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Neo4j Connection Pool Configuration (Story 30.2)
+    # [Source: docs/stories/30.2.story.md - AC 2]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    NEO4J_MAX_CONNECTION_POOL_SIZE: int = Field(
+        default=50,
+        description="Maximum connections in Neo4j connection pool (Story 30.2)"
+    )
+
+    NEO4J_CONNECTION_TIMEOUT: int = Field(
+        default=30,
+        description="Neo4j connection acquisition timeout in seconds (Story 30.2)"
+    )
+
+    NEO4J_MAX_CONNECTION_LIFETIME: int = Field(
+        default=3600,
+        description="Maximum connection lifetime in seconds (Story 30.2)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Neo4j Retry Configuration (Story 30.2)
+    # [Source: docs/stories/30.2.story.md - AC 5]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    NEO4J_RETRY_ATTEMPTS: int = Field(
+        default=3,
+        description="Number of retry attempts for Neo4j operations (Story 30.2)"
+    )
+
+    NEO4J_RETRY_DELAY_BASE: float = Field(
+        default=1.0,
+        description="Base delay for exponential backoff in seconds (1s, 2s, 4s) (Story 30.2)"
+    )
+
+    NEO4J_RETRY_MAX_DELAY: float = Field(
+        default=10.0,
+        description="Maximum retry delay in seconds (Story 30.2)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Verification Service Settings (Story 31.1)
+    # [Source: docs/stories/31.1.story.md - Task 6]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    USE_MOCK_VERIFICATION: bool = Field(
+        default=False,
+        description="Force mock mode for verification service (Story 31.1, used for testing/debugging)"
+    )
+
+    VERIFICATION_AI_TIMEOUT: float = Field(
+        default=0.5,
+        description="Timeout in seconds for AI calls in verification service (Story 31.1 AC-31.1.5)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Graphiti JSON Dual-Write Settings (Story 36.9)
+    # [Source: docs/stories/36.9.story.md - AC-36.9.5]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(
+        default=False,
+        description="Enable dual-write of learning events to Graphiti JSON storage (Story 36.9 AC-36.9.5)"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Computed Properties
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -429,6 +524,66 @@ class Settings(BaseSettings):
     def request_cache_ttl(self) -> int:
         """Alias for REQUEST_CACHE_TTL (lowercase for convenience). Story 12.H.5."""
         return self.REQUEST_CACHE_TTL
+
+    @property
+    def neo4j_enabled(self) -> bool:
+        """Alias for NEO4J_ENABLED (lowercase for convenience). Story 30.1."""
+        return self.NEO4J_ENABLED
+
+    @property
+    def neo4j_uri(self) -> str:
+        """Alias for NEO4J_URI (lowercase for convenience). Story 30.1."""
+        return self.NEO4J_URI
+
+    @property
+    def neo4j_user(self) -> str:
+        """Alias for NEO4J_USER (lowercase for convenience). Story 30.1."""
+        return self.NEO4J_USER
+
+    @property
+    def neo4j_password(self) -> str:
+        """Alias for NEO4J_PASSWORD (lowercase for convenience). Story 30.1."""
+        return self.NEO4J_PASSWORD
+
+    @property
+    def neo4j_database(self) -> str:
+        """Alias for NEO4J_DATABASE (lowercase for convenience). Story 30.1."""
+        return self.NEO4J_DATABASE
+
+    @property
+    def neo4j_max_connection_pool_size(self) -> int:
+        """Alias for NEO4J_MAX_CONNECTION_POOL_SIZE (lowercase). Story 30.2."""
+        return self.NEO4J_MAX_CONNECTION_POOL_SIZE
+
+    @property
+    def neo4j_connection_timeout(self) -> int:
+        """Alias for NEO4J_CONNECTION_TIMEOUT (lowercase). Story 30.2."""
+        return self.NEO4J_CONNECTION_TIMEOUT
+
+    @property
+    def neo4j_max_connection_lifetime(self) -> int:
+        """Alias for NEO4J_MAX_CONNECTION_LIFETIME (lowercase). Story 30.2."""
+        return self.NEO4J_MAX_CONNECTION_LIFETIME
+
+    @property
+    def neo4j_retry_attempts(self) -> int:
+        """Alias for NEO4J_RETRY_ATTEMPTS (lowercase). Story 30.2."""
+        return self.NEO4J_RETRY_ATTEMPTS
+
+    @property
+    def neo4j_retry_delay_base(self) -> float:
+        """Alias for NEO4J_RETRY_DELAY_BASE (lowercase). Story 30.2."""
+        return self.NEO4J_RETRY_DELAY_BASE
+
+    @property
+    def neo4j_retry_max_delay(self) -> float:
+        """Alias for NEO4J_RETRY_MAX_DELAY (lowercase). Story 30.2."""
+        return self.NEO4J_RETRY_MAX_DELAY
+
+    @property
+    def enable_graphiti_json_dual_write(self) -> bool:
+        """Alias for ENABLE_GRAPHITI_JSON_DUAL_WRITE (lowercase). Story 36.9."""
+        return self.ENABLE_GRAPHITI_JSON_DUAL_WRITE
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Configuration

@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/memory-health-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2026-01-16T18:20:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "epic", "epic": "Epic 30", "story": "30.3"}
+    ],
+    "adr_references": ["ADR-003"]
+  },
+  "title": "Memory Health Check Response",
+  "description": "Memory System健康检查响应数据结构，包含3层系统状态 (Story 30.3, AC-30.3.5)",
+  "type": "object",
+  "required": ["status", "layers", "timestamp"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy"],
+      "description": "整体系统状态: healthy=所有层正常, degraded=部分层异常, unhealthy=关键层不可用"
+    },
+    "layers": {
+      "type": "object",
+      "description": "3层系统各层状态",
+      "required": ["temporal", "graphiti", "semantic"],
+      "properties": {
+        "temporal": {
+          "type": "object",
+          "description": "Temporal层状态 (FSRS/SQLite)",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["ok", "error"],
+              "description": "层状态"
+            },
+            "backend": {
+              "type": "string",
+              "description": "后端类型(如sqlite)"
+            },
+            "error": {
+              "type": "string",
+              "description": "错误信息(仅error时存在)"
+            }
+          }
+        },
+        "graphiti": {
+          "type": "object",
+          "description": "Graphiti层状态 (Neo4j)",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["ok", "error"],
+              "description": "层状态"
+            },
+            "backend": {
+              "type": "string",
+              "description": "后端类型(如neo4j)"
+            },
+            "node_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "图中节点数量"
+            },
+            "error": {
+              "type": "string",
+              "description": "错误信息(仅error时存在)"
+            }
+          }
+        },
+        "semantic": {
+          "type": "object",
+          "description": "Semantic层状态 (LanceDB)",
+          "required": ["status"],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": ["ok", "error"],
+              "description": "层状态"
+            },
+            "backend": {
+              "type": "string",
+              "description": "后端类型(如lancedb)"
+            },
+            "vector_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "向量数量"
+            },
+            "error": {
+              "type": "string",
+              "description": "错误信息(仅error时存在)"
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "健康检查时间戳"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "status": "healthy",
+      "layers": {
+        "temporal": { "status": "ok", "backend": "sqlite" },
+        "graphiti": { "status": "ok", "backend": "neo4j", "node_count": 1234 },
+        "semantic": { "status": "ok", "backend": "lancedb", "vector_count": 5678 }
+      },
+      "timestamp": "2026-01-16T10:00:00Z"
+    },
+    {
+      "status": "degraded",
+      "layers": {
+        "temporal": { "status": "ok", "backend": "sqlite" },
+        "graphiti": { "status": "error", "backend": "neo4j", "error": "Connection refused" },
+        "semantic": { "status": "ok", "backend": "lancedb", "vector_count": 5678 }
+      },
+      "timestamp": "2026-01-16T10:00:00Z"
+    }
+  ]
+}

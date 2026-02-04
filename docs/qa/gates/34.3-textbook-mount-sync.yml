@@ -1,0 +1,94 @@
+# <!-- Powered by BMAD™ Core -->
+# Quality Gate: Story 34.3 - 教材挂载前后端完整同步
+
+schema: 1
+story: "34.3"
+story_title: "教材挂载前后端完整同步"
+gate: PASS
+status_reason: "所有4个AC完全满足，后端E2E测试覆盖充分(15+测试用例)，代码质量优秀，无安全问题。"
+reviewer: "Quinn (Test Architect)"
+updated: "2026-01-27T00:15:00+08:00"
+
+waiver: { active: false }
+
+top_issues: []
+
+quality_score: 95
+
+evidence:
+  tests_reviewed: 16
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "无敏感数据处理，使用pathlib防止路径遍历"
+  performance:
+    status: PASS
+    notes: "localStorage + backend cache，同步失败graceful degradation"
+  reliability:
+    status: PASS
+    notes: "错误处理完善，后端同步失败不阻塞本地操作"
+  maintainability:
+    status: PASS
+    notes: "代码注释清晰，有source引用，遵循编码标准"
+
+risk_summary:
+  totals: { critical: 0, high: 0, medium: 0, low: 0 }
+  recommendations:
+    must_fix: []
+    monitor: []
+
+recommendations:
+  immediate: []
+  future:
+    - action: "Consider adding frontend automated tests for ReviewDashboardView"
+      refs: ["canvas-progress-tracker/obsidian-plugin/tests/"]
+
+# Traceability Matrix
+traceability:
+  AC1:
+    requirement: "从跨Canvas Tab挂载教材时自动关联到选中的Canvas"
+    implementation:
+      - "ReviewDashboardView.ts:1762-1778 (getCurrentCanvasPath)"
+      - "ReviewDashboardView.ts:1540-1552 (mount button handler)"
+    tests:
+      - "Manual verification in Obsidian"
+    status: PASS
+
+  AC2:
+    requirement: "后端 .canvas-links.json 正确写入教材关联"
+    implementation:
+      - "TextbookMountService.ts:209-251 (syncToBackend)"
+      - "textbook_context_service.py:495-568 (sync_mounted_textbook)"
+    tests:
+      - "test_canvas_links_json_written_correctly"
+      - "test_mount_pdf_with_canvas_context"
+      - "test_mount_markdown_with_canvas_context"
+      - "test_mount_canvas_with_canvas_context"
+    status: PASS
+
+  AC3:
+    requirement: "Agent调用时能获取教材上下文"
+    implementation:
+      - "context_enrichment_service.py:361-387"
+    tests:
+      - "test_agent_receives_textbook_context_in_enriched_prompt"
+      - "test_agent_handles_empty_textbook_context"
+      - "test_agent_receives_multiple_textbook_contexts"
+    status: PASS
+
+  AC4:
+    requirement: "PDF/Markdown/Canvas 三种格式均可挂载"
+    implementation:
+      - "TextbookMountService.ts:308-321 (getTextbookType)"
+      - "TextbookMountService.ts:332-399 (parseMarkdownSections)"
+      - "TextbookMountService.ts:410-456 (parsePdfSections)"
+    tests:
+      - "test_mount_pdf_with_canvas_context"
+      - "test_mount_markdown_with_canvas_context"
+      - "test_mount_canvas_with_canvas_context"
+    status: PASS

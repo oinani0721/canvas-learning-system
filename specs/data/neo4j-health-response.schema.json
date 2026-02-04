@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning-system.com/schemas/neo4j-health-response.schema.json",
+  "x-source-verification": {
+    "verified_at": "2026-01-16T04:45:00Z",
+    "sources": [
+      {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
+      {"type": "context7", "library_id": "/websites/neo4j-operations-manual-current", "topic": "health check patterns"},
+      {"type": "context7", "library_id": "/websites/fastapi_tiangolo", "topic": "health check endpoint"},
+      {"type": "epic", "epic": "Epic 30", "story": "30.1"}
+    ],
+    "adr_references": ["ADR-003", "ADR-009"],
+    "conflict_resolution": {
+      "resolved_at": "2026-01-16",
+      "original_conflict": "Story 30.1 incorrectly referenced health-check-response.schema.json (Agent health)",
+      "resolution": "Created dedicated Neo4j health schema",
+      "decision": "Option A - Accept SoT hierarchy"
+    }
+  },
+  "title": "Neo4j Health Check Response",
+  "description": "Neo4j数据库健康检查响应数据结构 (Story 30.1, AC 4)",
+  "type": "object",
+  "required": ["status", "checks", "timestamp"],
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy"],
+      "description": "整体健康状态: healthy=Neo4j连接正常, degraded=Neo4j已禁用, unhealthy=连接失败"
+    },
+    "checks": {
+      "type": "object",
+      "description": "各项检查结果",
+      "properties": {
+        "neo4j_enabled": {
+          "type": "boolean",
+          "description": "Neo4j是否在配置中启用"
+        },
+        "neo4j_connection": {
+          "type": "boolean",
+          "description": "Neo4j Bolt连接是否成功"
+        },
+        "driver_initialized": {
+          "type": "boolean",
+          "description": "Neo4j AsyncGraphDatabase driver是否已初始化"
+        },
+        "database_accessible": {
+          "type": "boolean",
+          "description": "目标数据库是否可访问 (RETURN 1 测试通过)"
+        },
+        "uri": {
+          "type": "string",
+          "description": "Neo4j连接URI (仅在healthy时返回)"
+        },
+        "reason": {
+          "type": "string",
+          "description": "降级或不健康状态的原因说明"
+        },
+        "error": {
+          "type": "string",
+          "description": "错误信息 (仅在unhealthy时返回)"
+        }
+      }
+    },
+    "cached": {
+      "type": "boolean",
+      "default": false,
+      "description": "是否为缓存结果 (缓存TTL: 30秒, 参考ADR-007)"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "检查时间戳 (ISO 8601格式)"
+    }
+  },
+  "additionalProperties": false,
+  "examples": [
+    {
+      "status": "healthy",
+      "checks": {
+        "neo4j_enabled": true,
+        "neo4j_connection": true,
+        "driver_initialized": true,
+        "database_accessible": true,
+        "uri": "bolt://localhost:7687"
+      },
+      "cached": false,
+      "timestamp": "2026-01-16T10:30:00Z"
+    },
+    {
+      "status": "degraded",
+      "checks": {
+        "neo4j_enabled": false,
+        "reason": "Neo4j is disabled in configuration"
+      },
+      "cached": false,
+      "timestamp": "2026-01-16T10:30:00Z"
+    },
+    {
+      "status": "unhealthy",
+      "checks": {
+        "neo4j_enabled": true,
+        "neo4j_connection": false,
+        "error": "Connection timeout (>500ms)"
+      },
+      "cached": false,
+      "timestamp": "2026-01-16T10:30:00Z"
+    }
+  ]
+}

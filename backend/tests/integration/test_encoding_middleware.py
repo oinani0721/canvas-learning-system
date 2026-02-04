@@ -15,10 +15,9 @@ Tests verify that:
 """
 
 import pytest
-from httpx import ASGITransport, AsyncClient
-
 from app.config import Settings, get_settings
 from app.main import app
+from httpx import ASGITransport, AsyncClient
 
 
 def get_settings_override() -> Settings:

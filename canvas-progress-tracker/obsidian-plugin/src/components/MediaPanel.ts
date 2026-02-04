@@ -11,13 +11,22 @@
  * - 触摸手势支持
  * - 适配小屏幕
  *
+ * Story 35.4: MediaPanel后端集成
+ * - 从ApiClient获取动态数据
+ * - 支持概念切换刷新
+ * - 加载状态和错误处理UI
+ * - 刷新功能
+ *
  * ✅ Verified from Canvas component patterns
  * [Source: docs/stories/6.9.multimodal-ui-integration.story.md:42-50]
+ * [Source: docs/stories/35.4.story.md]
  */
 
 import { createImagePreview, ImageGalleryProps } from './ImagePreview';
 import { createPDFThumbnail } from './PDFPreview';
 import { createAudioPlayer, createVideoPlayer, TimeMarker } from './MediaPlayer';
+import { ApiClient } from '../api/ApiClient';
+import { ApiError } from '../api/types';
 
 /**
  * Media item type
@@ -52,12 +61,17 @@ export interface MediaItem {
 
 /**
  * Props for MediaPanel component.
+ *
+ * Story 35.4: Extended props for dynamic data fetching
+ * - apiClient: API client for backend calls
+ * - conceptId: Concept ID for dynamic data loading
+ * - onRefresh: Callback after refresh completes
  */
 export interface MediaPanelProps {
     /** Panel title */
     title?: string;
-    /** Media items to display */
-    items: MediaItem[];
+    /** Media items to display (static mode) */
+    items?: MediaItem[];
     /** Initial filter type (default: 'all') */
     initialFilter?: MediaType;
     /** Show search box (default: true) */
@@ -76,6 +90,12 @@ export interface MediaPanelProps {
     sortBy?: 'relevance' | 'name' | 'type' | 'date';
     /** Enable drag and drop (default: false) */
     draggable?: boolean;
+    /** Story 35.4: API client for dynamic data fetching (AC 35.4.1) */
+    apiClient?: ApiClient;
+    /** Story 35.4: Concept ID for data fetching (AC 35.4.2) */
+    conceptId?: string;
+    /** Story 35.4: Callback when refresh completes (AC 35.4.5) */
+    onRefresh?: (items: MediaItem[], error?: ApiError) => void;
 }
 
 /**
@@ -96,13 +116,32 @@ export interface MediaListProps {
 
 /**
  * Internal panel state
+ *
+ * Story 35.4: Extended state for dynamic data fetching
+ * - isLoading: Whether data is being fetched
+ * - error: API error if fetch failed
+ * - items: Dynamically loaded items
  */
 interface PanelState {
     filter: MediaType;
     searchQuery: string;
     sortBy: 'relevance' | 'name' | 'type' | 'date';
     displayMode: 'grid' | 'list';
+    /** Story 35.4 AC 35.4.3: Loading state */
+    isLoading: boolean;
+    /** Story 35.4 AC 35.4.4: Error state */
+    error: ApiError | null;
+    /** Story 35.4: Dynamically loaded items */
+    items: MediaItem[];
+    /** Story 35.4 AC 35.4.2: Current concept ID */
+    conceptId: string | null;
 }
+
+/**
+ * Story 35.4: Debounce delay for concept change (AC 35.4.2)
+ * Prevents excessive API calls when user rapidly switches nodes
+ */
+const CONCEPT_CHANGE_DEBOUNCE_MS = 300;
 
 /**
  * Creates a media panel component for displaying associated media items.
@@ -113,10 +152,14 @@ interface PanelState {
  * - Relevance-based sorting
  * - Grid/list view toggle
  * - Responsive layout
+ * - Story 35.4: Dynamic data fetching from backend
+ * - Story 35.4: Loading and error states
+ * - Story 35.4: Concept change with debouncing and AbortController
+ * - Story 35.4: Manual refresh functionality
  *
  * ✅ Verified from Canvas component patterns
  *
- * Example:
+ * Example (static mode):
  * ```typescript
  * const panel = createMediaPanel({
  *     title: '关联资料',
@@ -126,11 +169,26 @@ interface PanelState {
  * });
  * container.appendChild(panel);
  * ```
+ *
+ * Example (dynamic mode - Story 35.4):
+ * ```typescript
+ * const panel = createMediaPanel({
+ *     title: '关联资料',
+ *     apiClient: myApiClient,
+ *     conceptId: 'node-123',
+ *     onItemClick: (item) => console.log('Clicked:', item),
+ *     onRefresh: (items, error) => console.log('Refresh:', items.length)
+ * });
+ * container.appendChild(panel);
+ *
+ * // Update concept when user selects different node
+ * updateMediaPanelConcept(panel, 'node-456');
+ * ```
  */
 export function createMediaPanel(props: MediaPanelProps): HTMLElement {
     const {
         title = '关联资料',
-        items,
+        items: staticItems = [],
         initialFilter = 'all',
         showSearch = true,
         showRelevance = true,
@@ -139,14 +197,27 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         onItemClick,
         onFilterChange,
         sortBy = 'relevance',
-        draggable = false
+        draggable = false,
+        apiClient,
+        conceptId,
+        onRefresh
     } = props;
+
+    // Story 35.4 AC 35.4.2: AbortController for request cancellation
+    let currentAbortController: AbortController | null = null;
+    // Story 35.4 AC 35.4.2: Debounce timer for concept change
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     const state: PanelState = {
         filter: initialFilter,
         searchQuery: '',
         sortBy,
-        displayMode: 'grid'
+        displayMode: 'grid',
+        // Story 35.4: Start with isLoading=false; fetchMediaItems will set it to true
+        isLoading: false,
+        error: null,
+        items: staticItems,
+        conceptId: conceptId || null
     };
 
     const container = document.createElement('div');
@@ -158,10 +229,15 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         overflow: hidden;
     `;
 
-    // Header
-    const header = createPanelHeader(title, state, showSearch, onFilterChange, () => {
-        renderItems();
-    });
+    // Header with refresh button (Story 35.4 AC 35.4.5)
+    const header = createPanelHeader(
+        title,
+        state,
+        showSearch,
+        onFilterChange,
+        () => renderItems(),
+        apiClient ? () => fetchMediaItems() : undefined // Show refresh button only in dynamic mode
+    );
     container.appendChild(header);
 
     // Content area
@@ -174,11 +250,135 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
     `;
     container.appendChild(content);
 
-    // Render function
+    /**
+     * Story 35.4 AC 35.4.1: Fetch media items from backend
+     * @param isRefresh - Whether this is a manual refresh (show different UI)
+     */
+    async function fetchMediaItems(isRefresh: boolean = false): Promise<void> {
+        if (!apiClient || !state.conceptId) {
+            return;
+        }
+
+        // Story 35.4 AC 35.4.2: Cancel any pending request
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        // Create new controller and capture it for this fetch
+        const myAbortController = new AbortController();
+        currentAbortController = myAbortController;
+
+        // Story 35.4 AC 35.4.3: Set loading state
+        state.isLoading = true;
+        state.error = null;
+        renderItems();
+
+        try {
+            // Story 35.4 AC 35.4.1: Call ApiClient.getMediaByConceptId()
+            const mediaItems = await apiClient.getMediaByConceptId(state.conceptId);
+
+            // Check if THIS request was cancelled during fetch (not a later one)
+            if (myAbortController.signal.aborted) {
+                return;
+            }
+
+            // Story 35.4 AC 35.4.1: Map backend response to MediaItem[]
+            state.items = mediaItems;
+            state.error = null;
+
+            // Story 35.4 AC 35.4.5: Callback after successful refresh
+            if (onRefresh) {
+                onRefresh(mediaItems);
+            }
+
+            console.log(`[MediaPanel] Loaded ${mediaItems.length} items for concept: ${state.conceptId}`);
+        } catch (error) {
+            // Check if request was cancelled (not a real error)
+            if (error instanceof Error && error.name === 'AbortError') {
+                return;
+            }
+
+            // Also check if this request was aborted during the fetch
+            if (myAbortController.signal.aborted) {
+                return;
+            }
+
+            // Story 35.4 AC 35.4.4: Handle errors
+            const apiError = error instanceof ApiError
+                ? error
+                : new ApiError(
+                    error instanceof Error ? error.message : 'Unknown error',
+                    'UnknownError',
+                    0
+                );
+
+            state.error = apiError;
+            state.items = [];
+
+            // Story 35.4 AC 35.4.5: Callback with error
+            if (onRefresh) {
+                onRefresh([], apiError);
+            }
+
+            console.error(`[MediaPanel] Error fetching media for concept ${state.conceptId}:`, apiError.message);
+        } finally {
+            state.isLoading = false;
+            currentAbortController = null;
+            renderItems();
+        }
+    }
+
+    /**
+     * Story 35.4 AC 35.4.2: Handle concept change with debouncing
+     */
+    function handleConceptChange(newConceptId: string): void {
+        // Cancel any pending debounce
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+
+        // Story 35.4 AC 35.4.2: Cancel ongoing request
+        if (currentAbortController) {
+            currentAbortController.abort();
+            currentAbortController = null;
+        }
+
+        // Update concept ID
+        state.conceptId = newConceptId;
+
+        // Story 35.4 AC 35.4.2: Debounce the fetch (300ms)
+        debounceTimer = setTimeout(() => {
+            fetchMediaItems();
+            debounceTimer = null;
+        }, CONCEPT_CHANGE_DEBOUNCE_MS);
+    }
+
+    /**
+     * Render function with loading/error states (Story 35.4)
+     */
     function renderItems() {
         content.innerHTML = '';
 
-        const filteredItems = filterAndSortItems(items, state);
+        // Story 35.4 AC 35.4.3: Update refresh button state based on loading
+        const refreshBtn = container.querySelector('.media-panel-refresh-btn') as HTMLButtonElement | null;
+        if (refreshBtn) {
+            refreshBtn.disabled = state.isLoading;
+            refreshBtn.style.opacity = state.isLoading ? '0.5' : '1';
+            refreshBtn.style.cursor = state.isLoading ? 'not-allowed' : 'pointer';
+        }
+
+        // Story 35.4 AC 35.4.3: Show loading state
+        if (state.isLoading) {
+            content.appendChild(createLoadingState());
+            return;
+        }
+
+        // Story 35.4 AC 35.4.4: Show error state
+        if (state.error) {
+            content.appendChild(createErrorState(state.error, () => fetchMediaItems(true)));
+            return;
+        }
+
+        const filteredItems = filterAndSortItems(state.items, state);
 
         if (filteredItems.length === 0) {
             const emptyState = document.createElement('div');
@@ -205,25 +405,201 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         content.appendChild(list);
     }
 
-    // Initial render
-    renderItems();
+    // Story 35.4: Initial fetch if apiClient and conceptId are provided
+    if (apiClient && conceptId) {
+        fetchMediaItems();
+    } else {
+        // Static mode: just render
+        renderItems();
+    }
 
-    // Store state reference
+    // Store references for external access
     (container as any).__state = state;
     (container as any).__render = renderItems;
+    (container as any).__fetchMediaItems = fetchMediaItems;
+    (container as any).__handleConceptChange = handleConceptChange;
+    (container as any).__cleanup = () => {
+        // Story 35.4: Cleanup on unmount
+        if (currentAbortController) {
+            currentAbortController.abort();
+        }
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+    };
+
+    return container;
+}
+
+/**
+ * Story 35.4 AC 35.4.3: Create loading state UI
+ *
+ * Shows a spinner/skeleton while data is being fetched.
+ */
+function createLoadingState(): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'media-panel-loading';
+    container.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        gap: 12px;
+    `;
+
+    // Spinner
+    const spinner = document.createElement('div');
+    spinner.className = 'media-panel-spinner';
+    spinner.style.cssText = `
+        width: 32px;
+        height: 32px;
+        border: 3px solid var(--background-modifier-border);
+        border-top-color: var(--interactive-accent);
+        border-radius: 50%;
+        animation: media-panel-spin 1s linear infinite;
+    `;
+    container.appendChild(spinner);
+
+    // Loading text
+    const text = document.createElement('div');
+    text.textContent = '加载中...';
+    text.style.cssText = `
+        color: var(--text-muted);
+        font-size: 14px;
+    `;
+    container.appendChild(text);
+
+    // Add keyframes for spinner animation
+    if (!document.getElementById('media-panel-spinner-style')) {
+        const style = document.createElement('style');
+        style.id = 'media-panel-spinner-style';
+        style.textContent = `
+            @keyframes media-panel-spin {
+                to { transform: rotate(360deg); }
+            }
+        `;
+        document.head.appendChild(style);
+    }
+
+    return container;
+}
+
+/**
+ * Story 35.4 AC 35.4.4: Create error state UI
+ *
+ * Shows error message with optional retry button.
+ * @param error - The API error that occurred
+ * @param onRetry - Callback for retry button (only shown if error is retryable)
+ */
+function createErrorState(error: ApiError, onRetry?: () => void): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'media-panel-error';
+    container.style.cssText = `
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        gap: 16px;
+        text-align: center;
+    `;
+
+    // Error icon
+    const icon = document.createElement('div');
+    icon.innerHTML = '⚠️';
+    icon.style.fontSize = '32px';
+    container.appendChild(icon);
+
+    // Error message (user-friendly)
+    const message = document.createElement('div');
+    message.textContent = error.getUserFriendlyMessage();
+    message.style.cssText = `
+        color: var(--text-muted);
+        font-size: 14px;
+        max-width: 300px;
+    `;
+    container.appendChild(message);
+
+    // Story 35.4 AC 35.4.4: Show retry button for retryable errors
+    if (error.isRetryable && onRetry) {
+        const retryBtn = document.createElement('button');
+        retryBtn.textContent = '重试';
+        retryBtn.className = 'media-panel-retry-btn';
+        retryBtn.style.cssText = `
+            padding: 8px 16px;
+            background: var(--interactive-accent);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        `;
+        retryBtn.addEventListener('click', onRetry);
+        retryBtn.addEventListener('mouseenter', () => {
+            retryBtn.style.background = 'var(--interactive-accent-hover)';
+        });
+        retryBtn.addEventListener('mouseleave', () => {
+            retryBtn.style.background = 'var(--interactive-accent)';
+        });
+        container.appendChild(retryBtn);
+    }
+
+    // Story 35.4 AC 35.4.4: Error details expandable (development mode)
+    // Check if we're in development by looking for Obsidian debug flag
+    const isDev = (window as any).DEBUG || (window as any).app?.vault?.adapter?.basePath?.includes('dev');
+    if (isDev) {
+        const details = document.createElement('details');
+        details.style.cssText = `
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--text-faint);
+            max-width: 300px;
+            text-align: left;
+        `;
+
+        const summary = document.createElement('summary');
+        summary.textContent = '错误详情';
+        summary.style.cursor = 'pointer';
+        details.appendChild(summary);
+
+        const detailsContent = document.createElement('pre');
+        detailsContent.style.cssText = `
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin-top: 8px;
+            padding: 8px;
+            background: var(--background-secondary);
+            border-radius: 4px;
+        `;
+        detailsContent.textContent = JSON.stringify({
+            type: error.type,
+            statusCode: error.statusCode,
+            message: error.message,
+            details: error.details,
+            bugId: error.bugId
+        }, null, 2);
+        details.appendChild(detailsContent);
+
+        container.appendChild(details);
+    }
 
     return container;
 }
 
 /**
  * Creates the panel header with controls.
+ *
+ * Story 35.4 AC 35.4.5: Added onRefresh parameter for refresh button
  */
 function createPanelHeader(
     title: string,
     state: PanelState,
     showSearch: boolean,
     onFilterChange?: (filter: MediaType) => void,
-    onUpdate?: () => void
+    onUpdate?: () => void,
+    onRefresh?: () => void // Story 35.4: Refresh callback
 ): HTMLElement {
     const header = document.createElement('div');
     header.className = 'media-panel-header';
@@ -382,6 +758,52 @@ function createPanelHeader(
     viewToggle.appendChild(gridBtn);
     viewToggle.appendChild(listBtn);
     header.appendChild(viewToggle);
+
+    // Story 35.4 AC 35.4.5: Refresh button (only shown in dynamic mode)
+    if (onRefresh) {
+        const refreshBtn = document.createElement('button');
+        refreshBtn.className = 'media-panel-refresh-btn';
+        refreshBtn.innerHTML = '🔄';
+        refreshBtn.title = '刷新';
+        refreshBtn.style.cssText = `
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--background-modifier-border);
+            border-radius: 4px;
+            background: var(--background-secondary);
+            color: var(--text-normal);
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+        `;
+
+        // Disable during loading
+        if (state.isLoading) {
+            refreshBtn.disabled = true;
+            refreshBtn.style.opacity = '0.5';
+            refreshBtn.style.cursor = 'not-allowed';
+        }
+
+        refreshBtn.addEventListener('click', () => {
+            if (!state.isLoading) {
+                onRefresh();
+            }
+        });
+
+        refreshBtn.addEventListener('mouseenter', () => {
+            if (!state.isLoading) {
+                refreshBtn.style.background = 'var(--background-modifier-hover)';
+            }
+        });
+        refreshBtn.addEventListener('mouseleave', () => {
+            refreshBtn.style.background = 'var(--background-secondary)';
+        });
+
+        header.appendChild(refreshBtn);
+    }
 
     return header;
 }
@@ -795,5 +1217,86 @@ export function setMediaPanelFilter(container: HTMLElement, filter: MediaType): 
     if (state && render) {
         state.filter = filter;
         render();
+    }
+}
+
+/**
+ * Story 35.4 AC 35.4.2: Update the concept ID for a media panel.
+ *
+ * This triggers a new data fetch with debouncing and cancels any pending requests.
+ * Use this when the user selects a different Canvas node.
+ *
+ * @param container - The MediaPanel container element
+ * @param conceptId - The new concept ID to load media for
+ *
+ * @example
+ * ```typescript
+ * // When user selects a new node
+ * canvas.on('node:selected', (node) => {
+ *     updateMediaPanelConcept(mediaPanel, node.id);
+ * });
+ * ```
+ */
+export function updateMediaPanelConcept(container: HTMLElement, conceptId: string): void {
+    const handleConceptChange = (container as any).__handleConceptChange;
+    if (handleConceptChange) {
+        handleConceptChange(conceptId);
+    }
+}
+
+/**
+ * Story 35.4: Cleanup media panel resources.
+ *
+ * Call this when the panel is being unmounted to:
+ * - Cancel any pending API requests (AbortController)
+ * - Clear any pending debounce timers
+ *
+ * @param container - The MediaPanel container element
+ *
+ * @example
+ * ```typescript
+ * // When panel is being removed
+ * cleanupMediaPanel(mediaPanel);
+ * mediaPanel.remove();
+ * ```
+ */
+export function cleanupMediaPanel(container: HTMLElement): void {
+    const cleanup = (container as any).__cleanup;
+    if (cleanup) {
+        cleanup();
+    }
+}
+
+/**
+ * Story 35.4: Check if a media panel is currently loading.
+ *
+ * @param container - The MediaPanel container element
+ * @returns true if the panel is loading data
+ */
+export function isMediaPanelLoading(container: HTMLElement): boolean {
+    const state = (container as any).__state as PanelState | undefined;
+    return state?.isLoading || false;
+}
+
+/**
+ * Story 35.4: Get the current error from a media panel.
+ *
+ * @param container - The MediaPanel container element
+ * @returns The current ApiError or null if no error
+ */
+export function getMediaPanelError(container: HTMLElement): ApiError | null {
+    const state = (container as any).__state as PanelState | undefined;
+    return state?.error || null;
+}
+
+/**
+ * Story 35.4: Manually trigger a refresh of the media panel.
+ *
+ * @param container - The MediaPanel container element
+ */
+export function refreshMediaPanel(container: HTMLElement): void {
+    const fetchMediaItems = (container as any).__fetchMediaItems;
+    if (fetchMediaItems) {
+        fetchMediaItems(true);
     }
 }

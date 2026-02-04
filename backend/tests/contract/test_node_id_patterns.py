@@ -10,9 +10,8 @@ Pattern: ^[a-zA-Z0-9][-a-zA-Z0-9]*$
 """
 
 import pytest
-from pydantic import ValidationError
-
 from app.models.schemas import NodeRead
+from pydantic import ValidationError
 
 
 class TestNodeIdPatternValidation:

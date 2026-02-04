@@ -3606,6 +3606,7 @@
     border-radius: 8px;
     border: 1px solid var(--background-modifier-border);
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    position: relative; /* Story 31.7: For delete button positioning */
 }
 
 .verification-item:hover {
@@ -3730,6 +3731,43 @@
     background-color: rgba(239, 68, 68, 0.1);
     border-color: #ef4444;
     color: #ef4444;
+}
+
+/* Story 31.7: Delete button styles */
+.verification-item-delete {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+    color: var(--text-muted);
+}
+
+.verification-item:hover .verification-item-delete {
+    opacity: 1;
+}
+
+.verification-item-delete:hover {
+    background-color: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+/* Story 31.7: Enhanced stat highlighting */
+.verification-stat-highest {
+    color: var(--text-accent);
+    font-weight: 600;
+}
+
+.verification-stat-recent {
+    color: var(--text-muted);
+    font-style: italic;
 }
 
 .verification-chart-section {
@@ -5409,4 +5447,328 @@
         order: 4;
         margin-left: auto;
     }
+}
+
+/* ========================================================================== */
+/* Story 35.5: Attach Media Modal Styles                                      */
+/* ========================================================================== */
+
+.attach-media-modal {
+    padding: 20px;
+    min-width: 400px;
+    max-width: 500px;
+}
+
+/* Header */
+.attach-media-modal-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.attach-media-modal-title {
+    margin: 0 0 8px 0;
+    font-size: 1.4em;
+    color: var(--text-normal);
+}
+
+.attach-media-modal-subtitle {
+    margin: 0;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+/* Drop Zone */
+.attach-media-drop-zone {
+    border: 2px dashed var(--background-modifier-border);
+    border-radius: 12px;
+    padding: 30px 20px;
+    text-align: center;
+    transition: all 0.2s ease;
+    background-color: var(--background-secondary);
+    margin-bottom: 16px;
+}
+
+.attach-media-drop-zone:hover {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-secondary-alt);
+}
+
+.attach-media-drop-zone.drag-over {
+    border-color: var(--interactive-accent);
+    background-color: var(--background-modifier-hover);
+    transform: scale(1.02);
+}
+
+.attach-media-drop-zone.uploading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.attach-media-drop-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.attach-media-drop-icon {
+    width: 48px;
+    height: 48px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.attach-media-drop-icon svg {
+    width: 100%;
+    height: 100%;
+}
+
+.attach-media-drop-text {
+    margin: 0;
+    font-size: 1.1em;
+    color: var(--text-normal);
+}
+
+.attach-media-drop-or {
+    margin: 0;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.attach-media-select-btn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    cursor: pointer;
+    font-size: 0.95em;
+    transition: background-color 0.2s ease;
+}
+
+.attach-media-select-btn:hover {
+    background-color: var(--interactive-accent-hover);
+}
+
+.attach-media-formats-hint {
+    margin: 8px 0 0 0;
+    font-size: 0.8em;
+    color: var(--text-faint);
+    max-width: 280px;
+}
+
+/* Preview Container */
+.attach-media-preview-container {
+    margin-bottom: 16px;
+}
+
+.attach-media-preview-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.attach-media-preview-icon {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: var(--background-primary);
+    border-radius: 6px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    overflow: hidden;
+}
+
+.attach-media-preview-icon svg {
+    width: 24px;
+    height: 24px;
+}
+
+.attach-media-preview-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 4px;
+}
+
+.attach-media-preview-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.attach-media-preview-name {
+    font-weight: 500;
+    color: var(--text-normal);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 4px;
+}
+
+.attach-media-preview-details {
+    font-size: 0.85em;
+    color: var(--text-muted);
+}
+
+.attach-media-preview-type {
+    color: var(--interactive-accent);
+}
+
+.attach-media-preview-remove {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    border: none;
+    background-color: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.attach-media-preview-remove:hover {
+    background-color: var(--background-modifier-error);
+    color: var(--text-on-accent);
+}
+
+/* Progress Container */
+.attach-media-progress-container {
+    margin-bottom: 16px;
+}
+
+.attach-media-progress-bar-wrapper {
+    height: 8px;
+    background-color: var(--background-modifier-border);
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.attach-media-progress-bar {
+    height: 100%;
+    background-color: var(--interactive-accent);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.3s ease;
+}
+
+.attach-media-progress-text {
+    font-size: 0.85em;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+/* Actions */
+.attach-media-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.attach-media-cancel-btn {
+    padding: 8px 16px;
+    border-radius: 6px;
+    background-color: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--background-modifier-border);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.attach-media-cancel-btn:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.attach-media-upload-btn {
+    padding: 8px 20px;
+    border-radius: 6px;
+    background-color: var(--interactive-accent);
+    color: var(--text-on-accent);
+    border: none;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.attach-media-upload-btn:hover:not(:disabled) {
+    background-color: var(--interactive-accent-hover);
+}
+
+.attach-media-upload-btn:disabled,
+.attach-media-upload-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ========== Memory System Real-Time Status (Story 37.1) ========== */
+.memory-status-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+    margin: 8px 0 16px 0;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.memory-status-item {
+    font-size: 0.95em;
+    padding: 6px 10px;
+    border-radius: 4px;
+    background-color: var(--background-primary);
+    transition: all 0.2s ease;
+}
+
+.memory-status-item.status-success {
+    background-color: rgba(0, 200, 83, 0.1);
+    border-left: 3px solid var(--text-success, #00c853);
+}
+
+.memory-status-item.status-error {
+    background-color: rgba(255, 82, 82, 0.1);
+    border-left: 3px solid var(--text-error, #ff5252);
+}
+
+.memory-status-item.status-warning {
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid var(--text-warning, #ffc107);
+}
+
+/* Memory Config Notice Box */
+.memory-config-notice {
+    padding: 12px 16px;
+    background-color: var(--background-secondary);
+    border-radius: 6px;
+    border-left: 3px solid var(--interactive-accent);
+    margin: 8px 0;
+    font-size: 0.9em;
+    line-height: 1.6;
+}
+
+.memory-config-notice code {
+    background-color: var(--background-modifier-code);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: var(--font-monospace);
+    font-size: 0.85em;
+}
+
+.memory-config-notice small {
+    display: block;
+    margin-top: 8px;
+    color: var(--text-muted);
 }

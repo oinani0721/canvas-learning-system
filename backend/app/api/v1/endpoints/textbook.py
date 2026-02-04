@@ -9,14 +9,13 @@ to backend .canvas-links.json files, bridging the localStorage-to-filesystem gap
 [Source: 计划文件 - 方案A: 前端同步到后端]
 """
 
+import logging
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.services.textbook_context_service import get_textbook_context_service
-
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +184,7 @@ async def unmount_textbook(request: UnmountRequest) -> UnmountResponse:
 
         return UnmountResponse(
             success=True,
-            message=f"Textbook unmounted successfully"
+            message="Textbook unmounted successfully"
         )
 
     except Exception as e:

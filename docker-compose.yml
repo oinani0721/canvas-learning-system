@@ -1,0 +1,75 @@
+# Canvas Learning System - Docker Compose Configuration
+# Story 30.1: Neo4j Docker Environment Deployment
+# [Source: docs/stories/30.1.story.md - AC 1]
+#
+# Usage:
+#   docker-compose up -d neo4j     # Start Neo4j container
+#   docker-compose logs -f neo4j   # View logs
+#   docker-compose down            # Stop and remove containers
+#
+# Prerequisites:
+#   - Docker Desktop installed
+#   - Copy backend/.env.example to backend/.env and set NEO4J_PASSWORD
+
+version: '3.8'
+
+services:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Neo4j Graph Database
+  # [Source: Context7 - /websites/neo4j-operations-manual-current]
+  # ═══════════════════════════════════════════════════════════════════════════
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: canvas-neo4j
+
+    # Environment configuration
+    # [Source: docs/stories/30.1.story.md - Task 1.3]
+    environment:
+      # Authentication: username/password format
+      - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
+      # Enable APOC plugin for advanced queries
+      - NEO4J_PLUGINS=["apoc"]
+      # Memory configuration for development
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
+      # Allow upgrade if needed
+      - NEO4J_dbms_allow__upgrade=true
+
+    # Port mappings
+    # [Source: docs/stories/30.1.story.md - AC 1]
+    # NOTE: Using 7475/7688 to avoid conflict with spring-2026-courses (7474/7687)
+    ports:
+      - "7475:7474"  # HTTP Browser - access at http://localhost:7475
+      - "7688:7687"  # Bolt Protocol - application connection
+
+    # Volume mounts for data persistence
+    # [Source: docs/stories/30.1.story.md - Task 1.2]
+    volumes:
+      - ./docker/neo4j/data:/data      # Database files
+      - ./docker/neo4j/logs:/logs      # Log files
+      - ./docker/neo4j/plugins:/plugins # Custom plugins
+
+    # Health check configuration
+    # [Source: docs/stories/30.1.story.md - Task 1.4]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+    # Restart policy
+    # [Source: docs/stories/30.1.story.md - AC 1]
+    restart: unless-stopped
+
+    # Network configuration
+    networks:
+      - canvas-network
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Networks
+# ═══════════════════════════════════════════════════════════════════════════
+networks:
+  canvas-network:
+    driver: bridge
+    name: canvas-learning-network

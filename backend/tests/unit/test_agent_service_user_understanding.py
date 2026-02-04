@@ -149,7 +149,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "3"
+                    "color": "6"  # Yellow - understanding node (修复: '6'=Yellow, '3'=Purple)
                 },
                 {
                     "id": "yellow-002",
@@ -159,7 +159,7 @@ class TestUserUnderstandingDualChannel:
                     "y": 100,
                     "width": 250,
                     "height": 80,
-                    "color": "3"
+                    "color": "6"  # Yellow - understanding node
                 }
             ],
             "edges": [

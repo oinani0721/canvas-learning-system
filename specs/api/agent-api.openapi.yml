@@ -180,6 +180,75 @@ paths:
                     type: integer
                     example: 14
 
+  /agents/recommend-action:
+    post:
+      tags: [agents]
+      summary: Intelligent action recommendation
+      description: |
+        Story 31.3: 基于评分结果和历史学习数据，智能推荐下一步学习行动。
+
+        **推荐逻辑 (AC-31.3.3)**:
+        - score < 60: 推荐 decompose (基础拆解)
+        - score 60-79: 推荐 explain (解释补充)
+        - score >= 80: 推荐 next (继续学习)
+
+        **历史分析 (AC-31.3.4)**:
+        - 查询最近5次评分历史
+        - 计算分数趋势 (improving/stable/declining)
+        - 对于持续低分或下降趋势，建议额外复习
+
+      operationId: recommendAction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendActionRequest'
+            example:
+              score: 45
+              node_id: "node-001"
+              canvas_name: "discrete-math.canvas"
+              include_history: true
+              concept: "contrapositive"
+      responses:
+        '200':
+          description: Action recommendation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendActionResponse'
+              examples:
+                decompose:
+                  summary: Low score - recommend decompose
+                  value:
+                    action: "decompose"
+                    agent: "/agents/decompose/basic"
+                    reason: "概念理解不足，建议进行基础拆解"
+                    priority: 1
+                    review_suggested: false
+                explain:
+                  summary: Medium score - recommend explain
+                  value:
+                    action: "explain"
+                    agent: "/agents/explain/oral"
+                    reason: "需要补充解释加深理解"
+                    priority: 2
+                    review_suggested: false
+                next:
+                  summary: High score - recommend next
+                  value:
+                    action: "next"
+                    agent: null
+                    reason: "掌握良好，可以继续下一个概念"
+                    priority: 3
+                    review_suggested: false
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /agents/{agentName}:
     get:
       tags: [agents]
@@ -851,6 +920,120 @@ components:
           type: boolean
           description: 是否可重试（始终为 false）
           example: false
+
+    # Story 31.3: Recommend Action Schemas
+    RecommendActionRequest:
+      type: object
+      required: [score, node_id, canvas_name]
+      description: 推荐行动请求参数
+      properties:
+        score:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: 当前评分 (0-100)
+          example: 45
+        node_id:
+          type: string
+          minLength: 1
+          description: Canvas节点ID
+          example: "node-abc123"
+        canvas_name:
+          type: string
+          minLength: 1
+          description: Canvas文件名
+          example: "discrete-math.canvas"
+        include_history:
+          type: boolean
+          default: true
+          description: 是否包含历史评分分析
+          example: true
+        concept:
+          type: string
+          description: 概念名称（可选，用于历史查询）
+          example: "contrapositive"
+
+    RecommendActionResponse:
+      type: object
+      required: [action, reason]
+      description: 推荐行动响应
+      properties:
+        action:
+          type: string
+          enum: [decompose, explain, next]
+          description: |
+            推荐行动类型:
+            - decompose: 基础拆解 (score < 60)
+            - explain: 解释补充 (score 60-79)
+            - next: 继续学习 (score >= 80)
+          example: "decompose"
+        agent:
+          type: string
+          nullable: true
+          description: 推荐Agent端点路径 (action=next时为null)
+          example: "/agents/decompose/basic"
+        reason:
+          type: string
+          minLength: 1
+          description: 推荐理由（人类可读）
+          example: "概念理解不足，建议进行基础拆解"
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+          description: 推荐优先级 (1=最高, 5=最低)
+          example: 1
+        review_suggested:
+          type: boolean
+          default: false
+          description: 是否建议额外复习（基于下降趋势）
+          example: false
+        history_context:
+          type: object
+          description: 历史评分上下文（include_history=true时）
+          properties:
+            recent_scores:
+              type: array
+              description: 最近评分历史（最新在前，最多5个）
+              items:
+                type: integer
+                minimum: 0
+                maximum: 100
+              maxItems: 5
+              example: [45, 52, 38, 41, 50]
+            average_score:
+              type: number
+              minimum: 0
+              maximum: 100
+              description: 平均分数
+              example: 45.2
+            trend:
+              type: string
+              enum: [improving, stable, declining]
+              description: 分数趋势
+              example: "declining"
+            consecutive_low_count:
+              type: integer
+              minimum: 0
+              description: 连续低于60分的次数
+              example: 3
+        alternative_agents:
+          type: array
+          description: 备选Agent推荐（高级场景）
+          maxItems: 3
+          items:
+            type: object
+            required: [agent, reason]
+            properties:
+              agent:
+                type: string
+                description: Agent端点路径
+                example: "/agents/explain/memory"
+              reason:
+                type: string
+                description: 备选理由
+                example: "尝试记忆锚点帮助建立概念关联"
 
     Error:
       type: object

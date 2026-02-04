@@ -14,16 +14,13 @@ Note: These tests mock the Gemini API to test the integration flow
 without making real API calls.
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app.services.context_enrichment_service import ContextEnrichmentService
 from app.services.textbook_context_service import (
-    TextbookContext,
     FullTextbookContext,
+    TextbookContext,
 )
 
 
@@ -133,7 +130,6 @@ class TestAgentTextbookLinkGeneration:
 
     def test_agent_template_reference_instruction_present(self):
         """AC 3: Verify Agent template has reference format instruction."""
-        import os
         from pathlib import Path
 
         # Find the Agent template files
@@ -170,8 +166,8 @@ class TestAgentEndpointWithTextbookContext:
         """Test decompose endpoint enriches context with textbook links."""
         from app.services.context_enrichment_service import ContextEnrichmentService
         from app.services.textbook_context_service import (
-            TextbookContext,
             FullTextbookContext,
+            TextbookContext,
         )
 
         # Arrange
@@ -206,8 +202,8 @@ class TestAgentEndpointWithTextbookContext:
         """Test explanation endpoint preserves PDF page links."""
         from app.services.context_enrichment_service import ContextEnrichmentService
         from app.services.textbook_context_service import (
-            TextbookContext,
             FullTextbookContext,
+            TextbookContext,
         )
 
         # Arrange
@@ -246,8 +242,8 @@ class TestAgentOutputObsidianCompatibility:
 
         from app.services.context_enrichment_service import ContextEnrichmentService
         from app.services.textbook_context_service import (
-            TextbookContext,
             FullTextbookContext,
+            TextbookContext,
         )
 
         # Arrange
@@ -284,8 +280,8 @@ class TestAgentOutputObsidianCompatibility:
         """Verify Chinese characters are preserved (not URL-encoded)."""
         from app.services.context_enrichment_service import ContextEnrichmentService
         from app.services.textbook_context_service import (
-            TextbookContext,
             FullTextbookContext,
+            TextbookContext,
         )
 
         # Arrange

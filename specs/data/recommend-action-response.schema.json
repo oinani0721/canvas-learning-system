@@ -1,0 +1,154 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://canvas-learning.com/schemas/recommend-action-response.json",
+  "x-source-verification": {
+    "verified_at": "2026-01-20T04:45:00Z",
+    "sources": [
+      {"type": "story", "ref": "31.3", "ac": ["31.3.1", "31.3.3", "31.3.4"]},
+      {"type": "schema", "ref": "scoring-response.schema.json", "topic": "0-100 score scale"},
+      {"type": "schema", "ref": "agent-recommendation.schema.json", "topic": "recommendation structure"}
+    ]
+  },
+  "title": "Recommend Action Response Schema",
+  "description": "Story 31.3: Response schema for intelligent action recommendation based on score and history",
+  "type": "object",
+  "required": ["action", "reason"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Recommended action type based on score thresholds (0-100 scale)",
+      "enum": ["decompose", "explain", "next"],
+      "examples": ["decompose"]
+    },
+    "agent": {
+      "type": ["string", "null"],
+      "description": "Recommended agent endpoint path, null for 'next' action",
+      "examples": ["/agents/decompose/basic", "/agents/explain/oral", null]
+    },
+    "reason": {
+      "type": "string",
+      "description": "Human-readable explanation for the recommendation",
+      "minLength": 1,
+      "examples": [
+        "概念理解不足，建议进行基础拆解",
+        "需要补充解释加深理解",
+        "掌握良好，可以继续下一个概念"
+      ]
+    },
+    "priority": {
+      "type": "integer",
+      "description": "Recommendation priority (1=highest, 5=lowest)",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 3
+    },
+    "review_suggested": {
+      "type": "boolean",
+      "description": "Whether additional review is suggested based on declining trend",
+      "default": false
+    },
+    "history_context": {
+      "type": "object",
+      "description": "Historical score context (when include_history=true)",
+      "properties": {
+        "recent_scores": {
+          "type": "array",
+          "description": "Recent score history (most recent first, up to 5)",
+          "items": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "maxItems": 5,
+          "examples": [[45, 52, 38, 41, 50]]
+        },
+        "average_score": {
+          "type": "number",
+          "description": "Average of recent scores",
+          "minimum": 0,
+          "maximum": 100,
+          "examples": [45.2]
+        },
+        "trend": {
+          "type": "string",
+          "description": "Score trend direction",
+          "enum": ["improving", "stable", "declining"],
+          "examples": ["declining"]
+        },
+        "consecutive_low_count": {
+          "type": "integer",
+          "description": "Number of consecutive scores below 60",
+          "minimum": 0,
+          "examples": [3]
+        }
+      }
+    },
+    "alternative_agents": {
+      "type": "array",
+      "description": "Alternative agent recommendations (for advanced cases)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent endpoint path"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for this alternative"
+          }
+        },
+        "required": ["agent", "reason"]
+      },
+      "maxItems": 3
+    }
+  },
+  "examples": [
+    {
+      "action": "decompose",
+      "agent": "/agents/decompose/basic",
+      "reason": "概念理解不足，建议进行基础拆解",
+      "priority": 1,
+      "review_suggested": false
+    },
+    {
+      "action": "explain",
+      "agent": "/agents/explain/oral",
+      "reason": "需要补充解释加深理解",
+      "priority": 2,
+      "review_suggested": false,
+      "history_context": {
+        "recent_scores": [70, 65, 68],
+        "average_score": 67.7,
+        "trend": "stable",
+        "consecutive_low_count": 0
+      }
+    },
+    {
+      "action": "next",
+      "agent": null,
+      "reason": "掌握良好，可以继续下一个概念",
+      "priority": 3,
+      "review_suggested": false
+    },
+    {
+      "action": "decompose",
+      "agent": "/agents/decompose/basic",
+      "reason": "连续多次低分，建议从基础开始重新学习",
+      "priority": 1,
+      "review_suggested": true,
+      "history_context": {
+        "recent_scores": [45, 38, 42, 35, 40],
+        "average_score": 40.0,
+        "trend": "declining",
+        "consecutive_low_count": 5
+      },
+      "alternative_agents": [
+        {
+          "agent": "/agents/explain/memory",
+          "reason": "尝试记忆锚点帮助建立概念关联"
+        }
+      ]
+    }
+  ]
+}

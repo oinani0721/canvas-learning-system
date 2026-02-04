@@ -119,6 +119,7 @@ export interface ReviewSession {
 
 /**
  * History view state (Story 14.6)
+ * Story 34.4: Added pagination support (hasMore, totalCount, showAll)
  */
 export interface HistoryViewState {
     /** History entries */
@@ -131,6 +132,12 @@ export interface HistoryViewState {
     timeRange: HistoryTimeRange;
     /** Loading state */
     loading: boolean;
+    /** Story 34.4: Whether there are more entries beyond the limit */
+    hasMore?: boolean;
+    /** Story 34.4: Total count of all entries */
+    totalCount?: number;
+    /** Story 34.4: Whether showing all entries (vs limited to 5) */
+    showAll?: boolean;
 }
 
 /**
@@ -317,6 +324,7 @@ export interface DashboardViewState {
 
 /**
  * Default history view state (Story 14.6)
+ * Story 34.4: Added pagination defaults
  */
 export const DEFAULT_HISTORY_STATE: HistoryViewState = {
     entries: [],
@@ -324,6 +332,10 @@ export const DEFAULT_HISTORY_STATE: HistoryViewState = {
     canvasTrends: [],
     timeRange: '7d',
     loading: false,
+    // Story 34.4: Pagination defaults
+    hasMore: false,
+    totalCount: 0,
+    showAll: false,
 };
 
 /**

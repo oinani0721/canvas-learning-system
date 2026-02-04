@@ -21,13 +21,30 @@ from fastapi import APIRouter, status
 
 from app.models import (
     ErrorResponse,
+    FSRSStateResponse,
+    # Story 32.3: FSRS State Query Response
+    FSRSStateQueryResponse,
     GenerateReviewRequest,
     GenerateReviewResponse,
+    # Story 34.4: Review History Models
+    HistoryDayRecord,
+    HistoryPeriod,
+    HistoryResponse,
+    HistoryReviewRecord,
+    HistoryStatistics,
     MultiReviewProgressResponse,
+    PaginationInfo,
+    QuestionType,
     RecordReviewRequest,
     RecordReviewResponse,
     ReviewItem,
     ReviewScheduleResponse,
+    # Story 31.6: Session Progress Models
+    SessionPauseResumeResponse,
+    SessionProgressResponse,
+    VerificationHistoryItem,
+    VerificationHistoryResponse,
+    VerificationStatusEnum,
 )
 
 # ✅ Add src directory to Python path for EbbinghausReviewScheduler import
@@ -212,6 +229,138 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     except Exception as e:
         logging.error(f"Error getting review schedule: {e}")
         return ReviewScheduleResponse(items=[], total_count=0)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.4: Review History Endpoint with Pagination
+# [Source: specs/api/review-api.openapi.yml#L185-216]
+# [Source: docs/stories/34.4.story.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@review_router.get(
+    "/history",
+    response_model=HistoryResponse,
+    summary="Get review history",
+    operation_id="get_review_history",
+    responses={
+        404: {"model": ErrorResponse, "description": "No history found"}
+    }
+)
+async def get_review_history(
+    days: int = 7,
+    canvas_path: Optional[str] = None,
+    concept_name: Optional[str] = None,
+    limit: int = 5,
+    show_all: bool = False
+) -> HistoryResponse:
+    """
+    Get review history with pagination support.
+
+    Story 34.4 AC1: Default display shows most recent 5 records (limit=5).
+    Story 34.4 AC2: show_all=True loads complete history.
+    Story 34.4 AC3: API supports `limit` and `show_all` parameters.
+
+    - **days**: Number of days to look back (7, 30, or 90)
+    - **canvas_path**: Filter by canvas file path
+    - **concept_name**: Filter by concept name
+    - **limit**: Maximum records to return (default: 5, Story 34.4 AC1)
+    - **show_all**: If True, ignore limit and return all records (Story 34.4 AC2)
+
+    [Source: specs/api/review-api.openapi.yml#L185-216]
+    [Source: docs/stories/34.4.story.md]
+    """
+    from datetime import datetime as dt
+
+    from app.dependencies import get_review_service
+
+    # Validate days parameter
+    if days not in [7, 30, 90]:
+        days = 7
+
+    # Calculate date range
+    end_date = date.today()
+    start_date = end_date - timedelta(days=days)
+
+    # Get review service
+    review_service = get_review_service()
+
+    try:
+        # Get history from service with pagination
+        effective_limit = None if show_all else limit
+        result = await review_service.get_history(
+            days=days,
+            canvas_path=canvas_path,
+            concept_name=concept_name,
+            limit=effective_limit
+        )
+
+        # Build response
+        records = []
+        total_reviews = 0
+        all_ratings = []
+        canvas_counts: Dict[str, int] = {}
+
+        for day_data in result.get("records", []):
+            day_reviews = []
+            for review in day_data.get("reviews", []):
+                day_reviews.append(HistoryReviewRecord(
+                    concept_id=review.get("concept_id", ""),
+                    concept_name=review.get("concept_name", ""),
+                    canvas_path=review.get("canvas_path", ""),
+                    rating=review.get("rating", 3),
+                    review_time=review.get("review_time", dt.now())
+                ))
+                all_ratings.append(review.get("rating", 3))
+                canvas = review.get("canvas_path", "")
+                canvas_counts[canvas] = canvas_counts.get(canvas, 0) + 1
+
+            records.append(HistoryDayRecord(
+                date=day_data.get("date", ""),
+                reviews=day_reviews
+            ))
+            total_reviews += len(day_reviews)
+
+        # Calculate statistics
+        avg_rating = sum(all_ratings) / len(all_ratings) if all_ratings else None
+        statistics = HistoryStatistics(
+            average_rating=round(avg_rating, 2) if avg_rating else None,
+            retention_rate=result.get("retention_rate"),
+            streak_days=result.get("streak_days", 0),
+            by_canvas=canvas_counts if canvas_counts else None
+        )
+
+        # Build pagination info
+        has_more = result.get("has_more", False)
+        pagination = PaginationInfo(
+            limit=limit,
+            offset=0,
+            has_more=has_more and not show_all
+        )
+
+        return HistoryResponse(
+            period=HistoryPeriod(
+                start=start_date.isoformat(),
+                end=end_date.isoformat()
+            ),
+            total_reviews=total_reviews,
+            records=records,
+            statistics=statistics,
+            pagination=pagination
+        )
+
+    except Exception as e:
+        logging.error(f"Error getting review history: {e}")
+        # Return empty response on error
+        return HistoryResponse(
+            period=HistoryPeriod(
+                start=start_date.isoformat(),
+                end=end_date.isoformat()
+            ),
+            total_reviews=0,
+            records=[],
+            statistics=None,
+            pagination=PaginationInfo(limit=limit, offset=0, has_more=False)
+        )
 
 
 @review_router.post(
@@ -438,48 +587,84 @@ async def generate_verification_canvas(
 )
 async def record_review_result(request: RecordReviewRequest) -> RecordReviewResponse:
     """
-    Record review result and update next review date.
+    Record review result and update next review date using FSRS-4.5 algorithm.
+
+    Story 32.2: FSRS Integration for optimal spaced repetition intervals.
 
     - **canvas_name**: Canvas file name
-    - **node_id**: Node ID
-    - **score**: Review score (0-40)
+    - **node_id**: Node ID (maps to concept_id)
+    - **rating**: FSRS rating (1=Again, 2=Hard, 3=Good, 4=Easy) - preferred
+    - **score**: Legacy score (0-100) - auto-converted to rating
+    - **card_state**: Optional serialized FSRS card JSON for persistence
+    - **review_duration**: Optional review time in seconds
+
+    Rating Conversion (Story 32.2 AC-32.2.4):
+    - score < 40 → rating 1 (Again/Forgot)
+    - score 40-59 → rating 2 (Hard)
+    - score 60-84 → rating 3 (Good)
+    - score >= 85 → rating 4 (Easy)
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1record]
+    [Source: docs/stories/32.2.story.md - FSRS Integration]
     """
-    # ✅ Connected to real EbbinghausReviewScheduler (P0 Task #1)
-    if _scheduler_available and _scheduler is not None:
-        try:
-            # Convert score to scheduler format (0-40 -> 0-5 rating)
-            rating = min(5, max(1, int(request.score / 8) + 1))
-            confidence = min(1.0, request.score / 40.0)
+    from app.dependencies import get_review_service
 
-            # Try to record via scheduler
-            success = _scheduler.complete_review(
-                schedule_id=f"{request.canvas_name}_{request.node_id}",
-                score=rating,
-                confidence=confidence,
-                time_minutes=5,  # Default review time
-                notes=f"Recorded via API, original score: {request.score}"
+    # Get ReviewService with FSRS support
+    review_service = get_review_service()
+
+    try:
+        # Call record_review_result with new FSRS-enabled parameters
+        result = await review_service.record_review_result(
+            canvas_name=request.canvas_name,
+            concept_id=request.node_id,
+            rating=request.rating,
+            score=request.score,
+            card_state=request.card_state,
+            review_duration=request.review_duration
+        )
+
+        # Build response with FSRS state if available
+        fsrs_state = None
+        if result.get("fsrs_state"):
+            state = result["fsrs_state"]
+            fsrs_state = FSRSStateResponse(
+                stability=state.get("stability", 0.0),
+                difficulty=state.get("difficulty", 5.0),
+                state=state.get("state", 0),
+                reps=state.get("reps", 0),
+                lapses=state.get("lapses", 0)
             )
-            if success:
-                logging.info(f"Review recorded for {request.canvas_name}/{request.node_id}")
-        except Exception as e:
-            logging.warning(f"Could not record via scheduler: {e}")
 
-    # Calculate next review based on score (Ebbinghaus curve)
-    if request.score >= 32:
-        interval = 30  # Good understanding -> 30 days
-    elif request.score >= 24:
-        interval = 7  # Partial understanding -> 7 days
-    elif request.score >= 16:
-        interval = 3  # Moderate understanding -> 3 days
-    else:
-        interval = 1  # Poor understanding -> 1 day
+        return RecordReviewResponse(
+            next_review_date=result.get("next_review_date", date.today() + timedelta(days=1)),
+            new_interval=result.get("new_interval", 1),
+            fsrs_state=fsrs_state,
+            card_data=result.get("card_data"),
+            algorithm=result.get("algorithm", "fsrs-4.5")
+        )
 
-    return RecordReviewResponse(
-        next_review_date=date.today() + timedelta(days=interval),
-        new_interval=interval,
-    )
+    except Exception as e:
+        logging.error(f"Error recording review with FSRS: {e}")
+        # Fallback to legacy Ebbinghaus calculation
+        score = request.score or 50.0  # Default score if only rating provided
+        if request.rating:
+            # Convert rating back to approximate score for fallback
+            score = {1: 20.0, 2: 50.0, 3: 75.0, 4: 95.0}.get(request.rating, 50.0)
+
+        if score >= 85:
+            interval = 30
+        elif score >= 60:
+            interval = 7
+        elif score >= 40:
+            interval = 3
+        else:
+            interval = 1
+
+        return RecordReviewResponse(
+            next_review_date=date.today() + timedelta(days=interval),
+            new_interval=interval,
+            algorithm="ebbinghaus-fallback"
+        )
 
 @review_router.get(
     "/progress/multi/{original_canvas_path:path}",
@@ -519,3 +704,421 @@ async def get_multi_review_progress(
             status_code=404,
             detail=f"无检验历史: {original_canvas_path}"
         ) from e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 31.4: Verification History Endpoint
+# [Source: specs/api/review-api.openapi.yml#/verification/history/{concept}]
+# [Source: docs/stories/31.4.story.md#Task-4]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@review_router.get(
+    "/verification/history/{concept}",
+    response_model=VerificationHistoryResponse,
+    summary="Get verification question history",
+    operation_id="get_verification_history",
+    responses={
+        404: {"model": ErrorResponse, "description": "No history found"}
+    },
+    tags=["verification"]
+)
+async def get_verification_history(
+    concept: str,
+    canvas_name: Optional[str] = None,
+    limit: int = 20,
+    offset: int = 0,
+    group_id: Optional[str] = None
+) -> VerificationHistoryResponse:
+    """
+    Get verification question history for a concept.
+
+    Story 31.4 AC-31.4.3: New endpoint for querying verification question history.
+    Story 31.4 AC-31.4.4: Returns question, answer, score, timestamp for each record.
+
+    - **concept**: Concept name to query history for
+    - **canvas_name**: Optional filter by canvas name
+    - **limit**: Number of items per page (default: 20, max: 100)
+    - **offset**: Offset for pagination (default: 0)
+    - **group_id**: Optional group ID for multi-subject isolation
+
+    Returns:
+    - Total count of history records
+    - List of verification history items
+    - Pagination metadata
+
+    [Source: specs/api/review-api.openapi.yml#/verification/history/{concept}]
+    [Source: docs/stories/31.4.story.md#Task-4]
+    """
+    from datetime import datetime as dt
+
+    from fastapi import HTTPException
+
+    from app.dependencies import get_graphiti_temporal_client
+
+    # Validate pagination parameters
+    if limit < 1 or limit > 100:
+        raise HTTPException(
+            status_code=400,
+            detail="limit must be between 1 and 100"
+        )
+    if offset < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="offset must be non-negative"
+        )
+
+    # Get Graphiti client
+    graphiti_client = get_graphiti_temporal_client()
+
+    if not graphiti_client:
+        logging.warning("Graphiti client not available for verification history query")
+        # Return empty response when Graphiti is unavailable
+        return VerificationHistoryResponse(
+            concept=concept,
+            total_count=0,
+            items=[],
+            pagination=PaginationInfo(
+                limit=limit,
+                offset=offset,
+                has_more=False
+            )
+        )
+
+    try:
+        # Query verification questions from Graphiti
+        # Story 31.4 AC-31.4.1: Use search_verification_questions method
+        raw_results = await graphiti_client.search_verification_questions(
+            concept=concept,
+            canvas_name=canvas_name,
+            group_id=group_id,
+            limit=limit + 1  # Fetch one extra to check has_more
+        )
+
+        # Determine if there are more results
+        has_more = len(raw_results) > limit
+        results = raw_results[:limit] if has_more else raw_results
+
+        # Convert to response format
+        items = []
+        for record in results:
+            # Parse question_type to enum
+            q_type_str = record.get("question_type", "standard")
+            try:
+                q_type = QuestionType(q_type_str)
+            except ValueError:
+                q_type = QuestionType.standard
+
+            # Parse timestamp
+            asked_at_str = record.get("asked_at")
+            if isinstance(asked_at_str, str):
+                try:
+                    asked_at = dt.fromisoformat(asked_at_str.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    asked_at = dt.now()
+            elif isinstance(asked_at_str, dt):
+                asked_at = asked_at_str
+            else:
+                asked_at = dt.now()
+
+            items.append(VerificationHistoryItem(
+                question_id=record.get("question_id", ""),
+                question_text=record.get("question_text", ""),
+                question_type=q_type,
+                user_answer=record.get("user_answer"),
+                score=record.get("score"),
+                canvas_name=record.get("canvas_name", canvas_name or ""),
+                asked_at=asked_at
+            ))
+
+        return VerificationHistoryResponse(
+            concept=concept,
+            total_count=len(items),
+            items=items,
+            pagination=PaginationInfo(
+                limit=limit,
+                offset=offset,
+                has_more=has_more
+            )
+        )
+
+    except Exception as e:
+        logging.error(f"Error querying verification history for '{concept}': {e}")
+        # Return empty response on error (graceful degradation)
+        return VerificationHistoryResponse(
+            concept=concept,
+            total_count=0,
+            items=[],
+            pagination=PaginationInfo(
+                limit=limit,
+                offset=offset,
+                has_more=False
+            )
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.3: FSRS State Query Endpoint
+# [Source: specs/api/review-api.openapi.yml#/review/fsrs-state/{concept_id}]
+# [Source: docs/stories/32.3.story.md#Task-1]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@review_router.get(
+    "/fsrs-state/{concept_id}",
+    response_model=FSRSStateQueryResponse,
+    summary="Get FSRS state for a concept",
+    operation_id="get_fsrs_state",
+    responses={
+        200: {"model": FSRSStateQueryResponse, "description": "FSRS state found"},
+        404: {"model": ErrorResponse, "description": "Concept not found"}
+    },
+    tags=["fsrs"]
+)
+async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
+    """
+    Get FSRS card state for a concept.
+
+    Story 32.3 AC-32.3.1: Plugin queries backend for FSRS state before calculating priority.
+    Story 32.3 AC-32.3.2: Returns stability, difficulty, state, reps, lapses, retrievability, due.
+    Story 32.3 AC-32.3.3: Includes full card_state JSON for plugin-side deserialization.
+
+    - **concept_id**: Concept identifier (node_id from canvas)
+
+    Returns:
+    - FSRS state with all algorithm parameters
+    - card_state: Serialized FSRS card JSON for local caching
+    - found: Boolean indicating if a card exists
+
+    [Source: specs/api/review-api.openapi.yml#/review/fsrs-state/{concept_id}]
+    [Source: docs/stories/32.3.story.md#Task-1]
+    """
+    from app.dependencies import get_review_service
+
+    try:
+        review_service = get_review_service()
+        result = await review_service.get_fsrs_state(concept_id)
+
+        if not result or not result.get("found"):
+            # No card exists for this concept - return empty state
+            return FSRSStateQueryResponse(
+                concept_id=concept_id,
+                fsrs_state=None,
+                card_state=None,
+                found=False
+            )
+
+        # Build FSRSStateResponse with all fields including retrievability and due
+        fsrs_state = FSRSStateResponse(
+            stability=result.get("stability", 0.0),
+            difficulty=result.get("difficulty", 5.0),
+            state=result.get("state", 0),
+            reps=result.get("reps", 0),
+            lapses=result.get("lapses", 0),
+            retrievability=result.get("retrievability"),
+            due=result.get("due")
+        )
+
+        return FSRSStateQueryResponse(
+            concept_id=concept_id,
+            fsrs_state=fsrs_state,
+            card_state=result.get("card_state"),
+            found=True
+        )
+
+    except Exception as e:
+        logging.error(f"Error getting FSRS state for '{concept_id}': {e}")
+        # Story 32.3 AC-32.3.5: Graceful degradation - return not found instead of error
+        return FSRSStateQueryResponse(
+            concept_id=concept_id,
+            fsrs_state=None,
+            card_state=None,
+            found=False
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 31.6: Real-time Verification Session Progress Tracking
+# [Source: docs/stories/31.6.story.md]
+# [Source: specs/api/review-api.openapi.yml#/review/session/{session_id}/progress]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@review_router.get(
+    "/session/{session_id}/progress",
+    response_model=SessionProgressResponse,
+    summary="Get verification session progress",
+    operation_id="get_session_progress",
+    responses={
+        200: {"model": SessionProgressResponse, "description": "Session progress"},
+        404: {"model": ErrorResponse, "description": "Session not found"}
+    },
+    tags=["verification-session"]
+)
+async def get_session_progress(session_id: str) -> SessionProgressResponse:
+    """
+    Get real-time progress for a verification session.
+
+    Story 31.6 AC-31.6.1: Frontend displays "已验证 X/Y 个概念" progress bar.
+    Story 31.6 AC-31.6.2: Color distribution real-time updates (green/yellow/purple/red).
+    Story 31.6 AC-31.6.3: Mastery percentage = green / total * 100%.
+
+    - **session_id**: Unique session identifier
+
+    Returns:
+    - Session progress with concept counts, color distribution, and status
+    - progress_percentage: Completion rate (0-100)
+    - mastery_percentage: Mastery rate (0-100)
+
+    [Source: docs/stories/31.6.story.md#Task-2]
+    """
+    from app.dependencies import get_verification_service
+    from fastapi import HTTPException
+
+    try:
+        verification_service = get_verification_service()
+        progress = await verification_service.get_progress(session_id)
+
+        if progress is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session '{session_id}' not found"
+            )
+
+        # Convert VerificationProgress dataclass to Pydantic response
+        progress_dict = progress.to_dict()
+        return SessionProgressResponse(
+            session_id=progress_dict["session_id"],
+            canvas_name=progress_dict["canvas_name"],
+            total_concepts=progress_dict["total_concepts"],
+            completed_concepts=progress_dict["completed_concepts"],
+            current_concept=progress_dict["current_concept"],
+            current_concept_idx=progress_dict["current_concept_idx"],
+            green_count=progress_dict["green_count"],
+            yellow_count=progress_dict["yellow_count"],
+            purple_count=progress_dict["purple_count"],
+            red_count=progress_dict["red_count"],
+            status=VerificationStatusEnum(progress_dict["status"]),
+            progress_percentage=progress_dict["progress_percentage"],
+            mastery_percentage=progress_dict["mastery_percentage"],
+            hints_given=progress_dict["hints_given"],
+            max_hints=progress_dict["max_hints"],
+            started_at=progress.started_at,
+            updated_at=progress.updated_at,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error getting session progress for '{session_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get session progress: {str(e)}"
+        )
+
+
+@review_router.post(
+    "/session/{session_id}/pause",
+    response_model=SessionPauseResumeResponse,
+    summary="Pause verification session",
+    operation_id="pause_session",
+    responses={
+        200: {"model": SessionPauseResumeResponse, "description": "Session paused"},
+        404: {"model": ErrorResponse, "description": "Session not found"},
+        400: {"model": ErrorResponse, "description": "Session cannot be paused"}
+    },
+    tags=["verification-session"]
+)
+async def pause_session(session_id: str) -> SessionPauseResumeResponse:
+    """
+    Pause an active verification session.
+
+    Story 31.6 AC-31.6.4: Support pause/resume session functionality.
+
+    - **session_id**: Session identifier to pause
+
+    Returns:
+    - New session status (paused)
+    - Operation result message
+
+    [Source: docs/stories/31.6.story.md#Task-3]
+    """
+    from app.dependencies import get_verification_service
+    from fastapi import HTTPException
+
+    try:
+        verification_service = get_verification_service()
+        success = await verification_service.pause_session(session_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Session '{session_id}' cannot be paused (not found or not in active state)"
+            )
+
+        return SessionPauseResumeResponse(
+            session_id=session_id,
+            status=VerificationStatusEnum.paused,
+            message="Session paused successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error pausing session '{session_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to pause session: {str(e)}"
+        )
+
+
+@review_router.post(
+    "/session/{session_id}/resume",
+    response_model=SessionPauseResumeResponse,
+    summary="Resume verification session",
+    operation_id="resume_session",
+    responses={
+        200: {"model": SessionPauseResumeResponse, "description": "Session resumed"},
+        404: {"model": ErrorResponse, "description": "Session not found"},
+        400: {"model": ErrorResponse, "description": "Session cannot be resumed"}
+    },
+    tags=["verification-session"]
+)
+async def resume_session(session_id: str) -> SessionPauseResumeResponse:
+    """
+    Resume a paused verification session.
+
+    Story 31.6 AC-31.6.4: Support pause/resume session functionality.
+
+    - **session_id**: Session identifier to resume
+
+    Returns:
+    - New session status (in_progress)
+    - Operation result message
+
+    [Source: docs/stories/31.6.story.md#Task-3]
+    """
+    from app.dependencies import get_verification_service
+    from fastapi import HTTPException
+
+    try:
+        verification_service = get_verification_service()
+        success = await verification_service.resume_session(session_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Session '{session_id}' cannot be resumed (not found or not paused)"
+            )
+
+        return SessionPauseResumeResponse(
+            session_id=session_id,
+            status=VerificationStatusEnum.in_progress,
+            message="Session resumed successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Error resuming session '{session_id}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to resume session: {str(e)}"
+        )

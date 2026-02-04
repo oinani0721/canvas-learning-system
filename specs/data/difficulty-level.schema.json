@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "difficulty-level.schema.json",
+  "title": "DifficultyLevel",
+  "description": "Story 31.5 AC-31.5.2, AC-31.5.3: 难度等级计算结果",
+  "type": "object",
+  "required": ["level", "average_score", "sample_size"],
+  "properties": {
+    "level": {
+      "type": "string",
+      "description": "难度等级: easy(<60), medium(60-79), hard(>=80)",
+      "enum": ["easy", "medium", "hard"]
+    },
+    "average_score": {
+      "type": "number",
+      "description": "计算所用的平均分 (0-100分制)",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "sample_size": {
+      "type": "integer",
+      "description": "计算所用的样本数量",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "question_type": {
+      "type": "string",
+      "description": "根据难度映射的问题类型",
+      "enum": ["breakthrough", "verification", "application"]
+    },
+    "forgetting_status": {
+      "type": "object",
+      "description": "遗忘检测结果 (AC-31.5.5)",
+      "properties": {
+        "needs_review": {
+          "type": "boolean",
+          "description": "是否需要复习 (下降超过30%)"
+        },
+        "decay_percentage": {
+          "type": "number",
+          "description": "下降百分比",
+          "minimum": 0
+        }
+      },
+      "required": ["needs_review", "decay_percentage"]
+    },
+    "is_mastered": {
+      "type": "boolean",
+      "description": "是否已掌握 (连续3次>=80分, AC-31.5.4)"
+    }
+  },
+  "examples": [
+    {
+      "level": "medium",
+      "average_score": 72.4,
+      "sample_size": 5,
+      "question_type": "verification",
+      "forgetting_status": {
+        "needs_review": false,
+        "decay_percentage": 8.5
+      },
+      "is_mastered": false
+    },
+    {
+      "level": "hard",
+      "average_score": 88.0,
+      "sample_size": 5,
+      "question_type": "application",
+      "forgetting_status": {
+        "needs_review": false,
+        "decay_percentage": 0
+      },
+      "is_mastered": true
+    }
+  ]
+}

@@ -13,7 +13,7 @@
  * @version 1.0.0
  */
 
-import type { App, TFile } from 'obsidian';
+import { Notice, type App, type TFile } from 'obsidian';
 import type {
     MountedTextbook,
     TextbookSection,
@@ -237,10 +237,15 @@ export class TextbookMountService {
                 const data = await response.json();
                 console.log('[TextbookMountService] Synced to backend:', data.config_path);
             } else {
-                console.warn('[TextbookMountService] Backend sync failed:', response.status, await response.text());
+                const errorText = await response.text();
+                console.warn('[TextbookMountService] Backend sync failed:', response.status, errorText);
+                // Story 34.3 Task 6.2: Show notice for backend sync failure
+                new Notice(`⚠️ 教材关联同步失败 (${response.status}): 本地挂载成功，但后端同步未完成`);
             }
         } catch (error) {
             console.error('[TextbookMountService] Backend sync error:', error);
+            // Story 34.3 Task 6.2: Show notice for backend sync error
+            new Notice('⚠️ 教材关联同步错误: 本地挂载成功，但后端同步未完成');
             // Don't fail the mount operation if sync fails
         }
     }

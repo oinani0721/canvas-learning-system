@@ -29,6 +29,10 @@ from app.core.exceptions import CanvasNotFoundException
 from app.core.request_cache import request_cache
 from app.dependencies import AgentServiceDep, CanvasServiceDep, ContextEnrichmentServiceDep, RAGServiceDep
 from app.models import (
+    # Story 31.3: Recommend Action
+    ActionTrend,
+    ActionType,
+    AlternativeAgent,
     # Story 12.G.3: Agent Health Check
     AgentHealthCheckResponse,
     AgentHealthChecks,
@@ -40,11 +44,15 @@ from app.models import (
     ErrorResponse,
     ExplainRequest,
     ExplainResponse,
+    HistoryContext,
     NodeRead,
     NodeScore,
     PromptTemplateCheck,
     QuestionDecomposeRequest,
     QuestionDecomposeResponse,
+    # Story 31.3: Recommend Action
+    RecommendActionRequest,
+    RecommendActionResponse,
     ScoreRequest,
     ScoreResponse,
     SubQuestion,
@@ -1120,11 +1128,18 @@ async def _call_explanation(
                 canvas_file_path = vault_path / f"{request.canvas_name}.canvas"
                 canvas_dir = canvas_file_path.parent if canvas_file_path.exists() else vault_path
 
+                # Story 12.E.5-fix: Get source file directory for MD embedded images
+                # When node is a "file" type pointing to an MD, images should resolve relative to MD location
+                source_file_dir = None
+                if enriched.source_file_path:
+                    source_file_dir = Path(enriched.source_file_path).parent
+
                 # Resolve paths to absolute paths
                 resolved_refs = await image_extractor.resolve_paths(
                     image_refs,
                     vault_path=vault_path,
-                    canvas_dir=canvas_dir
+                    canvas_dir=canvas_dir,
+                    source_file_dir=source_file_dir  # Story 12.E.5-fix: MD file directory
                 )
 
                 # Load images for API
@@ -1642,3 +1657,222 @@ async def decompose_question(
         cancel_request(cache_key)
         logger.error(f"decompose_question failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Agent service error: {str(e)}") from e
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 31.3: Intelligent Action Recommendation Endpoint
+# [Source: docs/stories/31.3.story.md]
+# [Source: specs/data/recommend-action-request.schema.json]
+# [Source: specs/data/recommend-action-response.schema.json]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _calculate_trend(scores: List[int]) -> ActionTrend:
+    """
+    Calculate score trend based on recent scores.
+
+    Story 31.3 AC-31.3.4: Score trend calculation
+
+    Args:
+        scores: List of recent scores (most recent first, max 5)
+
+    Returns:
+        ActionTrend enum value
+    """
+    if len(scores) < 2:
+        return ActionTrend.stable
+
+    # Compare first half average with second half average
+    mid = len(scores) // 2
+    recent_avg = sum(scores[:mid]) / mid if mid > 0 else scores[0]
+    older_avg = sum(scores[mid:]) / (len(scores) - mid) if (len(scores) - mid) > 0 else scores[-1]
+
+    diff = recent_avg - older_avg
+    # 5-point threshold for trend detection
+    if diff > 5:
+        return ActionTrend.improving
+    elif diff < -5:
+        return ActionTrend.declining
+    return ActionTrend.stable
+
+
+def _recommend_action_from_score(
+    score: int,
+    history_context: Optional[HistoryContext] = None,
+) -> Tuple[ActionType, str, Optional[str], int, bool, List[AlternativeAgent]]:
+    """
+    Determine recommended action based on score and history.
+
+    Story 31.3 AC-31.3.3: Score-based recommendation logic
+    - score < 60: decompose (基础拆解)
+    - score 60-79: explain (解释补充)
+    - score >= 80: next (继续学习)
+
+    Story 31.3 AC-31.3.4: Consider history trends
+
+    Args:
+        score: Current score (0-100)
+        history_context: Optional historical score context
+
+    Returns:
+        Tuple of (action, reason, agent, priority, review_suggested, alternatives)
+    """
+    review_suggested = False
+    alternatives: List[AlternativeAgent] = []
+    priority = 3
+
+    # Check for declining trend or consecutive low scores
+    if history_context:
+        if history_context.trend == ActionTrend.declining:
+            review_suggested = True
+            priority = 1
+        if history_context.consecutive_low_count and history_context.consecutive_low_count >= 3:
+            review_suggested = True
+            priority = 1
+            # Suggest memory anchor as alternative for persistent low scores
+            alternatives.append(AlternativeAgent(
+                agent="/agents/explain/memory",
+                reason="尝试记忆锚点帮助建立概念关联"
+            ))
+
+    # AC-31.3.3: Score-based action determination
+    if score < 60:
+        action = ActionType.decompose
+        agent = "/agents/decompose/basic"
+        reason = "概念理解不足，建议进行基础拆解"
+        priority = min(priority, 1)
+        if history_context and history_context.consecutive_low_count and history_context.consecutive_low_count >= 3:
+            reason = "连续多次低分，建议从基础开始重新学习"
+    elif score < 80:
+        action = ActionType.explain
+        agent = "/agents/explain/oral"
+        reason = "需要补充解释加深理解"
+        priority = min(priority, 2)
+    else:
+        action = ActionType.next
+        agent = None
+        reason = "掌握良好，可以继续下一个概念"
+        priority = 3
+        review_suggested = False  # Good score, no review needed
+
+    return action, reason, agent, priority, review_suggested, alternatives
+
+
+@agents_router.post(
+    "/recommend-action",
+    response_model=RecommendActionResponse,
+    summary="Intelligent Action Recommendation",
+    description="Recommend next learning action based on scoring results and historical performance.",
+    tags=["agents"],
+    responses={
+        200: {
+            "description": "Action recommendation successful",
+            "model": RecommendActionResponse,
+        },
+        500: {
+            "description": "Internal server error",
+            "model": ErrorResponse,
+        },
+    },
+)
+async def recommend_action(
+    request: RecommendActionRequest,
+    memory_service: MemoryServiceDep,
+) -> RecommendActionResponse:
+    """
+    Recommend next learning action based on score and history.
+
+    Story 31.3: Agent决策推荐端点
+
+    ✅ Verified from docs/stories/31.3.story.md
+
+    Score-based recommendations (AC-31.3.3):
+    - score < 60: decompose (基础拆解)
+    - score 60-79: explain (解释补充)
+    - score >= 80: next (继续学习)
+
+    Historical analysis (AC-31.3.4):
+    - Queries learning history for the concept
+    - Calculates score trend (improving/stable/declining)
+    - Suggests additional review for declining trends
+    - Provides alternative agent recommendations
+
+    Args:
+        request: RecommendActionRequest with score, node_id, canvas_name
+        memory_service: Memory service for history queries
+
+    Returns:
+        RecommendActionResponse with recommended action, agent endpoint, and reasoning
+
+    [Source: docs/stories/31.3.story.md]
+    [Source: specs/data/recommend-action-request.schema.json]
+    [Source: specs/data/recommend-action-response.schema.json]
+    """
+    logger.info(
+        f"[Story 31.3] recommend_action: score={request.score}, "
+        f"node_id={request.node_id}, canvas_name={request.canvas_name}, "
+        f"include_history={request.include_history}"
+    )
+
+    history_context: Optional[HistoryContext] = None
+
+    # AC-31.3.4: Query historical scores if requested
+    if request.include_history:
+        try:
+            # Query learning history from MemoryService
+            # Using canvas_name as user_id proxy for now
+            history_result = await memory_service.get_learning_history(
+                user_id=request.canvas_name,
+                concept=request.concept,
+                page=1,
+                page_size=5  # Get last 5 scores
+            )
+
+            # Extract scores from history items
+            recent_scores: List[int] = []
+            for item in history_result.get("items", []):
+                if "score" in item and item["score"] is not None:
+                    recent_scores.append(int(item["score"]))
+
+            if recent_scores:
+                # Calculate history context
+                avg_score = sum(recent_scores) / len(recent_scores)
+                trend = _calculate_trend(recent_scores)
+                consecutive_low = sum(1 for s in recent_scores if s < 60)
+
+                history_context = HistoryContext(
+                    recent_scores=recent_scores[:5],
+                    average_score=round(avg_score, 1),
+                    trend=trend,
+                    consecutive_low_count=consecutive_low
+                )
+                logger.info(
+                    f"[Story 31.3] History context: avg={avg_score:.1f}, "
+                    f"trend={trend.value}, consecutive_low={consecutive_low}"
+                )
+
+        except Exception as e:
+            # Graceful degradation: continue without history
+            logger.warning(f"[Story 31.3] Failed to get learning history: {e}")
+            history_context = None
+
+    # Determine recommendation
+    action, reason, agent, priority, review_suggested, alternatives = _recommend_action_from_score(
+        score=request.score,
+        history_context=history_context
+    )
+
+    logger.info(
+        f"[Story 31.3] Recommendation: action={action.value}, agent={agent}, "
+        f"priority={priority}, review_suggested={review_suggested}"
+    )
+
+    return RecommendActionResponse(
+        action=action,
+        agent=agent,
+        reason=reason,
+        priority=priority,
+        review_suggested=review_suggested,
+        history_context=history_context,
+        alternative_agents=alternatives
+    )

@@ -28,11 +28,52 @@ Thumbs.db
 .temp/
 temp_*
 
-# BMad Core temporary files
-.bmad-core/planning-iterations/snapshots/temp-*.json
-nul
+# BMad 开发工具 (不属于产品，应在单独仓库)
+.bmad-core/
+.bmad-prompt.txt
+.pre-commit-config.yaml
 
-# Personal Obsidian vault (not part of project)
+# Claude Code 配置 (个人配置)
+.claude/
+
+# 开发过程文件 (内部使用)
+iteration-*-validation-report.md
+pre-correct-course-iteration-*.md
+post-correct-course-iteration-*.md
+.qa-result-*.json
+.sm-result.json
+linear-progress.json
+.dev-result.json
+第二版工作流.md
+.ai-context-template.md
+CANVAS_ERROR_LOG.md
+ITERATION_VALIDATION_TEST_*.md
+project-file-index.md
+
+# 测试/备份文件
+.merge-backup/
+.canvas-learning/snapshots/
+.coverage
+*.canvas
+test.canvas
+workflow_test.canvas
+schema_test.canvas
+
+# 个人 Obsidian vault
 笔记库/
-.claude/compact-snapshot-*.md
+
+# 旧版脚本
+scripts/legacy/
+
+# 导出文件
+canvas_*_export.jsonl
+test_collection_export.jsonl
+
+# 其他临时文件
+nul
+=*
 backend/.env
+
+# Docker data (large binary files)
+docker/neo4j/data/
+docker/neo4j/logs/

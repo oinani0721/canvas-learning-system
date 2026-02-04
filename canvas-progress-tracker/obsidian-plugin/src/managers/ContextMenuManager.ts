@@ -89,6 +89,9 @@ export interface MenuActionRegistry {
   // Story 12.A.6: Question Decomposition Agent
   /** Decompose question into sub-questions */
   decomposeQuestion?: MenuActionCallback;
+  // Story 35.5: Attach Media to Node
+  /** Attach media file to node (opens AttachMediaModal) */
+  attachMedia?: MenuActionCallback;
 }
 
 // ============================================================================
@@ -535,6 +538,31 @@ export class ContextMenuManager {
         }
       },
     }, ['editor', 'canvas-node', 'file'], 35);
+
+    // =========================================================================
+    // Story 35.5: Attach Media to Node
+    // AC 35.5.1: Right-click menu "附加媒体文件"
+    // =========================================================================
+    this.registerMenuItem({
+      id: 'attach-media',
+      title: '附加媒体文件 📎',
+      icon: 'paperclip',
+      section: 'utility',
+      description: '附加图片/PDF/音视频到此节点',
+      condition: () => true, // Additional filtering in action based on nodeType
+      action: async (ctx: MenuContext) => {
+        // AC 35.5.1: Only show for TEXT type nodes (concept nodes)
+        if (ctx.nodeType && ctx.nodeType !== 'text') {
+          new Notice('仅支持对文本节点附加媒体文件');
+          return;
+        }
+        if (this.actionRegistry.attachMedia) {
+          await this.actionRegistry.attachMedia(ctx);
+        } else {
+          new Notice('附加媒体功能尚未初始化');
+        }
+      },
+    }, ['canvas-node'], 30);
 
     this.log('ContextMenuManager: Built-in menu items registered');
   }

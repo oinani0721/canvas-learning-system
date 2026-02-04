@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "session-progress-response.schema.json",
+  "title": "SessionProgressResponse",
+  "description": "Story 31.6: 实时验证会话进度响应，支持AC-31.6.1到AC-31.6.3的进度追踪功能",
+  "type": "object",
+  "required": [
+    "session_id",
+    "canvas_name",
+    "total_concepts",
+    "completed_concepts",
+    "current_concept",
+    "current_concept_idx",
+    "status",
+    "progress_percentage",
+    "mastery_percentage",
+    "started_at",
+    "updated_at"
+  ],
+  "properties": {
+    "session_id": {
+      "type": "string",
+      "description": "会话唯一标识符",
+      "examples": ["sess_abc123"]
+    },
+    "canvas_name": {
+      "type": "string",
+      "description": "Canvas名称",
+      "examples": ["离散数学"]
+    },
+    "total_concepts": {
+      "type": "integer",
+      "description": "总概念数",
+      "minimum": 0,
+      "examples": [10]
+    },
+    "completed_concepts": {
+      "type": "integer",
+      "description": "已完成验证的概念数",
+      "minimum": 0,
+      "examples": [5]
+    },
+    "current_concept": {
+      "type": "string",
+      "description": "当前正在验证的概念",
+      "examples": ["逆否命题"]
+    },
+    "current_concept_idx": {
+      "type": "integer",
+      "description": "当前概念索引（从0开始）",
+      "minimum": 0,
+      "examples": [5]
+    },
+    "green_count": {
+      "type": "integer",
+      "description": "已掌握的概念数（绿色）",
+      "minimum": 0,
+      "default": 0,
+      "examples": [3]
+    },
+    "yellow_count": {
+      "type": "integer",
+      "description": "部分理解的概念数（黄色）",
+      "minimum": 0,
+      "default": 0,
+      "examples": [1]
+    },
+    "purple_count": {
+      "type": "integer",
+      "description": "需要分解的概念数（紫色）",
+      "minimum": 0,
+      "default": 0,
+      "examples": [1]
+    },
+    "red_count": {
+      "type": "integer",
+      "description": "未掌握的概念数（红色）",
+      "minimum": 0,
+      "default": 0,
+      "examples": [0]
+    },
+    "status": {
+      "type": "string",
+      "description": "会话状态",
+      "enum": ["pending", "in_progress", "paused", "completed", "cancelled"],
+      "examples": ["in_progress"]
+    },
+    "progress_percentage": {
+      "type": "number",
+      "description": "完成百分比（completed/total * 100）",
+      "minimum": 0,
+      "maximum": 100,
+      "examples": [50.0]
+    },
+    "mastery_percentage": {
+      "type": "number",
+      "description": "掌握率（green/completed * 100）",
+      "minimum": 0,
+      "maximum": 100,
+      "examples": [60.0]
+    },
+    "hints_given": {
+      "type": "integer",
+      "description": "当前概念已给出的提示数",
+      "minimum": 0,
+      "default": 0,
+      "examples": [1]
+    },
+    "max_hints": {
+      "type": "integer",
+      "description": "每个概念最大提示数",
+      "minimum": 0,
+      "default": 3,
+      "examples": [3]
+    },
+    "started_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "会话开始时间",
+      "examples": ["2026-01-20T10:00:00Z"]
+    },
+    "updated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "最后更新时间",
+      "examples": ["2026-01-20T10:15:30Z"]
+    }
+  }
+}

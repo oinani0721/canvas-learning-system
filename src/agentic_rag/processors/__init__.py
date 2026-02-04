@@ -73,6 +73,23 @@ from .pdf_processor import (
     PDFValidationError,
     process_pdf,
 )
+from .video_processor import (
+    VideoCorruptError,
+    VideoMetadata,
+    VideoProcessor,
+    VideoProcessorError,
+    VideoSizeError,
+    VideoValidationError,
+    process_video,
+)
+from .audio_processor import (
+    AudioCorruptError,
+    AudioProcessor,
+    AudioProcessorError,
+    AudioSizeError,
+    AudioValidationError,
+    process_audio,
+)
 
 __all__ = [
     # Story 6.1 - Image Processing
@@ -129,4 +146,19 @@ __all__ = [
     "recommend_media",
     "cosine_similarity",
     "euclidean_similarity",
+    # Story 35.7 - Video Processing
+    "VideoProcessor",
+    "VideoMetadata",
+    "VideoProcessorError",
+    "VideoValidationError",
+    "VideoSizeError",
+    "VideoCorruptError",
+    "process_video",
+    # Story 35.6 - Audio Processing
+    "AudioProcessor",
+    "AudioProcessorError",
+    "AudioValidationError",
+    "AudioSizeError",
+    "AudioCorruptError",
+    "process_audio",
 ]

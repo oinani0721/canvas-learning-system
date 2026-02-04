@@ -677,6 +677,53 @@ async def retrieve_multimodal(
 # LangGraph Node Function
 # ============================================================
 
+# Global LanceDB client singleton for multimodal retrieval
+_multimodal_lancedb_client: Optional["LanceDBClientProtocol"] = None
+
+
+async def _get_multimodal_lancedb_client() -> Optional["LanceDBClientProtocol"]:
+    """
+    Get LanceDB client singleton for multimodal retrieval.
+
+    Story 35.8: Follows pattern from nodes.py for client initialization.
+    Returns None if client cannot be initialized (graceful degradation).
+    """
+    global _multimodal_lancedb_client
+    if _multimodal_lancedb_client is not None:
+        return _multimodal_lancedb_client
+
+    try:
+        # Try to import and initialize LanceDBClient
+        from agentic_rag.clients import LanceDBClient
+        _multimodal_lancedb_client = LanceDBClient(
+            db_path="~/.lancedb",
+            timeout_ms=2000,  # AC 6.8.4: 2秒超时
+            batch_size=5,
+            enable_fallback=True
+        )
+        await _multimodal_lancedb_client.initialize()
+        return _multimodal_lancedb_client
+    except Exception:
+        # Graceful degradation - return None
+        return None
+
+
+def _extract_query_from_state(state: Dict[str, Any]) -> str:
+    """
+    Extract query text from state messages.
+
+    Story 35.8: Follows same pattern as retrieve_graphiti/retrieve_lancedb in nodes.py
+    """
+    messages = state.get("messages", [])
+    if messages:
+        last_msg = messages[-1]
+        if isinstance(last_msg, dict):
+            return last_msg.get("content", "")
+        else:
+            return getattr(last_msg, "content", "")
+    return state.get("original_query", "")
+
+
 async def multimodal_retrieval_node(
     state: Dict[str, Any],
     lancedb_client: Optional[LanceDBClientProtocol] = None
@@ -689,68 +736,123 @@ async def multimodal_retrieval_node(
     - Returns partial state update dict
 
     AC 6.8.1: 添加到StateGraph的多模态检索节点
+    Story 35.8: Updated to extract query from messages (AC 35.8.2)
 
     Args:
         state: Current graph state containing:
-            - query_vector: List[float] - Query embedding
-            - messages: List[BaseMessage] - (optional) for text query
+            - messages: List[BaseMessage] - User query messages
+            - query_vector: List[float] - (optional) Pre-computed query embedding
+            - canvas_file: str - (optional) Canvas file for context filtering
         lancedb_client: LanceDB client (injected or from context)
 
     Returns:
         State update with:
-            - multimodal_results: List[MultimodalResult]
-            - multimodal_latency_ms: float
+            - multimodal_results: List[dict] - Multimodal search results
+            - multimodal_latency_ms: float - Retrieval latency
 
     Usage in StateGraph:
-        >>> from functools import partial
         >>> from agentic_rag.retrievers import multimodal_retrieval_node
-        >>>
-        >>> node_fn = partial(multimodal_retrieval_node, lancedb_client=client)
-        >>> builder.add_node("multimodal_retrieval", node_fn)
+        >>> builder.add_node("retrieve_multimodal", multimodal_retrieval_node)
     """
+    import logging
     import time
+
+    logger = logging.getLogger(__name__)
     start_time = time.time()
 
-    # Get query vector from state
-    query_vector = state.get("query_vector")
+    # Story 35.8 AC 35.8.2: Extract query from messages (like graphiti/lancedb nodes)
+    query = _extract_query_from_state(state)
+    canvas_file = state.get("canvas_file")
 
-    if query_vector is None:
-        # Try to extract from messages and vectorize
-        # This is a fallback - normally query_vector should be pre-computed
+    logger.debug(f"[multimodal_retrieval_node] START - query='{query[:50]}...' canvas={canvas_file}")
+
+    if not query:
+        logger.debug("[multimodal_retrieval_node] No query found, returning empty results")
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": 0.0,
         }
 
-    if lancedb_client is None:
-        # Return empty if no client configured
+    # Get client - use provided or get singleton
+    client = lancedb_client
+    if client is None:
+        client = await _get_multimodal_lancedb_client()
+
+    if client is None:
+        logger.warning("[multimodal_retrieval_node] No LanceDB client available, returning empty results")
         return {
             "multimodal_results": [],
-            "multimodal_latency_ms": 0.0,
+            "multimodal_latency_ms": (time.time() - start_time) * 1000,
         }
 
     try:
-        retriever = MultimodalRetriever(lancedb_client)
-        results = await retriever.retrieve(query_vector)
+        # Story 35.8: Search multimodal content table
+        # Use text search via client's search_multimodal method if available
+        if hasattr(client, "search_multimodal"):
+            raw_results = await client.search_multimodal(
+                query=query,
+                canvas_file=canvas_file,
+                num_results=5,
+                media_types=["image", "pdf", "audio", "video"]
+            )
+        elif hasattr(client, "similarity_search"):
+            # Fallback: Use similarity_search with text query
+            # This requires the client to handle text-to-vector conversion
+            raw_results = await client.similarity_search(
+                table_name="multimodal_content",
+                query_vector=[],  # Empty - client should handle text
+                top_k=5,
+                filter=None
+            )
+        else:
+            # No compatible method - return empty
+            raw_results = []
+
+        # Format results to match MultimodalResultItem schema (Story 35.8 AC 35.8.1)
+        formatted_results = []
+        for r in raw_results:
+            # Convert distance to score if needed
+            distance = r.get("_distance", r.get("distance", 1.0))
+            score = 1.0 / (1.0 + distance) if distance >= 0 else 0.0
+
+            formatted_result = {
+                "id": r.get("id", r.get("doc_id", "")),
+                "media_type": r.get("media_type", "image"),
+                "path": r.get("file_path", r.get("path", "")),
+                "thumbnail": r.get("thumbnail_path", r.get("content_preview", "")),
+                "relevance_score": score,
+                "metadata": {
+                    k: v for k, v in r.items()
+                    if k not in {"id", "doc_id", "media_type", "file_path", "path",
+                                "_distance", "distance", "thumbnail_path", "content_preview"}
+                },
+                # Preserve original fields for fusion compatibility
+                "file_path": r.get("file_path", r.get("path", "")),
+                "content_preview": r.get("content_preview", r.get("thumbnail_path", "")),
+            }
+            formatted_results.append(formatted_result)
 
         latency_ms = (time.time() - start_time) * 1000
+        logger.debug(f"[multimodal_retrieval_node] END - results={len(formatted_results)}, latency={latency_ms:.2f}ms")
 
         return {
-            "multimodal_results": [r.to_dict() for r in results],
+            "multimodal_results": formatted_results,
             "multimodal_latency_ms": latency_ms,
         }
 
     except MultimodalRetrievalTimeout:
         # Timeout degradation - return empty results
         latency_ms = (time.time() - start_time) * 1000
+        logger.warning(f"[multimodal_retrieval_node] Timeout after {latency_ms:.2f}ms")
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": latency_ms,
         }
 
-    except Exception:
-        # Error handling - return empty results
+    except Exception as e:
+        # Error handling - return empty results (graceful degradation)
         latency_ms = (time.time() - start_time) * 1000
+        logger.warning(f"[multimodal_retrieval_node] Error: {e}, latency={latency_ms:.2f}ms")
         return {
             "multimodal_results": [],
             "multimodal_latency_ms": latency_ms,

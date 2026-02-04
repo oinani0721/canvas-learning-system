@@ -23,7 +23,7 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 # ✅ Verified from Context7:/pydantic/pydantic (topic: BaseModel)
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 logger = structlog.get_logger(__name__)
 
@@ -49,8 +49,8 @@ class AlertResponse(BaseModel):
     threshold: Optional[float] = Field(None, description="Alert threshold")
     labels: Dict[str, str] = Field(default_factory=dict, description="Additional labels")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "id": "abc123def456",
                 "name": "HighAPILatency",
@@ -62,6 +62,7 @@ class AlertResponse(BaseModel):
                 "labels": {"endpoint": "/api/v1/canvas"},
             }
         }
+    )
 
 
 class AlertListResponse(BaseModel):
@@ -157,8 +158,8 @@ class MetricsSummaryResponse(BaseModel):
     resources: ResourcesSummary
     alerts: AlertsSummary
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "timestamp": "2025-12-03T20:15:00",
                 "api": {
@@ -193,6 +194,7 @@ class MetricsSummaryResponse(BaseModel):
                 },
             }
         }
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

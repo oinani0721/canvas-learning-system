@@ -20,15 +20,14 @@ Epic 28 Problem Verification:
 - Problem 3: PDF page number passed through pipeline (Story 28.3)
 """
 
-from unittest.mock import AsyncMock, MagicMock, patch
-from typing import Dict, Any
+from unittest.mock import MagicMock
 
 import pytest
 from app.services.context_enrichment_service import ContextEnrichmentService
 from app.services.textbook_context_service import (
-    TextbookContext,
     FullTextbookContext,
     Prerequisite,
+    TextbookContext,
 )
 
 

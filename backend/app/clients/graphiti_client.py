@@ -1,246 +1,315 @@
 # Canvas Learning System - Graphiti Edge Client
-# ✅ Verified pattern from src/agentic_rag/clients/graphiti_client.py
-# ✅ P1.2 FIXED: Now actually stores data to JSON file
+# Story 36.1: Unified GraphitiClient Architecture
+# ✅ Refactored to inherit from GraphitiClientBase with Neo4jClient DI
 """
 Lightweight Graphiti client for Canvas Edge synchronization.
 
-Phase 4.2: Option B - Canvas内部Edge存入Graphiti
-Syncs Canvas edges to Graphiti knowledge graph for cross-session queries.
+Story 36.1: Unified GraphitiClient Architecture
+- AC-36.1.2: Refactored GraphitiEdgeClient inherits from GraphitiClientBase
+- AC-36.1.3: Neo4jClient injection via constructor (dependency injection)
+- AC-36.1.4: Backward compatibility via GraphitiEdgeClientAdapter
 
 Features:
-- Async non-blocking edge sync
-- 2-second timeout with graceful degradation
-- JSON file storage (compatible with MCP graphiti-memory format)
-- Ready for Neo4j upgrade
+- Neo4j storage via injected Neo4jClient (Story 30.2)
+- JSON fallback mode when NEO4J_MOCK=true or NEO4J_ENABLED=false
+- Async non-blocking edge sync with 2-second timeout
+- Graceful degradation on timeout
 
-[Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Phase-4-Edge-Enhancement]
+[Source: docs/stories/36.1.story.md]
+[Source: docs/architecture/decisions/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
 """
 
 import asyncio
 import json
 import logging
+import warnings
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
+# Story 36.1: Import unified base class
+from .graphiti_client_base import GraphitiClientBase, EdgeRelationship
+
+if TYPE_CHECKING:
+    from .neo4j_client import Neo4jClient
 
 logger = logging.getLogger(__name__)
 
-# Default storage path for edge relationships
-DEFAULT_STORAGE_PATH = Path(__file__).parent.parent.parent / "data" / "graphiti_edges.json"
-# Storage path for learning memories
+# Storage path for learning memories (LearningMemoryClient - independent)
 LEARNING_MEMORY_PATH = Path(__file__).parent.parent.parent / "data" / "learning_memories.json"
 
+# Re-export EdgeRelationship for backward compatibility
+__all__ = [
+    "EdgeRelationship",
+    "GraphitiEdgeClient",
+    "GraphitiEdgeClientAdapter",
+    "get_graphiti_edge_client",
+    "get_graphiti_client",  # Deprecated alias
+    "reset_graphiti_client",
+    "LearningMemory",
+    "LearningMemoryClient",
+    "get_learning_memory_client",
+    "reset_learning_memory_client",
+]
 
-@dataclass
-class EdgeRelationship:
+
+class GraphitiEdgeClient(GraphitiClientBase):
     """
-    Represents a Canvas edge relationship for Graphiti.
+    Graphiti client for Canvas Edge synchronization.
 
-    Attributes:
-        canvas_name: Source canvas file name
-        from_node: Source node ID
-        to_node: Target node ID
-        label: Edge label/relationship type
-        edge_id: Original edge ID from Canvas
-    """
-    canvas_name: str
-    from_node: str
-    to_node: str
-    label: str = "CONNECTED_TO"
-    edge_id: Optional[str] = None
+    Story 36.1 AC-36.1.2: Refactored to inherit from GraphitiClientBase.
 
-    @property
-    def entity1(self) -> str:
-        """Graphiti entity1 format: node:{canvas}:{nodeId}"""
-        return f"node:{self.canvas_name}:{self.from_node}"
+    This client:
+    1. Inherits from GraphitiClientBase (AC-36.1.1)
+    2. Receives Neo4jClient via constructor (AC-36.1.3)
+    3. Uses self._neo4j.create_edge_relationship() for Neo4j operations
+    4. Supports JSON fallback mode when Neo4j is unavailable
 
-    @property
-    def entity2(self) -> str:
-        """Graphiti entity2 format: node:{canvas}:{nodeId}"""
-        return f"node:{self.canvas_name}:{self.to_node}"
+    ✅ Verified from ADR-003: Graphiti as knowledge graph middleware
+    ✅ Verified from ADR-009: All external calls use tenacity retry (via Neo4jClient)
 
-    @property
-    def relationship_type(self) -> str:
-        """Normalize relationship type for Neo4j"""
-        if not self.label:
-            return "CONNECTED_TO"
-        # Convert label to uppercase with underscores
-        return self.label.upper().replace(" ", "_").replace("-", "_")
-
-
-class GraphitiEdgeClient:
-    """
-    Lightweight Graphiti client for Canvas Edge synchronization.
-
-    This client wraps MCP tool calls for edge relationships,
-    providing async support with timeout and graceful degradation.
-
+    [Source: docs/stories/36.1.story.md#Task-2]
     [Source: src/agentic_rag/clients/graphiti_client.py (pattern reference)]
     """
 
     def __init__(
         self,
+        neo4j_client: "Neo4jClient",
         timeout_ms: int = 2000,
-        enabled: bool = True,
         batch_size: int = 10,
-        storage_path: Optional[Path] = None
     ):
         """
-        Initialize GraphitiEdgeClient.
+        Initialize GraphitiEdgeClient with Neo4jClient injection.
+
+        Story 36.1 AC-36.1.3: Neo4jClient injection
 
         Args:
-            timeout_ms: Timeout for sync operations in milliseconds
-            enabled: Whether edge sync is enabled
-            batch_size: Maximum edges to sync per batch
-            storage_path: Path to JSON storage file (default: backend/data/graphiti_edges.json)
+            neo4j_client: Neo4jClient instance from Story 30.2
+                         Reuses connection pool (50 connections, 30s timeout)
+                         Reuses retry mechanism (tenacity 3x exponential backoff)
+            timeout_ms: Timeout for sync operations in milliseconds (default: 2000)
+            batch_size: Maximum edges to sync per batch (default: 10)
+
+        Raises:
+            ValueError: If neo4j_client is None
+
+        [Source: docs/stories/36.1.story.md#AC-36.1.3]
         """
+        super().__init__(neo4j_client)
+
         self._timeout_ms = timeout_ms
-        self._enabled = enabled
         self._batch_size = batch_size
-        self._storage_path = storage_path or DEFAULT_STORAGE_PATH
-        self._initialized = False
-        self._mcp_available = False
         self._sync_count = 0
         self._error_count = 0
-        self._data: Dict[str, Any] = {"relationships": [], "episodes": []}
+
         logger.debug(
-            f"GraphitiEdgeClient initialized: "
-            f"enabled={enabled}, timeout={timeout_ms}ms, storage={self._storage_path}"
+            f"GraphitiEdgeClient initialized with Neo4jClient: "
+            f"mode={self._neo4j.stats.get('mode', 'unknown')}, "
+            f"timeout={timeout_ms}ms, batch_size={batch_size}"
         )
 
     @property
     def enabled(self) -> bool:
-        """Check if edge sync is enabled"""
-        return self._enabled
+        """Check if edge sync is enabled (Neo4j or fallback available)."""
+        return self._initialized or not self.is_fallback_mode
 
     @property
     def stats(self) -> Dict[str, Any]:
-        """Get sync statistics"""
-        return {
-            "enabled": self._enabled,
-            "initialized": self._initialized,
-            "mcp_available": self._mcp_available,
-            "sync_count": self._sync_count,
-            "error_count": self._error_count,
-            "storage_path": str(self._storage_path),
-            "total_relationships": len(self._data.get("relationships", [])),
-            "total_episodes": len(self._data.get("episodes", [])),
-        }
-
-    async def initialize(self) -> bool:
         """
-        Initialize client and load existing data from storage.
+        Get sync statistics.
 
         Returns:
-            True if storage is available
+            Statistics dict including sync counts and Neo4j stats
         """
-        if self._initialized:
-            return self._mcp_available
-
-        try:
-            # Ensure storage directory exists
-            self._storage_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Load existing data if file exists
-            if self._storage_path.exists():
-                with open(self._storage_path, "r", encoding="utf-8") as f:
-                    self._data = json.load(f)
-                logger.info(
-                    f"Loaded {len(self._data.get('relationships', []))} relationships "
-                    f"from {self._storage_path}"
-                )
-            else:
-                # Initialize empty storage file
-                self._data = {"relationships": [], "episodes": []}
-                await self._save_data()
-                logger.info(f"Created new storage file: {self._storage_path}")
-
-            self._mcp_available = self._enabled
-            self._initialized = True
-            logger.info(
-                f"GraphitiEdgeClient initialized: storage={self._storage_path}"
-            )
-            return self._mcp_available
-        except Exception as e:
-            logger.warning(f"GraphitiEdgeClient init failed: {e}")
-            self._mcp_available = False
-            self._initialized = True
-            return False
-
-    async def _save_data(self) -> None:
-        """Save data to JSON storage file."""
-        try:
-            with open(self._storage_path, "w", encoding="utf-8") as f:
-                json.dump(self._data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            logger.error(f"Failed to save data: {e}")
+        base_stats = self.get_stats()
+        return {
+            **base_stats,
+            "sync_count": self._sync_count,
+            "error_count": self._error_count,
+            "timeout_ms": self._timeout_ms,
+            "batch_size": self._batch_size,
+        }
 
     async def add_edge_relationship(
         self,
         relationship: EdgeRelationship
     ) -> bool:
         """
-        Add a single edge relationship to Graphiti storage.
+        Add a single edge relationship to the knowledge graph.
+
+        Story 36.1 AC-36.1.2 Task 2.3: Use self._neo4j.run_query() instead of JSON
 
         Args:
             relationship: EdgeRelationship to add
 
         Returns:
             True if successful
-        """
-        if not self._enabled:
-            return False
 
+        [Source: docs/stories/36.1.story.md#Task-2.3]
+        """
         if not self._initialized:
             await self.initialize()
 
-        if not self._mcp_available:
-            return False
-
         try:
-            # ✅ P1.2 FIXED: Actually store the relationship
-            rel_data = {
-                "entity1": relationship.entity1,
-                "entity2": relationship.entity2,
-                "relationship_type": relationship.relationship_type,
-                "canvas_name": relationship.canvas_name,
-                "from_node": relationship.from_node,
-                "to_node": relationship.to_node,
-                "label": relationship.label,
-                "edge_id": relationship.edge_id,
-                "created_at": datetime.now().isoformat(),
-            }
-
-            # Check for duplicate (same entity1, entity2, relationship_type)
-            existing = next(
-                (r for r in self._data["relationships"]
-                 if r["entity1"] == rel_data["entity1"]
-                 and r["entity2"] == rel_data["entity2"]
-                 and r["relationship_type"] == rel_data["relationship_type"]),
-                None
+            # ✅ Story 36.1: Delegate to Neo4jClient.create_edge_relationship()
+            # This handles both real Neo4j and JSON fallback mode
+            success = await self._neo4j.create_edge_relationship(
+                canvas_path=relationship.canvas_path,
+                edge_id=relationship.edge_id or f"edge-{relationship.from_node_id}-{relationship.to_node_id}",
+                from_node_id=relationship.from_node_id,
+                to_node_id=relationship.to_node_id,
+                edge_label=relationship.edge_label,
             )
 
-            if existing:
-                # Update existing relationship
-                existing.update(rel_data)
-                logger.debug(f"Updated existing relationship: {relationship.entity1} --> {relationship.entity2}")
-            else:
-                # Add new relationship
-                self._data["relationships"].append(rel_data)
+            if success:
+                self._sync_count += 1
                 logger.info(
                     f"Graphiti edge sync: {relationship.entity1} "
                     f"--[{relationship.relationship_type}]--> {relationship.entity2}"
                 )
+            else:
+                self._error_count += 1
+                logger.warning(
+                    f"Graphiti edge sync failed: {relationship.entity1} --> {relationship.entity2}"
+                )
 
-            # Save to file
-            await self._save_data()
-            self._sync_count += 1
-            return True
+            return success
+
         except Exception as e:
             logger.warning(f"add_edge_relationship failed: {e}")
             self._error_count += 1
             return False
+
+    async def search_nodes(
+        self,
+        query: str,
+        canvas_path: Optional[str] = None,
+        group_id: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Search for nodes in the knowledge graph.
+
+        Story 36.1 AC-36.1.1: Abstract interface implementation
+
+        Args:
+            query: Search query string
+            canvas_path: Optional Canvas file path filter
+            group_id: Optional group_id filter for multi-subject isolation
+            limit: Maximum number of results
+
+        Returns:
+            List of search results
+
+        [Source: docs/stories/36.1.story.md#AC-36.1.1]
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Build Cypher query based on filters
+            where_clauses = []
+            params: Dict[str, Any] = {"query": query, "limit": limit}
+
+            if canvas_path:
+                where_clauses.append("n.canvas_path = $canvasPath")
+                params["canvasPath"] = canvas_path
+
+            if group_id:
+                where_clauses.append("n.group_id = $groupId")
+                params["groupId"] = group_id
+
+            where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+
+            cypher_query = f"""
+            MATCH (n:Node)
+            {where_clause}
+            WHERE n.text CONTAINS $query OR n.id CONTAINS $query
+            RETURN n.id as node_id, n.text as content, n.canvas_path as canvas_path,
+                   n.group_id as group_id
+            LIMIT $limit
+            """
+
+            results = await self._neo4j.run_query(cypher_query, **params)
+
+            return [
+                {
+                    "doc_id": r.get("node_id", ""),
+                    "content": r.get("content", ""),
+                    "score": 1.0,  # Basic text match, no vector scoring
+                    "metadata": {
+                        "canvas_path": r.get("canvas_path"),
+                        "group_id": r.get("group_id"),
+                    }
+                }
+                for r in results
+            ]
+
+        except Exception as e:
+            logger.warning(f"search_nodes failed: {e}")
+            return []
+
+    async def get_related_memories(
+        self,
+        node_id: str,
+        canvas_path: Optional[str] = None,
+        limit: int = 10
+    ) -> List[Dict[str, Any]]:
+        """
+        Get memories related to a specific node.
+
+        Story 36.1 AC-36.1.1: Abstract interface implementation
+
+        Args:
+            node_id: Node ID to find related memories for
+            canvas_path: Optional Canvas file path context
+            limit: Maximum number of results
+
+        Returns:
+            List of related memory records
+
+        [Source: docs/stories/36.1.story.md#AC-36.1.1]
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        try:
+            # Query for connected nodes via edges
+            params: Dict[str, Any] = {"nodeId": node_id, "limit": limit}
+
+            if canvas_path:
+                cypher_query = """
+                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)
+                WHERE n.canvas_path = $canvasPath OR related.canvas_path = $canvasPath
+                RETURN related.id as node_id, related.text as content,
+                       r.label as relationship, related.canvas_path as canvas_path
+                LIMIT $limit
+                """
+                params["canvasPath"] = canvas_path
+            else:
+                cypher_query = """
+                MATCH (n:Node {id: $nodeId})-[r:CONNECTS_TO]-(related:Node)
+                RETURN related.id as node_id, related.text as content,
+                       r.label as relationship, related.canvas_path as canvas_path
+                LIMIT $limit
+                """
+
+            results = await self._neo4j.run_query(cypher_query, **params)
+
+            return [
+                {
+                    "node_id": r.get("node_id", ""),
+                    "content": r.get("content", ""),
+                    "relationship": r.get("relationship", "CONNECTED_TO"),
+                    "canvas_path": r.get("canvas_path"),
+                }
+                for r in results
+            ]
+
+        except Exception as e:
+            logger.warning(f"get_related_memories failed: {e}")
+            return []
 
     async def add_episode_for_edge(
         self,
@@ -257,38 +326,23 @@ class GraphitiEdgeClient:
         Returns:
             True if successful
         """
-        if not self._enabled:
-            return False
-
-        if not self._initialized:
-            await self.initialize()
-
         try:
             from_node = edge.get("fromNode", "unknown")
             to_node = edge.get("toNode", "unknown")
             label = edge.get("label", "connects")
+            edge_id = edge.get("id", f"edge-{from_node}-{to_node}")
 
-            content = (
-                f"Canvas edge in {canvas_name}: "
-                f"{from_node} --[{label}]--> {to_node}"
+            # Create edge relationship
+            relationship = EdgeRelationship(
+                canvas_path=canvas_name,
+                from_node_id=from_node,
+                to_node_id=to_node,
+                edge_label=label,
+                edge_id=edge_id,
             )
 
-            # ✅ P1.2 FIXED: Actually store the episode
-            episode_data = {
-                "content": content,
-                "canvas_name": canvas_name,
-                "edge_id": edge.get("id"),
-                "from_node": from_node,
-                "to_node": to_node,
-                "label": label,
-                "created_at": datetime.now().isoformat(),
-            }
+            return await self.add_edge_relationship(relationship)
 
-            self._data["episodes"].append(episode_data)
-            await self._save_data()
-
-            logger.debug(f"Graphiti episode: {content}")
-            return True
         except Exception as e:
             logger.warning(f"add_episode_for_edge failed: {e}")
             return False
@@ -311,9 +365,6 @@ class GraphitiEdgeClient:
         Returns:
             Sync result with success count and errors
         """
-        if not self._enabled:
-            return {"synced": 0, "skipped": len(edges), "reason": "disabled"}
-
         if not edges:
             return {"synced": 0, "skipped": 0, "reason": "no_edges"}
 
@@ -331,21 +382,16 @@ class GraphitiEdgeClient:
                 if not self._initialized:
                     await self.initialize()
 
-                if not self._mcp_available:
-                    result["skipped"] = len(edges)
-                    result["reason"] = "mcp_unavailable"
-                    return result
-
                 # Process edges in batches
                 for i in range(0, len(edges), self._batch_size):
                     batch = edges[i:i + self._batch_size]
 
                     for edge in batch:
                         relationship = EdgeRelationship(
-                            canvas_name=canvas_name,
-                            from_node=edge.get("fromNode", ""),
-                            to_node=edge.get("toNode", ""),
-                            label=edge.get("label", ""),
+                            canvas_path=canvas_name,
+                            from_node_id=edge.get("fromNode", ""),
+                            to_node_id=edge.get("toNode", ""),
+                            edge_label=edge.get("label", ""),
                             edge_id=edge.get("id"),
                         )
 
@@ -372,46 +418,170 @@ class GraphitiEdgeClient:
 
         return result
 
-    async def cleanup(self) -> None:
-        """Cleanup client resources"""
-        logger.debug(
-            f"GraphitiEdgeClient cleanup: "
-            f"{self._sync_count} syncs, {self._error_count} errors"
+
+# =============================================================================
+# Story 36.1 AC-36.1.4: Backward Compatibility Adapter
+# =============================================================================
+
+class GraphitiEdgeClientAdapter:
+    """
+    Backward-compatible adapter for legacy GraphitiEdgeClient usage.
+
+    Story 36.1 AC-36.1.4: Allows existing code using old GraphitiEdgeClient()
+    signature to continue working while emitting deprecation warnings.
+
+    DEPRECATED: Use GraphitiEdgeClient(neo4j_client) instead.
+
+    [Source: docs/stories/36.1.story.md#Task-5]
+    """
+
+    def __init__(
+        self,
+        timeout_ms: int = 2000,
+        enabled: bool = True,
+        batch_size: int = 10,
+        storage_path: Optional[Path] = None
+    ):
+        """
+        Initialize adapter with legacy signature.
+
+        Args:
+            timeout_ms: Timeout for sync operations in milliseconds
+            enabled: Whether edge sync is enabled
+            batch_size: Maximum edges to sync per batch
+            storage_path: IGNORED - kept for backward compatibility
+
+        DEPRECATED: Use get_graphiti_edge_client() or GraphitiEdgeClient(neo4j_client)
+        """
+        warnings.warn(
+            "GraphitiEdgeClientAdapter is deprecated. "
+            "Use get_graphiti_edge_client() from dependencies.py "
+            "or GraphitiEdgeClient(neo4j_client) directly.",
+            DeprecationWarning,
+            stacklevel=2
         )
-        self._initialized = False
+
+        # Import Neo4jClient here to avoid circular imports
+        from .neo4j_client import get_neo4j_client
+
+        self._neo4j_client = get_neo4j_client()
+        self._client = GraphitiEdgeClient(
+            neo4j_client=self._neo4j_client,
+            timeout_ms=timeout_ms,
+            batch_size=batch_size,
+        )
+        self._enabled = enabled
+
+    @property
+    def enabled(self) -> bool:
+        return self._enabled and self._client.enabled
+
+    @property
+    def stats(self) -> Dict[str, Any]:
+        return self._client.stats
+
+    async def initialize(self) -> bool:
+        return await self._client.initialize()
+
+    async def add_edge_relationship(self, relationship) -> bool:
+        """Accept both old EdgeRelationship format and new format."""
+        # Convert old format to new if needed
+        if hasattr(relationship, 'canvas_name'):
+            # Old format: canvas_name, from_node, to_node
+            new_rel = EdgeRelationship(
+                canvas_path=relationship.canvas_name,
+                from_node_id=relationship.from_node,
+                to_node_id=relationship.to_node,
+                edge_label=relationship.label,
+                edge_id=relationship.edge_id,
+            )
+            return await self._client.add_edge_relationship(new_rel)
+        else:
+            return await self._client.add_edge_relationship(relationship)
+
+    async def add_episode_for_edge(self, canvas_name: str, edge: Dict) -> bool:
+        return await self._client.add_episode_for_edge(canvas_name, edge)
+
+    async def sync_canvas_edges(self, canvas_name: str, edges: List[Dict]) -> Dict:
+        return await self._client.sync_canvas_edges(canvas_name, edges)
+
+    async def cleanup(self) -> None:
+        return await self._client.cleanup()
 
 
-# Singleton instance
+# =============================================================================
+# Singleton management
+# =============================================================================
+
 _client_instance: Optional[GraphitiEdgeClient] = None
+
+
+def get_graphiti_edge_client(
+    neo4j_client: Optional["Neo4jClient"] = None,
+    timeout_ms: int = 2000,
+    batch_size: int = 10,
+) -> GraphitiEdgeClient:
+    """
+    Get or create GraphitiEdgeClient singleton.
+
+    Story 36.1: Factory function with Neo4jClient dependency injection.
+
+    Args:
+        neo4j_client: Optional Neo4jClient instance (created if not provided)
+        timeout_ms: Timeout in milliseconds
+        batch_size: Batch size for edge sync
+
+    Returns:
+        GraphitiEdgeClient instance
+
+    [Source: docs/stories/36.1.story.md#Task-4.2]
+    """
+    global _client_instance
+
+    if _client_instance is None:
+        if neo4j_client is None:
+            from .neo4j_client import get_neo4j_client
+            neo4j_client = get_neo4j_client()
+
+        _client_instance = GraphitiEdgeClient(
+            neo4j_client=neo4j_client,
+            timeout_ms=timeout_ms,
+            batch_size=batch_size,
+        )
+
+    return _client_instance
 
 
 def get_graphiti_client(
     timeout_ms: int = 2000,
     enabled: bool = True
-) -> GraphitiEdgeClient:
+) -> GraphitiEdgeClientAdapter:
     """
-    Get or create GraphitiEdgeClient singleton.
+    DEPRECATED: Get GraphitiEdgeClient with legacy signature.
+
+    Use get_graphiti_edge_client() instead.
 
     Args:
         timeout_ms: Timeout in milliseconds
         enabled: Whether sync is enabled
 
     Returns:
-        GraphitiEdgeClient instance
+        GraphitiEdgeClientAdapter for backward compatibility
     """
-    global _client_instance
-
-    if _client_instance is None:
-        _client_instance = GraphitiEdgeClient(
-            timeout_ms=timeout_ms,
-            enabled=enabled
-        )
-
-    return _client_instance
+    warnings.warn(
+        "get_graphiti_client() is deprecated. "
+        "Use get_graphiti_edge_client() instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    return GraphitiEdgeClientAdapter(
+        timeout_ms=timeout_ms,
+        enabled=enabled
+    )
 
 
 def reset_graphiti_client() -> None:
-    """Reset singleton instance (for testing)"""
+    """Reset singleton instance (for testing)."""
     global _client_instance
     _client_instance = None
 

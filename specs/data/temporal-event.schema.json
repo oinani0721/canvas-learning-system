@@ -2,14 +2,15 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://canvas-learning.com/schemas/temporal-event.schema.json",
   "x-source-verification": {
-    "verified_at": "2025-11-25T19:15:00Z",
+    "verified_at": "2026-01-17T00:00:00Z",
     "sources": [
       {"type": "context7", "library_id": "/json-schema-org/json-schema-spec", "topic": "draft-07 schema validation"},
-      {"type": "prd", "section": "FR2", "epic": "Epic 12"}
+      {"type": "prd", "section": "FR2", "epic": "Epic 12"},
+      {"type": "story", "section": "Task-6.2", "story": "30.8"}
     ]
   },
   "title": "时序学习事件",
-  "description": "Temporal Memory中的学习事件记录 (Epic 12). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
+  "description": "Temporal Memory中的学习事件记录 (Epic 12, Story 30.8). Context7 Verified: /json-schema-org/json-schema-spec (draft-07)",
   "type": "object",
   "properties": {
     "event_id": {
@@ -21,6 +22,18 @@
       "type": "string",
       "description": "会话ID"
     },
+    "subject": {
+      "type": "string",
+      "description": "学科名称，从canvas_path自动推断或手动指定 (AC-30.8.2/AC-30.8.4)",
+      "x-story": "30.8"
+    },
+    "group_id": {
+      "type": "string",
+      "description": "命名空间隔离ID，用于多学科隔离 (AC-30.8.1). 支持Unicode字符(中文等)",
+      "pattern": "^[\\w]+(:[\\w]+)?$",
+      "x-story": "30.8",
+      "examples": ["数学", "math", "托福_listening"]
+    },
     "event_type": {
       "type": "string",
       "enum": [
@@ -31,9 +44,11 @@
         "concept_reviewed",
         "canvas_opened",
         "node_created",
-        "node_updated"
+        "node_updated",
+        "edge_created",
+        "color_changed"
       ],
-      "description": "事件类型"
+      "description": "事件类型 (Story 30.5 AC-30.5.2添加edge_created)"
     },
     "timestamp": {
       "type": "string",
@@ -47,6 +62,10 @@
     "node_id": {
       "type": "string",
       "description": "关联节点ID（可选）"
+    },
+    "edge_id": {
+      "type": "string",
+      "description": "关联边ID（可选）(Story 30.5 AC-30.5.2)"
     },
     "agent_type": {
       "type": "string",
@@ -71,6 +90,26 @@
         "result_count": {
           "type": "integer",
           "description": "结果数量"
+        },
+        "old_color": {
+          "type": "string",
+          "enum": ["1", "2", "3", "4", "5", "6"],
+          "description": "变化前颜色代码 (Story 30.3 AC-30.3.11)"
+        },
+        "new_color": {
+          "type": "string",
+          "enum": ["1", "2", "3", "4", "5", "6"],
+          "description": "变化后颜色代码 (Story 30.3 AC-30.3.11)"
+        },
+        "old_level": {
+          "type": "string",
+          "enum": ["not_understood", "learning", "mastered", "pending_verification"],
+          "description": "变化前掌握等级 (Story 30.3 AC-30.3.11)"
+        },
+        "new_level": {
+          "type": "string",
+          "enum": ["not_understood", "learning", "mastered", "pending_verification"],
+          "description": "变化后掌握等级 (Story 30.3 AC-30.3.11)"
         }
       }
     },

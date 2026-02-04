@@ -8,8 +8,10 @@ Provides 6 endpoints for Canvas file and node/edge operations.
 """
 
 
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Depends, Response, status
+from pydantic import BaseModel
 
+from app.dependencies import CanvasServiceDep
 from app.models import (
     CanvasResponse,
     EdgeCreate,
@@ -19,6 +21,26 @@ from app.models import (
     NodeRead,
     NodeUpdate,
 )
+
+
+# =============================================================================
+# Response Models (Story 36.4)
+# =============================================================================
+
+class SyncEdgesSummaryResponse(BaseModel):
+    """
+    Edge sync summary response.
+
+    Story 36.4: Canvas打开时全量Edge同步
+    [Source: docs/stories/36.4.story.md#Task-2]
+    """
+    canvas_path: str
+    total_edges: int
+    synced_count: int
+    failed_count: int
+    skipped_count: int
+    sync_time_ms: float
+
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 # APIRouter(prefix, tags, responses) for modular routing
@@ -187,3 +209,41 @@ async def delete_edge(canvas_name: str, edge_id: str) -> Response:
     """
     # Placeholder implementation
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Layer4-Knowledge Endpoints (Story 36.4)
+# [Source: docs/stories/36.4.story.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@canvas_router.post(
+    "/{canvas_name}/sync-edges",
+    response_model=SyncEdgesSummaryResponse,
+    summary="Sync all Canvas edges to Neo4j",
+    operation_id="sync_canvas_edges",
+    tags=["Layer4-Knowledge"],
+)
+async def sync_edges(
+    canvas_name: str,
+    canvas_service: CanvasServiceDep,
+) -> SyncEdgesSummaryResponse:
+    """
+    Sync all Canvas edges to Neo4j knowledge graph.
+
+    - **canvas_name**: Canvas file name (without .canvas extension)
+    - Idempotent: repeated calls do not create duplicate relationships (MERGE semantics)
+    - Concurrent: up to 12 edges synced in parallel
+    - Partial failure handling: single edge failure does not block batch
+
+    Story 36.4: Canvas打开时全量Edge同步
+    [Source: docs/stories/36.4.story.md#AC-1]
+    """
+    summary = await canvas_service.sync_all_edges_to_neo4j(canvas_name)
+    return SyncEdgesSummaryResponse(
+        canvas_path=summary["canvas_path"],
+        total_edges=summary["total_edges"],
+        synced_count=summary["synced_count"],
+        failed_count=summary["failed_count"],
+        skipped_count=summary["skipped_count"],
+        sync_time_ms=summary["sync_time_ms"]
+    )

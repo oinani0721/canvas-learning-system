@@ -3,9 +3,10 @@
  *
  * Service for managing review history data and trend analysis.
  * Implements Story 14.6: 复习历史查看 + 趋势分析
+ * Story 34.4: Review history pagination with default limit=5
  *
  * @module HistoryService
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 import type { App } from 'obsidian';
@@ -41,13 +42,18 @@ export class HistoryService {
 
     /**
      * Get review history entries for a time range
+     * Story 34.4: Added limit parameter (default 5) and hasMore flag
      * @param timeRange - Time range ('7d' or '30d')
-     * @returns Promise<HistoryEntry[]>
+     * @param limit - Maximum entries to return (null = all, default = 5)
+     * @returns Promise<{entries: HistoryEntry[], hasMore: boolean, totalCount: number}>
      */
-    async getReviewHistory(timeRange: HistoryTimeRange): Promise<HistoryEntry[]> {
+    async getReviewHistory(
+        timeRange: HistoryTimeRange,
+        limit: number | null = 5
+    ): Promise<{ entries: HistoryEntry[]; hasMore: boolean; totalCount: number }> {
         if (!this.dbManager) {
             console.warn('[HistoryService] Database manager not initialized');
-            return [];
+            return { entries: [], hasMore: false, totalCount: 0 };
         }
 
         const days = timeRange === '7d' ? 7 : 30;
@@ -58,7 +64,7 @@ export class HistoryService {
             const reviewRecordDAO = this.dbManager.getReviewRecordDAO();
             const records = await reviewRecordDAO.getReviewsSince(startDate);
 
-            return records.map((record: any) => ({
+            const allEntries = records.map((record: any) => ({
                 id: record.id || `history-${Date.now()}-${Math.random()}`,
                 canvasPath: record.canvas_path || record.canvasPath || '',
                 canvasTitle: this.extractCanvasTitle(record.canvas_path || record.canvasPath || ''),
@@ -69,9 +75,28 @@ export class HistoryService {
                 memoryStrength: record.memory_strength || record.memoryStrength || 0,
                 duration: record.duration,
             }));
+
+            // Sort by reviewDate descending (newest first) - Story 34.4 AC1
+            allEntries.sort((a: HistoryEntry, b: HistoryEntry) =>
+                b.reviewDate.getTime() - a.reviewDate.getTime()
+            );
+
+            const totalCount = allEntries.length;
+
+            // Story 34.4: Apply limit if specified
+            if (limit !== null && limit > 0) {
+                const limitedEntries = allEntries.slice(0, limit);
+                return {
+                    entries: limitedEntries,
+                    hasMore: totalCount > limit,
+                    totalCount,
+                };
+            }
+
+            return { entries: allEntries, hasMore: false, totalCount };
         } catch (error) {
             console.error('[HistoryService] Failed to get review history:', error);
-            return [];
+            return { entries: [], hasMore: false, totalCount: 0 };
         }
     }
 
@@ -233,23 +258,35 @@ export class HistoryService {
 
     /**
      * Load complete history view state
+     * Story 34.4: Added showAll parameter for pagination
      * @param timeRange - Time range
+     * @param showAll - If true, load all records; if false, limit to 5 (default)
      * @returns Promise<HistoryViewState>
      */
-    async loadHistoryState(timeRange: HistoryTimeRange): Promise<HistoryViewState> {
+    async loadHistoryState(
+        timeRange: HistoryTimeRange,
+        showAll: boolean = false
+    ): Promise<HistoryViewState> {
         try {
-            const [entries, dailyStats, canvasTrends] = await Promise.all([
-                this.getReviewHistory(timeRange),
+            // Story 34.4 AC1/AC2: Default limit=5, showAll=true removes limit
+            const limit = showAll ? null : 5;
+
+            const [historyResult, dailyStats, canvasTrends] = await Promise.all([
+                this.getReviewHistory(timeRange, limit),
                 this.getDailyStatistics(timeRange),
                 this.getAllCanvasTrends(timeRange),
             ]);
 
             return {
-                entries,
+                entries: historyResult.entries,
                 dailyStats,
                 canvasTrends,
                 timeRange,
                 loading: false,
+                // Story 34.4: Add pagination metadata
+                hasMore: historyResult.hasMore,
+                totalCount: historyResult.totalCount,
+                showAll,
             };
         } catch (error) {
             console.error('[HistoryService] Failed to load history state:', error);
@@ -257,6 +294,9 @@ export class HistoryService {
                 ...DEFAULT_HISTORY_STATE,
                 timeRange,
                 loading: false,
+                hasMore: false,
+                totalCount: 0,
+                showAll: false,
             };
         }
     }

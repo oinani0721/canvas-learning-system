@@ -1,0 +1,80 @@
+schema: 1
+story: '36.8'
+story_title: '跨Canvas上下文自动注入'
+gate: PASS
+status_reason: '所有6个AC已完整实现并测试，代码质量优秀(90/100)，654行测试覆盖全部场景'
+reviewer: 'Quinn (Test Architect)'
+updated: '2026-01-31T12:45:00+08:00'
+
+top_issues: []
+waiver: { active: false }
+
+quality_score: 90
+expires: '2026-02-14T12:45:00+08:00'
+
+evidence:
+  tests_reviewed: 654
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: '无用户输入直接执行，无敏感数据暴露'
+  performance:
+    status: PASS
+    notes: '30s TTL缓存 + asyncio.gather并行 + structlog监控，测试验证<200ms'
+  reliability:
+    status: PASS
+    notes: 'Neo4j fallback降级机制完善，确保系统可用性'
+  maintainability:
+    status: PASS
+    notes: '代码组织清晰，单一职责原则，方法职责明确'
+
+recommendations:
+  immediate: []
+  future:
+    - action: '考虑添加embedding-based语义相似度提升AC2准确性'
+      refs: ['backend/app/services/context_enrichment_service.py']
+
+# Implementation Details
+implementation_summary:
+  key_files:
+    - path: 'backend/app/services/context_enrichment_service.py'
+      changes: 'Task 1-5完整实现: is_exercise_canvas(), extract_top_knowledge_points(), 缓存机制'
+    - path: 'backend/tests/integration/test_cross_canvas_injection.py'
+      changes: '654行测试代码，7个测试类覆盖所有AC'
+
+  ac_implementation:
+    AC1:
+      method: '_should_inject_cross_canvas_context()'
+      test_class: 'TestExerciseCanvasDetection'
+    AC2:
+      method: 'extract_top_knowledge_points()'
+      scoring: '40%语义相似度 + 30%位置 + 30%颜色优先级'
+      test_class: 'TestKnowledgePointExtraction'
+    AC3:
+      method: '_format_cross_canvas_context()'
+      format: '[参见讲座: {lecture_name}] {content}'
+      test_class: 'TestFormatOutputSpecification'
+    AC4:
+      patterns: 14  # 习题, 练习, 题目, exam, exercise, etc.
+      threshold: 0.6
+      test_class: 'TestConfidenceThreshold'
+    AC5:
+      cache_ttl: 30  # seconds
+      parallel: 'asyncio.gather()'
+      monitoring: 'structlog'
+      test_class: 'TestPerformance'
+    AC6:
+      fallback: 'in-memory associations'
+      test_class: 'TestNeo4jFallback'
+
+# Status Anomaly
+status_anomaly:
+  current_status: 'Ready'
+  expected_status: 'Review or Done'
+  reason: 'Code is fully implemented but story status not updated'
+  action: 'Update story status to Done after QA approval'

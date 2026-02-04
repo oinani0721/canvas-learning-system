@@ -24,6 +24,15 @@ import type {
 } from '../types/UITypes';
 import type { DataManager } from '../database/DataManager';
 import type { ReviewRecord } from '../types/DataTypes';
+// Story 30.7 AC-30.7.3: Import memory and priority services for real memory-based priority
+import type { MemoryQueryService, MemoryQueryResult } from './MemoryQueryService';
+import {
+    PriorityCalculatorService,
+    createPriorityCalculatorService,
+    FSRSCardState,
+} from './PriorityCalculatorService';
+// Story 32.3 AC-32.3.4: Import FSRS state query service for backend FSRS state integration
+import type { FSRSStateQueryService, FSRSStateQueryResponse, FSRSState } from './FSRSStateQueryService';
 
 /**
  * Priority urgency levels mapped to display colors
@@ -93,9 +102,17 @@ export class TodayReviewListService {
     private cache: Map<string, TodayReviewItem[]> = new Map();
     private cacheTimestamp: number = 0;
     private readonly CACHE_TTL_MS = 60000; // 1 minute cache
+    /** Story 30.7 AC-30.7.3: MemoryQueryService for real memory queries */
+    private memoryQueryService: MemoryQueryService | null = null;
+    /** Story 30.7 AC-30.7.3: PriorityCalculatorService for 4-dimensional priority */
+    private priorityCalculatorService: PriorityCalculatorService;
+    /** Story 32.3 AC-32.3.4: FSRSStateQueryService for backend FSRS state queries */
+    private fsrsStateQueryService: FSRSStateQueryService | null = null;
 
     constructor(app: App) {
         this.app = app;
+        // Story 30.7 AC-30.7.3: Initialize PriorityCalculatorService
+        this.priorityCalculatorService = createPriorityCalculatorService(app);
     }
 
     /**
@@ -107,8 +124,37 @@ export class TodayReviewListService {
     }
 
     /**
+     * Story 30.7 AC-30.7.3: Set memory query service reference
+     *
+     * Called from plugin main.ts after memory services are initialized.
+     * Enables real memory-based priority calculation.
+     *
+     * @param memoryService - MemoryQueryService instance from plugin
+     */
+    setMemoryQueryService(memoryService: MemoryQueryService | null): void {
+        this.memoryQueryService = memoryService;
+        this.clearCache();
+    }
+
+    /**
+     * Story 32.3 AC-32.3.4: Set FSRS state query service reference
+     *
+     * Called from plugin main.ts after services are initialized.
+     * Enables real FSRS state-based priority calculation from backend.
+     *
+     * @param fsrsService - FSRSStateQueryService instance from plugin
+     */
+    setFSRSStateQueryService(fsrsService: FSRSStateQueryService | null): void {
+        this.fsrsStateQueryService = fsrsService;
+        this.clearCache();
+    }
+
+    /**
      * Get today's review items sorted by priority
      * AC: 1, 6 - Display today's due concepts with priority sorting
+     *
+     * Story 30.7 AC-30.7.3: Now uses real memory-based priority calculation
+     * via PriorityCalculatorService and MemoryQueryService.
      */
     async getTodayReviewItems(forceRefresh = false): Promise<TodayReviewItem[]> {
         // Check cache
@@ -125,8 +171,11 @@ export class TodayReviewListService {
             const reviewRecordDAO = this.dbManager.getReviewRecordDAO();
             const dueRecords = await reviewRecordDAO.getDueForReview(new Date());
 
-            const items: TodayReviewItem[] = dueRecords.map((record: ReviewRecord) =>
-                this.convertToTodayReviewItem(record)
+            // Story 30.7 AC-30.7.3: Use async mapping with real memory queries
+            const items: TodayReviewItem[] = await Promise.all(
+                dueRecords.map((record: ReviewRecord) =>
+                    this.convertToTodayReviewItemAsync(record)
+                )
             );
 
             // Sort by priority (default)
@@ -545,9 +594,15 @@ export class TodayReviewListService {
     }
 
     /**
-     * Convert a ReviewRecord to TodayReviewItem
+     * Story 30.7 AC-30.7.3: Convert ReviewRecord to TodayReviewItem with real memory query
+     *
+     * Uses MemoryQueryService to get real memory data, then PriorityCalculatorService
+     * to calculate 4-dimensional priority (FSRS 40%, Behavior 30%, Network 20%, Interaction 10%).
+     *
+     * @param record - ReviewRecord from database
+     * @returns TodayReviewItem with real memory-based priority
      */
-    private convertToTodayReviewItem(record: ReviewRecord): TodayReviewItem {
+    private async convertToTodayReviewItemAsync(record: ReviewRecord): Promise<TodayReviewItem> {
         const now = new Date();
         const dueDate = record.nextReviewDate
             ? new Date(record.nextReviewDate)
@@ -565,7 +620,23 @@ export class TodayReviewListService {
             ? Math.floor((now.getTime() - lastReviewDate.getTime()) / (1000 * 60 * 60 * 24))
             : 0;
 
-        const priority = this.calculatePriority(overdueDays, record.memoryStrength);
+        // Story 30.7 AC-30.7.3: Query real memory data and use PriorityCalculatorService
+        // Story 32.3 AC-32.3.4: Query FSRS state from backend for accurate priority calculation
+        // Story 32.4 AC-32.4.1: Query actual review count from database
+        const conceptId = record.conceptId || '';
+        const [memoryResult, fsrsCardState, reviewCount] = await Promise.all([
+            this.queryConceptMemory(conceptId),
+            this.queryFSRSStateForPriority(conceptId),
+            this.queryReviewCount(conceptId),
+        ]);
+        const priorityResult = this.priorityCalculatorService.calculatePriority(
+            conceptId,
+            fsrsCardState, // Story 32.3: Now using real FSRS state from backend
+            memoryResult,
+            record.canvasId || undefined
+        );
+
+        const priority = priorityResult.priorityTier;
         const priorityInfo = PRIORITY_CONFIG[priority];
 
         return {
@@ -580,7 +651,7 @@ export class TodayReviewListService {
             overdueDays,
             memoryStrength: record.memoryStrength || 0,
             retentionRate: record.retentionRate || 0,
-            reviewCount: 1, // Would need tracking in schema
+            reviewCount, // Story 32.4: Real review count from database
             lastReviewDate,
             daysSinceLastReview,
             scheduledDate: dueDate,
@@ -591,9 +662,165 @@ export class TodayReviewListService {
     }
 
     /**
-     * Calculate priority based on overdue days and memory strength
+     * Story 30.7 AC-30.7.3: Query memory for a concept
+     *
+     * Graceful degradation: returns null if memory service unavailable.
+     *
+     * @param conceptId - Concept identifier
+     * @returns MemoryQueryResult or null
      */
-    private calculatePriority(overdueDays: number, memoryStrength: number): TaskPriority {
+    private async queryConceptMemory(conceptId: string): Promise<MemoryQueryResult | null> {
+        if (!this.memoryQueryService || !conceptId) {
+            return null;
+        }
+        try {
+            return await this.memoryQueryService.queryConceptMemory(conceptId);
+        } catch (error) {
+            console.warn('[TodayReviewListService] Memory query failed, using defaults:', error);
+            return null; // Silent degradation - PriorityCalculatorService handles null
+        }
+    }
+
+    /**
+     * Story 32.4 AC-32.4.1: Query review count for a concept
+     *
+     * Graceful degradation: returns 1 if DAO unavailable or query fails.
+     *
+     * @param conceptId - Concept identifier
+     * @returns Review count or 1 as fallback
+     */
+    private async queryReviewCount(conceptId: string): Promise<number> {
+        if (!this.dbManager || !conceptId) {
+            return 1; // Graceful fallback
+        }
+        try {
+            const reviewRecordDAO = this.dbManager.getReviewRecordDAO();
+            return await reviewRecordDAO.getReviewCountByConceptId(conceptId);
+        } catch (error) {
+            console.warn('[TodayReviewListService] Review count query failed, using default:', error);
+            return 1; // Silent degradation
+        }
+    }
+
+    /**
+     * Story 32.3 AC-32.3.4: Query FSRS state from backend and convert to FSRSCardState
+     *
+     * Graceful degradation: returns null if FSRS service unavailable or query fails.
+     * PriorityCalculatorService handles null FSRS state with neutral priority.
+     *
+     * @param conceptId - Concept identifier
+     * @returns FSRSCardState or null
+     */
+    private async queryFSRSStateForPriority(conceptId: string): Promise<FSRSCardState | null> {
+        if (!this.fsrsStateQueryService || !conceptId) {
+            return null;
+        }
+        try {
+            const response = await this.fsrsStateQueryService.queryFSRSState(conceptId);
+            if (!response || !response.found || !response.fsrs_state) {
+                return null;
+            }
+            return this.convertFSRSStateToCardState(conceptId, response.fsrs_state);
+        } catch (error) {
+            console.warn('[TodayReviewListService] FSRS state query failed, using defaults:', error);
+            return null; // Silent degradation - PriorityCalculatorService handles null
+        }
+    }
+
+    /**
+     * Story 32.3 AC-32.3.4: Convert backend FSRSState to PriorityCalculator FSRSCardState
+     *
+     * Maps backend FSRS state format to the format expected by PriorityCalculatorService.
+     *
+     * @param conceptId - Concept identifier
+     * @param state - FSRSState from backend
+     * @returns FSRSCardState for PriorityCalculatorService
+     */
+    private convertFSRSStateToCardState(conceptId: string, state: FSRSState): FSRSCardState {
+        // Map numeric state to string state
+        const stateMap: Record<number, 'new' | 'learning' | 'review' | 'relearning'> = {
+            0: 'new',
+            1: 'learning',
+            2: 'review',
+            3: 'relearning',
+        };
+
+        // Parse due date or use default (now for overdue/new cards)
+        const now = new Date();
+        const nextReview = state.due ? new Date(state.due) : now;
+
+        // Calculate last review based on stability and due date
+        // Approximation: lastReview = due - (stability * (1 - ln(0.9) / -1))
+        // Simplified: assume last review was stability days before due
+        const lastReview = new Date(nextReview);
+        lastReview.setDate(lastReview.getDate() - Math.round(state.stability));
+
+        return {
+            conceptId,
+            stability: state.stability,
+            difficulty: state.difficulty,
+            lastReview,
+            nextReview,
+            reps: state.reps,
+            lapses: state.lapses,
+            state: stateMap[state.state] || 'new',
+        };
+    }
+
+    /**
+     * Convert a ReviewRecord to TodayReviewItem (legacy sync version)
+     * @deprecated Use convertToTodayReviewItemAsync for real memory-based priority
+     * @param record - ReviewRecord from database
+     * @param reviewCount - Optional review count (defaults to 1 for backward compatibility)
+     */
+    private convertToTodayReviewItemLegacy(record: ReviewRecord, reviewCount: number = 1): TodayReviewItem {
+        const now = new Date();
+        const dueDate = record.nextReviewDate
+            ? new Date(record.nextReviewDate)
+            : new Date();
+
+        const overdueDays = Math.floor(
+            (now.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        const lastReviewDate = record.reviewDate
+            ? new Date(record.reviewDate)
+            : undefined;
+
+        const daysSinceLastReview = lastReviewDate
+            ? Math.floor((now.getTime() - lastReviewDate.getTime()) / (1000 * 60 * 60 * 24))
+            : 0;
+
+        const priority = this.calculatePriorityLegacy(overdueDays, record.memoryStrength);
+        const priorityInfo = PRIORITY_CONFIG[priority];
+
+        return {
+            id: record.id?.toString() || `item-${Date.now()}-${Math.random()}`,
+            canvasId: record.canvasId || '',
+            canvasPath: record.canvasId || '',
+            canvasTitle: this.extractCanvasTitle(record.canvasId || ''),
+            conceptName: record.conceptId || 'Unknown Concept',
+            nodeId: record.conceptId,
+            priority,
+            dueDate,
+            overdueDays,
+            memoryStrength: record.memoryStrength || 0,
+            retentionRate: record.retentionRate || 0,
+            reviewCount, // Story 32.4: Passed from caller or defaults to 1
+            lastReviewDate,
+            daysSinceLastReview,
+            scheduledDate: dueDate,
+            urgencyLabel: priorityInfo.label,
+            urgencyColor: priorityInfo.color,
+            status: this.mapStatus(record.status),
+        };
+    }
+
+    /**
+     * Calculate priority based on overdue days and memory strength (legacy)
+     * @deprecated Use PriorityCalculatorService.calculatePriority() for real memory-based priority
+     */
+    private calculatePriorityLegacy(overdueDays: number, memoryStrength: number): TaskPriority {
         // Critical: overdue by 3+ days OR very low memory strength
         if (overdueDays >= 3 || memoryStrength < 0.2) {
             return 'critical';
