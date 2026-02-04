@@ -32,6 +32,14 @@ temp_*
 .bmad-core/
 .bmad-prompt.txt
 .pre-commit-config.yaml
+README-BMAD-WORKFLOW.md
+bmad_orchestrator.db*
+src/bmad_orchestrator/
+src/tests/test_bmad_*.py
+docs/BMAD*.md
+docs/RESEARCH_REPORT_BMAD*.md
+docs/architecture/decisions/*bmad*.md
+logs/bmad-*.jsonl
 
 # Claude Code 配置 (个人配置)
 .claude/
