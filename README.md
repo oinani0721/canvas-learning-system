@@ -12,6 +12,12 @@
   <img src="https://img.shields.io/badge/License-MIT-green" alt="MIT License"/>
 </p>
 
+<p align="center">
+  <a href="https://github.com/oinani0721/canvas-learning-system/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=oinani0721/canvas-learning-system" alt="Contributors"/>
+  </a>
+</p>
+
 ---
 
 ## Overview
