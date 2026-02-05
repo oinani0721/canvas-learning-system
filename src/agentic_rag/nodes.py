@@ -236,6 +236,7 @@ async def retrieve_lancedb(
     # 获取配置 (Story 12.K.2: Safe config access)
     batch_size = _safe_get_config(runtime, "lancedb_batch_size") or _safe_get_config(runtime, "retrieval_batch_size", 10)
     canvas_file = state.get("canvas_file")
+    subject = state.get("subject")
 
     # ✅ Story 12.2: 使用真实LanceDB客户端
     try:
@@ -245,6 +246,7 @@ async def retrieve_lancedb(
         lancedb_results = await client.search_multiple_tables(
             query=query,
             canvas_file=canvas_file,
+            subject=subject,
             num_results_per_table=batch_size // 2 + 1  # 每个表返回一半结果
         )
 

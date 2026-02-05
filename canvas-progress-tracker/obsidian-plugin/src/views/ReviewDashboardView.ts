@@ -10,7 +10,7 @@
  * ✅ Verified from Context7: /obsidianmd/obsidian-api (ItemView Class)
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, Menu, TFile } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Menu, TFile, requestUrl } from 'obsidian';
 import type CanvasReviewPlugin from '../../main';
 import {
     ReviewTask,
@@ -187,6 +187,36 @@ export class ReviewDashboardView extends ItemView {
                     };
                 })
             );
+
+            // Batch query subject/category from backend for each unique canvas
+            try {
+                const uniqueCanvasIds = [...new Set(tasks.map(t => t.canvasId))];
+                const subjectMap = new Map<string, { subject: string; category: string }>();
+                const apiBase = this.plugin.settings.apiBaseUrl || 'http://localhost:8000';
+
+                await Promise.all(uniqueCanvasIds.map(async (canvasId) => {
+                    try {
+                        const resp = await requestUrl({
+                            url: `${apiBase}/api/v1/canvas-meta/metadata?canvas_path=${encodeURIComponent(canvasId)}`,
+                            method: 'GET',
+                        });
+                        if (resp.status === 200 && resp.json) {
+                            subjectMap.set(canvasId, {
+                                subject: resp.json.subject || 'general',
+                                category: resp.json.category || 'general',
+                            });
+                        }
+                    } catch { /* silent fail per canvas */ }
+                }));
+
+                for (const task of tasks) {
+                    const info = subjectMap.get(task.canvasId);
+                    if (info) {
+                        task.subject = info.subject;
+                        task.category = info.category;
+                    }
+                }
+            } catch { /* silent fail for entire subject query */ }
 
             // Calculate dashboard statistics
             // Story 32.4 AC-32.4.2: Pass real streakDays to statistics calculation
@@ -2038,6 +2068,16 @@ export class ReviewDashboardView extends ItemView {
         const canvasIcon = canvasInfo.createSpan();
         setIcon(canvasIcon, 'file-text');
         canvasInfo.createSpan({ text: task.canvasTitle, cls: 'canvas-title' });
+
+        // Subject badge
+        if (task.subject && task.subject !== 'general') {
+            const subjectBadge = canvasInfo.createSpan({
+                cls: 'subject-badge',
+                text: task.subject,
+            });
+            subjectBadge.style.cssText =
+                'margin-left:6px;padding:1px 6px;border-radius:3px;font-size:11px;background:var(--interactive-accent);color:var(--text-on-accent);opacity:0.85;';
+        }
 
         // Badges
         const badges = header.createDiv({ cls: 'header-badges' });

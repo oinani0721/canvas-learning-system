@@ -168,6 +168,10 @@ export interface ReviewTask {
     lastReviewDate?: Date;
     /** Task status */
     status: 'pending' | 'in_progress' | 'completed' | 'postponed';
+    /** 学科标识 (从后端 SubjectResolver 解析) */
+    subject?: string;
+    /** 学科分类 */
+    category?: string;
 }
 
 // ============================================================================

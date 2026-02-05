@@ -116,6 +116,7 @@ class CanvasRAGState(MessagesState):
 
     # 上下文字段
     canvas_file: Annotated[Optional[str], "Canvas文件路径"]
+    subject: Annotated[Optional[str], "学科标识(用于LanceDB隔离)"]
     is_review_canvas: Annotated[bool, "是否为检验白板场景"]
 
     # 原始Query (用于重写)

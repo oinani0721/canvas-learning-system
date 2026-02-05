@@ -418,6 +418,7 @@ class LanceDBClient:
         query: str,
         table_name: str = "canvas_explanations",
         canvas_file: Optional[str] = None,
+        subject: Optional[str] = None,
         num_results: int = 10,
         metric: str = "cosine"
     ) -> List[Dict[str, Any]]:
@@ -432,6 +433,7 @@ class LanceDBClient:
             query: 搜索查询 (文本或向量)
             table_name: 表名
             canvas_file: Canvas文件路径(用于过滤)
+            subject: 学科标识(用于学科隔离过滤)
             num_results: 返回结果数量
             metric: 距离度量 ("cosine" 或 "L2")
 
@@ -453,6 +455,7 @@ class LanceDBClient:
                     query=query,
                     table_name=table_name,
                     canvas_file=canvas_file,
+                    subject=subject,
                     num_results=num_results,
                     metric=metric
                 ),
@@ -504,6 +507,7 @@ class LanceDBClient:
         query: str,
         table_name: str,
         canvas_file: Optional[str],
+        subject: Optional[str],
         num_results: int,
         metric: str
     ) -> List[Dict[str, Any]]:
@@ -538,6 +542,12 @@ class LanceDBClient:
             if canvas_file:
                 search_query = search_query.where(
                     f"canvas_file = '{canvas_file}'"
+                )
+
+            # 添加学科过滤 (如果提供)
+            if subject:
+                search_query = search_query.where(
+                    f"subject = '{subject}'"
                 )
 
             # 执行搜索
@@ -744,6 +754,7 @@ class LanceDBClient:
         query: str,
         table_names: Optional[List[str]] = None,
         canvas_file: Optional[str] = None,
+        subject: Optional[str] = None,
         num_results_per_table: int = 5
     ) -> List[Dict[str, Any]]:
         """
@@ -753,6 +764,7 @@ class LanceDBClient:
             query: 搜索查询
             table_names: 表名列表 (默认使用DEFAULT_TABLES)
             canvas_file: Canvas文件过滤
+            subject: 学科标识(用于学科隔离过滤)
             num_results_per_table: 每个表的结果数量
 
         Returns:
@@ -769,6 +781,7 @@ class LanceDBClient:
                     query=query,
                     table_name=table_name,
                     canvas_file=canvas_file,
+                    subject=subject,
                     num_results=num_results_per_table
                 )
                 all_results.extend(results)
