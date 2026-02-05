@@ -81,9 +81,11 @@ export class CrossCanvasService {
     private dbManager: DataManager | null = null;
     private associations: CrossCanvasAssociation[] = [];
     private knowledgePaths: KnowledgePath[] = [];
+    private apiBaseUrl: string;
 
-    constructor(app: App) {
+    constructor(app: App, apiBaseUrl?: string) {
         this.app = app;
+        this.apiBaseUrl = apiBaseUrl || BACKEND_API_BASE;
         this.loadData();
     }
 
@@ -281,7 +283,46 @@ export class CrossCanvasService {
         this.associations.push(association);
         this.saveAssociations();
 
+        // Sync to backend API (fire-and-forget, non-blocking)
+        // [Source: Epic 25 - Bridge frontend localStorage to backend Neo4j]
+        this.syncAssociationToBackend(association).catch(err =>
+            console.warn('[CrossCanvasService] Backend sync failed (non-blocking):', err)
+        );
+
         return association;
+    }
+
+    /**
+     * Sync a single association to the backend API
+     * Fire-and-forget with 5s timeout - failure does not block the UI
+     * [Source: Epic 25 Story 25.1 - Cross-Canvas Backend Integration]
+     */
+    private async syncAssociationToBackend(association: CrossCanvasAssociation): Promise<void> {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            const response = await fetch(`${this.apiBaseUrl}/api/v1/cross-canvas/associations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                signal: controller.signal,
+                body: JSON.stringify({
+                    source_canvas_path: association.sourceCanvasPath,
+                    target_canvas_path: association.targetCanvasPath,
+                    relationship_type: association.relationshipType,
+                    common_concepts: association.commonConcepts || [],
+                    confidence: association.confidence || 0.5,
+                }),
+            });
+
+            if (response.ok) {
+                console.log(`[CrossCanvasService] Synced association to backend: ${association.sourceCanvasPath} → ${association.targetCanvasPath}`);
+            } else {
+                console.warn(`[CrossCanvasService] Backend sync returned ${response.status}: ${response.statusText}`);
+            }
+        } finally {
+            clearTimeout(timeoutId);
+        }
     }
 
     /**
@@ -703,6 +744,6 @@ export class CrossCanvasService {
 /**
  * Factory function
  */
-export function createCrossCanvasService(app: App): CrossCanvasService {
-    return new CrossCanvasService(app);
+export function createCrossCanvasService(app: App, apiBaseUrl?: string): CrossCanvasService {
+    return new CrossCanvasService(app, apiBaseUrl);
 }

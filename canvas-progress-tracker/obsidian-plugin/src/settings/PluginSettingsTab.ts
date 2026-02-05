@@ -190,6 +190,9 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             case 'memory':
                 this.displayMemorySettings(this.contentContainer);
                 break;
+            case 'subjectIsolation':
+                this.displaySubjectIsolationSettings(this.contentContainer);
+                break;
             case 'errorHistory':
                 this.displayErrorHistorySettings(this.contentContainer);
                 break;
@@ -1285,6 +1288,296 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             .addButton(button => button
                 .setButtonText('📋 查看错误日志')
                 .onClick(() => this.showMemorySystemLogs()));
+    }
+
+    /**
+     * Display Subject Isolation settings (EPIC 30 Part 3)
+     * Manages multi-subject memory space isolation via backend CRUD API
+     */
+    private displaySubjectIsolationSettings(container: HTMLElement): void {
+        const settings = this.plugin.settings;
+        const baseUrl = settings.claudeCodeUrl || 'http://localhost:8000';
+
+        // ========== Basic Configuration ==========
+        this.createSettingGroup(container, '基本配置');
+
+        new Setting(container)
+            .setName('启用多学科隔离')
+            .setDesc('为不同学科(数学/物理/CS等)使用独立的记忆空间')
+            .addToggle(toggle => toggle
+                .setValue(settings.enableSubjectIsolation)
+                .onChange(async (value) => {
+                    settings.enableSubjectIsolation = value;
+                    await this.plugin.saveSettings();
+                    this.displaySection('subjectIsolation');
+                }));
+
+        new Setting(container)
+            .setName('默认学科')
+            .setDesc('当Canvas路径不匹配任何规则时的默认学科')
+            .addText(text => text
+                .setPlaceholder('general')
+                .setValue(settings.defaultSubject)
+                .onChange(async (value) => {
+                    settings.defaultSubject = value || 'general';
+                    await this.plugin.saveSettings();
+                }));
+
+        // ========== Subject Mapping Rules ==========
+        this.createSettingGroup(container, '学科映射规则');
+
+        // Table container for mapping rules
+        const tableContainer = container.createDiv('subject-mapping-table-container');
+        const loadingEl = tableContainer.createEl('p', { text: '点击下方按钮从后端加载映射规则...' });
+
+        // Load button
+        new Setting(container)
+            .setName('从后端加载')
+            .setDesc('从后端 subject_mapping.yaml 加载映射配置')
+            .addButton(button => button
+                .setButtonText('🔄 从后端加载')
+                .setCta()
+                .onClick(async () => {
+                    button.setDisabled(true);
+                    button.setButtonText('加载中...');
+                    await this.loadSubjectMappings(tableContainer, baseUrl);
+                    button.setDisabled(false);
+                    button.setButtonText('🔄 从后端加载');
+                }));
+
+        // ========== Add New Mapping ==========
+        this.createSettingGroup(container, '添加新映射');
+
+        let newPattern = '';
+        let newSubject = '';
+        let newCategory = '';
+
+        new Setting(container)
+            .setName('路径模式')
+            .setDesc('Canvas 文件路径匹配模式（如 Math 54/**）')
+            .addText(text => text
+                .setPlaceholder('Math 54/**')
+                .onChange(value => { newPattern = value; }));
+
+        new Setting(container)
+            .setName('学科')
+            .setDesc('学科标识符（如 math54）')
+            .addText(text => text
+                .setPlaceholder('math54')
+                .onChange(value => { newSubject = value; }));
+
+        new Setting(container)
+            .setName('分类')
+            .setDesc('学科分类（如 math, cs, language）')
+            .addText(text => text
+                .setPlaceholder('math')
+                .onChange(value => { newCategory = value; }));
+
+        new Setting(container)
+            .setName('添加映射')
+            .setDesc('将新规则添加到后端配置')
+            .addButton(button => button
+                .setButtonText('➕ 添加映射')
+                .setCta()
+                .onClick(async () => {
+                    if (!newPattern || !newSubject || !newCategory) {
+                        new Notice('❌ 请填写所有字段');
+                        return;
+                    }
+                    button.setDisabled(true);
+                    button.setButtonText('添加中...');
+                    try {
+                        const url = `${baseUrl}/api/v1/canvas-meta/config/subject-mapping/add?pattern=${encodeURIComponent(newPattern)}&subject=${encodeURIComponent(newSubject)}&category=${encodeURIComponent(newCategory)}`;
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            signal: AbortSignal.timeout(10000)
+                        });
+                        if (response.ok) {
+                            new Notice(`✅ 已添加映射: ${newPattern} → ${newSubject}`);
+                            await this.loadSubjectMappings(tableContainer, baseUrl);
+                        } else {
+                            const errData = await response.json().catch(() => ({}));
+                            new Notice(`❌ 添加失败: ${errData.detail || `HTTP ${response.status}`}`);
+                        }
+                    } catch (error) {
+                        new Notice(`❌ 添加失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                    }
+                    button.setDisabled(false);
+                    button.setButtonText('➕ 添加映射');
+                }));
+
+        // ========== Current Canvas Test ==========
+        this.createSettingGroup(container, '当前 Canvas 测试');
+
+        const testResultContainer = container.createDiv('subject-test-result');
+
+        // Get current active canvas path
+        const activeFile = this.app.workspace.getActiveFile();
+        const canvasPath = activeFile?.path || '(无打开的文件)';
+
+        new Setting(container)
+            .setName('当前 Canvas')
+            .setDesc(canvasPath)
+            .addButton(button => button
+                .setButtonText('🔍 测试解析')
+                .onClick(async () => {
+                    if (!activeFile) {
+                        new Notice('❌ 请先打开一个 Canvas 文件');
+                        return;
+                    }
+                    button.setDisabled(true);
+                    button.setButtonText('解析中...');
+                    try {
+                        const response = await fetch(
+                            `${baseUrl}/api/v1/canvas-meta/metadata?canvas_path=${encodeURIComponent(activeFile.path)}`,
+                            { method: 'GET', signal: AbortSignal.timeout(10000) }
+                        );
+                        if (response.ok) {
+                            const data = await response.json();
+                            testResultContainer.empty();
+                            const resultEl = testResultContainer.createDiv('subject-test-result-content');
+                            resultEl.style.padding = '10px';
+                            resultEl.style.backgroundColor = 'var(--background-secondary)';
+                            resultEl.style.borderRadius = '5px';
+                            resultEl.style.fontFamily = 'monospace';
+                            resultEl.style.fontSize = '12px';
+                            resultEl.createEl('div', { text: `📁 Canvas: ${activeFile.path}` });
+                            resultEl.createEl('div', { text: `📚 Subject: ${data.subject || 'N/A'}` });
+                            resultEl.createEl('div', { text: `📂 Category: ${data.category || 'N/A'}` });
+                            resultEl.createEl('div', { text: `🆔 Group ID: ${data.group_id || 'N/A'}` });
+                        } else {
+                            new Notice(`❌ 解析失败: HTTP ${response.status}`);
+                        }
+                    } catch (error) {
+                        new Notice(`❌ 解析失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                    }
+                    button.setDisabled(false);
+                    button.setButtonText('🔍 测试解析');
+                }));
+    }
+
+    /**
+     * Load subject mappings from backend and render table
+     */
+    private async loadSubjectMappings(tableContainer: HTMLElement, baseUrl: string): Promise<void> {
+        tableContainer.empty();
+
+        try {
+            const response = await fetch(`${baseUrl}/api/v1/canvas-meta/config/subject-mapping`, {
+                method: 'GET',
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (!response.ok) {
+                tableContainer.createEl('p', {
+                    text: `❌ 加载失败: HTTP ${response.status}`,
+                    cls: 'subject-mapping-error'
+                });
+                return;
+            }
+
+            const data = await response.json();
+            const mappings: Array<{pattern: string; subject: string; category: string}> = [];
+
+            // Parse the response - backend returns { mappings: [...] } or direct array
+            const rawMappings = data.mappings || data.rules || data;
+            if (Array.isArray(rawMappings)) {
+                for (const item of rawMappings) {
+                    mappings.push({
+                        pattern: item.pattern || item.path_pattern || '',
+                        subject: item.subject || '',
+                        category: item.category || ''
+                    });
+                }
+            } else if (typeof rawMappings === 'object') {
+                // Handle dict-style { pattern: { subject, category } }
+                for (const [pattern, value] of Object.entries(rawMappings)) {
+                    const v = value as any;
+                    mappings.push({
+                        pattern,
+                        subject: v.subject || v,
+                        category: v.category || ''
+                    });
+                }
+            }
+
+            if (mappings.length === 0) {
+                tableContainer.createEl('p', { text: '暂无映射规则' });
+                return;
+            }
+
+            // Create table
+            const table = tableContainer.createEl('table', { cls: 'subject-mapping-table' });
+            table.style.width = '100%';
+            table.style.borderCollapse = 'collapse';
+            table.style.fontSize = '13px';
+
+            // Header
+            const thead = table.createEl('thead');
+            const headerRow = thead.createEl('tr');
+            for (const h of ['路径模式', '学科', '分类', '操作']) {
+                const th = headerRow.createEl('th', { text: h });
+                th.style.padding = '6px 8px';
+                th.style.borderBottom = '2px solid var(--background-modifier-border)';
+                th.style.textAlign = 'left';
+            }
+
+            // Body
+            const tbody = table.createEl('tbody');
+            for (const mapping of mappings) {
+                const row = tbody.createEl('tr');
+                row.style.borderBottom = '1px solid var(--background-modifier-border)';
+
+                for (const val of [mapping.pattern, mapping.subject, mapping.category]) {
+                    const td = row.createEl('td', { text: val });
+                    td.style.padding = '5px 8px';
+                }
+
+                // Delete button cell
+                const actionTd = row.createEl('td');
+                actionTd.style.padding = '5px 8px';
+                const deleteBtn = actionTd.createEl('button', { text: '🗑', cls: 'subject-mapping-delete-btn' });
+                deleteBtn.style.cursor = 'pointer';
+                deleteBtn.style.border = 'none';
+                deleteBtn.style.background = 'transparent';
+                deleteBtn.style.fontSize = '14px';
+                deleteBtn.setAttribute('title', '删除此映射');
+                deleteBtn.addEventListener('click', async () => {
+                    try {
+                        const delResponse = await fetch(
+                            `${baseUrl}/api/v1/canvas-meta/config/subject-mapping/remove?pattern=${encodeURIComponent(mapping.pattern)}`,
+                            { method: 'DELETE', signal: AbortSignal.timeout(10000) }
+                        );
+                        if (delResponse.ok) {
+                            new Notice(`✅ 已删除映射: ${mapping.pattern}`);
+                            await this.loadSubjectMappings(tableContainer, baseUrl);
+                        } else {
+                            new Notice(`❌ 删除失败: HTTP ${delResponse.status}`);
+                        }
+                    } catch (error) {
+                        new Notice(`❌ 删除失败: ${error instanceof Error ? error.message : '未知错误'}`);
+                    }
+                });
+            }
+
+            // Summary
+            tableContainer.createEl('p', {
+                text: `共 ${mappings.length} 条映射规则`,
+                cls: 'subject-mapping-count'
+            });
+            const countEl = tableContainer.querySelector('.subject-mapping-count') as HTMLElement;
+            if (countEl) {
+                countEl.style.fontSize = '12px';
+                countEl.style.color = 'var(--text-muted)';
+                countEl.style.marginTop = '6px';
+            }
+
+        } catch (error) {
+            tableContainer.createEl('p', {
+                text: `❌ 无法连接后端: ${error instanceof Error ? error.message : '未知错误'}`,
+                cls: 'subject-mapping-error'
+            });
+        }
     }
 
     /**

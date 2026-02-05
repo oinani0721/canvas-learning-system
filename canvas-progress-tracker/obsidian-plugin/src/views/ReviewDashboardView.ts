@@ -69,7 +69,7 @@ export class ReviewDashboardView extends ItemView {
         this.state = { ...DEFAULT_DASHBOARD_STATE };
         this.historyService = new HistoryService(this.app);
         this.verificationService = createVerificationHistoryService(this.app);
-        this.crossCanvasService = createCrossCanvasService(this.app);
+        this.crossCanvasService = plugin.crossCanvasService || createCrossCanvasService(this.app);
         this.textbookMountService = createTextbookMountService(this.app);
         // Story 30.7 AC-30.7.3: Initialize PriorityCalculatorService
         this.priorityCalculatorService = createPriorityCalculatorService(this.app);

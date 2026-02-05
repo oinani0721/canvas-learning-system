@@ -304,6 +304,20 @@ export interface PluginSettings {
      */
     associationModeEnabled: boolean;
 
+    // ========== Subject Isolation Settings (EPIC 30 Part 3) ==========
+    /**
+     * Enable multi-subject memory isolation
+     * When enabled, different subjects use separate memory spaces
+     * @default false
+     */
+    enableSubjectIsolation: boolean;
+
+    /**
+     * Default subject when Canvas path doesn't match any rule
+     * @default 'general'
+     */
+    defaultSubject: string;
+
     // ========== Memory System Settings (P1 Task #8) ==========
     /**
      * Neo4j database URI
@@ -459,6 +473,10 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     // Association Mode Settings (Story 16.4)
     associationModeEnabled: false,
 
+    // Subject Isolation Settings (EPIC 30 Part 3)
+    enableSubjectIsolation: false,
+    defaultSubject: 'general',
+
     // ========== Memory System Settings (P1 Task #8) ==========
     // Neo4j Configuration
     neo4jUri: 'bolt://localhost:7687',
@@ -486,7 +504,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
  * Settings section identifiers
  * @source Story 21.5.5 - 添加 errorHistory 部分
  */
-export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced' | 'memory' | 'errorHistory';
+export type SettingsSection = 'connection' | 'storage' | 'interface' | 'review' | 'advanced' | 'memory' | 'subjectIsolation' | 'errorHistory';
 
 /**
  * Settings section metadata
@@ -537,6 +555,12 @@ export const SETTINGS_SECTIONS: SettingsSectionInfo[] = [
         name: '🧠 记忆系统',
         description: 'Neo4j/LanceDB/Graphiti三层记忆配置',
         icon: '🧠'
+    },
+    {
+        id: 'subjectIsolation',
+        name: '📋 学科隔离',
+        description: '多学科记忆空间隔离配置',
+        icon: '📋'
     },
     {
         id: 'errorHistory',

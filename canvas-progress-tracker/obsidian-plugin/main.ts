@@ -57,6 +57,10 @@ import { CanvasAssociationModal } from './src/modals/CanvasAssociationModal';
 import { AssociationFormModal } from './src/modals/AssociationFormModal';
 import type { CanvasAssociation, CanvasLinksConfig } from './src/types/AssociationTypes';
 import { DEFAULT_CANVAS_LINKS_CONFIG } from './src/types/AssociationTypes';
+// Story 30.6: Node Color Change Watcher - monitors canvas color changes for memory triggers
+import { NodeColorChangeWatcher, createNodeColorChangeWatcher } from './src/services/NodeColorChangeWatcher';
+// Story 16.7: Association Status Bar Indicator
+import { AssociationStatusIndicator, createStatusBarIndicator } from './src/views/StatusBarIndicator';
 
 /**
  * Story 12.H.2: Node-level Request Queue
@@ -180,7 +184,7 @@ export default class CanvasReviewPlugin extends Plugin {
     private canvasDataImporter: CanvasDataImporterService | null = null;
 
     /** Cross-Canvas Service - Manages canvas associations (Story 25.1) */
-    private crossCanvasService: CrossCanvasService | null = null;
+    public crossCanvasService: CrossCanvasService | null = null;
 
     /** Canvas File Manager - Reads/writes Canvas files (Story 12.M: Node Creation Fix) */
     private canvasFileManager: CanvasFileManager | null = null;
@@ -211,6 +215,12 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Story 16.1: Textbook Mount Service - manages textbook mounting */
     private textbookMountService: TextbookMountService | null = null;
+
+    /** Story 30.6: Node Color Change Watcher - monitors canvas color changes */
+    private nodeColorChangeWatcher: NodeColorChangeWatcher | null = null;
+
+    /** Story 16.7: Association Status Bar Indicator */
+    private associationStatusIndicator: AssociationStatusIndicator | null = null;
 
     /**
      * Get API Client instance (Story 38.1)
@@ -472,6 +482,84 @@ export default class CanvasReviewPlugin extends Plugin {
             this.textbookMountService = new TextbookMountService(this.app, apiBaseUrl);
             if (this.settings.debugMode) {
                 console.log('Canvas Review System: TextbookMountService initialized');
+            }
+
+            // Initialize NodeColorChangeWatcher (Story 30.6: Node Color Change Memory Trigger)
+            try {
+                this.nodeColorChangeWatcher = createNodeColorChangeWatcher(this.app, {
+                    apiBaseUrl: `${apiBaseUrl}/api/v1`,
+                    enableLogging: this.settings.debugMode,
+                });
+                this.nodeColorChangeWatcher.start();
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: NodeColorChangeWatcher initialized and started');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize NodeColorChangeWatcher:', error);
+            }
+
+            // Initialize CrossCanvasService (Story 25.1: Cross-Canvas Association System)
+            try {
+                this.crossCanvasService = new CrossCanvasService(this.app, apiBaseUrl);
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: CrossCanvasService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize CrossCanvasService:', error);
+            }
+
+            // Initialize Association Status Bar Indicator (Story 16.7)
+            try {
+                this.associationStatusIndicator = new AssociationStatusIndicator(this.app, this);
+
+                // Wire up callbacks connecting to CrossCanvasService
+                const crossService = this.crossCanvasService;
+                if (crossService) {
+                    this.associationStatusIndicator.setCallbacks({
+                        onRefresh: async () => {
+                            // Refresh association data for current canvas
+                            await this.associationStatusIndicator?.refresh();
+                        },
+                        onCleanOrphans: async () => {
+                            // Clean orphan associations that reference deleted Canvas files
+                            const all = await crossService.getAllAssociations();
+                            let cleaned = 0;
+                            for (const assoc of all) {
+                                const sourceExists = this.app.vault.getAbstractFileByPath(assoc.sourceCanvasPath);
+                                const targetExists = this.app.vault.getAbstractFileByPath(assoc.targetCanvasPath);
+                                if (!sourceExists || !targetExists) {
+                                    await crossService.deleteAssociation(assoc.id);
+                                    cleaned++;
+                                }
+                            }
+                            return cleaned;
+                        },
+                        onOpenModal: () => {
+                            const activeFile = this.app.workspace.getActiveFile();
+                            if (activeFile?.extension === 'canvas') {
+                                this.openCrossCanvasModal(activeFile);
+                            } else {
+                                this.showCrossCanvasSidebar();
+                            }
+                        },
+                        onGetAssociations: async (canvasPath: string) => {
+                            const associations = await crossService.getAssociationsForCanvas(canvasPath);
+                            return {
+                                canvas_path: canvasPath,
+                                association_count: associations.length,
+                                sync_status: 'synced' as const,
+                                last_sync: new Date().toISOString(),
+                                related_canvas_names: associations.map(a => a.targetCanvasTitle || a.targetCanvasPath),
+                            };
+                        },
+                    });
+                }
+
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: AssociationStatusIndicator initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize AssociationStatusIndicator:', error);
             }
 
             // Register action callbacks for context menu (Fix for missing Agent options)
@@ -1332,6 +1420,21 @@ export default class CanvasReviewPlugin extends Plugin {
             }
         }
 
+        // Cleanup NodeColorChangeWatcher (Story 30.6)
+        if (this.nodeColorChangeWatcher) {
+            this.nodeColorChangeWatcher.stop();
+            this.nodeColorChangeWatcher = null;
+        }
+
+        // Cleanup AssociationStatusIndicator (Story 16.7)
+        if (this.associationStatusIndicator) {
+            this.associationStatusIndicator.destroy();
+            this.associationStatusIndicator = null;
+        }
+
+        // Cleanup CrossCanvasService (Story 25.1)
+        this.crossCanvasService = null;
+
         // TODO: Story 13.3+ - Cleanup CommandWrapper
         // TODO: Story 13.4+ - Cleanup UIManager
         // TODO: Story 13.5+ - Cleanup SyncManager
@@ -1369,7 +1472,13 @@ export default class CanvasReviewPlugin extends Plugin {
         // ✅ Verified from Context7: /obsidianmd/obsidian-api (registerView)
         this.registerView(
             VIEW_TYPE_CROSS_CANVAS_SIDEBAR,
-            (leaf) => new CrossCanvasSidebarView(leaf, this)
+            (leaf) => {
+                const view = new CrossCanvasSidebarView(leaf, this);
+                if (this.crossCanvasService) {
+                    view.setCrossCanvasService(this.crossCanvasService);
+                }
+                return view;
+            }
         );
 
         // Register Canvas Info View (Story 38.1)
