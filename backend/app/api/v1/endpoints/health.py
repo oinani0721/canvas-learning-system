@@ -774,19 +774,26 @@ async def check_neo4j_health(
             timestamp=datetime.now(timezone.utc)
         )
 
+    # Import memory system logger for debugging
+    from app.core.memory_system_logger import memory_logger
+
     try:
         # ✅ Story 30.3 Fix: Initialize driver outside timeout to avoid first-call timeout
+        memory_logger.info(f"HEALTH_CHECK_START | uri={settings.neo4j_uri}")
         await _ensure_neo4j_driver()
 
-        # Use 2000ms timeout for the actual query to accommodate Neo4j driver warmup
-        # Python Neo4j driver connection pool takes time to establish
-        # [Source: docs/stories/30.3.memory-api-health-endpoints.story.md]
+        # Use 30s timeout: AsyncGraphDatabase first connection can take 20+ seconds
+        # under high memory pressure (async driver is much slower than sync on cold start)
+        import time
+        start_time = time.time()
         await asyncio.wait_for(
             _test_neo4j_connection(),
-            timeout=2.0
+            timeout=30.0
         )
+        latency_ms = (time.time() - start_time) * 1000
 
         logger.debug("Neo4j connection healthy")
+        memory_logger.info(f"HEALTH_CHECK_SUCCESS | latency={latency_ms:.2f}ms | uri={settings.neo4j_uri}")
         return Neo4jHealthResponse(
             status="healthy",
             checks=Neo4jHealthChecks(
@@ -801,13 +808,23 @@ async def check_neo4j_health(
         )
 
     except asyncio.TimeoutError:
-        logger.warning("Neo4j connection timeout (>2000ms)")
+        logger.warning("Neo4j connection timeout (>30000ms)")
+        memory_logger.error(f"HEALTH_CHECK_TIMEOUT | timeout=30s | uri={settings.neo4j_uri}")
+        # Reset driver after timeout to avoid stale connection state
+        global _cached_neo4j_driver, _neo4j_driver_uri
+        if _cached_neo4j_driver is not None:
+            try:
+                await _cached_neo4j_driver.close()
+            except Exception:
+                pass
+            _cached_neo4j_driver = None
+            _neo4j_driver_uri = None
         return Neo4jHealthResponse(
             status="unhealthy",
             checks=Neo4jHealthChecks(
                 neo4j_enabled=True,
                 neo4j_connection=False,
-                error="Connection timeout (>2000ms)"
+                error="Connection timeout (>30000ms)"
             ),
             cached=False,
             timestamp=datetime.now(timezone.utc)
@@ -816,6 +833,7 @@ async def check_neo4j_health(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Neo4j connection failed: {error_msg}")
+        memory_logger.error(f"HEALTH_CHECK_FAILED | error={error_msg} | uri={settings.neo4j_uri}")
         return Neo4jHealthResponse(
             status="unhealthy",
             checks=Neo4jHealthChecks(
@@ -927,13 +945,21 @@ async def check_graphiti_health(
         from app.clients.neo4j_client import get_neo4j_client
 
         neo4j_client = get_neo4j_client()
-        stats = neo4j_client.stats
 
-        if not stats.get("connected"):
+        # Ensure client is initialized before checking status
+        if not neo4j_client.stats.get("initialized"):
+            await neo4j_client.initialize()
+
+        # Run a fresh health check to get current connection state
+        health_ok = await neo4j_client.health_check()
+
+        if not health_ok:
             return GraphitiHealthResponse(
                 status="error",
                 error="Graphiti unavailable: Neo4j not connected"
             )
+
+        stats = neo4j_client.stats
 
         graph_stats = {
             "node_count": stats.get("node_count", 0),
@@ -1386,7 +1412,7 @@ async def _check_neo4j_for_storage() -> StorageBackendStatus:
 
         # Ensure driver is initialized and test connection
         await _ensure_neo4j_driver()
-        await asyncio.wait_for(_test_neo4j_connection(), timeout=2.0)
+        await asyncio.wait_for(_test_neo4j_connection(), timeout=10.0)
 
         latency_ms = (time.time() - start_time) * 1000
         return StorageBackendStatus(
@@ -1402,7 +1428,7 @@ async def _check_neo4j_for_storage() -> StorageBackendStatus:
             name="neo4j",
             status="error",
             latency_ms=round(latency_ms, 2),
-            error="Connection timeout (>2000ms)"
+            error="Connection timeout (>10000ms)"
         )
     except Exception as e:
         latency_ms = (time.time() - start_time) * 1000
@@ -1624,3 +1650,60 @@ async def check_storage_health(
 
     logger.debug(f"Storage health check completed: {overall_status} ({total_latency_ms:.1f}ms)")
     return response
+
+
+# ============================================================================
+# Memory System Error Logs API (Story: Debug Memory Connection Issues)
+# ============================================================================
+
+from fastapi import Query
+
+
+class MemoryLogsResponse(BaseModel):
+    """记忆系统日志响应模型"""
+    log_file: str = Field(..., description="日志文件路径")
+    total_lines: int = Field(..., description="返回的日志行数")
+    logs: list[str] = Field(..., description="日志内容列表")
+
+
+@router.get(
+    "/health/memory-logs",
+    response_model=MemoryLogsResponse,
+    summary="获取记忆系统错误日志",
+    description="获取记忆系统（Neo4j/LanceDB/Graphiti）的最近日志，用于前端调试面板",
+    operation_id="get_memory_system_logs"
+)
+async def get_memory_system_logs(
+    lines: int = Query(default=50, ge=1, le=500, description="返回最近 N 行日志")
+) -> MemoryLogsResponse:
+    """
+    获取记忆系统错误日志（最近 N 行）
+
+    用于前端调试面板显示连接状态和错误信息。
+    日志文件位置: backend/logs/memory-system-{date}.log
+    """
+    from pathlib import Path
+
+    # __file__ = backend/app/api/v1/endpoints/health.py
+    # .parent x5 = backend/app/api/v1/endpoints → v1 → api → app → backend
+    log_dir = Path(__file__).parent.parent.parent.parent.parent / "logs"
+    today = datetime.now().strftime('%Y-%m-%d')
+    log_file = log_dir / f"memory-system-{today}.log"
+
+    logs: list[str] = []
+    log_file_str = str(log_file)
+
+    if log_file.exists():
+        try:
+            with open(log_file, 'r', encoding='utf-8') as f:
+                all_lines = f.readlines()
+                logs = [line.strip() for line in all_lines[-lines:]]
+        except Exception as e:
+            logger.warning(f"Failed to read memory system logs: {e}")
+            logs = [f"[ERROR] Failed to read log file: {e}"]
+
+    return MemoryLogsResponse(
+        log_file=log_file_str,
+        total_lines=len(logs),
+        logs=logs
+    )

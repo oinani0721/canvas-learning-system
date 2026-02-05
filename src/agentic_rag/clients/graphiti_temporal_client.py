@@ -59,6 +59,18 @@ except ImportError:
     GRAPHITI_BASE_AVAILABLE = False
     GraphitiClientBase = object  # Fallback to object
 
+    # ✅ Story 38.1 Fix: 定义 EdgeRelationship fallback 避免 NameError
+    from dataclasses import dataclass, field
+    from typing import Optional, Dict, Any
+
+    @dataclass
+    class EdgeRelationship:
+        """Fallback EdgeRelationship when graphiti_client_base unavailable."""
+        from_node_id: str
+        to_node_id: str
+        relationship_type: str
+        properties: Optional[Dict[str, Any]] = field(default_factory=dict)
+
 if TYPE_CHECKING:
     from backend.app.clients.neo4j_client import Neo4jClient
 

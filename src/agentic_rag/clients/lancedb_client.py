@@ -107,7 +107,7 @@ class LanceDBClient:
 
     def __init__(
         self,
-        db_path: str = "backend/data/lancedb",
+        db_path: str = "data/lancedb",  # ✅ Story 38.1 Fix: 从 backend/ 目录运行时路径正确
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
         timeout_ms: int = 400,
@@ -282,7 +282,8 @@ class LanceDBClient:
         self,
         canvas_path: str,
         nodes: Optional[List[Dict[str, Any]]] = None,
-        table_name: str = "canvas_nodes"
+        table_name: str = "canvas_nodes",
+        subject: Optional[str] = None  # ✅ Story 38.1: 添加 subject 参数
     ) -> int:
         """
         批量索引Canvas节点
@@ -292,6 +293,9 @@ class LanceDBClient:
         - 每个节点记录包含: doc_id, content, vector, canvas_file, node_id, color, metadata
         - 批量处理支持100+节点
         - 处理速度 < 1秒/10节点
+
+        ✅ Story 38.1: 添加 subject 参数用于学科隔离
+        - subject 存储在每个文档中，用于按学科过滤
 
         ✅ Verified from specs/data/canvas-node.schema.json:
         - id: string (节点唯一标识)
@@ -304,6 +308,7 @@ class LanceDBClient:
             canvas_path: Canvas文件路径
             nodes: 节点列表 (可选，不提供则从文件读取)
             table_name: LanceDB表名 (默认: canvas_nodes)
+            subject: 学科标识 (用于学科隔离过滤)
 
         Returns:
             int: 索引的节点数量
@@ -358,10 +363,12 @@ class LanceDBClient:
                 "color": node.get("color", ""),
                 "x": node.get("x", 0),
                 "y": node.get("y", 0),
+                "subject": subject or "",  # ✅ Story 38.1: 存储 subject 用于学科隔离
                 "timestamp": datetime.now().isoformat(),
                 "metadata_json": json.dumps({
                     "width": node.get("width"),
                     "height": node.get("height"),
+                    "subject": subject,  # ✅ Story 38.1: 也在 metadata 中存储
                 }, ensure_ascii=False)
             }
             documents.append(doc)
@@ -773,6 +780,100 @@ class LanceDBClient:
         all_results.sort(key=lambda x: x.get("score", 0.0), reverse=True)
 
         return all_results
+
+    async def count_documents_by_canvas(
+        self,
+        canvas_path: str,
+        table_name: str = "canvas_nodes"
+    ) -> Dict[str, Any]:
+        """
+        统计指定 Canvas 的已索引文档数量
+
+        ✅ Story 38.1: 使用 pandas 直接查询，不依赖向量搜索
+        - 解决空查询无法向量化的问题
+        - 使用 endswith() 匹配处理路径前缀差异
+
+        Args:
+            canvas_path: Canvas 文件路径（相对路径）
+            table_name: LanceDB 表名
+
+        Returns:
+            Dict with:
+            - count: 文档数量
+            - last_indexed: 最后索引时间
+            - subject: 索引时的学科标识
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        if self._db is None:
+            return {"count": 0, "last_indexed": None, "subject": None}
+
+        try:
+            # 检查表是否存在
+            if table_name not in self._db.table_names():
+                return {"count": 0, "last_indexed": None, "subject": None}
+
+            # 打开表
+            table = self._db.open_table(table_name)
+
+            # 使用 to_pandas() 获取所有数据，然后过滤
+            # 这避免了需要向量化的问题
+            df = table.to_pandas()
+
+            if df.empty:
+                return {"count": 0, "last_indexed": None, "subject": None}
+
+            # 使用 endswith 匹配来处理路径前缀差异
+            # 例如: "测试学科/测试Canvas.canvas" 可以匹配
+            # "C:/path/to/vault/测试学科/测试Canvas.canvas"
+            # 标准化路径分隔符
+            normalized_path = canvas_path.replace("\\", "/")
+
+            # 过滤匹配的文档
+            if "canvas_file" in df.columns:
+                # 标准化 DataFrame 中的路径
+                df["canvas_file_normalized"] = df["canvas_file"].str.replace("\\\\", "/", regex=False)
+                df["canvas_file_normalized"] = df["canvas_file_normalized"].str.replace("\\", "/", regex=False)
+
+                # 使用 endswith 匹配
+                mask = df["canvas_file_normalized"].str.endswith(normalized_path)
+                matched_df = df[mask]
+
+                if matched_df.empty:
+                    # 尝试精确匹配
+                    mask_exact = df["canvas_file_normalized"] == normalized_path
+                    matched_df = df[mask_exact]
+
+                if matched_df.empty:
+                    return {"count": 0, "last_indexed": None, "subject": None}
+
+                # 获取统计信息
+                count = len(matched_df)
+                last_indexed = None
+                subject = None
+
+                if "timestamp" in matched_df.columns:
+                    last_indexed = matched_df["timestamp"].max()
+
+                if "subject" in matched_df.columns:
+                    # 获取第一个非空 subject
+                    subjects = matched_df["subject"].dropna()
+                    if len(subjects) > 0:
+                        subject = subjects.iloc[0]
+
+                return {
+                    "count": count,
+                    "last_indexed": last_indexed,
+                    "subject": subject
+                }
+            else:
+                return {"count": 0, "last_indexed": None, "subject": None}
+
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"count_documents_by_canvas failed: {e}")
+            return {"count": 0, "last_indexed": None, "subject": None}
 
     def get_stats(self) -> Dict[str, Any]:
         """获取客户端统计信息"""
