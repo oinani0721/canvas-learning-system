@@ -85,7 +85,16 @@ backend/.env
 # Docker data (large binary files)
 docker/neo4j/data/
 docker/neo4j/logs/
+docker/neo4j-cls/
+
+# Nested/duplicate directories
+backend/backend/
+
+# Runtime logs
+backend/logs/
+
+# LanceDB local data
+backend/data/lancedb/
 
 # 敏感文件（绝不推送）
 CLAUDE.md
-start-canvas-services.bat

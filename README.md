@@ -129,11 +129,75 @@ cp .env.example .env
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Docker Deployment (Optional)
+### Docker Deployment (Neo4j + Memory System)
+
+#### Prerequisites
+
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
+- Ports available: `7475` (Neo4j HTTP), `7688` (Neo4j Bolt), `8000` (Backend API)
+- Memory: ≥1GB available for Neo4j container
+
+#### Step 1: Configure Environment
 
 ```bash
-docker-compose up -d
+cd backend
+cp .env.example .env
 ```
+
+Edit `.env` with the following critical settings:
+
+```env
+# IMPORTANT: Use port 7688, NOT the default 7687
+NEO4J_URI=bolt://localhost:7688
+NEO4J_USERNAME=neo4j
+NEO4J_PASSWORD=your_password_here
+```
+
+> **Warning**: The password in `.env` and `docker-compose.yml` must match exactly. Mismatched passwords cause silent authentication failures.
+
+#### Step 2: Start Services
+
+```bash
+# Start Neo4j container
+docker-compose up -d neo4j
+
+# Wait for Neo4j to initialize (~10 seconds)
+# Then start the backend
+cd backend
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Or use the one-click startup script (Windows):
+```bash
+./start-canvas-services.bat
+```
+
+#### Step 3: Verify Deployment
+
+```bash
+# Neo4j Browser (note: port 7475, not 7474)
+curl http://localhost:7475
+
+# Backend health check
+curl http://localhost:8000/api/v1/health
+
+# Neo4j connection check
+curl http://localhost:8000/api/v1/health/neo4j
+
+# Storage health check
+curl http://localhost:8000/api/v1/health/storage
+```
+
+#### Troubleshooting
+
+| Problem | Cause | Solution |
+|---------|-------|----------|
+| Connection timeout | Wrong port in NEO4J_URI (7687 vs 7688) | Set `NEO4J_URI=bolt://localhost:7688` |
+| Auth failure with no error | Password mismatch between .env and docker-compose | Ensure both passwords match |
+| Queries return empty results | Silent fallback to JSON mode | Check logs for "JSON_FALLBACK" |
+| Neo4j Browser won't open | Port mapping is 7475, not 7474 | Visit `http://localhost:7475` |
+| Backend process orphaned | Obsidian didn't kill backend on exit | Fixed: uses execSync + taskkill |
+| LanceDB path error | Incorrect relative path when running from backend/ | Fixed: normalized to project-relative paths |
 
 ---
 
@@ -182,6 +246,25 @@ canvas-learning-system/
 | Memory System | Graphiti + Neo4j |
 | Vector Store | LanceDB |
 | Deployment | Docker, Docker Compose |
+
+---
+
+## Recent Updates
+
+### Memory System Health Checks
+- `/api/v1/health/neo4j` - Neo4j connection status with async driver support
+- `/api/v1/health/storage` - Unified storage health (LanceDB + Neo4j)
+- Automatic retry with configurable timeouts for slow first connections
+
+### Canvas Metadata Management (Story 38.1)
+- Backend metadata API for canvas subject mapping
+- Configurable subject resolver with YAML-based mapping
+- Canvas info view in Obsidian plugin settings
+
+### Bug Fixes
+- **LanceDB data isolation**: Fixed path calculation that caused index/query to use different databases
+- **Backend process cleanup**: Fixed orphaned uvicorn processes on Obsidian exit (execSync + taskkill)
+- **Graphiti client**: Unified connection architecture with proper error handling
 
 ---
 
