@@ -1277,6 +1277,14 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
                     if (settings.graphitiEnabled) graphitiStatusEl.textContent = 'Graphiti: ⏳ 检查中...';
                     this.checkRealTimeStatus(backendStatusEl, neo4jStatusEl, graphitiStatusEl, settings);
                 }));
+
+        // View Memory System Error Logs Button
+        new Setting(container)
+            .setName('错误日志')
+            .setDesc('查看记忆系统连接错误详情（便于诊断 Neo4j/Graphiti 问题）')
+            .addButton(button => button
+                .setButtonText('📋 查看错误日志')
+                .onClick(() => this.showMemorySystemLogs()));
     }
 
     /**
@@ -1295,7 +1303,7 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         try {
             const healthResponse = await fetch(`${baseUrl}/api/v1/health`, {
                 method: 'GET',
-                signal: AbortSignal.timeout(5000)
+                signal: AbortSignal.timeout(15000)
             });
 
             if (healthResponse.ok) {
@@ -1331,7 +1339,7 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             try {
                 const neo4jResponse = await fetch(`${baseUrl}/api/v1/health/neo4j`, {
                     method: 'GET',
-                    signal: AbortSignal.timeout(5000)
+                    signal: AbortSignal.timeout(35000)
                 });
 
                 if (neo4jResponse.ok) {
@@ -1361,17 +1369,17 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             try {
                 const graphitiResponse = await fetch(`${baseUrl}/api/v1/health/graphiti`, {
                     method: 'GET',
-                    signal: AbortSignal.timeout(5000)
+                    signal: AbortSignal.timeout(35000)
                 });
 
                 if (graphitiResponse.ok) {
                     const data = await graphitiResponse.json();
-                    // Check actual health status, not just HTTP 200
-                    if (data.status === 'healthy') {
+                    // Check actual health status - backend returns "ok" (not "healthy")
+                    if (data.status === 'ok' || data.status === 'healthy') {
                         graphitiEl.textContent = 'Graphiti: ✅ 已连接';
                         graphitiEl.addClass('status-success');
                     } else {
-                        const errorMsg = data.checks?.error || data.message || '连接失败';
+                        const errorMsg = data.error || data.checks?.error || data.message || '连接失败';
                         graphitiEl.textContent = `Graphiti: ❌ ${errorMsg}`;
                         graphitiEl.addClass('status-error');
                     }
@@ -1780,6 +1788,47 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
 
         alert(message);
     }
+
+    /**
+     * Show Memory System Error Logs Modal
+     * Fetches logs from backend API and displays in a modal
+     *
+     * @source Plan: 修复 Neo4j 连接超时 + 添加记忆系统错误日志
+     */
+    private async showMemorySystemLogs(): Promise<void> {
+        const baseUrl = this.plugin.settings.claudeCodeUrl;
+
+        if (!baseUrl) {
+            new Notice('❌ 后端 API 地址未配置');
+            return;
+        }
+
+        try {
+            new Notice('⏳ 正在获取日志...');
+
+            const response = await fetch(`${baseUrl}/api/v1/health/memory-logs?lines=100`, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                },
+                signal: AbortSignal.timeout(10000)
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                new MemoryLogsModal(this.app, data.logs || [], data.log_file || '').open();
+            } else {
+                new Notice(`❌ 获取日志失败: HTTP ${response.status}`);
+            }
+        } catch (error) {
+            if (error instanceof Error && error.name === 'TimeoutError') {
+                new Notice('❌ 获取日志超时（后端未响应）');
+            } else {
+                new Notice('❌ 无法连接后端获取日志');
+            }
+            console.error('[MemorySystem] Failed to fetch logs:', error);
+        }
+    }
 }
 
 /**
@@ -1852,6 +1901,117 @@ class BackendLogModal extends Modal {
         copyBtn.addEventListener('click', () => {
             navigator.clipboard.writeText(this.logs.join('\n'));
             new Notice('日志已复制到剪贴板');
+        });
+
+        // Close button
+        const closeBtn = buttonContainer.createEl('button', {
+            text: '关闭'
+        });
+        closeBtn.addEventListener('click', () => {
+            this.close();
+        });
+    }
+
+    onClose(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
+
+/**
+ * Modal for displaying Memory System error logs
+ *
+ * Shows logs from backend/logs/memory-system-{date}.log
+ * with color coding for ERROR/WARNING/INFO levels.
+ *
+ * @source Plan: 修复 Neo4j 连接超时 + 添加记忆系统错误日志
+ */
+class MemoryLogsModal extends Modal {
+    private logs: string[];
+    private logFile: string;
+
+    constructor(app: App, logs: string[], logFile: string) {
+        super(app);
+        this.logs = logs;
+        this.logFile = logFile;
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.addClass('memory-logs-modal');
+
+        // Header
+        contentEl.createEl('h2', { text: '📋 记忆系统错误日志' });
+
+        // Log file path info
+        if (this.logFile) {
+            const fileInfoEl = contentEl.createEl('p', {
+                cls: 'memory-logs-file-info'
+            });
+            fileInfoEl.style.fontSize = '12px';
+            fileInfoEl.style.color = 'var(--text-muted)';
+            fileInfoEl.style.marginBottom = '10px';
+            fileInfoEl.textContent = `日志文件: ${this.logFile}`;
+        }
+
+        // Log container with scrolling
+        const logContainer = contentEl.createDiv('memory-logs-container');
+        logContainer.style.maxHeight = '400px';
+        logContainer.style.overflow = 'auto';
+        logContainer.style.fontFamily = 'monospace';
+        logContainer.style.fontSize = '11px';
+        logContainer.style.backgroundColor = 'var(--background-secondary)';
+        logContainer.style.padding = '12px';
+        logContainer.style.borderRadius = '8px';
+        logContainer.style.whiteSpace = 'pre-wrap';
+        logContainer.style.wordBreak = 'break-all';
+
+        // Display logs
+        if (this.logs.length === 0) {
+            const emptyMsg = logContainer.createEl('p', {
+                cls: 'memory-logs-empty'
+            });
+            emptyMsg.style.color = 'var(--text-success)';
+            emptyMsg.textContent = '✅ 暂无错误日志，系统运行正常。';
+        } else {
+            this.logs.forEach(line => {
+                const lineEl = logContainer.createEl('div', {
+                    cls: 'memory-log-line'
+                });
+                lineEl.textContent = line;
+                lineEl.style.marginBottom = '2px';
+                lineEl.style.lineHeight = '1.4';
+
+                // Color code based on log level
+                if (line.includes('| ERROR')) {
+                    lineEl.style.color = 'var(--text-error)';
+                    lineEl.style.fontWeight = 'bold';
+                } else if (line.includes('| WARNING')) {
+                    lineEl.style.color = 'var(--text-warning)';
+                } else if (line.includes('| INFO')) {
+                    lineEl.style.color = 'var(--text-muted)';
+                } else if (line.includes('| DEBUG')) {
+                    lineEl.style.color = 'var(--text-faint)';
+                }
+            });
+        }
+
+        // Button container
+        const buttonContainer = contentEl.createDiv('memory-logs-buttons');
+        buttonContainer.style.marginTop = '12px';
+        buttonContainer.style.display = 'flex';
+        buttonContainer.style.gap = '10px';
+        buttonContainer.style.justifyContent = 'flex-end';
+
+        // Copy button
+        const copyBtn = buttonContainer.createEl('button', {
+            text: '📋 复制全部日志',
+            cls: 'mod-cta'
+        });
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(this.logs.join('\n'));
+            new Notice('✅ 日志已复制到剪贴板');
         });
 
         // Close button

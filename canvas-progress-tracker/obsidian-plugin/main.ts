@@ -30,6 +30,7 @@ import { DataManager } from './src/database/DataManager';
 import { ReviewDashboardView, VIEW_TYPE_REVIEW_DASHBOARD } from './src/views/ReviewDashboardView';
 import { ProgressTrackerView, VIEW_TYPE_PROGRESS_TRACKER } from './src/views/ProgressTrackerView';
 import { CrossCanvasSidebarView, VIEW_TYPE_CROSS_CANVAS_SIDEBAR } from './src/views/CrossCanvasSidebar';
+import { CanvasInfoView, VIEW_TYPE_CANVAS_INFO } from './src/views/CanvasInfoView';
 import { CrossCanvasModal, createCrossCanvasModal } from './src/modals/CrossCanvasModal';
 import type { CrossCanvasAssociation } from './src/types/UITypes';
 import { NotificationService, createNotificationService } from './src/services/NotificationService';
@@ -212,6 +213,18 @@ export default class CanvasReviewPlugin extends Plugin {
     private textbookMountService: TextbookMountService | null = null;
 
     /**
+     * Get API Client instance (Story 38.1)
+     *
+     * Provides access to the API client for View classes that need
+     * to communicate with the backend.
+     *
+     * @returns ApiClient instance or null if not initialized
+     */
+    public getApiClient(): ApiClient | null {
+        return this.apiClient;
+    }
+
+    /**
      * Plugin load lifecycle method
      *
      * Called when the plugin is loaded. Sets up all plugin components:
@@ -310,7 +323,40 @@ export default class CanvasReviewPlugin extends Plugin {
             // Remove custom CSS
             this.removeCustomCss();
 
-            // Cleanup managers (placeholder for future stories)
+            // CRITICAL FIX: Kill backend process SYNCHRONOUSLY before Obsidian exits.
+            // onunload() is void (not async), so we cannot await backendManager.stop().
+            // Previously cleanupManagers() was called without await, causing the backend
+            // process to become orphaned. Using execSync ensures the process is killed
+            // before Obsidian finishes unloading.
+            if (this.backendManager && this.backendManager.getStatus() === 'running') {
+                try {
+                    const { execSync } = require('child_process');
+                    const port = 8000;
+                    const netstatResult = execSync(
+                        `netstat -ano | findstr :${port} | findstr LISTENING`,
+                        { encoding: 'utf8', timeout: 3000 }
+                    );
+                    const pids = new Set<string>();
+                    netstatResult.split('\n').forEach((line: string) => {
+                        const parts = line.trim().split(/\s+/);
+                        if (parts.length >= 5 && parts[4] !== '0') {
+                            pids.add(parts[4]);
+                        }
+                    });
+                    for (const pid of pids) {
+                        try {
+                            execSync(`taskkill /pid ${pid} /T /F`, { timeout: 3000 });
+                            console.log(`Canvas Review System: Killed backend PID ${pid}`);
+                        } catch {
+                            // Process may already be dead
+                        }
+                    }
+                } catch {
+                    // Port not in use or netstat failed - backend already stopped
+                }
+            }
+
+            // Cleanup managers (non-backend cleanup is fast/sync-safe)
             this.cleanupManagers();
 
             console.log('Canvas Review System: Plugin unloaded successfully');
@@ -1326,6 +1372,13 @@ export default class CanvasReviewPlugin extends Plugin {
             (leaf) => new CrossCanvasSidebarView(leaf, this)
         );
 
+        // Register Canvas Info View (Story 38.1)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (registerView)
+        this.registerView(
+            VIEW_TYPE_CANVAS_INFO,
+            (leaf) => new CanvasInfoView(leaf, this)
+        );
+
         if (this.settings.debugMode) {
             console.log('Canvas Review System: Views registered');
         }
@@ -1357,6 +1410,23 @@ export default class CanvasReviewPlugin extends Plugin {
             name: 'Show Verification Progress Tracker (检验进度追踪)',
             callback: async () => {
                 await this.showProgressTracker();
+            }
+        });
+
+        // Register "Show Canvas Info" command (Story 38.1)
+        // ✅ Verified from Context7: /obsidianmd/obsidian-api (addCommand with checkCallback)
+        this.addCommand({
+            id: 'show-canvas-info',
+            name: 'Canvas: 显示 Canvas Info (Show Canvas Info)',
+            checkCallback: (checking: boolean) => {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile?.extension === 'canvas') {
+                    if (!checking) {
+                        this.showCanvasInfo();
+                    }
+                    return true;
+                }
+                return false;
             }
         });
 
@@ -2409,6 +2479,40 @@ export default class CanvasReviewPlugin extends Plugin {
         if (leaf) {
             await leaf.setViewState({
                 type: VIEW_TYPE_CROSS_CANVAS_SIDEBAR,
+                active: true,
+            });
+            workspace.revealLeaf(leaf);
+        }
+    }
+
+    /**
+     * Show Canvas Info sidebar view (Story 38.1)
+     *
+     * Opens the Canvas Info sidebar in the right panel, showing metadata
+     * and index status for the currently active Canvas.
+     *
+     * ✅ Verified from Context7: /obsidianmd/obsidian-api (workspace.getRightLeaf, setViewState)
+     */
+    private async showCanvasInfo(): Promise<void> {
+        if (this.settings.debugMode) {
+            console.log('Canvas Review System: showCanvasInfo called');
+        }
+
+        const { workspace } = this.app;
+
+        // Check if Canvas Info view is already open
+        const existingLeaves = workspace.getLeavesOfType(VIEW_TYPE_CANVAS_INFO);
+        if (existingLeaves.length > 0) {
+            // Reveal existing view
+            workspace.revealLeaf(existingLeaves[0]);
+            return;
+        }
+
+        // Open new sidebar in right split
+        const leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({
+                type: VIEW_TYPE_CANVAS_INFO,
                 active: true,
             });
             workspace.revealLeaf(leaf);

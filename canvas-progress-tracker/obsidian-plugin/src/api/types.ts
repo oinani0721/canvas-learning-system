@@ -1017,3 +1017,79 @@ export interface MultimodalDeleteResponse {
   /** Deletion message */
   message: string;
 }
+
+// =============================================================================
+// Story 38.1: Canvas Metadata API Types
+// =============================================================================
+
+/**
+ * Response from Canvas metadata endpoint
+ * @source GET /api/v1/canvas-meta/metadata response
+ * @source Story 38.1 - Canvas Info 索引问题修复
+ */
+export interface CanvasMetadataResponse {
+  /** Canvas file path */
+  canvas_path: string;
+  /** Subject identifier (e.g., "math54", "toefl") */
+  subject: string;
+  /** Category identifier (e.g., "math", "language") */
+  category: string;
+  /** Graphiti group_id (format: "{subject}:{canvas_name}") */
+  group_id: string;
+  /** Data source: "config" | "inferred" | "default" */
+  source: 'config' | 'inferred' | 'default';
+}
+
+/**
+ * Response from Canvas index status endpoint
+ * @source GET /api/v1/canvas-meta/index-status response
+ * @source Story 38.1 - Canvas Info 索引问题修复
+ */
+export interface CanvasIndexStatusResponse {
+  /** Canvas file path */
+  canvas_path: string;
+  /** Whether the Canvas is indexed in LanceDB */
+  indexed: boolean;
+  /** Number of indexed nodes */
+  node_count: number;
+  /** Last indexed timestamp (ISO format) */
+  last_indexed: string | null;
+  /** Subject at index time */
+  subject: string | null;
+  /** LanceDB table name */
+  table_name: string;
+}
+
+/**
+ * Request body for Canvas index endpoint
+ * @source POST /api/v1/canvas-meta/index request
+ * @source Story 38.1 - Canvas Info 索引问题修复
+ */
+export interface CanvasIndexRequest {
+  /** Canvas file path (relative to vault) */
+  canvas_path: string;
+  /** Force re-index even if already indexed */
+  force?: boolean;
+  /** Optional subject override */
+  subject?: string;
+  /** Optional category override */
+  category?: string;
+}
+
+/**
+ * Response from Canvas index endpoint
+ * @source POST /api/v1/canvas-meta/index response
+ * @source Story 38.1 - Canvas Info 索引问题修复
+ */
+export interface CanvasIndexResponse {
+  /** Whether indexing was successful */
+  success: boolean;
+  /** Number of nodes indexed */
+  node_count: number;
+  /** Result message */
+  message?: string;
+  /** Subject used for indexing */
+  subject?: string;
+  /** Category used for indexing */
+  category?: string;
+}

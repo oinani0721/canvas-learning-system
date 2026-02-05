@@ -1,0 +1,99 @@
+mappings:
+- pattern: Math 54/**
+  subject: math54
+  category: math
+- pattern: Math 55/**
+  subject: math55
+  category: math
+- pattern: 数学/**
+  subject: math
+  category: math
+- pattern: 离散数学/**
+  subject: discrete-math
+  category: math
+- pattern: Physics 7A/**
+  subject: physics7a
+  category: physics
+- pattern: Physics 7B/**
+  subject: physics7b
+  category: physics
+- pattern: 物理/**
+  subject: physics
+  category: physics
+- pattern: CS 61A/**
+  subject: cs61a
+  category: cs
+- pattern: CS 61B/**
+  subject: cs61b
+  category: cs
+- pattern: CS 70/**
+  subject: cs70
+  category: cs
+- pattern: CS 170/**
+  subject: cs170
+  category: cs
+- pattern: CS 189/**
+  subject: cs189
+  category: cs
+- pattern: 编程/**
+  subject: programming
+  category: cs
+- pattern: 托福/**
+  subject: toefl
+  category: language
+- pattern: TOEFL/**
+  subject: toefl
+  category: language
+- pattern: 英语/**
+  subject: english
+  category: language
+- pattern: test
+  subject: test_subj
+  category: test_cat
+category_rules:
+  math:
+  - math*
+  - 数学*
+  - 线性代数*
+  - 离散数学*
+  - 微积分*
+  - 概率*
+  - 统计*
+  physics:
+  - physics*
+  - 物理*
+  - 力学*
+  - 电磁*
+  cs:
+  - cs*
+  - 计算机*
+  - 编程*
+  - 算法*
+  - 数据结构*
+  language:
+  - 托福*
+  - toefl*
+  - 英语*
+  - english*
+  - 语言*
+  chemistry:
+  - chem*
+  - 化学*
+  biology:
+  - bio*
+  - 生物*
+  economics:
+  - econ*
+  - 经济*
+defaults:
+  subject: general
+  category: general
+skip_directories:
+- .obsidian
+- attachments
+- templates
+- notes
+- .git
+- .canvas-links
+- vault
+- 笔记库

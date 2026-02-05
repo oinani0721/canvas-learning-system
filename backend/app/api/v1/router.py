@@ -16,6 +16,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
+from app.api.v1.endpoints.metadata import metadata_router  # ✅ Story 38.1
 from app.api.v1.endpoints.intelligent_parallel import (
     intelligent_parallel_router,
     single_agent_router,
@@ -41,6 +42,24 @@ router.include_router(
     health.router,
     tags=["System"],
     responses={
+        500: {"description": "Internal server error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Canvas Metadata Routes (Story 38.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ✅ Story 38.1: Canvas Metadata Management System
+# [Source: docs/stories/38.1.story.md]
+# NOTE: Using separate prefix /canvas-meta to avoid conflict with canvas_router's /{canvas_name} wildcard
+router.include_router(
+    metadata_router,
+    prefix="/canvas-meta",
+    tags=["Canvas Metadata"],
+    responses={
+        400: {"description": "Validation error"},
+        404: {"description": "Not found"},
         500: {"description": "Internal server error"}
     }
 )

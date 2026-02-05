@@ -126,9 +126,13 @@ export class BackendHealthService {
         try {
             const startTime = Date.now();
 
+            // Log health check start
+            console.log(`[MemorySystem] Health check starting (timeout: 15000ms, url: ${this.baseUrl})`);
+
             // Use Obsidian's requestUrl instead of fetch for consistency
+            // Increased timeout from 2000ms to 15000ms to accommodate Neo4j first-time connection
             const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Connection timeout')), 2000)
+                setTimeout(() => reject(new Error('Connection timeout')), 15000)
             );
 
             const requestPromise = requestUrl({
@@ -149,6 +153,7 @@ export class BackendHealthService {
 
             if (response.status >= 200 && response.status < 300) {
                 const data = response.json;
+                console.log(`[MemorySystem] Health check passed (responseTime: ${responseTime}ms)`);
                 return {
                     status: 'healthy',
                     app_name: data.app_name,
@@ -157,12 +162,15 @@ export class BackendHealthService {
                     responseTime,
                 };
             } else {
+                console.warn(`[MemorySystem] Health check returned error: HTTP ${response.status}`);
                 return {
                     status: 'unhealthy',
                     error: `HTTP ${response.status}`,
                 };
             }
         } catch (error) {
+            const elapsed = Date.now();
+            console.error(`[MemorySystem] Health check failed: ${error instanceof Error ? error.message : 'Unknown'}`);
             return {
                 status: 'unreachable',
                 error: error instanceof Error ? error.message : 'Unknown error',

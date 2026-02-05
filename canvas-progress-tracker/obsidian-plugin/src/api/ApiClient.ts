@@ -75,6 +75,11 @@ import {
   MultimodalSearchResult,
   MultimodalSearchResponse,
   MultimodalDeleteResponse,
+  // Story 38.1: Canvas Metadata API Types
+  CanvasMetadataResponse,
+  CanvasIndexStatusResponse,
+  CanvasIndexRequest,
+  CanvasIndexResponse,
 } from './types';
 
 /**
@@ -1029,6 +1034,69 @@ export class ApiClient {
       this.multimodalCache.delete(conceptId);
       console.log(`[ApiClient] Invalidated multimodal cache for concept: ${conceptId}`);
     }
+  }
+
+  // ===========================================================================
+  // Canvas Metadata API Methods (3 endpoints) - Story 38.1
+  // ===========================================================================
+
+  /**
+   * Get Canvas metadata (subject, category, group_id)
+   *
+   * Returns the metadata for a Canvas file, including the subject and
+   * category assignments based on configuration or path inference.
+   *
+   * @param canvasPath - Canvas file path (relative to vault)
+   * @returns Canvas metadata with subject, category, group_id
+   *
+   * @source Story 38.1 - Canvas Info 索引问题修复
+   * @source GET /api/v1/canvas-meta/metadata
+   */
+  async getCanvasMetadata(canvasPath: string): Promise<CanvasMetadataResponse> {
+    const params = new URLSearchParams({ canvas_path: canvasPath });
+    return this.request<CanvasMetadataResponse>(
+      'GET',
+      `/canvas-meta/metadata?${params}`
+    );
+  }
+
+  /**
+   * Get Canvas index status in LanceDB
+   *
+   * Returns whether the Canvas is indexed, the node count, and last indexed time.
+   *
+   * @param canvasPath - Canvas file path (relative to vault)
+   * @returns Index status with node count and timestamp
+   *
+   * @source Story 38.1 - Canvas Info 索引问题修复
+   * @source GET /api/v1/canvas-meta/index-status
+   */
+  async getCanvasIndexStatus(canvasPath: string): Promise<CanvasIndexStatusResponse> {
+    const params = new URLSearchParams({ canvas_path: canvasPath });
+    return this.request<CanvasIndexStatusResponse>(
+      'GET',
+      `/canvas-meta/index-status?${params}`
+    );
+  }
+
+  /**
+   * Index or re-index a Canvas to LanceDB
+   *
+   * Triggers indexing of the Canvas nodes to the LanceDB vector store.
+   * Use force=true to re-index even if already indexed.
+   *
+   * @param request - Index request with canvas_path and options
+   * @returns Index result with node count
+   *
+   * @source Story 38.1 - Canvas Info 索引问题修复
+   * @source POST /api/v1/canvas-meta/index
+   */
+  async indexCanvas(request: CanvasIndexRequest): Promise<CanvasIndexResponse> {
+    return this.request<CanvasIndexResponse>(
+      'POST',
+      '/canvas-meta/index',
+      request
+    );
   }
 
   // ===========================================================================
