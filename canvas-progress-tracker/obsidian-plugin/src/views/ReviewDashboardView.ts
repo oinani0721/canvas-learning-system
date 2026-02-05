@@ -192,7 +192,7 @@ export class ReviewDashboardView extends ItemView {
             try {
                 const uniqueCanvasIds = [...new Set(tasks.map(t => t.canvasId))];
                 const subjectMap = new Map<string, { subject: string; category: string }>();
-                const apiBase = this.plugin.settings.apiBaseUrl || 'http://localhost:8000';
+                const apiBase = this.plugin.settings.aiBaseUrl || 'http://localhost:8000';
 
                 await Promise.all(uniqueCanvasIds.map(async (canvasId) => {
                     try {
