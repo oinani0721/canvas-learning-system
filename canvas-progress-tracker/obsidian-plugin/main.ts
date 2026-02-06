@@ -67,6 +67,10 @@ import { MemoryQueryService } from './src/services/MemoryQueryService';
 import { GraphitiAssociationService } from './src/services/GraphitiAssociationService';
 // Story 31.2: Verification History Service - tracks verification canvas relations
 import { VerificationHistoryService } from './src/services/VerificationHistoryService';
+// Story 31.A.4: FSRS State Query Service - backend FSRS state integration
+import { FSRSStateQueryService, createFSRSStateQueryService } from './src/services/FSRSStateQueryService';
+// Story 31.A.6: TodayReviewListService - unified today review list with caching and context menu
+import { TodayReviewListService, createTodayReviewListService } from './src/services/TodayReviewListService';
 import type { ReviewMode } from './src/types/UITypes';
 
 /**
@@ -237,6 +241,12 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Story 31.2: Verification History Service - tracks verification canvas relations */
     private verificationHistoryService: VerificationHistoryService | null = null;
+
+    /** Story 31.A.4: FSRS State Query Service - backend FSRS state integration */
+    fsrsStateQueryService?: FSRSStateQueryService;
+
+    /** Story 31.A.6: TodayReviewListService - unified today review list with caching */
+    todayReviewListService?: TodayReviewListService;
 
     /** Story 30.6: Canvas auto-index debounce timers */
     private indexDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
@@ -554,6 +564,16 @@ export default class CanvasReviewPlugin extends Plugin {
                 console.error('Canvas Review System: Failed to initialize MemoryQueryService:', error);
             }
 
+            // Story 31.A.4: Initialize FSRS State Query Service
+            try {
+                this.fsrsStateQueryService = createFSRSStateQueryService(this.app, apiBaseUrl);
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: FSRSStateQueryService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize FSRSStateQueryService:', error);
+            }
+
             // Story 30.7: Initialize Graphiti Association Service
             try {
                 this.graphitiAssociationService = new GraphitiAssociationService(this.app, {
@@ -577,6 +597,25 @@ export default class CanvasReviewPlugin extends Plugin {
                 }
             } catch (error) {
                 console.error('Canvas Review System: Failed to initialize VerificationHistoryService:', error);
+            }
+
+            // Story 31.A.6: Initialize TodayReviewListService (unified review list with caching)
+            try {
+                this.todayReviewListService = createTodayReviewListService(this.app);
+                if (this.dataManager) {
+                    this.todayReviewListService.setDataManager(this.dataManager);
+                }
+                if (this.memoryQueryService) {
+                    this.todayReviewListService.setMemoryQueryService(this.memoryQueryService);
+                }
+                if (this.fsrsStateQueryService) {
+                    this.todayReviewListService.setFSRSStateQueryService(this.fsrsStateQueryService);
+                }
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: TodayReviewListService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize TodayReviewListService:', error);
             }
 
             // Initialize Association Status Bar Indicator (Story 16.7)

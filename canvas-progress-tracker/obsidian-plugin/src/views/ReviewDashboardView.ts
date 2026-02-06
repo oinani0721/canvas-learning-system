@@ -128,8 +128,7 @@ export class ReviewDashboardView extends ItemView {
                 throw new Error('Database not initialized');
             }
 
-            // Get review data
-            const dueReviews = await dataManager.getDueReviews();
+            // ✅ 保留：Dashboard 统计数据（TodayReviewListService 不提供这些）
             const dailyStats = await dataManager.getDailyStatistics();
 
             // Story 32.4 AC-32.4.2: Query streak days from ReviewRecordDAO
@@ -141,52 +140,61 @@ export class ReviewDashboardView extends ItemView {
                 console.warn('[ReviewDashboard] Streak calculation failed, using default:', error);
             }
 
-            // Story 32.4 Task 4.3: Batch query reviewCount for performance
-            const conceptIds = dueReviews
-                .map((r) => r.conceptId || r.conceptName || '')
-                .filter(Boolean);
-            let reviewCountMap = new Map<string, number>();
-            try {
-                const reviewRecordDAO = dataManager.getReviewRecordDAO();
-                reviewCountMap = await reviewRecordDAO.getReviewCountBatch(conceptIds);
-            } catch (error) {
-                console.warn('[ReviewDashboard] Batch review count query failed:', error);
+            // Story 31.A.6: Get review tasks from TodayReviewListService (with 60s cache + real FSRS)
+            // Falls back to legacy loading if service not available
+            const todayService = this.plugin.todayReviewListService;
+            let tasks: ReviewTask[];
+
+            if (todayService) {
+                const todayItems = await todayService.getTodayReviewItems();
+                // TodayReviewItem extends ReviewTask, so this is type-safe
+                tasks = todayItems as ReviewTask[];
+            } else {
+                // Fallback: legacy loading path (pre-31.A.6)
+                const dueReviews = await dataManager.getDueReviews();
+                const conceptIds = dueReviews
+                    .map((r) => r.conceptId || r.conceptName || '')
+                    .filter(Boolean);
+                let reviewCountMap = new Map<string, number>();
+                try {
+                    const reviewRecordDAO = dataManager.getReviewRecordDAO();
+                    reviewCountMap = await reviewRecordDAO.getReviewCountBatch(conceptIds);
+                } catch (error) {
+                    console.warn('[ReviewDashboard] Batch review count query failed:', error);
+                }
+
+                tasks = await Promise.all(
+                    dueReviews.map(async (review) => {
+                        const conceptId = review.conceptId || review.conceptName || '';
+                        const memoryResult = await this.queryConceptMemory(review.conceptName || conceptId);
+                        // Story 31.A.4 AC-31.A.4.3: Query real FSRS state instead of hardcoded null
+                        const fsrsState = await this.queryFSRSState(conceptId);
+                        const adaptedFsrs = fsrsState ? this.adaptFSRSStateToCardState(conceptId, fsrsState) : null;
+                        const priorityResult = this.priorityCalculatorService.calculatePriority(
+                            conceptId,
+                            adaptedFsrs,
+                            memoryResult,
+                            review.canvasId
+                        );
+                        const reviewCount = reviewCountMap.get(conceptId) || 1;
+
+                        return {
+                            id: String(review.id),
+                            canvasId: review.canvasId,
+                            canvasTitle: review.canvasTitle,
+                            conceptName: review.conceptName,
+                            priority: priorityResult.priorityTier,
+                            dueDate: review.nextReviewDate || new Date(),
+                            overdueDays: this.calculateOverdueDays(review.nextReviewDate),
+                            memoryStrength: review.memoryStrength,
+                            retentionRate: review.retentionRate,
+                            reviewCount,
+                            lastReviewDate: review.reviewDate,
+                            status: 'pending',
+                        };
+                    })
+                );
             }
-
-            // Story 30.7 AC-30.7.3: Convert to ReviewTask format with real memory-based priority
-            const tasks: ReviewTask[] = await Promise.all(
-                dueReviews.map(async (review) => {
-                    // Query real memory result from MemoryQueryService if available
-                    const memoryResult = await this.queryConceptMemory(review.conceptName || review.conceptId || '');
-
-                    // Use PriorityCalculatorService with real memoryResult
-                    const priorityResult = this.priorityCalculatorService.calculatePriority(
-                        review.conceptId || review.conceptName || '',
-                        null, // FSRS state - can be enhanced to pass real state
-                        memoryResult,
-                        review.canvasId
-                    );
-
-                    // Story 32.4 AC-32.4.1: Use real reviewCount from batch query
-                    const conceptId = review.conceptId || review.conceptName || '';
-                    const reviewCount = reviewCountMap.get(conceptId) || 1;
-
-                    return {
-                        id: String(review.id),
-                        canvasId: review.canvasId,
-                        canvasTitle: review.canvasTitle,
-                        conceptName: review.conceptName,
-                        priority: priorityResult.priorityTier,
-                        dueDate: review.nextReviewDate || new Date(),
-                        overdueDays: this.calculateOverdueDays(review.nextReviewDate),
-                        memoryStrength: review.memoryStrength,
-                        retentionRate: review.retentionRate,
-                        reviewCount, // Story 32.4: Real review count from database
-                        lastReviewDate: review.reviewDate,
-                        status: 'pending',
-                    };
-                })
-            );
 
             // Batch query subject/category from backend for each unique canvas
             try {
@@ -261,6 +269,71 @@ export class ReviewDashboardView extends ItemView {
             }
             return null;
         }
+    }
+
+    /**
+     * Story 31.A.4 AC-31.A.4.3: Query FSRS state from FSRSStateQueryService
+     *
+     * Returns real FSRS state if FSRSStateQueryService is available,
+     * otherwise returns null for graceful degradation.
+     *
+     * @param conceptId - Concept ID to query
+     * @returns FSRSState or null
+     */
+    private async queryFSRSState(conceptId: string): Promise<import('../services/FSRSStateQueryService').FSRSState | null> {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fsrsService = (this.plugin as any).fsrsStateQueryService;
+            if (!fsrsService) {
+                return null;
+            }
+            const response = await fsrsService.queryFSRSState(conceptId);
+            return response?.fsrs_state || null;
+        } catch (error) {
+            // Silent degradation - FSRS query failure shouldn't block dashboard
+            if (this.plugin.settings?.debugMode) {
+                console.warn('[ReviewDashboard] FSRS state query failed for:', conceptId, error);
+            }
+            return null;
+        }
+    }
+
+    /**
+     * Story 31.A.4: Adapt FSRSState (from query service) to FSRSCardState (for priority calculator)
+     *
+     * FSRSState: { stability, difficulty, state: number(0-3), reps, lapses, retrievability, due }
+     * FSRSCardState: { conceptId, stability, difficulty, lastReview: Date, nextReview: Date, ... }
+     *
+     * @param conceptId - Concept identifier
+     * @param fsrs - Raw FSRS state from backend
+     * @returns Adapted FSRSCardState for PriorityCalculatorService
+     */
+    private adaptFSRSStateToCardState(
+        conceptId: string,
+        fsrs: import('../services/FSRSStateQueryService').FSRSState
+    ): import('../services/PriorityCalculatorService').FSRSCardState {
+        const stateMap: Record<number, 'new' | 'learning' | 'review' | 'relearning'> = {
+            0: 'new',
+            1: 'learning',
+            2: 'review',
+            3: 'relearning',
+        };
+
+        const now = new Date();
+        // Estimate lastReview: now - stability days (rough approximation)
+        const lastReview = new Date(now);
+        lastReview.setDate(lastReview.getDate() - Math.max(1, Math.floor(fsrs.stability)));
+
+        return {
+            conceptId,
+            stability: fsrs.stability,
+            difficulty: fsrs.difficulty,
+            lastReview,
+            nextReview: fsrs.due ? new Date(fsrs.due) : now,
+            reps: fsrs.reps,
+            lapses: fsrs.lapses,
+            state: stateMap[fsrs.state] || 'new',
+        };
     }
 
     /**
@@ -2225,10 +2298,28 @@ export class ReviewDashboardView extends ItemView {
     /**
      * Show context menu for task card
      * Story 14.4: AC4 - Right-click menu with "Mark as mastered" / "Reset progress"
+     * Story 31.A.6: Enhanced with TodayReviewListService context menu actions
      *
      * ✅ Verified from Context7: /obsidianmd/obsidian-api (Menu API)
      */
     private showTaskContextMenu(event: MouseEvent, task: ReviewTask): void {
+        const todayService = this.plugin.todayReviewListService;
+        const isTodayReviewItem = todayService && 'canvasPath' in task;
+
+        // Story 31.A.6: If TodayReviewListService is available and task is a TodayReviewItem,
+        // delegate to the service's context menu for unified action handling
+        if (isTodayReviewItem) {
+            const todayItem = task as import('../services/TodayReviewListService').TodayReviewItem;
+            todayService.showContextMenu(event, todayItem, async (action) => {
+                const success = await todayService.handleContextMenuAction(action, todayItem);
+                if (success) {
+                    await this.loadData();
+                }
+            });
+            return;
+        }
+
+        // Fallback: legacy context menu (pre-31.A.6)
         const menu = new Menu();
 
         // Mark as mastered
