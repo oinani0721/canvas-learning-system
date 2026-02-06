@@ -518,6 +518,17 @@ async def get_verification_service(
     # Get CrossCanvas service (singleton)
     cross_canvas_service = get_cross_canvas_service()
 
+    # Story 31.A.1 AC-31.A.1.1: Get GraphitiTemporalClient singleton
+    # [Source: docs/stories/31.A.1.story.md#AC-31.A.1.1]
+    graphiti_client = get_graphiti_temporal_client()
+    if graphiti_client:
+        logger.debug("GraphitiTemporalClient injected into VerificationService")
+    else:
+        logger.warning(
+            "GraphitiTemporalClient not available - "
+            "verification question deduplication will be disabled"
+        )
+
     # Create TextbookContext service
     # Story 24.5 AC4: Textbook context with timeout
     textbook_config = TextbookContextConfig(timeout=3.0)
@@ -528,10 +539,12 @@ async def get_verification_service(
 
     # Create VerificationService with all dependencies
     # AC5: Services are optional - graceful degradation built into VerificationService
+    # Story 31.A.1 AC-31.A.1.1: Added graphiti_client injection
     service = VerificationService(
         rag_service=rag_service,
         cross_canvas_service=cross_canvas_service,
-        textbook_context_service=textbook_service
+        textbook_context_service=textbook_service,
+        graphiti_client=graphiti_client  # Story 31.A.1: Enable question deduplication
     )
 
     try:
@@ -742,6 +755,7 @@ def get_graphiti_temporal_client():
 
     Story 31.4 AC-31.4.1: Used for querying verification question history.
     Story 31.4 AC-31.4.3: Required for the verification history endpoint.
+    Story 36.1 AC-36.1.3: Neo4jClient dependency injection.
 
     This function returns a singleton instance of GraphitiTemporalClient
     for efficient reuse across requests. Returns None if the client
@@ -761,6 +775,7 @@ def get_graphiti_temporal_client():
         ```
 
     [Source: docs/stories/31.4.story.md#Task-4]
+    [Source: docs/stories/36.1.story.md#AC-36.1.3]
     [Source: src/agentic_rag/clients/graphiti_temporal_client.py]
     """
     global _graphiti_temporal_client_instance
@@ -769,17 +784,38 @@ def get_graphiti_temporal_client():
         return _graphiti_temporal_client_instance
 
     try:
+        # Story 36.1 AC-36.1.3: Get Neo4jClient for dependency injection
+        neo4j_client = get_neo4j_client()
+
         from agentic_rag.clients.graphiti_temporal_client import GraphitiTemporalClient
 
-        _graphiti_temporal_client_instance = GraphitiTemporalClient()
-        logger.info("GraphitiTemporalClient singleton initialized")
+        # Fix: Inject neo4j_client (required parameter)
+        _graphiti_temporal_client_instance = GraphitiTemporalClient(
+            neo4j_client=neo4j_client,
+            timeout_ms=500,
+            enable_fallback=True
+        )
+        logger.info(
+            "GraphitiTemporalClient singleton initialized with Neo4jClient "
+            f"(mode={neo4j_client.stats.get('mode', 'unknown') if neo4j_client else 'none'})"
+        )
         return _graphiti_temporal_client_instance
 
     except ImportError as e:
-        logger.warning(f"GraphitiTemporalClient not available: {e}")
+        logger.warning(
+            f"GraphitiTemporalClient not available: {e}. "
+            "Question deduplication and learning history will be DISABLED. "
+            "To fix: pip install graphiti-core"
+        )
+        return None
+    except ValueError as e:
+        logger.error(
+            f"GraphitiTemporalClient initialization failed (Neo4jClient issue): {e}. "
+            "Check NEO4J_HOST, NEO4J_PORT environment variables."
+        )
         return None
     except Exception as e:
-        logger.error(f"Failed to initialize GraphitiTemporalClient: {e}")
+        logger.error(f"Failed to initialize GraphitiTemporalClient: {type(e).__name__}: {e}")
         return None
 
 
