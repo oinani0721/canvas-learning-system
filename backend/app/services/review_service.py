@@ -1752,6 +1752,7 @@ class ReviewService:
                 "lapses": int(getattr(card, "lapses", 0)),
                 "retrievability": retrievability,
                 "due": due_date,
+                "last_review": getattr(card, "last_review", None),
                 "card_state": card_data  # Full JSON for plugin to cache/deserialize
             }
 

@@ -163,12 +163,16 @@ export class ReviewDashboardView extends ItemView {
                     console.warn('[ReviewDashboard] Batch review count query failed:', error);
                 }
 
+                // Batch query all FSRS states upfront (concurrency-controlled)
+                const fsrsStateMap = await this.batchQueryFSRSStates(conceptIds);
+
                 tasks = await Promise.all(
                     dueReviews.map(async (review) => {
                         const conceptId = review.conceptId || review.conceptName || '';
                         const memoryResult = await this.queryConceptMemory(review.conceptName || conceptId);
-                        // Story 31.A.4 AC-31.A.4.3: Query real FSRS state instead of hardcoded null
-                        const fsrsState = await this.queryFSRSState(conceptId);
+                        // Story 31.A.4 AC-31.A.4.3: Use batch-queried FSRS state
+                        const fsrsResponse = fsrsStateMap.get(conceptId);
+                        const fsrsState = fsrsResponse?.fsrs_state || null;
                         const adaptedFsrs = fsrsState ? this.adaptFSRSStateToCardState(conceptId, fsrsState) : null;
                         const priorityResult = this.priorityCalculatorService.calculatePriority(
                             conceptId,
@@ -299,6 +303,32 @@ export class ReviewDashboardView extends ItemView {
     }
 
     /**
+     * Batch query FSRS states for multiple concepts.
+     * Delegates to FSRSStateQueryService.batchQueryFSRSStates() with built-in
+     * concurrency control (max 5 parallel requests) and caching.
+     *
+     * @param conceptIds - Array of concept IDs to query
+     * @returns Map of conceptId to FSRSStateQueryResponse
+     */
+    private async batchQueryFSRSStates(
+        conceptIds: string[]
+    ): Promise<Map<string, import('../services/FSRSStateQueryService').FSRSStateQueryResponse>> {
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const fsrsService = (this.plugin as any).fsrsStateQueryService;
+            if (!fsrsService) {
+                return new Map();
+            }
+            return await fsrsService.batchQueryFSRSStates(conceptIds);
+        } catch (error) {
+            if (this.plugin.settings?.debugMode) {
+                console.warn('[ReviewDashboard] Batch FSRS query failed:', error);
+            }
+            return new Map();
+        }
+    }
+
+    /**
      * Story 31.A.4: Adapt FSRSState (from query service) to FSRSCardState (for priority calculator)
      *
      * FSRSState: { stability, difficulty, state: number(0-3), reps, lapses, retrievability, due }
@@ -320,9 +350,14 @@ export class ReviewDashboardView extends ItemView {
         };
 
         const now = new Date();
-        // Estimate lastReview: now - stability days (rough approximation)
-        const lastReview = new Date(now);
-        lastReview.setDate(lastReview.getDate() - Math.max(1, Math.floor(fsrs.stability)));
+        // Use real last_review from backend if available, otherwise estimate from stability
+        const lastReview = fsrs.last_review
+            ? new Date(fsrs.last_review)
+            : (() => {
+                const est = new Date(now);
+                est.setDate(est.getDate() - Math.max(1, Math.floor(fsrs.stability)));
+                return est;
+            })();
 
         return {
             conceptId,

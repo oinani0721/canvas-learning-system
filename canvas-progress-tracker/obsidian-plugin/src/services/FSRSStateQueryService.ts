@@ -38,6 +38,8 @@ export interface FSRSState {
     retrievability: number | null;
     /** Next due date/time */
     due: string | null;
+    /** Last review date/time */
+    last_review: string | null;
 }
 
 /**

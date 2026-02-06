@@ -914,7 +914,8 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
             reps=result.get("reps", 0),
             lapses=result.get("lapses", 0),
             retrievability=result.get("retrievability"),
-            due=result.get("due")
+            due=result.get("due"),
+            last_review=result.get("last_review")
         )
 
         return FSRSStateQueryResponse(

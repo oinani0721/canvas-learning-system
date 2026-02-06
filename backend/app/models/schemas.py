@@ -789,6 +789,10 @@ class FSRSStateResponse(BaseModel):
         None,
         description="Next due date/time for review"
     )
+    last_review: Optional[datetime] = Field(
+        None,
+        description="Last review date/time"
+    )
 
 
 class FSRSStateQueryResponse(BaseModel):
