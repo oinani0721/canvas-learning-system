@@ -41,22 +41,30 @@ export enum ColorMasteryLevel {
 }
 
 /**
+ * Event type for color change events
+ * [Source: Story 30.9 - AC-30.9.2, AC-30.9.4]
+ */
+export type ColorChangeEventType = 'color_changed' | 'color_removed' | 'node_removed';
+
+/**
  * Color change event interface
  * [Source: specs/data/temporal-event.schema.json]
  */
 export interface ColorChangeEvent {
+    /** Event type: color_changed, color_removed, or node_removed */
+    eventType: ColorChangeEventType;
     /** Node ID from canvas */
     nodeId: string;
     /** Canvas file path */
     canvasPath: string;
     /** Previous color code (null if new node) */
     oldColor: string | null;
-    /** New color code */
-    newColor: string;
+    /** New color code (null if color removed or node deleted) */
+    newColor: string | null;
     /** Previous mastery level */
     oldLevel: ColorMasteryLevel | null;
-    /** New mastery level */
-    newLevel: ColorMasteryLevel;
+    /** New mastery level (null if color removed or node deleted) */
+    newLevel: ColorMasteryLevel | null;
     /** Event timestamp */
     timestamp: Date;
     /** Node text content (for context) */
@@ -70,15 +78,16 @@ export interface ColorChangeEvent {
 export interface ColorChangeEventBatch {
     /** Array of color change events */
     events: Array<{
-        event_type: 'color_changed';
+        event_type: ColorChangeEventType;
         timestamp: string;
         canvas_path: string;
         node_id: string;
         metadata: {
             old_color: string | null;
-            new_color: string;
+            new_color: string | null;
             old_level: ColorMasteryLevel | null;
-            new_level: ColorMasteryLevel;
+            new_level: ColorMasteryLevel | null;
+            concept: string;
             node_text?: string;
         };
     }>;
@@ -181,8 +190,9 @@ export class NodeColorChangeWatcher {
     /**
      * Start watching canvas files for color changes
      * [Source: Context7:/obsidianmd/obsidian-api - Vault.on('modify')]
+     * [Source: Story 30.9 AC-30.9.1 - async start with state preloading]
      */
-    start(): void {
+    async start(): Promise<void> {
         if (!this.settings.enabled) {
             this.log('Watcher disabled in settings, not starting');
             return;
@@ -193,13 +203,19 @@ export class NodeColorChangeWatcher {
             return;
         }
 
+        // Set immediately to prevent double-start from sync callers (e.g. updateSettings)
+        this.isRunning = true;
+
+        // Pre-populate previousCanvasState before registering event listener
+        // [Source: Story 30.9 Task 1 - Fixes DATA-001]
+        await this.initializeState();
+
         this.eventRef = this.app.vault.on('modify', async (file) => {
             if (file instanceof TFile && file.extension === 'canvas') {
                 await this.handleCanvasModify(file);
             }
         });
 
-        this.isRunning = true;
         this.log('Started watching canvas color changes');
     }
 
@@ -272,6 +288,56 @@ export class NodeColorChangeWatcher {
     // ========================================================================
 
     /**
+     * Pre-populate previousCanvasState by scanning all .canvas files
+     * Must be called before registering vault.on('modify')
+     * [Source: Story 30.9 Task 1 - Fixes DATA-001]
+     * [Source: AC-30.9.1 - 启动时预加载Canvas状态]
+     */
+    private async initializeState(): Promise<void> {
+        const INIT_TIMEOUT_MS = 5000;
+        try {
+            await Promise.race([
+                this.scanAllCanvasFiles(),
+                new Promise<void>((_, reject) =>
+                    setTimeout(() => reject(new Error('initializeState timeout')), INIT_TIMEOUT_MS)
+                ),
+            ]);
+        } catch (error) {
+            // Continue with partial state on timeout or error
+            this.log('initializeState completed with partial state:', error);
+        }
+        this.log(`Initialized state for ${this.previousCanvasState.size} canvases`);
+    }
+
+    /**
+     * Scan all .canvas files and populate previousCanvasState
+     */
+    private async scanAllCanvasFiles(): Promise<void> {
+        const files = this.app.vault.getFiles().filter((f: TFile) => f.extension === 'canvas');
+
+        for (const file of files) {
+            try {
+                const content = await this.app.vault.read(file);
+                const canvasData: CanvasData = JSON.parse(content);
+                const nodeColors = new Map<string, string>();
+
+                for (const node of canvasData.nodes || []) {
+                    if (node.color && this.isValidColor(node.color)) {
+                        nodeColors.set(node.id, node.color);
+                    }
+                }
+
+                if (nodeColors.size > 0) {
+                    this.previousCanvasState.set(file.path, nodeColors);
+                }
+            } catch {
+                // Skip files that can't be parsed
+                this.log(`Skip initial scan for ${file.path}`);
+            }
+        }
+    }
+
+    /**
      * Handle canvas file modification event
      * [Source: AC-30.6.1 - 监听.canvas文件变化]
      */
@@ -295,6 +361,7 @@ export class NodeColorChangeWatcher {
      * Detect color changes by comparing with previous state
      * [Source: specs/data/canvas-node.schema.json#/properties/color]
      * [Source: AC-30.6.1 - 检测节点颜色属性变更]
+     * [Source: Story 30.9 - AC-30.9.2 color removal, AC-30.9.4 node deletion]
      */
     private detectColorChanges(canvasPath: string, canvasData: CanvasData): ColorChangeEvent[] {
         const changes: ColorChangeEvent[] = [];
@@ -304,9 +371,16 @@ export class NodeColorChangeWatcher {
         const prevState = this.previousCanvasState.get(canvasPath) || new Map<string, string>();
         const newState = new Map<string, string>();
 
+        // Track all node IDs and their text for removal/deletion detection
+        const allNodeIds = new Set<string>();
+        const nodeTextMap = new Map<string, string | undefined>();
+
         // Process each node in the canvas
         for (const node of canvasData.nodes || []) {
             const nodeId = node.id;
+            allNodeIds.add(nodeId);
+            nodeTextMap.set(nodeId, node.text || undefined);
+
             const newColor = node.color || null;
 
             if (newColor && this.isValidColor(newColor)) {
@@ -316,6 +390,7 @@ export class NodeColorChangeWatcher {
                 // Detect color change (including new nodes with color)
                 if (oldColor !== newColor) {
                     changes.push({
+                        eventType: 'color_changed',
                         nodeId,
                         canvasPath,
                         oldColor,
@@ -326,6 +401,41 @@ export class NodeColorChangeWatcher {
                         nodeText: node.text || undefined,
                     });
                 }
+            }
+        }
+
+        // Detect color removal: node exists but color was removed
+        // [Source: Story 30.9 Task 2 - Fixes DATA-002]
+        for (const [nodeId, oldColor] of prevState) {
+            if (allNodeIds.has(nodeId) && !newState.has(nodeId)) {
+                changes.push({
+                    eventType: 'color_removed',
+                    nodeId,
+                    canvasPath,
+                    oldColor,
+                    newColor: null,
+                    oldLevel: this.mapColorToLevel(oldColor),
+                    newLevel: null,
+                    timestamp: now,
+                    nodeText: nodeTextMap.get(nodeId),
+                });
+            }
+        }
+
+        // Detect node deletion: node no longer exists in canvas
+        // [Source: Story 30.9 Task 4 - Fixes DATA-004]
+        for (const [nodeId, oldColor] of prevState) {
+            if (!allNodeIds.has(nodeId)) {
+                changes.push({
+                    eventType: 'node_removed',
+                    nodeId,
+                    canvasPath,
+                    oldColor,
+                    newColor: null,
+                    oldLevel: this.mapColorToLevel(oldColor),
+                    newLevel: null,
+                    timestamp: now,
+                });
             }
         }
 
@@ -411,20 +521,25 @@ export class NodeColorChangeWatcher {
         this.pendingChanges = [];
         this.debounceTimeout = null;
 
-        try {
-            // Fire-and-forget with timeout
-            // [Source: ADR-0004 - 超时保护: 500ms]
-            await Promise.race([
-                this.postColorChangeEvents(changesToSend),
-                new Promise<void>((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')), this.settings.timeout)
-                ),
-            ]);
-            this.log(`Flushed ${changesToSend.length} color changes to memory API`);
-        } catch (error) {
-            // Silent degradation - log but don't throw
-            // [Source: ADR-0004 - 失败时静默降级，记录错误日志]
-            this.log('Failed to post color changes (silent degradation):', error);
+        // [Source: Story 30.9 Task 6 - Fixes BATCH-001: 50-per-batch chunking]
+        const BATCH_SIZE = 50;
+        for (let i = 0; i < changesToSend.length; i += BATCH_SIZE) {
+            const chunk = changesToSend.slice(i, i + BATCH_SIZE);
+            try {
+                // Fire-and-forget with timeout per chunk
+                // [Source: ADR-0004 - 超时保护: 500ms]
+                await Promise.race([
+                    this.postColorChangeEvents(chunk),
+                    new Promise<void>((_, reject) =>
+                        setTimeout(() => reject(new Error('Timeout')), this.settings.timeout)
+                    ),
+                ]);
+                this.log(`Flushed chunk ${Math.floor(i / BATCH_SIZE) + 1} (${chunk.length} events) to memory API`);
+            } catch (error) {
+                // Silent degradation - log but don't throw
+                // [Source: ADR-0004 - 失败时静默降级，记录错误日志]
+                this.log('Failed to post color changes chunk (silent degradation):', error);
+            }
         }
     }
 
@@ -440,7 +555,7 @@ export class NodeColorChangeWatcher {
     private async postColorChangeEvents(events: ColorChangeEvent[]): Promise<void> {
         const payload: ColorChangeEventBatch = {
             events: events.map((e) => ({
-                event_type: 'color_changed' as const,
+                event_type: e.eventType,
                 timestamp: e.timestamp.toISOString(),
                 canvas_path: e.canvasPath,
                 node_id: e.nodeId,
@@ -449,6 +564,7 @@ export class NodeColorChangeWatcher {
                     new_color: e.newColor,
                     old_level: e.oldLevel,
                     new_level: e.newLevel,
+                    concept: e.nodeText || 'unknown',
                     node_text: e.nodeText,
                 },
             })),

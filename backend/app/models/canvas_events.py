@@ -34,11 +34,17 @@ class CanvasEventType(str, Enum):
     - NODE_CREATED: 节点创建 (AC-30.5.1)
     - NODE_UPDATED: 节点更新 (AC-30.5.3)
     - EDGE_CREATED: 边创建 (AC-30.5.2)
+    - COLOR_CHANGED: 颜色变化 (Story 30.9 AC-30.9.5)
+    - COLOR_REMOVED: 颜色移除 (Story 30.9 AC-30.9.5)
+    - NODE_REMOVED: 节点删除 (Story 30.9 AC-30.9.5)
     """
 
     NODE_CREATED = "node_created"
     NODE_UPDATED = "node_updated"
     EDGE_CREATED = "edge_created"
+    COLOR_CHANGED = "color_changed"
+    COLOR_REMOVED = "color_removed"
+    NODE_REMOVED = "node_removed"
 
 
 class CanvasEvent(BaseModel):

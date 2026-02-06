@@ -682,7 +682,8 @@ class Neo4jClient:
         self,
         user_id: str,
         concept: str,
-        score: Optional[int] = None
+        score: Optional[int] = None,
+        group_id: Optional[str] = None
     ) -> bool:
         """
         Create a learning relationship between user and concept.
@@ -693,6 +694,7 @@ class Neo4jClient:
             user_id: User ID
             concept: Concept name
             score: Optional score
+            group_id: Optional group_id for subject isolation (Story 30.8)
 
         Returns:
             True if successful
@@ -703,6 +705,7 @@ class Neo4jClient:
         MERGE (u)-[r:LEARNED]->(c)
         SET r.timestamp = datetime(),
             r.score = $score,
+            r.group_id = $groupId,
             r.next_review = datetime() + duration('P1D')
         RETURN r
         """
@@ -710,7 +713,8 @@ class Neo4jClient:
             query,
             userId=user_id,
             concept=concept,
-            score=score
+            score=score,
+            groupId=group_id
         )
         return len(results) > 0
 

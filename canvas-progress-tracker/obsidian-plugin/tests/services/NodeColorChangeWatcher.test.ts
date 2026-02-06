@@ -22,6 +22,7 @@ import {
     createNodeColorChangeWatcher,
     ColorMasteryLevel,
     ColorChangeEvent,
+    ColorChangeEventType,
 } from '../../src/services/NodeColorChangeWatcher';
 import { TFile } from '../__mocks__/obsidian';
 
@@ -84,6 +85,10 @@ function createMockApp() {
                 throw new Error(`File not found: ${file.path}`);
             }
             return content;
+        }),
+
+        getFiles: jest.fn(() => {
+            return Array.from(mockVault._files.keys()).map(path => new TFile(path));
         }),
 
         // Test helper: trigger modify event (async to handle async callbacks)
@@ -321,7 +326,7 @@ describe('NodeColorChangeWatcher', () => {
                 nodes: [{ id: 'node1', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Trigger first change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -360,7 +365,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // First change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -409,7 +414,7 @@ describe('NodeColorChangeWatcher', () => {
                     { id: 'node3', color: '1' },
                 ],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Change all nodes at once
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -441,7 +446,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('canvas2.canvas', JSON.stringify({
                 nodes: [{ id: 'node2', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Change canvas1
             mockApp.vault._setFile('canvas1.canvas', JSON.stringify({
@@ -480,7 +485,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Trigger change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -513,7 +518,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Trigger change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -535,7 +540,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Trigger change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -559,30 +564,30 @@ describe('NodeColorChangeWatcher', () => {
     // ========================================================================
 
     describe('Watcher Lifecycle', () => {
-        it('should start and register event listener', () => {
-            watcher.start();
+        it('should start and register event listener', async () => {
+            await watcher.start();
 
             expect(watcher.isActive()).toBe(true);
             expect(mockApp.vault.on).toHaveBeenCalledWith('modify', expect.any(Function));
         });
 
-        it('should not start when disabled', () => {
+        it('should not start when disabled', async () => {
             watcher.updateSettings({ enabled: false });
-            watcher.start();
+            await watcher.start();
 
             expect(watcher.isActive()).toBe(false);
             expect(mockApp.vault.on).not.toHaveBeenCalled();
         });
 
-        it('should not start twice', () => {
-            watcher.start();
-            watcher.start();
+        it('should not start twice', async () => {
+            await watcher.start();
+            await watcher.start();
 
             expect(mockApp.vault.on).toHaveBeenCalledTimes(1);
         });
 
-        it('should stop and remove event listener', () => {
-            watcher.start();
+        it('should stop and remove event listener', async () => {
+            await watcher.start();
             const initialListenerCount = mockApp.vault._getListenerCount('modify');
             expect(initialListenerCount).toBe(1);
 
@@ -598,7 +603,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Trigger change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -629,8 +634,8 @@ describe('NodeColorChangeWatcher', () => {
             expect(watcher.getPendingChangesCount()).toBe(0);
         });
 
-        it('should toggle watcher when enabled setting changes', () => {
-            watcher.start();
+        it('should toggle watcher when enabled setting changes', async () => {
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
 
             watcher.updateSettings({ enabled: false });
@@ -678,7 +683,7 @@ describe('NodeColorChangeWatcher', () => {
             mockApp.vault._setFile('test.canvas', JSON.stringify({
                 nodes: [{ id: 'node1', color: '1', text: 'Test concept' }],
             }));
-            watcher.start();
+            await watcher.start();
 
             // Seed initial state
             await mockApp.vault._triggerModify(new TFile('test.canvas'));
@@ -717,6 +722,7 @@ describe('NodeColorChangeWatcher', () => {
             expect(body.events[0].metadata.old_level).toBe(ColorMasteryLevel.NOT_UNDERSTOOD);
             expect(body.events[0].metadata.new_level).toBe(ColorMasteryLevel.MASTERED);
             expect(body.events[0].metadata.node_text).toBe('Test concept');
+            expect(body.events[0].metadata.concept).toBe('Test concept');
         });
     });
 
@@ -739,7 +745,7 @@ describe('NodeColorChangeWatcher', () => {
 
         it('should handle invalid JSON gracefully', async () => {
             mockApp.vault._setFile('test.canvas', 'not valid json');
-            watcher.start();
+            await watcher.start();
 
             // Should not throw
             await mockApp.vault._triggerModify(new TFile('test.canvas'));
@@ -751,7 +757,7 @@ describe('NodeColorChangeWatcher', () => {
         it('should only process .canvas files', async () => {
             const postSpy = jest.spyOn(watcher as any, 'postColorChangeEvents').mockResolvedValue(undefined);
 
-            watcher.start();
+            await watcher.start();
 
             // Trigger modify for non-canvas file
             await mockApp.vault._triggerModify(new TFile('test.md'));
@@ -760,6 +766,365 @@ describe('NodeColorChangeWatcher', () => {
             await Promise.resolve();
 
             expect(postSpy).not.toHaveBeenCalled();
+        });
+    });
+
+    // ========================================================================
+    // Story 30.9: Data Integrity Fix Tests
+    // ========================================================================
+
+    describe('Story 30.9: Startup State Preloading (T1, T2)', () => {
+        it('T1: should not produce spurious events after preloading', async () => {
+            const postSpy = jest.spyOn(watcher as any, 'postColorChangeEvents').mockResolvedValue(undefined);
+
+            // Setup canvas with 5 colored nodes BEFORE start
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'n1', color: '1', text: 'Concept A' },
+                    { id: 'n2', color: '2', text: 'Concept B' },
+                    { id: 'n3', color: '3', text: 'Concept C' },
+                    { id: 'n4', color: '6', text: 'Concept D' },
+                    { id: 'n5', color: '1', text: 'Concept E' },
+                ],
+            }));
+
+            // Start watcher - should preload state
+            await watcher.start();
+
+            // Trigger modify with SAME content → no changes expected
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            // No API calls should have been made
+            expect(postSpy).not.toHaveBeenCalled();
+        });
+
+        it('T2: should detect real changes after preloading', async () => {
+            const postSpy = jest.spyOn(watcher as any, 'postColorChangeEvents').mockResolvedValue(undefined);
+
+            // Setup canvas BEFORE start
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'n1', color: '1', text: 'Concept A' },
+                    { id: 'n2', color: '2', text: 'Concept B' },
+                ],
+            }));
+
+            await watcher.start();
+
+            // Change one node's color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'n1', color: '2', text: 'Concept A' },
+                    { id: 'n2', color: '2', text: 'Concept B' },
+                ],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            // Should detect exactly 1 change (n1: red→green)
+            expect(postSpy).toHaveBeenCalledTimes(1);
+            const events = postSpy.mock.calls[0][0] as ColorChangeEvent[];
+            expect(events).toHaveLength(1);
+            expect(events[0].nodeId).toBe('n1');
+            expect(events[0].oldColor).toBe('1');
+            expect(events[0].newColor).toBe('2');
+        });
+
+        it('should handle initializeState timeout gracefully', async () => {
+            // Setup a large number of canvas files that are slow to read
+            for (let i = 0; i < 10; i++) {
+                mockApp.vault._setFile(`canvas${i}.canvas`, JSON.stringify({
+                    nodes: [{ id: `n${i}`, color: '1' }],
+                }));
+            }
+
+            // Make vault.read very slow
+            const originalRead = mockApp.vault.read;
+            mockApp.vault.read = jest.fn(async (file: TFile) => {
+                // Return a promise that never resolves (simulates slow reads)
+                return new Promise(() => {});
+            });
+
+            // Start should complete even with timeout
+            const startPromise = watcher.start();
+            // Advance past the 5s timeout
+            jest.advanceTimersByTime(6000);
+            await startPromise;
+
+            // Watcher should still be running with partial/empty state
+            expect(watcher.isActive()).toBe(true);
+
+            // Restore original read
+            mockApp.vault.read = originalRead;
+        });
+    });
+
+    describe('Story 30.9: Color Removal Tracking (T3, T4)', () => {
+        it('T3: should produce color_removed event when color is removed', () => {
+            // Set initial state with colored node
+            (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', color: '1', text: 'Concept A' }],
+            });
+
+            // Remove color (node still exists, but no color)
+            const changes = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', text: 'Concept A' }],
+            });
+
+            expect(changes).toHaveLength(1);
+            expect(changes[0].eventType).toBe('color_removed');
+            expect(changes[0].nodeId).toBe('n1');
+            expect(changes[0].oldColor).toBe('1');
+            expect(changes[0].newColor).toBeNull();
+            expect(changes[0].oldLevel).toBe(ColorMasteryLevel.NOT_UNDERSTOOD);
+            expect(changes[0].newLevel).toBeNull();
+            expect(changes[0].nodeText).toBe('Concept A');
+        });
+
+        it('T4: should have correct oldColor after color removal and re-color', () => {
+            // Step 1: Node with red color
+            (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', color: '1', text: 'Concept A' }],
+            });
+
+            // Step 2: Remove color
+            const removeChanges = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', text: 'Concept A' }],
+            });
+            expect(removeChanges).toHaveLength(1);
+            expect(removeChanges[0].eventType).toBe('color_removed');
+
+            // Step 3: Set green color → oldColor should be null (not '1')
+            const recolorChanges = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', color: '2', text: 'Concept A' }],
+            });
+            expect(recolorChanges).toHaveLength(1);
+            expect(recolorChanges[0].eventType).toBe('color_changed');
+            expect(recolorChanges[0].oldColor).toBeNull();
+            expect(recolorChanges[0].newColor).toBe('2');
+        });
+    });
+
+    describe('Story 30.9: Node Deletion Tracking (T6, T7)', () => {
+        it('T6: should produce node_removed event when colored node is deleted', () => {
+            // Set initial state
+            (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [
+                    { id: 'n1', color: '2', text: 'Mastered concept' },
+                    { id: 'n2', color: '1', text: 'Not understood' },
+                ],
+            });
+
+            // Delete n1 (remove from nodes array entirely)
+            const changes = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [
+                    { id: 'n2', color: '1', text: 'Not understood' },
+                ],
+            });
+
+            expect(changes).toHaveLength(1);
+            expect(changes[0].eventType).toBe('node_removed');
+            expect(changes[0].nodeId).toBe('n1');
+            expect(changes[0].oldColor).toBe('2');
+            expect(changes[0].newColor).toBeNull();
+            expect(changes[0].oldLevel).toBe(ColorMasteryLevel.MASTERED);
+            expect(changes[0].newLevel).toBeNull();
+        });
+
+        it('T7: should distinguish color_removed and node_removed', () => {
+            // Set initial state: two colored nodes
+            (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [
+                    { id: 'n1', color: '1', text: 'Node A' },
+                    { id: 'n2', color: '2', text: 'Node B' },
+                ],
+            });
+
+            // n1: color removed (node still exists), n2: node deleted
+            const changes = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [
+                    { id: 'n1', text: 'Node A' }, // no color
+                ],
+            });
+
+            expect(changes).toHaveLength(2);
+
+            const colorRemoved = changes.find((c: ColorChangeEvent) => c.eventType === 'color_removed');
+            const nodeRemoved = changes.find((c: ColorChangeEvent) => c.eventType === 'node_removed');
+
+            expect(colorRemoved).toBeDefined();
+            expect(colorRemoved!.nodeId).toBe('n1');
+            expect(colorRemoved!.nodeText).toBe('Node A');
+
+            expect(nodeRemoved).toBeDefined();
+            expect(nodeRemoved!.nodeId).toBe('n2');
+        });
+    });
+
+    describe('Story 30.9: Concept Field Mapping (T5)', () => {
+        it('T5: should include concept field in API payload metadata', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '1', text: 'Machine Learning Basics' }],
+            }));
+            await watcher.start();
+
+            // Change color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '2', text: 'Machine Learning Basics' }],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            const callArg = mockRequestUrl.mock.calls[0][0];
+            const body = JSON.parse(callArg.body);
+
+            expect(body.events[0].metadata.concept).toBe('Machine Learning Basics');
+            expect(body.events[0].metadata.node_text).toBe('Machine Learning Basics');
+        });
+
+        it('should default concept to unknown when nodeText is missing', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '1' }], // no text
+            }));
+            await watcher.start();
+
+            // Change color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '2' }],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            const callArg = mockRequestUrl.mock.calls[0][0];
+            const body = JSON.parse(callArg.body);
+
+            expect(body.events[0].metadata.concept).toBe('unknown');
+        });
+    });
+
+    describe('Story 30.9: Batch Size Limit (T8)', () => {
+        it('T8: should split 120 events into 3 batches of 50+50+20', async () => {
+            const postSpy = jest.spyOn(watcher as any, 'postColorChangeEvents').mockResolvedValue(undefined);
+
+            await watcher.start();
+
+            // Generate 120 color change events by creating 120 nodes
+            const initialNodes = [];
+            for (let i = 0; i < 120; i++) {
+                initialNodes.push({ id: `n${i}`, color: '1', text: `Concept ${i}` });
+            }
+
+            // Set initial state by directly populating previousCanvasState
+            const prevState = new Map<string, string>();
+            for (let i = 0; i < 120; i++) {
+                prevState.set(`n${i}`, '1');
+            }
+            (watcher as any).previousCanvasState.set('test.canvas', prevState);
+
+            // Change all 120 nodes to green
+            const newNodes = initialNodes.map(n => ({ ...n, color: '2' }));
+            mockApp.vault._setFile('test.canvas', JSON.stringify({ nodes: newNodes }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+
+            // Wait for debounce
+            jest.advanceTimersByTime(150);
+            // Flush microtasks for each async loop iteration in flushChanges
+            // Each iteration awaits Promise.race(), requiring a microtask yield
+            for (let flush = 0; flush < 10; flush++) {
+                await Promise.resolve();
+            }
+
+            // Should have been called 3 times: 50 + 50 + 20
+            expect(postSpy).toHaveBeenCalledTimes(3);
+            expect((postSpy.mock.calls[0][0] as ColorChangeEvent[]).length).toBe(50);
+            expect((postSpy.mock.calls[1][0] as ColorChangeEvent[]).length).toBe(50);
+            expect((postSpy.mock.calls[2][0] as ColorChangeEvent[]).length).toBe(20);
+        });
+
+        it('should send single batch for <= 50 events', async () => {
+            const postSpy = jest.spyOn(watcher as any, 'postColorChangeEvents').mockResolvedValue(undefined);
+
+            await watcher.start();
+
+            // Set initial state with 30 nodes
+            const prevState = new Map<string, string>();
+            const nodes = [];
+            for (let i = 0; i < 30; i++) {
+                prevState.set(`n${i}`, '1');
+                nodes.push({ id: `n${i}`, color: '2', text: `Concept ${i}` });
+            }
+            (watcher as any).previousCanvasState.set('test.canvas', prevState);
+
+            mockApp.vault._setFile('test.canvas', JSON.stringify({ nodes }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            // Single batch
+            expect(postSpy).toHaveBeenCalledTimes(1);
+            expect((postSpy.mock.calls[0][0] as ColorChangeEvent[]).length).toBe(30);
+        });
+    });
+
+    describe('Story 30.9: Event Type in detectColorChanges', () => {
+        it('should set eventType to color_changed for normal changes', () => {
+            const changes = (watcher as any).detectColorChanges('test.canvas', {
+                nodes: [{ id: 'n1', color: '1', text: 'A' }],
+            });
+            expect(changes[0].eventType).toBe('color_changed');
+        });
+
+        it('should correctly propagate event_type to API payload for color_removed', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            // Setup initial state
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '1', text: 'Concept' }],
+            }));
+            await watcher.start();
+
+            // Remove color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', text: 'Concept' }],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            const callArg = mockRequestUrl.mock.calls[0][0];
+            const body = JSON.parse(callArg.body);
+            expect(body.events[0].event_type).toBe('color_removed');
+        });
+
+        it('should correctly propagate event_type to API payload for node_removed', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            // Setup initial state
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'n1', color: '1', text: 'Concept' }],
+            }));
+            await watcher.start();
+
+            // Delete node entirely
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            const callArg = mockRequestUrl.mock.calls[0][0];
+            const body = JSON.parse(callArg.body);
+            expect(body.events[0].event_type).toBe('node_removed');
         });
     });
 });

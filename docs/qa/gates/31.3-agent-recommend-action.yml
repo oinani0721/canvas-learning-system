@@ -1,15 +1,47 @@
 schema: 1
 story: '31.3'
 story_title: 'Agent决策推荐端点'
-gate: PASS
-status_reason: 'All ACs complete. Backend 29/29 tests passing. Frontend SCORE_THRESHOLDS fixed to 60/80 scale (2026-01-21).'
+gate: FAIL
+status_reason: 'Frontend score rendering uses stale 0-40/0-10 scale (actual: 0-100/0-25). Progress bars overflow at 250%. consecutive_low_count logic is not truly consecutive. Dev Agent Record empty.'
 reviewer: 'Quinn (Test Architect)'
-updated: '2026-01-21T07:56:00Z'
+updated: '2026-02-05T12:00:00Z'
 
 top_issues:
-  - severity: low
-    description: 'Missing frontend tests for ApiClient.recommendAction() (non-blocking)'
-    file: 'canvas-progress-tracker/obsidian-plugin/tests/views/ScoringResultPanel.test.ts'
+  - id: 'UI-001'
+    severity: high
+    finding: 'ScoringResultPanel.ts score display uses old scale: "/ 40" (should be "/ 100"), "/10" (should be "/25"), progress bar dim.value*10 overflows at 250% for 0-25 scale'
+    suggested_action: 'Update renderScoreDetails: total display to /100, dimension display to /25, progress bar to dim.value*4'
+    refs: ['ScoringResultPanel.ts:404', 'ScoringResultPanel.ts:422', 'ScoringResultPanel.ts:427']
+    suggested_owner: dev
+  - id: 'LOGIC-001'
+    severity: medium
+    finding: 'consecutive_low_count uses sum() counting ALL low scores, not consecutive from start. [40,80,40] gives 2 but no consecutive run exists.'
+    suggested_action: 'Replace with itertools.takewhile or manual loop to count consecutive low scores from most recent'
+    refs: ['agents.py:1841']
+    suggested_owner: dev
+  - id: 'DOC-001'
+    severity: medium
+    finding: 'Dev Agent Record completely empty (Agent Model, Debug Log, Completion Notes, File List all unfilled) despite Story status=Done'
+    suggested_action: 'Fill in Dev Agent Record or revert Story status to in-progress'
+    refs: ['docs/stories/31.3.story.md:316-328']
+    suggested_owner: dev
+  - id: 'MOCK-001'
+    severity: medium
+    finding: 'Frontend silently falls back to hardcoded getSuggestionsForScore() when API fails, with no UI indication of degraded mode'
+    suggested_action: 'Add visual indicator (e.g., "offline recommendation" label) when using fallback'
+    refs: ['ScoringResultPanel.ts:325-331']
+    suggested_owner: dev
+  - id: 'TEST-001'
+    severity: medium
+    finding: 'All 29 tests use MockMemoryService. Zero integration tests with real MemoryService. try/except fallback masks real failures.'
+    suggested_action: 'Add at least 1 integration test with real or near-real MemoryService'
+    refs: ['test_recommend_action.py:39-84']
+    suggested_owner: dev
+  - id: 'ADR-001'
+    severity: medium
+    finding: 'Story references ADR-009 but endpoint has no tenacity retry, no timeout protection, error responses not using AgentError schema'
+    suggested_action: 'Add tenacity decorator and timeout protection per ADR-009 requirements'
+    refs: ['agents.py:1778']
     suggested_owner: dev
 
 resolved_issues:
@@ -20,43 +52,56 @@ resolved_issues:
 waiver:
   active: false
 
-quality_score: 90  # 100 - (0*FAILs=0) - (1*LOW_CONCERN=10) = 90
-expires: '2026-02-04T07:50:00Z'
+quality_score: 30  # 100 - (1*20 HIGH FAIL) - (5*10 MEDIUM CONCERNS) = 30
+expires: '2026-02-19T12:00:00Z'
 
 evidence:
   tests_reviewed: 29
-  risks_identified: 1
+  risks_identified: 6
   trace:
-    ac_covered: [1, 2, 3, 4, 5]  # All ACs now covered
-    ac_gaps: []  # No gaps - AC-31.3.5 fixed 2026-01-21
+    ac_covered: [1, 2, 3]
+    ac_gaps: [4, 5]  # AC-31.3.4 consecutive_low bug, AC-31.3.5 display scale mismatch
 
 nfr_validation:
   security:
     status: PASS
     notes: 'Input validation via Pydantic, score bounds 0-100, no sensitive data exposure'
   performance:
-    status: PASS
-    notes: 'Non-blocking history lookup with graceful degradation'
+    status: CONCERNS
+    notes: 'Progress bar overflow at 250% may cause CSS layout issues'
   reliability:
-    status: PASS
-    notes: 'Exception handling with fallback for history query failures'
+    status: CONCERNS
+    notes: 'Silent fallback masks API failures. consecutive_low_count logic incorrect.'
   maintainability:
-    status: PASS
-    notes: 'Frontend/backend threshold values synchronized at 60/80 (fixed 2026-01-21)'
+    status: CONCERNS
+    notes: 'Dev Agent Record empty. Stale rendering code not updated when types.ts scale changed.'
 
 recommendations:
   immediate:
-    - action: 'Add frontend test for ApiClient.recommendAction() (optional enhancement)'
-      refs: ['canvas-progress-tracker/obsidian-plugin/tests/views/ScoringResultPanel.test.ts']
-  completed:
-    - action: 'Update ScoringResultPanel.ts SCORE_THRESHOLDS to 60/80 scale'
-      refs: ['canvas-progress-tracker/obsidian-plugin/src/views/ScoringResultPanel.ts:54-58']
-      completed_date: '2026-01-21'
+    - action: 'Fix ScoringResultPanel.ts score display: /40 → /100, /10 → /25, progress bar dim.value*4'
+      refs: ['ScoringResultPanel.ts:404', 'ScoringResultPanel.ts:422', 'ScoringResultPanel.ts:427']
+    - action: 'Fix consecutive_low calculation to count actual consecutive low scores from most recent'
+      refs: ['agents.py:1841']
+    - action: 'Fill Dev Agent Record (File List critical) or revert story status'
+      refs: ['docs/stories/31.3.story.md:316-328']
   future:
-    - action: 'Consider removing frontend hardcoded thresholds entirely in favor of API response'
-      refs: ['ScoringResultPanel.ts', 'AC-31.3.5']
+    - action: 'Add UI indication for degraded/offline recommendations'
+      refs: ['ScoringResultPanel.ts:325-331']
+    - action: 'Add integration test with real MemoryService'
+      refs: ['test_recommend_action.py']
     - action: 'Add tenacity retry decorator per ADR-009'
-      refs: ['backend/app/api/v1/endpoints/agents.py:1778']
+      refs: ['agents.py:1778']
+    - action: 'Remove frontend hardcoded thresholds entirely in favor of API response'
+      refs: ['ScoringResultPanel.ts:58-62']
+
+# History (append-only audit trail)
+history:
+  - at: '2026-01-21T07:56:00Z'
+    gate: PASS
+    note: 'Initial review - SCORE_THRESHOLDS fixed to 60/80. 29 tests passing. Score: 90/100'
+  - at: '2026-02-05T12:00:00Z'
+    gate: FAIL
+    note: 'Re-review: Found stale 0-40/0-10 rendering scale (types.ts updated to 0-100/0-25 but renderScoreDetails not updated). consecutive_low logic bug. Dev Agent Record empty. Score: 30/100'
 
 # Detailed AC Traceability
 ac_validation:
@@ -88,21 +133,20 @@ ac_validation:
     implementation:
       - 'agents.py:1699-1758 (_recommend_action_from_score)'
   AC-31.3.4:
-    status: PASS
+    status: CONCERNS
     test_coverage:
       - 'test_with_history_context'
       - 'test_review_suggested_for_declining_trend'
       - 'test_consecutive_low_scores_adds_alternatives'
-      - 'test_improving_trend'
-      - 'test_declining_trend'
     implementation:
       - 'agents.py:1670-1696 (_calculate_trend)'
       - 'agents.py:1817-1857 (history query in recommend_action)'
+    notes: 'consecutive_low_count uses sum() not actual consecutive check. Tests pass because mock data happens to have all-low scores.'
   AC-31.3.5:
-    status: PASS
+    status: FAIL
     test_coverage: []
     implementation:
-      - 'ApiClient.ts:473-475 (recommendAction method exists)'
-      - 'ScoringResultPanel.ts:193-211 (calls API with correct fallback thresholds)'
-      - 'ScoringResultPanel.ts:54-58 (SCORE_THRESHOLDS 60/80 - fixed 2026-01-21)'
-    notes: 'Frontend integration complete. Optional: add frontend unit tests.'
+      - 'ApiClient.ts:478-480 (recommendAction method exists)'
+      - 'ScoringResultPanel.ts:195-216 (calls API with fallback)'
+      - 'ScoringResultPanel.ts:54-62 (SCORE_THRESHOLDS 60/80 - correct)'
+    notes: 'SCORE_THRESHOLDS correct, but renderScoreDetails still uses old /40 and /10 display. Progress bars overflow.'

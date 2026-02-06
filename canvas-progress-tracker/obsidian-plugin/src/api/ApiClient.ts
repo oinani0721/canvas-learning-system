@@ -1100,6 +1100,37 @@ export class ApiClient {
   }
 
   // ===========================================================================
+  // Memory API Methods - Story 30.7: Learning Event Recording
+  // ===========================================================================
+
+  /**
+   * Story 30.7: Record learning event to memory system
+   * Fire-and-forget: errors are logged but don't affect UI
+   */
+  async recordLearningEvent(params: {
+    canvasPath: string;
+    nodeId: string;
+    concept: string;
+    agentType: string;
+    score?: number;
+    durationSeconds?: number;
+  }): Promise<void> {
+    try {
+      await this.request<void>('POST', '/memory/episodes', {
+        user_id: 'default-user',
+        canvas_path: params.canvasPath,
+        node_id: params.nodeId,
+        concept: params.concept,
+        agent_type: params.agentType,
+        score: params.score,
+        duration_seconds: params.durationSeconds,
+      });
+    } catch (e) {
+      console.warn('[Story 30.7] Learning event recording failed (non-blocking):', e);
+    }
+  }
+
+  // ===========================================================================
   // RAG API Methods (3 endpoints) - Story 12.5: Plugin RAG API Client
   // ===========================================================================
 

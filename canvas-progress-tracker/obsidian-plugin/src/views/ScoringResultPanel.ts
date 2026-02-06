@@ -164,6 +164,10 @@ export class ScoringResultPanel extends Modal {
     private isProcessing: boolean = false;
     /** Story 31.3: Cached API recommendations keyed by nodeId */
     private apiRecommendations: Map<string, RecommendActionResponse> = new Map();
+    /** Story 31.10: Debounce tracking for retry button */
+    private lastRetryTime: number = 0;
+    /** Story 31.10: Flag to detect retry-triggered re-render */
+    private isRetrying: boolean = false;
 
     /**
      * Creates a new ScoringResultPanel
@@ -327,8 +331,13 @@ export class ScoringResultPanel extends Modal {
             console.log('[Story 31.3] Using API recommendation:', recommendation.action);
         } else {
             suggestions = getSuggestionsForScore(result.score.total);
-            console.log('[Story 31.3] Using fallback suggestions');
+            console.warn('[Story 31.8] Using fallback recommendations — API unavailable');
+            // Story 31.8: Show notice on retry failure (AC-31.8.2)
+            if (this.isRetrying) {
+                new Notice('后端仍不可用');
+            }
         }
+        this.isRetrying = false;
 
         // Header
         this.renderHeader(result);
@@ -338,6 +347,9 @@ export class ScoringResultPanel extends Modal {
 
         // Feedback
         this.renderFeedback(result.score.total);
+
+        // Story 31.10: Recommendation source status indicator
+        this.renderRecommendationStatus(!!recommendation, recommendation, result);
 
         // Agent decision buttons
         this.renderAgentButtons(result, suggestions);
@@ -401,7 +413,7 @@ export class ScoringResultPanel extends Modal {
             cls: `total-score ${colorClass}`,
         });
         totalSection.createEl('div', {
-            text: '/ 40',
+            text: '/ 100',
             cls: 'max-score',
         });
 
@@ -419,12 +431,12 @@ export class ScoringResultPanel extends Modal {
             const dimItem = dimensionsSection.createEl('div', { cls: 'dimension-item' });
             dimItem.createEl('span', { text: dim.emoji, cls: 'dimension-emoji' });
             dimItem.createEl('span', { text: dim.name, cls: 'dimension-name' });
-            dimItem.createEl('span', { text: `${dim.value}/10`, cls: 'dimension-value' });
+            dimItem.createEl('span', { text: `${dim.value}/25`, cls: 'dimension-value' });
 
             // Progress bar
             const progressBar = dimItem.createEl('div', { cls: 'dimension-progress' });
             const progressFill = progressBar.createEl('div', { cls: 'dimension-progress-fill' });
-            progressFill.style.width = `${dim.value * 10}%`;
+            progressFill.style.width = `${dim.value * 4}%`;
         }
     }
 
@@ -441,6 +453,103 @@ export class ScoringResultPanel extends Modal {
             text: feedback,
             cls: 'feedback-text',
         });
+    }
+
+    /**
+     * Story 31.8/31.10: Render recommendation source status indicator
+     *
+     * Shows whether recommendations come from the API (online/intelligent)
+     * or from local fallback logic (offline/score-based).
+     * Story 31.8: Adds fallback indicator with retry button when API unavailable.
+     *
+     * @param isOnline - true if API recommendation was successful
+     * @param recommendation - API recommendation response (if available)
+     * @param result - Current scoring result item (for retry context)
+     *
+     * [Source: Story 31.8 - AC-31.8.1, AC-31.8.2, AC-31.8.3]
+     * [Source: Story 31.10 - AC-31.10.1, AC-31.10.2, AC-31.10.3, AC-31.10.4]
+     */
+    private renderRecommendationStatus(
+        isOnline: boolean,
+        recommendation: RecommendActionResponse | undefined,
+        result: ScoringResultItem
+    ): void {
+        const { contentEl } = this;
+
+        if (isOnline) {
+            // AC-31.10.2: Online/intelligent recommendation indicator
+            const statusEl = contentEl.createEl('div', {
+                cls: 'recommendation-status-container recommendation-status-online',
+            });
+            statusEl.createEl('span', {
+                text: '✅ 智能推荐',
+                cls: 'recommendation-status-label',
+            });
+            // Show history context info if available
+            if (recommendation?.history_context?.recent_scores?.length) {
+                statusEl.createEl('span', {
+                    text: `基于 ${recommendation.history_context.recent_scores.length} 次历史记录`,
+                    cls: 'recommendation-status-info',
+                });
+            }
+        } else {
+            // Story 31.8 AC-31.8.1: Offline/fallback recommendation indicator
+            const statusEl = contentEl.createEl('div', {
+                cls: 'fallback-indicator',
+            });
+            statusEl.createEl('span', {
+                text: '⚠️ 离线推荐 — 后端不可用，使用本地规则',
+                cls: 'fallback-text',
+            });
+
+            // Story 31.8 AC-31.8.2: Retry button
+            const retryBtn = statusEl.createEl('button', {
+                text: '🔄 重试',
+                cls: 'fallback-retry-button',
+            });
+            retryBtn.addEventListener('click', () => this.handleRetry(retryBtn, result));
+        }
+    }
+
+    /**
+     * Story 31.10: Handle retry button click
+     *
+     * Clears cached recommendation and re-fetches from API.
+     * Includes debounce (2s) and disable-on-fail (5s) protections.
+     *
+     * @param btn - The retry button element
+     * @param result - Current scoring result item
+     *
+     * [Source: Story 31.10 - AC-31.10.3, ADR-009 (WARNING level notification)]
+     */
+    private async handleRetry(btn: HTMLButtonElement, result: ScoringResultItem): Promise<void> {
+        // Debounce: 2 seconds between retries
+        const now = Date.now();
+        if (now - this.lastRetryTime < 2000) {
+            return;
+        }
+        this.lastRetryTime = now;
+
+        // Disable button during retry
+        btn.disabled = true;
+        btn.textContent = '重试中...';
+
+        // Clear cached recommendation for this node
+        this.apiRecommendations.delete(result.nodeId);
+
+        // Set retry flag so renderCurrentResult can detect retry failure
+        this.isRetrying = true;
+
+        try {
+            await this.renderCurrentResult();
+        } catch (error) {
+            // Re-enable button after 5 seconds on failure
+            new Notice('后端仍不可用');
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '重试';
+            }, 5000);
+        }
     }
 
     /**
@@ -566,6 +675,15 @@ export class ScoringResultPanel extends Modal {
                     new Notice('✅ 记忆锚点完成，已添加到Canvas');
                     break;
             }
+
+            // Fire-and-forget: record learning event to memory system (Story 30.7)
+            this.apiClient.recordLearningEvent({
+                canvasPath: result.canvasName,
+                nodeId: result.nodeId,
+                concept: result.nodeText.substring(0, 100),
+                agentType: 'scoring',
+                score: result.score.total,
+            });
 
             // Call callback if provided
             await this.callbacks.onAgentAction?.(result.nodeId, suggestion.action);

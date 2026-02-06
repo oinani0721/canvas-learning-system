@@ -20,6 +20,7 @@ import {
     NodeColorChangeWatcher,
     ColorMasteryLevel,
     ColorChangeEvent,
+    ColorChangeEventType,
 } from '../../src/services/NodeColorChangeWatcher';
 import { TFile } from '../__mocks__/obsidian';
 
@@ -82,6 +83,10 @@ function createMockApp() {
         _setFile: (path: string, content: string) => {
             mockVault._files.set(path, content);
         },
+
+        getFiles: jest.fn(() => {
+            return Array.from(mockVault._files.keys()).map(path => new TFile(path));
+        }),
 
         _clear: () => {
             mockVault._files.clear();
@@ -159,7 +164,7 @@ describe('Color Change Memory Integration', () => {
             mockApp.vault._setFile('离散数学/命题逻辑.canvas', JSON.stringify(initialCanvas));
 
             // Start watching
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
 
             // Seed the initial state by triggering a modify event
@@ -230,7 +235,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node1', text: 'Concept', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Seed the initial state
             await mockApp.vault._triggerModify(new TFile('test.canvas'));
@@ -287,7 +292,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node1', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Simulate Obsidian's rapid auto-save behavior
             // (multiple save events in quick succession)
@@ -326,7 +331,7 @@ describe('Color Change Memory Integration', () => {
                 ],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Seed the initial state
             await mockApp.vault._triggerModify(new TFile('test.canvas'));
@@ -397,7 +402,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node3', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Seed the initial states for all canvases
             await mockApp.vault._triggerModify(new TFile('math.canvas'));
@@ -446,7 +451,7 @@ describe('Color Change Memory Integration', () => {
     // ========================================================================
 
     describe('Watcher Lifecycle (Task 7.3)', () => {
-        it('should properly initialize and start watching', () => {
+        it('should properly initialize and start watching', async () => {
             watcher = new NodeColorChangeWatcher(mockApp, {
                 enabled: true,
                 debounceMs: 500,
@@ -455,20 +460,20 @@ describe('Color Change Memory Integration', () => {
             expect(watcher.isActive()).toBe(false);
             expect(mockApp.vault._getListenerCount('modify')).toBe(0);
 
-            watcher.start();
+            await watcher.start();
 
             expect(watcher.isActive()).toBe(true);
             expect(mockApp.vault._getListenerCount('modify')).toBe(1);
             expect(mockApp.vault.on).toHaveBeenCalledWith('modify', expect.any(Function));
         });
 
-        it('should properly stop and cleanup', () => {
+        it('should properly stop and cleanup', async () => {
             watcher = new NodeColorChangeWatcher(mockApp, {
                 enabled: true,
                 debounceMs: 500,
             });
 
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
 
             watcher.stop();
@@ -489,7 +494,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node1', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // Make a change
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -507,26 +512,26 @@ describe('Color Change Memory Integration', () => {
             expect(mockRequestUrl).toHaveBeenCalledTimes(1);
         });
 
-        it('should survive multiple start/stop cycles', () => {
+        it('should survive multiple start/stop cycles', async () => {
             watcher = new NodeColorChangeWatcher(mockApp, {
                 enabled: true,
                 debounceMs: 500,
             });
 
             // Cycle 1
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
             watcher.stop();
             expect(watcher.isActive()).toBe(false);
 
             // Cycle 2
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
             watcher.stop();
             expect(watcher.isActive()).toBe(false);
 
             // Cycle 3
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
             watcher.stop();
             expect(watcher.isActive()).toBe(false);
@@ -544,7 +549,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node1', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(true);
 
             // Disable via settings
@@ -576,12 +581,17 @@ describe('Color Change Memory Integration', () => {
             }));
 
             // Manually start - should be no-op since disabled
-            watcher.start();
+            await watcher.start();
             expect(watcher.isActive()).toBe(false);
 
-            // Enable via settings
+            // Enable via settings (updateSettings calls start() internally)
             watcher.updateSettings({ enabled: true });
             expect(watcher.isActive()).toBe(true);
+
+            // Wait for async start() to complete (initializeState + event listener registration)
+            for (let i = 0; i < 5; i++) {
+                await Promise.resolve();
+            }
 
             // Now changes should be processed
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -616,7 +626,7 @@ describe('Color Change Memory Integration', () => {
                 nodes: [{ id: 'node1', color: '1' }],
             }));
 
-            watcher.start();
+            await watcher.start();
 
             // First change - will fail
             mockApp.vault._setFile('test.canvas', JSON.stringify({
@@ -648,7 +658,7 @@ describe('Color Change Memory Integration', () => {
                 debounceMs: 100,
             });
 
-            watcher.start();
+            await watcher.start();
 
             // Trigger modify for non-existent file
             await mockApp.vault._triggerModify(new TFile('non-existent.canvas'));
@@ -656,6 +666,161 @@ describe('Color Change Memory Integration', () => {
             // Should not crash
             await Promise.resolve();
             expect(watcher.isActive()).toBe(true);
+        });
+    });
+
+    // ========================================================================
+    // Story 30.9: Color Removal & Node Deletion Integration
+    // ========================================================================
+
+    describe('Story 30.9: Color Removal & Node Deletion', () => {
+        it('should detect color removal and send color_removed event', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            watcher = new NodeColorChangeWatcher(mockApp, {
+                enabled: true,
+                debounceMs: 100,
+                apiBaseUrl: 'http://localhost:8000/api/v1',
+                timeout: 500,
+                enableLogging: false,
+            });
+
+            // Initial state: node with color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'node1', text: 'Test Concept', color: '1' },
+                ],
+                edges: [],
+            }));
+
+            await watcher.start();
+            mockRequestUrl.mockClear();
+
+            // Remove color (node still exists, but no color property)
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'node1', text: 'Test Concept' },
+                ],
+                edges: [],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+            const payload = JSON.parse(mockRequestUrl.mock.calls[0][0].body);
+            expect(payload.events).toHaveLength(1);
+            expect(payload.events[0].event_type).toBe('color_removed');
+            expect(payload.events[0].metadata.old_color).toBe('1');
+            expect(payload.events[0].metadata.new_color).toBeNull();
+        });
+
+        it('should detect node deletion and send node_removed event', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            watcher = new NodeColorChangeWatcher(mockApp, {
+                enabled: true,
+                debounceMs: 100,
+                apiBaseUrl: 'http://localhost:8000/api/v1',
+                timeout: 500,
+                enableLogging: false,
+            });
+
+            // Initial state: two nodes with colors
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'node1', text: 'Keep This', color: '2' },
+                    { id: 'node2', text: 'Delete This', color: '1' },
+                ],
+                edges: [],
+            }));
+
+            await watcher.start();
+            mockRequestUrl.mockClear();
+
+            // Delete node2 entirely
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'node1', text: 'Keep This', color: '2' },
+                ],
+                edges: [],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+            const payload = JSON.parse(mockRequestUrl.mock.calls[0][0].body);
+            expect(payload.events).toHaveLength(1);
+            expect(payload.events[0].event_type).toBe('node_removed');
+            expect(payload.events[0].metadata.old_color).toBe('1');
+            expect(payload.events[0].metadata.new_color).toBeNull();
+        });
+
+        it('should include concept field in API payload', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            watcher = new NodeColorChangeWatcher(mockApp, {
+                enabled: true,
+                debounceMs: 100,
+                apiBaseUrl: 'http://localhost:8000/api/v1',
+                timeout: 500,
+                enableLogging: false,
+            });
+
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'node1', text: '监督学习概念', color: '1' }],
+                edges: [],
+            }));
+
+            await watcher.start();
+            mockRequestUrl.mockClear();
+
+            // Change color
+            mockApp.vault._setFile('test.canvas', JSON.stringify({
+                nodes: [{ id: 'node1', text: '监督学习概念', color: '2' }],
+                edges: [],
+            }));
+            await mockApp.vault._triggerModify(new TFile('test.canvas'));
+
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            expect(mockRequestUrl).toHaveBeenCalledTimes(1);
+            const payload = JSON.parse(mockRequestUrl.mock.calls[0][0].body);
+            expect(payload.events[0].metadata.concept).toBe('监督学习概念');
+        });
+
+        it('should preload state on startup preventing spurious events', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 200 });
+
+            // Setup files BEFORE starting watcher
+            mockApp.vault._setFile('math.canvas', JSON.stringify({
+                nodes: [
+                    { id: 'node1', text: 'Algebra', color: '1' },
+                    { id: 'node2', text: 'Calculus', color: '2' },
+                ],
+                edges: [],
+            }));
+
+            watcher = new NodeColorChangeWatcher(mockApp, {
+                enabled: true,
+                debounceMs: 100,
+                enableLogging: false,
+            });
+
+            await watcher.start();
+
+            // Trigger modify WITHOUT changing any colors
+            await mockApp.vault._triggerModify(new TFile('math.canvas'));
+
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+
+            // No API call since no actual color change occurred
+            expect(mockRequestUrl).not.toHaveBeenCalled();
         });
     });
 });

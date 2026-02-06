@@ -13,7 +13,10 @@ import {
     TaskPriority,
     DashboardStatistics,
     DEFAULT_DASHBOARD_STATE,
+    VerificationCanvasRelation,
+    ReviewMode,
 } from '../../src/types/UITypes';
+import { ReviewDashboardView } from '../../src/views/ReviewDashboardView';
 
 // Mock Obsidian
 jest.mock('obsidian', () => ({
@@ -25,6 +28,27 @@ jest.mock('obsidian', () => ({
     WorkspaceLeaf: class {},
     Notice: jest.fn(),
     setIcon: jest.fn(),
+}));
+
+// Story 31.9: Mock service modules to enable ReviewDashboardView import
+jest.mock('../../src/services/HistoryService', () => ({
+    HistoryService: jest.fn(() => ({})),
+}));
+jest.mock('../../src/services/VerificationHistoryService', () => ({
+    createVerificationHistoryService: jest.fn(() => ({})),
+    VerificationHistoryService: jest.fn(),
+}));
+jest.mock('../../src/services/CrossCanvasService', () => ({
+    createCrossCanvasService: jest.fn(() => ({})),
+    CrossCanvasService: jest.fn(),
+}));
+jest.mock('../../src/services/TextbookMountService', () => ({
+    createTextbookMountService: jest.fn(() => ({})),
+    TextbookMountService: jest.fn(),
+}));
+jest.mock('../../src/services/PriorityCalculatorService', () => ({
+    createPriorityCalculatorService: jest.fn(() => ({})),
+    PriorityCalculatorService: jest.fn(),
 }));
 
 describe('ReviewDashboardView', () => {
@@ -540,186 +564,442 @@ describe('Task Card Component', () => {
             expect(highStrengthInterval).toBeGreaterThan(lowStrengthInterval);
         });
     });
+});
 
-    /**
-     * Story 31.7: Verification History View UI Tests
-     */
-    describe('Verification Tab - Story 31.7', () => {
-        /**
-         * AC-31.7.3: Calculate highest score from sessions
-         */
-        describe('Highest Score Calculation', () => {
-            const calculateHighestScore = (sessions: { passRate: number }[]): string | null => {
-                if (!sessions || sessions.length === 0) return null;
-                const highestPassRate = Math.max(...sessions.map((s) => s.passRate));
-                return (highestPassRate * 5).toFixed(1);
-            };
+/**
+ * Story 31.9: Verification Methods Tests - Testing ACTUAL ReviewDashboardView code
+ *
+ * These tests use Object.create(ReviewDashboardView.prototype) to bypass the constructor,
+ * then call the actual private methods via (view as any) to verify real DOM output and
+ * service interactions. Replaces the 17 self-referential tests from Story 31.7.
+ */
+describe('ReviewDashboardView - Verification Methods (Story 31.9)', () => {
+    // Trackable mock element for Obsidian DOM API
+    interface MockElement {
+        children: MockElement[];
+        textContent: string;
+        cls: string;
+        tag: string;
+        _attrs: Record<string, string>;
+        _listeners: Record<string, Function[]>;
+        createDiv: jest.Mock;
+        createSpan: jest.Mock;
+        createEl: jest.Mock;
+        setAttribute: jest.Mock;
+        addEventListener: jest.Mock;
+    }
 
-            it('should return highest score from multiple sessions', () => {
-                const sessions = [
-                    { passRate: 0.6 },
-                    { passRate: 0.8 }, // Highest
-                    { passRate: 0.7 },
-                ];
-                expect(calculateHighestScore(sessions)).toBe('4.0');
-            });
+    function createMockElement(tag = 'div'): MockElement {
+        const element: MockElement = {
+            children: [],
+            textContent: '',
+            cls: '',
+            tag,
+            _attrs: {},
+            _listeners: {},
+            createDiv: jest.fn(),
+            createSpan: jest.fn(),
+            createEl: jest.fn(),
+            setAttribute: jest.fn(),
+            addEventListener: jest.fn(),
+        };
 
-            it('should return correct score for single session', () => {
-                const sessions = [{ passRate: 0.5 }];
-                expect(calculateHighestScore(sessions)).toBe('2.5');
-            });
-
-            it('should return null for empty sessions', () => {
-                expect(calculateHighestScore([])).toBeNull();
-            });
-
-            it('should return null for undefined sessions', () => {
-                expect(calculateHighestScore(undefined as any)).toBeNull();
-            });
-
-            it('should handle perfect score', () => {
-                const sessions = [
-                    { passRate: 0.9 },
-                    { passRate: 1.0 }, // Perfect
-                ];
-                expect(calculateHighestScore(sessions)).toBe('5.0');
-            });
-
-            it('should handle zero score', () => {
-                const sessions = [{ passRate: 0 }];
-                expect(calculateHighestScore(sessions)).toBe('0.0');
-            });
+        element.createDiv.mockImplementation((opts?: { cls?: string; text?: string }) => {
+            const child = createMockElement('div');
+            if (opts?.cls) child.cls = opts.cls;
+            if (opts?.text) child.textContent = opts.text;
+            element.children.push(child);
+            return child;
         });
 
-        /**
-         * AC-31.7.3: Get most recent verification date from sessions
-         */
-        describe('Most Recent Verification Date', () => {
-            const getMostRecentDate = (sessions: { date: Date }[]): Date | null => {
-                if (!sessions || sessions.length === 0) return null;
-                return sessions[sessions.length - 1].date;
-            };
-
-            it('should return last session date', () => {
-                const date1 = new Date('2026-01-15');
-                const date2 = new Date('2026-01-18');
-                const sessions = [{ date: date1 }, { date: date2 }];
-                expect(getMostRecentDate(sessions)).toEqual(date2);
-            });
-
-            it('should return null for empty sessions', () => {
-                expect(getMostRecentDate([])).toBeNull();
-            });
-
-            it('should return null for undefined sessions', () => {
-                expect(getMostRecentDate(undefined as any)).toBeNull();
-            });
-
-            it('should return single session date', () => {
-                const date = new Date('2026-01-10');
-                const sessions = [{ date }];
-                expect(getMostRecentDate(sessions)).toEqual(date);
-            });
+        element.createSpan.mockImplementation((opts?: { cls?: string; text?: string }) => {
+            const child = createMockElement('span');
+            if (opts?.cls) child.cls = opts.cls;
+            if (opts?.text) child.textContent = opts.text;
+            element.children.push(child);
+            return child;
         });
 
-        /**
-         * AC-31.7.5: Delete verification confirmation
-         */
-        describe('Delete Verification Confirmation', () => {
-            it('should generate correct confirmation message', () => {
-                const title = '删除检验白板记录';
-                const relationTitle = '测试检验Canvas';
-                const message = `确定要删除"${relationTitle}"的检验记录吗？此操作不可撤销。`;
-
-                expect(title).toBe('删除检验白板记录');
-                expect(message).toContain('测试检验Canvas');
-                expect(message).toContain('不可撤销');
-            });
-
-            it('should handle special characters in canvas title', () => {
-                const relationTitle = "测试'Canvas\"名称";
-                const message = `确定要删除"${relationTitle}"的检验记录吗？此操作不可撤销。`;
-
-                expect(message).toContain(relationTitle);
-            });
+        element.createEl.mockImplementation((tagName: string, opts?: { cls?: string; text?: string }) => {
+            const child = createMockElement(tagName);
+            if (opts?.cls) child.cls = opts.cls;
+            if (opts?.text) child.textContent = opts.text;
+            element.children.push(child);
+            return child;
         });
 
-        /**
-         * AC-31.7.5: Delete button event handling
-         */
-        describe('Delete Button Event Handling', () => {
-            it('should stop event propagation on delete click', () => {
-                const mockEvent = {
-                    stopPropagation: jest.fn(),
-                };
-
-                // Simulate delete button click handler
-                const handleDeleteClick = (e: { stopPropagation: () => void }) => {
-                    e.stopPropagation();
-                };
-
-                handleDeleteClick(mockEvent);
-                expect(mockEvent.stopPropagation).toHaveBeenCalled();
-            });
-
-            it('should not trigger item click when delete is clicked', () => {
-                const itemClickHandler = jest.fn();
-                const deleteClickHandler = jest.fn();
-
-                // Simulating event flow with stopPropagation
-                const simulateDeleteClick = () => {
-                    deleteClickHandler();
-                    // With stopPropagation, itemClickHandler should not be called
-                };
-
-                simulateDeleteClick();
-                expect(deleteClickHandler).toHaveBeenCalled();
-                expect(itemClickHandler).not.toHaveBeenCalled();
-            });
+        element.setAttribute.mockImplementation((key: string, value: string) => {
+            element._attrs[key] = value;
         });
 
-        /**
-         * Edge cases for verification item rendering
-         */
-        describe('Verification Item Edge Cases', () => {
-            it('should handle relation with no sessions gracefully', () => {
-                const relation = {
-                    id: 'test-id',
-                    originalCanvasTitle: 'Original Canvas',
-                    verificationCanvasTitle: 'Verification Canvas',
-                    sessionCount: 0,
-                    sessions: [],
-                };
+        element.addEventListener.mockImplementation((event: string, handler: Function) => {
+            if (!element._listeners[event]) element._listeners[event] = [];
+            element._listeners[event].push(handler);
+        });
 
-                // No highest score or recent date should be displayed
-                expect(relation.sessions.length).toBe(0);
+        return element;
+    }
+
+    // Helper: find child by cls substring
+    function findByClass(parent: MockElement, cls: string): MockElement | undefined {
+        return parent.children.find((c) => c.cls.includes(cls));
+    }
+
+    // Helper: find child by text substring
+    function findByText(parent: MockElement, text: string): MockElement | undefined {
+        return parent.children.find((c) => c.textContent.includes(text));
+    }
+
+    // Create view instance bypassing constructor via Object.create
+    function createTestView() {
+        const view = Object.create(ReviewDashboardView.prototype);
+        view.app = {
+            vault: { getAbstractFileByPath: jest.fn() },
+            workspace: { openLinkText: jest.fn() },
+        };
+        view.verificationService = {
+            deleteRelation: jest.fn().mockResolvedValue(undefined),
+            getAllRelations: jest.fn().mockResolvedValue([]),
+        };
+        view.showConfirmDialog = jest.fn().mockResolvedValue(true);
+        view.loadVerificationData = jest.fn().mockResolvedValue(undefined);
+        return view;
+    }
+
+    // Create test relation data matching VerificationCanvasRelation interface
+    function createTestRelation(overrides?: Partial<VerificationCanvasRelation>): VerificationCanvasRelation {
+        return {
+            id: 'test-relation-1',
+            originalCanvasPath: 'path/to/original.canvas',
+            originalCanvasTitle: '原始Canvas标题',
+            verificationCanvasPath: 'path/to/verification.canvas',
+            verificationCanvasTitle: '检验Canvas标题',
+            generatedDate: new Date('2026-01-15'),
+            reviewMode: 'fresh' as ReviewMode,
+            currentScore: 3.5,
+            completionRate: 0.75,
+            sessionCount: 3,
+            sessions: [
+                { date: new Date('2026-01-10'), passRate: 0.6, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 2 },
+                { date: new Date('2026-01-13'), passRate: 0.8, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 1 },
+                { date: new Date('2026-01-15'), passRate: 0.7, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 1 },
+            ],
+            ...overrides,
+        } as VerificationCanvasRelation;
+    }
+
+    let view: any;
+    let mockSetIcon: jest.Mock;
+    let MockNotice: jest.Mock;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        view = createTestView();
+        mockSetIcon = jest.requireMock('obsidian').setIcon;
+        MockNotice = jest.requireMock('obsidian').Notice;
+    });
+
+    describe('renderVerificationItem - DOM Output (AC-31.9.3)', () => {
+        it('should render verificationCanvasTitle in item title span', () => {
+            const container = createMockElement();
+            const relation = createTestRelation();
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const info = item.children[0];
+            expect(info.cls).toBe('verification-item-info');
+            const titleSpan = info.children[0];
+            expect(titleSpan.textContent).toBe('检验Canvas标题');
+            expect(titleSpan.cls).toBe('verification-item-title');
+        });
+
+        it('should render mode badge as 全新检验 for fresh mode', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ reviewMode: 'fresh' as ReviewMode });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const info = item.children[0];
+            const modeBadge = info.children[1];
+            expect(modeBadge.textContent).toBe('全新检验');
+            expect(modeBadge.cls).toContain('mode-badge');
+        });
+
+        it('should render mode badge as 针对性复习 for targeted mode', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ reviewMode: 'targeted' as ReviewMode });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const info = item.children[0];
+            const modeBadge = info.children[1];
+            expect(modeBadge.textContent).toBe('针对性复习');
+        });
+
+        it('should render originalCanvasTitle in source div', () => {
+            const container = createMockElement();
+            const relation = createTestRelation();
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const info = item.children[0];
+            const sourceDiv = info.children[2];
+            expect(sourceDiv.textContent).toBe('原始Canvas: 原始Canvas标题');
+            expect(sourceDiv.cls).toBe('verification-item-source');
+        });
+
+        it('should render completionRate as percentage', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ completionRate: 0.75 });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            expect(stats.children[0].textContent).toBe('完成度: 75%');
+        });
+
+        it('should render sessionCount', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ sessionCount: 3 });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            expect(stats.children[1].textContent).toBe('3次复习');
+        });
+
+        it('should calculate and render highest score from sessions', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({
+                sessions: [
+                    { date: new Date(), passRate: 0.6, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 2 },
+                    { date: new Date(), passRate: 0.8, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 1 },
+                    { date: new Date(), passRate: 0.7, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 1 },
+                ],
             });
 
-            it('should handle relation with undefined sessions', () => {
-                const relation = {
-                    id: 'test-id',
-                    originalCanvasTitle: 'Original Canvas',
-                    verificationCanvasTitle: 'Verification Canvas',
-                    sessionCount: 0,
-                };
+            (view as any).renderVerificationItem(container, relation);
 
-                // Should handle undefined sessions safely
-                const hasHighestScore =
-                    relation.sessions && (relation as any).sessions.length > 0;
-                expect(hasHighestScore).toBeFalsy();
+            const item = container.children[0];
+            const stats = item.children[1];
+            const highestScoreSpan = findByText(stats, '最高分');
+            expect(highestScoreSpan).toBeDefined();
+            expect(highestScoreSpan!.textContent).toBe('最高分: 4.0/5');
+            expect(highestScoreSpan!.cls).toContain('verification-stat-highest');
+        });
+
+        it('should render most recent date from last session', () => {
+            const container = createMockElement();
+            const lastDate = new Date('2026-01-15');
+            const relation = createTestRelation({
+                sessions: [
+                    { date: new Date('2026-01-10'), passRate: 0.6, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 2 },
+                    { date: lastDate, passRate: 0.7, mode: 'fresh' as ReviewMode, conceptsReviewed: 5, weakConceptsCount: 1 },
+                ],
             });
 
-            it('should format date correctly in Chinese locale', () => {
-                const date = new Date('2026-01-18');
-                const formatted = date.toLocaleDateString('zh-CN', {
-                    month: 'short',
-                    day: 'numeric',
-                });
+            (view as any).renderVerificationItem(container, relation);
 
-                // Should produce a date string in Chinese format
-                expect(formatted).toBeTruthy();
-                expect(typeof formatted).toBe('string');
-            });
+            const item = container.children[0];
+            const stats = item.children[1];
+            const recentSpan = findByText(stats, '最近');
+            expect(recentSpan).toBeDefined();
+            expect(recentSpan!.cls).toContain('verification-stat-recent');
+            const expectedDateStr = lastDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            expect(recentSpan!.textContent).toBe(`最近: ${expectedDateStr}`);
+        });
+
+        it('should render currentScore when present', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ currentScore: 3.5 });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            const scoreSpan = findByText(stats, '平均分');
+            expect(scoreSpan).toBeDefined();
+            expect(scoreSpan!.textContent).toBe('平均分: 3.5/5');
+        });
+
+        it('should not render currentScore when undefined', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ currentScore: undefined });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            const scoreSpan = findByText(stats, '平均分');
+            expect(scoreSpan).toBeUndefined();
+        });
+
+        it('should render generatedDate', () => {
+            const container = createMockElement();
+            const generatedDate = new Date('2026-01-15');
+            const relation = createTestRelation({ generatedDate });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            const expectedDateStr = generatedDate.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            const dateSpan = findByClass(stats, 'verification-stat-date');
+            expect(dateSpan).toBeDefined();
+            expect(dateSpan!.textContent).toBe(expectedDateStr);
+        });
+
+        it('should not render highest score when sessions are empty', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ sessions: [], sessionCount: 0 });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            const highestScoreSpan = findByText(stats, '最高分');
+            expect(highestScoreSpan).toBeUndefined();
+        });
+
+        it('should not render most recent date when sessions are empty', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ sessions: [], sessionCount: 0 });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const stats = item.children[1];
+            const recentSpan = findByText(stats, '最近');
+            expect(recentSpan).toBeUndefined();
+        });
+    });
+
+    describe('renderVerificationItem - Delete Button & Click (AC-31.9.5)', () => {
+        it('should set up delete button with trash icon and title', () => {
+            const container = createMockElement();
+            const relation = createTestRelation();
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const deleteBtn = findByClass(item, 'verification-item-delete');
+            expect(deleteBtn).toBeDefined();
+            expect(mockSetIcon).toHaveBeenCalledWith(deleteBtn, 'trash-2');
+            expect(deleteBtn!._attrs['title']).toBe('删除检验白板记录');
+        });
+
+        it('should call stopPropagation when delete button is clicked', () => {
+            const container = createMockElement();
+            const relation = createTestRelation();
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const deleteBtn = findByClass(item, 'verification-item-delete');
+            const mockEvent = { stopPropagation: jest.fn() };
+            deleteBtn!._listeners['click'][0](mockEvent);
+            expect(mockEvent.stopPropagation).toHaveBeenCalled();
+        });
+
+        it('should call confirmDeleteVerification when delete button is clicked', () => {
+            const container = createMockElement();
+            const relation = createTestRelation();
+            (view as any).confirmDeleteVerification = jest.fn().mockResolvedValue(undefined);
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            const deleteBtn = findByClass(item, 'verification-item-delete');
+            const mockEvent = { stopPropagation: jest.fn() };
+            deleteBtn!._listeners['click'][0](mockEvent);
+            expect((view as any).confirmDeleteVerification).toHaveBeenCalledWith(relation);
+        });
+
+        it('should open verificationCanvasPath on item click', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ verificationCanvasPath: 'path/to/test.canvas' });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            item._listeners['click'][0]();
+            expect(view.app.workspace.openLinkText).toHaveBeenCalledWith('path/to/test.canvas', '', false);
+        });
+
+        it('should not call openLinkText when verificationCanvasPath is falsy', () => {
+            const container = createMockElement();
+            const relation = createTestRelation({ verificationCanvasPath: '' as any });
+
+            (view as any).renderVerificationItem(container, relation);
+
+            const item = container.children[0];
+            item._listeners['click'][0]();
+            expect(view.app.workspace.openLinkText).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('confirmDeleteVerification - Service Interaction (AC-31.9.4)', () => {
+        it('should call deleteRelation when user confirms', async () => {
+            const relation = createTestRelation({ id: 'rel-123' });
+            view.showConfirmDialog.mockResolvedValue(true);
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(view.verificationService.deleteRelation).toHaveBeenCalledWith('rel-123');
+        });
+
+        it('should show success Notice after delete', async () => {
+            const relation = createTestRelation();
+            view.showConfirmDialog.mockResolvedValue(true);
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(MockNotice).toHaveBeenCalledWith('检验白板记录已删除');
+        });
+
+        it('should call loadVerificationData to refresh after delete', async () => {
+            const relation = createTestRelation();
+            view.showConfirmDialog.mockResolvedValue(true);
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(view.loadVerificationData).toHaveBeenCalled();
+        });
+
+        it('should not call deleteRelation when user cancels', async () => {
+            const relation = createTestRelation();
+            view.showConfirmDialog.mockResolvedValue(false);
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(view.verificationService.deleteRelation).not.toHaveBeenCalled();
+        });
+
+        it('should show error Notice when delete fails', async () => {
+            const relation = createTestRelation();
+            view.showConfirmDialog.mockResolvedValue(true);
+            view.verificationService.deleteRelation.mockRejectedValue(new Error('Network error'));
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(MockNotice).toHaveBeenCalledWith('删除失败，请重试');
+        });
+
+        it('should pass correct title and message to showConfirmDialog', async () => {
+            const relation = createTestRelation({ verificationCanvasTitle: '测试Canvas名' });
+
+            await (view as any).confirmDeleteVerification(relation);
+
+            expect(view.showConfirmDialog).toHaveBeenCalledWith(
+                '删除检验白板记录',
+                '确定要删除"测试Canvas名"的检验记录吗？此操作不可撤销。'
+            );
         });
     });
 });

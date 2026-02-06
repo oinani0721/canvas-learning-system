@@ -1838,7 +1838,13 @@ async def recommend_action(
                 # Calculate history context
                 avg_score = sum(recent_scores) / len(recent_scores)
                 trend = _calculate_trend(recent_scores)
-                consecutive_low = sum(1 for s in recent_scores if s < 60)
+                # Count truly consecutive low scores from most recent
+                consecutive_low = 0
+                for s in recent_scores:
+                    if s < 60:
+                        consecutive_low += 1
+                    else:
+                        break
 
                 history_context = HistoryContext(
                     recent_scores=recent_scores[:5],

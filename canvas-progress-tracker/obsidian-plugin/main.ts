@@ -61,6 +61,13 @@ import { DEFAULT_CANVAS_LINKS_CONFIG } from './src/types/AssociationTypes';
 import { NodeColorChangeWatcher, createNodeColorChangeWatcher } from './src/services/NodeColorChangeWatcher';
 // Story 16.7: Association Status Bar Indicator
 import { AssociationStatusIndicator, createStatusBarIndicator } from './src/views/StatusBarIndicator';
+// Story 30.7: Memory Query Service (3-layer memory integration)
+import { MemoryQueryService } from './src/services/MemoryQueryService';
+// Story 30.7: Graphiti Association Service
+import { GraphitiAssociationService } from './src/services/GraphitiAssociationService';
+// Story 31.2: Verification History Service - tracks verification canvas relations
+import { VerificationHistoryService } from './src/services/VerificationHistoryService';
+import type { ReviewMode } from './src/types/UITypes';
 
 /**
  * Story 12.H.2: Node-level Request Queue
@@ -222,6 +229,18 @@ export default class CanvasReviewPlugin extends Plugin {
     /** Story 16.7: Association Status Bar Indicator */
     private associationStatusIndicator: AssociationStatusIndicator | null = null;
 
+    /** Story 30.7: Memory Query Service (3-layer memory integration) */
+    memoryQueryService?: MemoryQueryService;
+
+    /** Story 30.7: Graphiti Association Service */
+    graphitiAssociationService?: GraphitiAssociationService;
+
+    /** Story 31.2: Verification History Service - tracks verification canvas relations */
+    private verificationHistoryService: VerificationHistoryService | null = null;
+
+    /** Story 30.6: Canvas auto-index debounce timers */
+    private indexDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
     /**
      * Get API Client instance (Story 38.1)
      *
@@ -366,6 +385,12 @@ export default class CanvasReviewPlugin extends Plugin {
                 }
             }
 
+            // Story 30.6: Clear canvas auto-index debounce timers
+            for (const timer of this.indexDebounceTimers.values()) {
+                clearTimeout(timer);
+            }
+            this.indexDebounceTimers.clear();
+
             // Cleanup managers (non-backend cleanup is fast/sync-safe)
             this.cleanupManagers();
 
@@ -490,13 +515,22 @@ export default class CanvasReviewPlugin extends Plugin {
                     apiBaseUrl: `${apiBaseUrl}/api/v1`,
                     enableLogging: this.settings.debugMode,
                 });
-                this.nodeColorChangeWatcher.start();
+                await this.nodeColorChangeWatcher.start();
                 if (this.settings.debugMode) {
                     console.log('Canvas Review System: NodeColorChangeWatcher initialized and started');
                 }
             } catch (error) {
                 console.error('Canvas Review System: Failed to initialize NodeColorChangeWatcher:', error);
             }
+
+            // Story 30.6: Auto-index canvas on save (debounced 5s)
+            this.registerEvent(
+                this.app.vault.on('modify', (file) => {
+                    if (file instanceof TFile && file.extension === 'canvas') {
+                        this.debouncedIndexCanvas(file);
+                    }
+                })
+            );
 
             // Initialize CrossCanvasService (Story 25.1: Cross-Canvas Association System)
             try {
@@ -506,6 +540,43 @@ export default class CanvasReviewPlugin extends Plugin {
                 }
             } catch (error) {
                 console.error('Canvas Review System: Failed to initialize CrossCanvasService:', error);
+            }
+
+            // Story 30.7: Initialize Memory Query Service (3-layer memory integration)
+            try {
+                this.memoryQueryService = new MemoryQueryService(this.app, {
+                    apiBaseUrl: `${apiBaseUrl}/api/v1`,
+                });
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: MemoryQueryService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize MemoryQueryService:', error);
+            }
+
+            // Story 30.7: Initialize Graphiti Association Service
+            try {
+                this.graphitiAssociationService = new GraphitiAssociationService(this.app, {
+                    baseUrl: apiBaseUrl,
+                });
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: GraphitiAssociationService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize GraphitiAssociationService:', error);
+            }
+
+            // Story 31.2: Initialize Verification History Service
+            try {
+                this.verificationHistoryService = new VerificationHistoryService(this.app);
+                if (this.dataManager) {
+                    this.verificationHistoryService.setDataManager(this.dataManager);
+                }
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: VerificationHistoryService initialized');
+                }
+            } catch (error) {
+                console.error('Canvas Review System: Failed to initialize VerificationHistoryService:', error);
             }
 
             // Initialize Association Status Bar Indicator (Story 16.7)
@@ -856,8 +927,91 @@ export default class CanvasReviewPlugin extends Plugin {
                     this.showReviewDashboard();
                 },
 
+                /**
+                 * Story 31.2: Generate Verification Canvas
+                 *
+                 * Creates a verification canvas from the current canvas's concepts.
+                 * - AC-31.2.1: Calls POST /review/generate API
+                 * - AC-31.2.2: Backend creates canvas file with naming convention
+                 * - AC-31.2.3: Records relation in VerificationHistoryService
+                 * - AC-31.2.4: Auto-opens the new verification canvas
+                 * - AC-31.2.5: Shows progress and completion notices
+                 *
+                 * @source Story 31.2 - 检验白板生成端到端对接
+                 */
                 generateVerificationCanvas: async (context: MenuContext) => {
-                    new Notice('生成检验白板功能开发中...');
+                    // AC-31.2.1: Check API client initialization
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+
+                    // Validate filePath
+                    const filePath = context.filePath;
+                    if (!filePath) {
+                        new Notice('无法获取Canvas文件路径');
+                        return;
+                    }
+
+                    // AC-31.2.5: Show progress notice (estimated 30s for AI generation)
+                    new Notice('正在生成检验白板... 预计30秒');
+
+                    try {
+                        // Extract canvas name from file path (without extension)
+                        const canvasName = this.extractCanvasFileName(filePath);
+
+                        // AC-31.2.1: Call POST /review/generate API
+                        // ✅ Verified from ApiClient.ts:593-601 - generateReview method
+                        const response = await this.apiClient.generateReview({
+                            source_canvas: canvasName,
+                        });
+
+                        // AC-31.2.2: Backend creates canvas file with naming: {原名}_验证_{timestamp}.canvas
+                        const verificationCanvasName = response.verification_canvas_name;
+
+                        // AC-31.2.3: Record relation in VerificationHistoryService
+                        // ✅ Verified from VerificationHistoryService.ts:123-151 - addRelation method
+                        if (this.verificationHistoryService) {
+                            // Construct full path for verification canvas
+                            // Backend returns just the name, we add .canvas extension
+                            const verificationCanvasPath = verificationCanvasName.endsWith('.canvas')
+                                ? verificationCanvasName
+                                : `${verificationCanvasName}.canvas`;
+                            await this.verificationHistoryService.addRelation(
+                                filePath,
+                                verificationCanvasPath,
+                                'fresh' as ReviewMode
+                            );
+                            if (this.settings.debugMode) {
+                                console.log('[Story 31.2] Recorded verification canvas relation:', {
+                                    original: filePath,
+                                    verification: verificationCanvasPath,
+                                });
+                            }
+                        }
+
+                        // AC-31.2.4: Auto-open the new verification Canvas
+                        // ✅ Verified from Context7: /obsidianmd/obsidian-api - workspace.openLinkText
+                        await this.app.workspace.openLinkText(
+                            verificationCanvasName,
+                            filePath,
+                            false // don't create if doesn't exist (backend already created it)
+                        );
+
+                        // AC-31.2.5: Success notice with node count
+                        new Notice(`检验白板生成完成: ${verificationCanvasName} (${response.node_count}个验证节点)`);
+
+                    } catch (error) {
+                        // AC-31.2.5: Error handling with user-friendly messages
+                        console.error('[Story 31.2] generateVerificationCanvas error:', error);
+                        if (error instanceof ApiError) {
+                            new Notice(`生成检验白板失败: ${error.message}`);
+                        } else if (error instanceof Error) {
+                            new Notice(`生成检验白板失败: ${error.message}`);
+                        } else {
+                            new Notice('生成检验白板失败，请检查后端服务状态');
+                        }
+                    }
                 },
 
                 // Story 25.1: Cross-Canvas UI Entry Points (AC1, AC2)
@@ -1370,6 +1524,30 @@ export default class CanvasReviewPlugin extends Plugin {
      * - UIManager (Story 13.4+)
      * - SyncManager (Story 13.5+)
      */
+    /**
+     * Story 30.6: Debounced canvas auto-index on save
+     * Waits 5 seconds after last modification before triggering LanceDB index.
+     */
+    private debouncedIndexCanvas(file: TFile): void {
+        const existing = this.indexDebounceTimers.get(file.path);
+        if (existing) clearTimeout(existing);
+
+        const timer = setTimeout(async () => {
+            this.indexDebounceTimers.delete(file.path);
+            if (!this.apiClient) return;
+            try {
+                await this.apiClient.indexCanvas({ canvas_path: file.path });
+                if (this.settings.debugMode) {
+                    console.log(`Canvas Review System: Auto-indexed ${file.path}`);
+                }
+            } catch (e) {
+                console.warn(`Canvas Review System: Auto-index failed for ${file.path}:`, e);
+            }
+        }, 5000);
+
+        this.indexDebounceTimers.set(file.path, timer);
+    }
+
     private async cleanupManagers(): Promise<void> {
         if (this.settings.debugMode) {
             console.log('Canvas Review System: Cleaning up managers...');

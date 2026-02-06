@@ -268,7 +268,8 @@ class MemoryService:
             await self._create_neo4j_learning_relationship(
                 user_id=user_id,
                 concept=concept,
-                score=score
+                score=score,
+                group_id=group_id
             )
 
             # ✅ Verified: Store episode (simulating Graphiti add_learning_episode)
@@ -603,7 +604,8 @@ class MemoryService:
         self,
         user_id: str,
         concept: str,
-        score: Optional[int] = None
+        score: Optional[int] = None,
+        group_id: Optional[str] = None
     ) -> None:
         """
         在Neo4j中创建学习关系
@@ -612,19 +614,21 @@ class MemoryService:
         - MERGE (u:User {id: $userId})
         - MERGE (c:Concept {name: $concept})
         - MERGE (u)-[r:LEARNED]->(c)
-        - SET r.timestamp, r.score, r.next_review
+        - SET r.timestamp, r.score, r.next_review, r.group_id
 
         Args:
             user_id: 用户ID
             concept: 概念名称
             score: 得分 (optional)
+            group_id: 科目隔离 group_id (optional, Story 30.8)
 
         [Source: docs/stories/22.4.story.md#_create_neo4j_learning_relationship]
         """
         await self.neo4j.create_learning_relationship(
             user_id=user_id,
             concept=concept,
-            score=score
+            score=score,
+            group_id=group_id
         )
 
     def get_stats(self) -> Dict[str, Any]:
@@ -767,7 +771,7 @@ class MemoryService:
                             "user_id": "batch_user",
                             "canvas_path": event["canvas_path"],
                             "node_id": event["node_id"],
-                            "concept": event.get("metadata", {}).get("concept", "unknown"),
+                            "concept": event.get("metadata", {}).get("concept", event.get("metadata", {}).get("node_text", "unknown")),
                             "agent_type": event["event_type"],
                             "timestamp": event["timestamp"]
                         })

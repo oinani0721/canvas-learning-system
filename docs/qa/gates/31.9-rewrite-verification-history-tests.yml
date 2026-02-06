@@ -1,0 +1,56 @@
+# Quality Gate: 31.9 - Rewrite Verification History View UI Tests
+# Reviewed by Quinn (Test Architect)
+
+schema: 1
+story: "31.9"
+story_title: "重写检验历史视图 UI 测试 — 测试实际代码"
+gate: PASS
+status_reason: "24个新测试通过Object.create(ReviewDashboardView.prototype)直接测试实际类方法，完全解决31.7 CONCERNS门控中的测试结构性缺陷。8/8 AC全部满足。"
+reviewer: "Quinn (Test Architect)"
+updated: "2026-02-05T00:00:00Z"
+
+waiver: { active: false }
+
+top_issues:
+  - id: "STYLE-001"
+    severity: low
+    finding: "createTestRelation()中reviewMode使用'as any'类型断言，可导入实际ReviewMode类型替代"
+    suggested_action: "将 'fresh' as any 替换为导入的 ReviewMode 枚举值"
+    suggested_owner: dev
+
+quality_score: 95
+expires: "2026-02-19T00:00:00Z"
+
+evidence:
+  tests_reviewed: 24
+  risks_identified: 0
+  trace:
+    ac_covered: [1, 2, 3, 4, 5, 6, 7, 8]
+    ac_gaps: []
+
+nfr_validation:
+  security:
+    status: PASS
+    notes: "测试文件不涉及安全敏感逻辑"
+  performance:
+    status: PASS
+    notes: "24个同步/快速异步单元测试，无性能影响"
+  reliability:
+    status: PASS
+    notes: "错误场景已覆盖(deleteRelation失败→Notice错误反馈)"
+  maintainability:
+    status: PASS
+    notes: "测试直接调用实际代码方法，修改实现代码时测试会正确失败，回归检测能力已验证"
+
+recommendations:
+  immediate: []
+  future:
+    - action: "将createTestRelation中reviewMode的'as any'替换为导入的ReviewMode类型"
+      refs: ["canvas-progress-tracker/obsidian-plugin/tests/views/ReviewDashboardView.test.ts:677"]
+    - action: "考虑对L1-L566的pre-existing自引用测试(Stories 14.2/14.3)进行类似重写"
+      refs: ["canvas-progress-tracker/obsidian-plugin/tests/views/ReviewDashboardView.test.ts:1-566"]
+
+history:
+  - at: "2026-02-05T00:00:00Z"
+    gate: PASS
+    note: "初次审查 - 24测试全部测试实际代码，8/8 AC满足，质量分95"
