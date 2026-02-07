@@ -196,14 +196,26 @@ class ReviewService:
 
         # Story 32.2 AC-32.2.1: Initialize FSRSManager with configurable desired_retention
         # Default retention rate is 0.9 (90% target recall probability)
+        # Story 38.3 AC-3: Enhanced init logging for FSRS status
+        self._fsrs_init_ok = False
+        self._fsrs_init_reason: Optional[str] = None
         if fsrs_manager is not None:
             self._fsrs_manager = fsrs_manager
+            self._fsrs_init_ok = True
+            logger.info("FSRS manager initialized successfully")
         elif FSRS_AVAILABLE and FSRSManager is not None:
-            self._fsrs_manager = FSRSManager(desired_retention=0.9)
-            logger.info("ReviewService: FSRSManager initialized with desired_retention=0.9")
+            try:
+                self._fsrs_manager = FSRSManager(desired_retention=0.9)
+                self._fsrs_init_ok = True
+                logger.info("FSRS manager initialized successfully")
+            except Exception as e:
+                self._fsrs_manager = None
+                self._fsrs_init_reason = str(e)
+                logger.warning(f"FSRS manager failed to initialize: {e}")
         else:
             self._fsrs_manager = None
-            logger.warning("ReviewService: FSRS not available, using fallback scheduling")
+            self._fsrs_init_reason = "py-fsrs library not available"
+            logger.warning(f"FSRS manager failed to initialize: {self._fsrs_init_reason}")
 
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
@@ -1710,7 +1722,7 @@ class ReviewService:
         # Story 32.3: Try to get card from cache or persistence
         if self._fsrs_manager is None:
             logger.warning("FSRS not available, returning None for state query")
-            return {"found": False}
+            return {"found": False, "reason": "fsrs_not_initialized"}
 
         try:
             # Check in-memory cache first
@@ -1721,12 +1733,15 @@ class ReviewService:
                 card_data = await self.load_card_state(concept_id)
 
             if not card_data:
-                # No card exists for this concept
-                logger.debug(f"No FSRS card found for concept: {concept_id}")
-                return {"found": False}
-
-            # Deserialize card to get state values
-            card = self._fsrs_manager.deserialize_card(card_data)
+                # Story 38.3 AC-4: Auto-create default FSRS card for new concepts
+                logger.info(f"Auto-creating default FSRS card for concept: {concept_id}")
+                card = self._fsrs_manager.create_card()
+                card_data = self._fsrs_manager.serialize_card(card)
+                # Cache the newly created card
+                self._card_states[concept_id] = card_data
+            else:
+                # Deserialize existing card
+                card = self._fsrs_manager.deserialize_card(card_data)
 
             # Get retrievability (current recall probability)
             retrievability = self._fsrs_manager.get_retrievability(card)
@@ -1758,14 +1773,14 @@ class ReviewService:
 
             logger.debug(
                 f"FSRS state for {concept_id}: stability={result['stability']:.2f}, "
-                f"difficulty={result['difficulty']:.2f}, retrievability={retrievability:.3f if retrievability else 'N/A'}"
+                f"difficulty={result['difficulty']:.2f}, retrievability={f'{retrievability:.3f}' if retrievability is not None else 'N/A'}"
             )
 
             return result
 
         except Exception as e:
             logger.error(f"Error getting FSRS state for {concept_id}: {e}")
-            return {"found": False}
+            return {"found": False, "reason": f"error: {e}"}
 
     async def cleanup(self) -> None:
         """

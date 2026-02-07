@@ -98,6 +98,8 @@ export interface PriorityResult {
     recommendedReviewDate: Date;
     /** Priority tier for UI display */
     priorityTier: 'critical' | 'high' | 'medium' | 'low';
+    /** Story 38.3 AC-2: Whether FSRS data was unavailable for this calculation */
+    fsrsUnavailable?: boolean;
 }
 
 /**
@@ -246,6 +248,8 @@ export class PriorityCalculatorService {
             calculatedAt: new Date(),
             recommendedReviewDate,
             priorityTier,
+            // Story 38.3 AC-2: Flag when FSRS data was unavailable
+            fsrsUnavailable: fsrsState === null,
         };
     }
 

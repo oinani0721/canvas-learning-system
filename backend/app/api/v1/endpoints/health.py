@@ -96,11 +96,24 @@ async def health_check(
     """
     logger.debug("Health check requested")
 
+    # Story 38.3 AC-3: Include FSRS status in health check
+    components = {}
+    try:
+        from app.dependencies import get_review_service
+        review_service = get_review_service()
+        if review_service and getattr(review_service, '_fsrs_init_ok', False):
+            components["fsrs"] = "ok"
+        else:
+            components["fsrs"] = "degraded"
+    except Exception:
+        components["fsrs"] = "degraded"
+
     return HealthCheckResponse(
         status="healthy",
         app_name=settings.PROJECT_NAME,
         version=settings.VERSION,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
+        components=components
     )
 
 

@@ -56,6 +56,8 @@ export interface FSRSStateQueryResponse {
     card_state: string | null;
     /** Whether a card was found */
     found: boolean;
+    /** Story 38.3 AC-1: Reason when found=false (e.g., 'no_card_created', 'fsrs_not_initialized') */
+    reason?: string;
 }
 
 /**

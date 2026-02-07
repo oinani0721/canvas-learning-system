@@ -60,6 +60,8 @@ export interface TodayReviewItem extends ReviewTask {
     urgencyLabel: string;
     /** Urgency color */
     urgencyColor: string;
+    /** Story 38.3 AC-2: Whether FSRS data was unavailable for priority calculation */
+    fsrsUnavailable?: boolean;
 }
 
 /**
@@ -658,6 +660,8 @@ export class TodayReviewListService {
             urgencyLabel: priorityInfo.label,
             urgencyColor: priorityInfo.color,
             status: this.mapStatus(record.status),
+            // Story 38.3 AC-2: Flag when FSRS data was unavailable
+            fsrsUnavailable: priorityResult.fsrsUnavailable,
         };
     }
 
@@ -718,6 +722,10 @@ export class TodayReviewListService {
         try {
             const response = await this.fsrsStateQueryService.queryFSRSState(conceptId);
             if (!response || !response.found || !response.fsrs_state) {
+                // Story 38.3 AC-2: Log reason to console for debugging
+                if (response?.reason) {
+                    console.debug(`[TodayReviewListService] FSRS data unavailable for ${conceptId}: ${response.reason}`);
+                }
                 return null;
             }
             return this.convertFSRSStateToCardState(conceptId, response.fsrs_state);

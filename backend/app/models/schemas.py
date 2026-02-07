@@ -34,6 +34,10 @@ class HealthCheckResponse(BaseModel):
     app_name: str = Field(..., description="Application name")
     version: str = Field(..., description="Application version")
     timestamp: datetime = Field(..., description="Check timestamp")
+    components: Optional[Dict[str, str]] = Field(
+        None,
+        description="Optional component health status (e.g., fsrs, neo4j)"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -816,6 +820,10 @@ class FSRSStateQueryResponse(BaseModel):
     found: bool = Field(
         True,
         description="Whether a card was found for this concept"
+    )
+    reason: Optional[str] = Field(
+        None,
+        description="Reason when found=false: 'no_card_created', 'fsrs_not_initialized', or error details"
     )
 
 

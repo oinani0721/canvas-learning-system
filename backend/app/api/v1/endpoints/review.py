@@ -81,6 +81,100 @@ except ImportError:
     _services_available = False
     logging.warning("QuestionGenerator/TopicClusterer not available, using fallback")
 
+# AI-enhanced question generation for verification canvas
+try:
+    from app.services.agent_service import AgentService, AgentType
+    from app.clients.gemini_client import GeminiClient
+    from app.core.config import get_settings
+    _ai_question_available = True
+except ImportError:
+    _ai_question_available = False
+    logging.info("AgentService not available, canvas uses template questions only")
+
+
+async def _generate_ai_questions(nodes_to_review: List[Dict]) -> Optional[Dict[str, str]]:
+    """
+    Generate AI-powered questions for verification canvas using verification-question-agent.
+
+    Makes a single batch Gemini call with all nodes, returns a mapping of
+    source node ID -> rich question text. Falls back to None on any failure.
+    """
+    if not _ai_question_available or not nodes_to_review:
+        return None
+
+    try:
+        import asyncio as _asyncio
+        settings = get_settings()
+        if not settings.AI_API_KEY:
+            return None
+
+        gemini_client = GeminiClient(
+            api_key=settings.AI_API_KEY,
+            model=settings.AI_MODEL_NAME,
+            base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+        )
+        agent_service = AgentService(gemini_client=gemini_client)
+
+        # Build prompt matching verification-question-agent.md input format
+        nodes_data = []
+        for node in nodes_to_review:
+            node_id = node.get("id", "")
+            if not node_id:
+                continue
+            content = node.get("text", "").strip()
+            color = node.get("color", "3")
+            node_type = "red" if color == "4" else "purple"
+
+            nodes_data.append({
+                "id": node_id,
+                "content": content,
+                "type": node_type,
+                "related_yellow": [],
+                "parent_content": ""
+            })
+
+        if not nodes_data:
+            return None
+
+        prompt = json.dumps({"nodes": nodes_data}, ensure_ascii=False, indent=2)
+
+        # Single batch call - all nodes in one request (20s timeout)
+        result = await _asyncio.wait_for(
+            agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
+            timeout=20.0
+        )
+
+        if result and result.success and result.data:
+            questions = result.data.get("questions", [])
+            question_map: Dict[str, str] = {}
+            for q in questions:
+                src_id = q.get("source_node_id", "")
+                text = q.get("question_text", "")
+                q_type = q.get("question_type", "")
+                guidance = q.get("guidance", "")
+
+                if src_id and text:
+                    type_emoji = {
+                        "突破型": "🔴", "基础型": "🔴",
+                        "检验型": "🟣", "应用型": "🔵", "综合型": "🟢",
+                    }.get(q_type, "❓")
+                    full_text = f"{type_emoji} {q_type}：{text}"
+                    if guidance and guidance.strip():
+                        full_text += f"\n\n{guidance}"
+                    question_map[src_id] = full_text
+
+            if question_map:
+                logging.info(
+                    f"AI generated {len(question_map)}/{len(nodes_data)} questions for canvas"
+                )
+                return question_map
+
+        return None
+
+    except Exception as e:
+        logging.warning(f"AI question generation failed for canvas: {e}")
+        return None
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Canvas File Operations (P0 Task #7)
 # [Source: Plan - P0 Task #7: Implement real verification canvas generation]
@@ -447,6 +541,16 @@ async def generate_verification_canvas(
         clusters = {"概念检验": nodes_to_review}
         question_gen = None
 
+    # Step 4.5: AI-enhanced question generation (batch call)
+    # Try to generate personalized questions via Gemini + verification-question-agent
+    ai_questions = None
+    if _ai_question_available:
+        ai_questions = await _generate_ai_questions(nodes_to_review)
+        if ai_questions:
+            logging.info(f"Using AI-generated questions for {len(ai_questions)} nodes")
+        else:
+            logging.info("AI question generation unavailable, using templates")
+
     # Step 5: Generate verification canvas structure with clustering
     verification_nodes = []
     verification_edges = []
@@ -491,11 +595,16 @@ async def generate_verification_canvas(
             y = current_y + 60 + node_padding + row * (pair_height + node_padding)
 
             # Generate question text (PRD Story 4.2)
+            # Priority: AI questions > QuestionGenerator templates > basic fallback
             original_text = source_node.get("text", "")
             node_color = source_node.get("color", "3")
+            source_id = source_node.get("id", "")
 
-            if question_gen:
-                # Use QuestionGenerator for proper question generation
+            if ai_questions and source_id and source_id in ai_questions:
+                # AI-generated personalized question (highest quality)
+                question_text = ai_questions[source_id]
+            elif question_gen:
+                # Template-based question generation
                 questions = question_gen.generate_questions(source_node)
                 question_text = questions[0] if questions else f"请解释：{original_text}"
             else:
@@ -898,12 +1007,13 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
         result = await review_service.get_fsrs_state(concept_id)
 
         if not result or not result.get("found"):
-            # No card exists for this concept - return empty state
+            # No card exists for this concept - return empty state with reason
             return FSRSStateQueryResponse(
                 concept_id=concept_id,
                 fsrs_state=None,
                 card_state=None,
-                found=False
+                found=False,
+                reason=result.get("reason") if result else "unknown"
             )
 
         # Build FSRSStateResponse with all fields including retrievability and due
@@ -932,7 +1042,8 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
             concept_id=concept_id,
             fsrs_state=None,
             card_state=None,
-            found=False
+            found=False,
+            reason=f"error: {e}"
         )
 
 
@@ -970,11 +1081,11 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
 
     [Source: docs/stories/31.6.story.md#Task-2]
     """
-    from app.dependencies import get_verification_service
+    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = get_verification_service()
+        verification_service = _get_vs_singleton()
         progress = await verification_service.get_progress(session_id)
 
         if progress is None:
@@ -1041,11 +1152,11 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
-    from app.dependencies import get_verification_service
+    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = get_verification_service()
+        verification_service = _get_vs_singleton()
         success = await verification_service.pause_session(session_id)
 
         if not success:
@@ -1096,11 +1207,11 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
-    from app.dependencies import get_verification_service
+    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = get_verification_service()
+        verification_service = _get_vs_singleton()
         success = await verification_service.resume_session(session_id)
 
         if not success:
