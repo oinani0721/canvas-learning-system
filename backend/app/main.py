@@ -115,6 +115,25 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"MemoryService pre-warm failed (non-fatal): {e}")
 
+    # ✅ Story 38.4: Log dual-write configuration status (AC-1, AC-2)
+    if settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE:
+        logger.info("Dual-write: enabled (default)")
+    else:
+        logger.info("Dual-write: disabled (explicit configuration)")
+        logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")
+
+    # ✅ Story 38.6 AC-3: Recover failed writes from fallback file on startup
+    try:
+        from app.services.memory_service import get_memory_service as _get_ms
+        ms = _get_ms()
+        recovery_result = await ms.recover_failed_writes()
+        recovered = recovery_result.get("recovered", 0)
+        pending = recovery_result.get("pending", 0)
+        if recovered > 0 or pending > 0:
+            logger.info(f"[Story 38.6] Recovered {recovered} failed writes, {pending} still pending")
+    except Exception as e:
+        logger.warning(f"[Story 38.6] Failed write recovery skipped: {e}")
+
     yield  # Application runs here
 
     # Shutdown

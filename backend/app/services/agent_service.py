@@ -21,6 +21,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 # Story 12.G.2: Agent Error Type Enum
@@ -37,6 +38,48 @@ if TYPE_CHECKING:
     from app.clients.graphiti_client import LearningMemoryClient
 
 logger = logging.getLogger(__name__)
+
+# Story 38.6: Scoring write reliability — outer timeout for fire-and-forget memory writes
+# Must be >= sum of inner retry backoffs (1+2+4=7s) + 3 × per-attempt timeout (2s) + margin
+MEMORY_WRITE_TIMEOUT = 15.0
+
+# Story 38.6: Failed writes fallback file path
+FAILED_WRITES_FILE = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
+
+# Story 38.6 AC-2: Lock for concurrent JSONL writes
+_failed_writes_lock = asyncio.Lock()
+
+
+def _record_failed_write(
+    event_type: str,
+    concept_id: str,
+    canvas_name: str,
+    score: Optional[float],
+    error_reason: str,
+) -> None:
+    """
+    Story 38.6 AC-2: Record a failed memory write to data/failed_writes.jsonl.
+
+    Each entry includes timestamp, event_type, concept_id, canvas_name, score, error_reason.
+    Uses append mode so multiple failures accumulate for later recovery.
+    """
+    try:
+        entry = {
+            "timestamp": datetime.now().isoformat(),
+            "event_type": event_type,
+            "concept_id": concept_id,
+            "canvas_name": canvas_name,
+            "score": score,
+            "error_reason": error_reason,
+        }
+        FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        logger.warning(
+            f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
+        )
+    except Exception as e:
+        logger.error(f"[Story 38.6] Failed to write to fallback file: {e}")
 
 
 class AgentType(str, Enum):
@@ -57,6 +100,7 @@ class AgentType(str, Enum):
     SCORING_AGENT = "scoring-agent"
     SCORING = "scoring"  # Alias for SCORING_AGENT
     VERIFICATION_QUESTION = "verification-question-agent"
+    HINT_GENERATION = "hint-generation"
     CANVAS_ORCHESTRATOR = "canvas-orchestrator"
 
 
@@ -3030,10 +3074,10 @@ class AgentService:
             return
 
         # AC-30.4.2: Fire-and-forget async pattern
+        # Story 38.6 AC-1: Timeout aligned with inner retry mechanism
         async def _write_with_timeout():
             """Inner coroutine with timeout protection."""
             try:
-                # 500ms timeout to prevent hanging
                 await asyncio.wait_for(
                     self.record_learning_episode(
                         canvas_name=canvas_name,
@@ -3043,23 +3087,37 @@ class AgentService:
                         score=score,
                         agent_feedback=agent_feedback
                     ),
-                    timeout=0.5  # 500ms timeout per ADR-0004
+                    timeout=MEMORY_WRITE_TIMEOUT  # Story 38.6: 15s to allow inner retries
                 )
                 logger.debug(
                     f"[Story 30.4] Memory write completed for {agent_type}",
                     extra={"agent_type": agent_type, "memory_type": memory_type.value}
                 )
             except asyncio.TimeoutError:
-                # AC-30.4.3: Silent degradation - log but don't raise
+                # AC-30.4.3 + Story 38.6 AC-2: Log and track failed write
                 logger.warning(
-                    f"[Story 30.4] Memory write timeout for {agent_type}",
-                    extra={"agent_type": agent_type, "timeout_ms": 500}
+                    f"[Story 38.6] Memory write timeout for {agent_type} after {MEMORY_WRITE_TIMEOUT}s",
+                    extra={"agent_type": agent_type, "timeout_s": MEMORY_WRITE_TIMEOUT}
+                )
+                _record_failed_write(
+                    event_type=agent_type,
+                    concept_id=node_id,
+                    canvas_name=canvas_name,
+                    score=score,
+                    error_reason=f"timeout after {MEMORY_WRITE_TIMEOUT}s"
                 )
             except Exception as e:
-                # AC-30.4.3: Silent degradation - log but don't raise
-                logger.error(
-                    f"[Story 30.4] Memory write failed for {agent_type}: {e}",
+                # AC-30.4.3 + Story 38.6 AC-2: Log and track failed write
+                logger.warning(
+                    f"[Story 38.6] Memory write failed for {agent_type}: {e}",
                     extra={"agent_type": agent_type, "error": str(e)[:200]}
+                )
+                _record_failed_write(
+                    event_type=agent_type,
+                    concept_id=node_id,
+                    canvas_name=canvas_name,
+                    score=score,
+                    error_reason=str(e)[:200]
                 )
 
         # Fire-and-forget: create task but don't await it

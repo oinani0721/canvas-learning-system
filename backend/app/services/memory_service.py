@@ -34,6 +34,7 @@ Story 36.9 Implementation:
 """
 
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -65,8 +66,14 @@ logger = logging.getLogger(__name__)
 # Story 31.5: Cache TTL for score history queries (30 seconds)
 SCORE_HISTORY_CACHE_TTL = 30
 
-# Story 36.9 AC-36.9.4: Timeout for Graphiti JSON dual-write (500ms)
-GRAPHITI_JSON_WRITE_TIMEOUT = 0.5
+# Story 38.6 AC-1: Increased per-attempt timeout for reliable writes (was 0.5s)
+GRAPHITI_JSON_WRITE_TIMEOUT = 2.0
+
+# Story 38.6 AC-1: Retry backoff base (seconds). Backoff = base * 2^attempt → 1s, 2s, 4s
+GRAPHITI_RETRY_BACKOFF_BASE = 1.0
+
+# Story 38.6 AC-2/3: Failed writes fallback file (shared with agent_service)
+FAILED_WRITES_FILE = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
 
 
 @dataclass
@@ -136,6 +143,8 @@ class MemoryService:
         self._learning_memory = learning_memory_client or get_learning_memory_client()
         self._initialized = False
         self._episodes: List[Dict[str, Any]] = []  # In-memory episode store
+        # Story 38.2 AC-2: Track whether episodes have been recovered from Neo4j
+        self._episodes_recovered: bool = False
         # Story 31.5: Cache for score history queries (30s TTL)
         self._score_history_cache: Dict[str, Tuple[float, ScoreHistoryResponse]] = {}
         logger.debug("MemoryService initialized with Graphiti JSON dual-write support")
@@ -147,8 +156,48 @@ class MemoryService:
 
         await self.neo4j.initialize()
         self._initialized = True
+
+        # Story 38.2 AC-2: Recover episodes from Neo4j on startup
+        await self._recover_episodes_from_neo4j()
+
         logger.info("MemoryService initialized successfully")
         return True
+
+    async def _recover_episodes_from_neo4j(self) -> None:
+        """
+        Recover episodes from Neo4j on startup.
+
+        Story 38.2 AC-1/AC-2: Populate self._episodes from Neo4j so the
+        in-memory cache survives restarts.
+
+        Story 38.2 AC-3: If Neo4j is unavailable, graceful degradation —
+        _episodes remains empty, _episodes_recovered stays False, and
+        recovery is re-attempted lazily on first query.
+
+        [Source: docs/stories/38.2.story.md#Task-2]
+        """
+        try:
+            records = await self.neo4j.get_all_recent_episodes(limit=1000)
+            if records:
+                for record in records:
+                    episode = {
+                        "episode_id": f"recovered-{record.get('concept_id', 'unknown')}",
+                        "user_id": record.get("user_id"),
+                        "concept": record.get("concept"),
+                        "concept_id": record.get("concept_id"),
+                        "score": record.get("score"),
+                        "timestamp": str(record.get("timestamp", "")),
+                        "group_id": record.get("group_id"),
+                        "review_count": record.get("review_count", 0),
+                        "episode_type": "recovered",
+                    }
+                    self._episodes.append(episode)
+            self._episodes_recovered = True
+            logger.info(f"MemoryService: recovered {len(records)} episodes from Neo4j")
+        except Exception as e:
+            # AC-3: Graceful degradation — start with empty history
+            self._episodes_recovered = False
+            logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
 
     async def _write_to_graphiti_json(
         self,
@@ -209,6 +258,79 @@ class MemoryService:
         except Exception as e:
             # ✅ AC-36.9.3: Silent degradation - log warning but don't raise
             logger.warning(f"Graphiti JSON dual-write failed for {episode_id}: {e}")
+
+    async def _write_to_graphiti_json_with_retry(
+        self,
+        episode_id: str,
+        canvas_name: str,
+        node_id: str,
+        concept: str,
+        score: Optional[float] = None,
+        agent_feedback: Optional[str] = None,
+        user_understanding: Optional[str] = None,
+        max_retries: int = 2
+    ) -> bool:
+        """
+        带重试的 Graphiti JSON 写入。
+
+        Story 31.A.3: 增强 _write_to_graphiti_json 的可靠性
+        - 添加指数退避重试机制
+        - 最多重试 2 次（共 3 次尝试）
+        - 记录重试和失败日志
+
+        Args:
+            episode_id: 唯一 episode 标识（用于日志）
+            canvas_name: Canvas 文件路径/名称
+            node_id: 正在学习的节点 ID
+            concept: 正在学习的概念
+            score: 学习得分 (0-100, optional)
+            agent_feedback: Agent 反馈/响应 (optional)
+            user_understanding: 用户理解文本 (optional)
+            max_retries: 最大重试次数 (default: 2)
+
+        Returns:
+            True if successful, False otherwise
+
+        [Source: docs/stories/31.A.3.story.md#AC-31.A.3.1]
+        """
+        for attempt in range(max_retries + 1):
+            try:
+                await asyncio.wait_for(
+                    self._learning_memory.add_learning_episode(
+                        LearningMemory(
+                            canvas_name=canvas_name,
+                            node_id=node_id,
+                            concept=concept,
+                            user_understanding=user_understanding,
+                            score=score,
+                            agent_feedback=agent_feedback,
+                            timestamp=datetime.now().isoformat(),
+                        )
+                    ),
+                    timeout=GRAPHITI_JSON_WRITE_TIMEOUT,
+                )
+                if attempt > 0:
+                    logger.info(f"Graphiti write succeeded after {attempt + 1} attempts: {episode_id}")
+                else:
+                    logger.debug(f"Graphiti JSON dual-write succeeded: {episode_id}")
+                return True
+            except asyncio.TimeoutError:
+                if attempt < max_retries:
+                    delay = GRAPHITI_RETRY_BACKOFF_BASE * (2 ** attempt)  # Story 38.6: 1s, 2s, 4s
+                    logger.warning(f"Graphiti write timeout, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
+                    await asyncio.sleep(delay)
+                    continue
+                logger.warning(f"Graphiti write failed after {max_retries + 1} attempts (timeout): {episode_id}")
+                return False
+            except Exception as e:
+                if attempt < max_retries:
+                    delay = GRAPHITI_RETRY_BACKOFF_BASE * (2 ** attempt)  # Story 38.6: 1s, 2s, 4s
+                    logger.warning(f"Graphiti write error: {e}, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
+                    await asyncio.sleep(delay)
+                    continue
+                logger.warning(f"Graphiti write failed after {max_retries + 1} attempts: {episode_id} - {e}")
+                return False
+        return False  # Should not reach here, but for safety
 
     async def record_learning_event(
         self,
@@ -299,9 +421,10 @@ class MemoryService:
 
             # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
             # ✅ AC-36.9.5: Check config flag before calling dual-write
+            # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
                 asyncio.create_task(
-                    self._write_to_graphiti_json(
+                    self._write_to_graphiti_json_with_retry(
                         episode_id=episode_id,
                         canvas_name=canvas_path,
                         node_id=node_id,
@@ -330,8 +453,9 @@ class MemoryService:
         """
         获取学习历史 (分页)
 
+        ✅ Story 31.A.2 AC-31.A.2.1: 从Neo4j读取学习历史（替代只读内存）
         ✅ Verified from docs/stories/22.4.story.md#get_learning_history:
-        - 从Graphiti查询时序数据
+        - 从Neo4j查询时序数据
         - 应用concept过滤
         - 分页返回
 
@@ -350,45 +474,85 @@ class MemoryService:
         Returns:
             Dict with items, total, page, page_size, pages
 
+        [Source: docs/stories/31.A.2.story.md#AC-31.A.2.1]
         [Source: docs/stories/22.4.story.md#get_learning_history]
         [Source: docs/stories/30.8.story.md#Task-3.1]
         """
         if not self._initialized:
             await self.initialize()
 
-        # Filter episodes by user_id
-        episodes = [e for e in self._episodes if e.get("user_id") == user_id]
+        # ✅ Story 31.A.2 AC-31.A.2.1: Build group_id for subject filtering
+        group_id = build_group_id(subject) if subject else None
 
-        # Apply date filters
-        if start_date:
-            episodes = [
-                e for e in episodes
-                if datetime.fromisoformat(e["timestamp"]) >= start_date
-            ]
-        if end_date:
-            episodes = [
-                e for e in episodes
-                if datetime.fromisoformat(e["timestamp"]) <= end_date
-            ]
+        # ✅ Story 31.A.2 AC-31.A.2.1: Query from Neo4j first (replaces memory-only read)
+        episodes = []
+        try:
+            neo4j_results = await self.neo4j.get_learning_history(
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                concept=concept,
+                group_id=group_id,
+                limit=page_size * page  # Get enough data for pagination
+            )
+            episodes = neo4j_results
+            logger.debug(f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}")
+        except Exception as e:
+            # ✅ Story 31.A.2: Fallback to memory if Neo4j fails
+            logger.warning(f"Neo4j query failed, falling back to memory: {e}")
 
-        # Apply concept filter
-        if concept:
-            concept_lower = concept.lower()
-            episodes = [
-                e for e in episodes
-                if concept_lower in e.get("concept", "").lower()
-            ]
+        # Fallback to memory if Neo4j returned empty or failed
+        if not episodes:
+            # Story 38.2 AC-3: Lazy recovery — if startup recovery failed, retry now
+            if not self._episodes_recovered:
+                await self._recover_episodes_from_neo4j()
+            logger.debug("Falling back to in-memory episodes")
+            episodes = [e for e in self._episodes if e.get("user_id") == user_id]
 
-        # ✅ AC-30.8.3: Apply subject filter
-        if subject:
-            subject_lower = subject.lower()
-            episodes = [
-                e for e in episodes
-                if subject_lower in e.get("subject", "").lower()
-            ]
+            # Apply date filters (only for memory fallback, Neo4j handles this)
+            if start_date:
+                episodes = [
+                    e for e in episodes
+                    if datetime.fromisoformat(e["timestamp"]) >= start_date
+                ]
+            if end_date:
+                episodes = [
+                    e for e in episodes
+                    if datetime.fromisoformat(e["timestamp"]) <= end_date
+                ]
 
-        # Sort by timestamp (newest first)
-        episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            # Apply concept filter
+            if concept:
+                concept_lower = concept.lower()
+                episodes = [
+                    e for e in episodes
+                    if concept_lower in e.get("concept", "").lower()
+                ]
+
+            # Apply subject filter
+            if subject:
+                subject_lower = subject.lower()
+                episodes = [
+                    e for e in episodes
+                    if subject_lower in e.get("subject", "").lower()
+                ]
+
+            # Sort by timestamp (newest first)
+            episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+        # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps
+        failed_scores = self.load_failed_scores()
+        if failed_scores:
+            # Deduplicate: only include fallback entries not already in episodes
+            existing_keys = {
+                (e.get("node_id", ""), e.get("timestamp", "")) for e in episodes
+            }
+            for fs in failed_scores:
+                key = (fs.get("node_id", ""), fs.get("timestamp", ""))
+                if key not in existing_keys:
+                    episodes.append(fs)
+            # Re-sort after merge
+            episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
         # Pagination
         total = len(episodes)
@@ -888,6 +1052,7 @@ class MemoryService:
 
         # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
         # ✅ AC-36.9.5: Check config flag before calling dual-write
+        # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
         if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
             # Extract concept from metadata (node_text for node events)
             concept = ""
@@ -897,7 +1062,7 @@ class MemoryService:
                 concept = f"{event_type}:{node_id or edge_id or 'unknown'}"
 
             asyncio.create_task(
-                self._write_to_graphiti_json(
+                self._write_to_graphiti_json_with_retry(
                     episode_id=event_id,
                     canvas_name=canvas_path,
                     node_id=node_id or edge_id or "",
@@ -907,6 +1072,106 @@ class MemoryService:
             )
 
         return event_id
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Story 38.6: Failed Write Recovery & Merged View
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def recover_failed_writes(self) -> Dict[str, int]:
+        """
+        Story 38.6 AC-3: Replay failed writes from data/failed_writes.jsonl on startup.
+
+        Reads each entry, attempts to re-record it. Successfully replayed entries
+        are removed; still-failing entries remain in the file.
+
+        Returns:
+            dict with 'recovered' and 'pending' counts
+        """
+        if not FAILED_WRITES_FILE.exists():
+            return {"recovered": 0, "pending": 0}
+
+        try:
+            lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+        except Exception as e:
+            logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
+            return {"recovered": 0, "pending": 0}
+
+        if not lines:
+            return {"recovered": 0, "pending": 0}
+
+        recovered = 0
+        still_pending = []
+
+        for line in lines:
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning(f"[Story 38.6] Skipping malformed fallback entry")
+                continue
+
+            try:
+                success = await self._write_to_graphiti_json_with_retry(
+                    episode_id=f"recovery-{entry.get('concept_id', 'unknown')}",
+                    canvas_name=entry.get("canvas_name", ""),
+                    node_id=entry.get("concept_id", ""),
+                    concept=entry.get("concept_id", ""),
+                    score=entry.get("score"),
+                    max_retries=1,  # fewer retries during recovery to avoid blocking startup
+                )
+                if success:
+                    recovered += 1
+                else:
+                    still_pending.append(line)
+            except Exception:
+                still_pending.append(line)
+
+        # Rewrite file with only still-pending entries
+        try:
+            if still_pending:
+                FAILED_WRITES_FILE.write_text(
+                    "\n".join(still_pending) + "\n", encoding="utf-8"
+                )
+            else:
+                FAILED_WRITES_FILE.unlink(missing_ok=True)
+        except Exception as e:
+            logger.warning(f"[Story 38.6] Failed to update fallback file: {e}")
+
+        logger.info(
+            f"[Story 38.6] Recovered {recovered} failed writes, {len(still_pending)} still pending"
+        )
+        return {"recovered": recovered, "pending": len(still_pending)}
+
+    def load_failed_scores(self) -> List[Dict[str, Any]]:
+        """
+        Story 38.6 AC-4: Load scoring entries from failed_writes.jsonl for merged view.
+
+        Returns list of dicts that can be merged into learning history results,
+        so the user never sees a "missing score" gap.
+        """
+        if not FAILED_WRITES_FILE.exists():
+            return []
+
+        results = []
+        try:
+            lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+            for line in lines:
+                try:
+                    entry = json.loads(line)
+                    results.append({
+                        "timestamp": entry.get("timestamp", ""),
+                        "canvas_name": entry.get("canvas_name", ""),
+                        "node_id": entry.get("concept_id", ""),
+                        "concept": entry.get("concept_id", ""),
+                        "score": entry.get("score"),
+                        "source": "fallback",
+                        "error_reason": entry.get("error_reason", ""),
+                    })
+                except json.JSONDecodeError:
+                    continue
+        except Exception as e:
+            logger.warning(f"[Story 38.6] Failed to load failed scores: {e}")
+
+        return results
 
     async def cleanup(self) -> None:
         """

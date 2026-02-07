@@ -72,7 +72,8 @@ class TestGraphitiJsonDualWrite:
         await memory_service.initialize()
 
         # Act
-        with patch.object(memory_service, "_write_to_graphiti_json", new_callable=AsyncMock) as mock_write:
+        # Story 31.A.3: Now uses _write_to_graphiti_json_with_retry instead of _write_to_graphiti_json
+        with patch.object(memory_service, "_write_to_graphiti_json_with_retry", new_callable=AsyncMock) as mock_write:
             with patch("app.services.memory_service.settings") as mock_settings:
                 mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
 
@@ -91,7 +92,7 @@ class TestGraphitiJsonDualWrite:
         # Assert
         assert episode_id is not None
         assert episode_id.startswith("episode-")
-        # Verify _write_to_graphiti_json was called (fire-and-forget task created)
+        # Verify _write_to_graphiti_json_with_retry was called (fire-and-forget task created)
         mock_write.assert_called_once()
 
     @pytest.mark.asyncio
@@ -200,13 +201,15 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task to timeout
-            await asyncio.sleep(GRAPHITI_JSON_WRITE_TIMEOUT + 0.2)
+            await asyncio.sleep(GRAPHITI_JSON_WRITE_TIMEOUT + 0.5)
             total_elapsed = time.time() - start_time
 
         # Assert
         assert episode_id is not None
-        # The timeout should have kicked in (500ms), not the full 2s
-        assert total_elapsed < 1.0, f"Expected < 1.0s with timeout, but took {total_elapsed:.2f}s"
+        # Story 38.6: timeout increased to 2.0s; allow margin for fire-and-forget completion
+        assert total_elapsed < GRAPHITI_JSON_WRITE_TIMEOUT + 1.5, (
+            f"Expected < {GRAPHITI_JSON_WRITE_TIMEOUT + 1.5:.1f}s with timeout, but took {total_elapsed:.2f}s"
+        )
 
     @pytest.mark.asyncio
     async def test_config_flag_disables_dual_write(

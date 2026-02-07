@@ -210,8 +210,8 @@ class TestWriteToGraphitiJsonWithRetry:
             )
 
         assert result is True
-        # 验证重试日志 (debug)
-        mock_logger.debug.assert_called()
+        # Story 38.6: retry logs at warning level (was debug)
+        mock_logger.warning.assert_called()
         # 验证成功日志（重试后成功应记录 info）
         mock_logger.info.assert_called()
         log_call_args = str(mock_logger.info.call_args)
@@ -329,7 +329,7 @@ class TestWriteRetryStrictQA:
     async def test_exponential_backoff_delays(
         self, memory_service, mock_learning_memory_client
     ):
-        """AC-31.A.3.1: 验证指数退避延迟值 (0.1s, 0.2s)"""
+        """AC-31.A.3.1 + Story 38.6: 验证指数退避延迟值 (1.0s, 2.0s)"""
         await memory_service.initialize()
 
         # 前两次超时，第三次成功
@@ -349,16 +349,16 @@ class TestWriteRetryStrictQA:
         assert result is True
         # 验证 sleep 被调用 2 次（2 次重试前各一次）
         assert mock_sleep.call_count == 2
-        # 验证指数退避: 0.1 * 2^0 = 0.1, 0.1 * 2^1 = 0.2
+        # Story 38.6: 指数退避 1.0 * 2^0 = 1.0, 1.0 * 2^1 = 2.0
         delays = [call.args[0] for call in mock_sleep.call_args_list]
-        assert delays[0] == pytest.approx(0.1)
-        assert delays[1] == pytest.approx(0.2)
+        assert delays[0] == pytest.approx(1.0)
+        assert delays[1] == pytest.approx(2.0)
 
     @pytest.mark.asyncio
     async def test_exponential_backoff_all_failures(
         self, memory_service, mock_learning_memory_client
     ):
-        """AC-31.A.3.1: 验证全部失败时指数退避延迟值 (0.1s, 0.2s)"""
+        """AC-31.A.3.1 + Story 38.6: 验证全部失败时指数退避延迟值 (1.0s, 2.0s)"""
         await memory_service.initialize()
 
         mock_learning_memory_client.add_learning_episode = AsyncMock(
@@ -377,9 +377,10 @@ class TestWriteRetryStrictQA:
         assert result is False
         # 最后一次失败后不 sleep，所以只有 2 次 sleep（重试1和重试2之前）
         assert mock_sleep.call_count == 2
+        # Story 38.6: 指数退避 1.0 * 2^0 = 1.0, 1.0 * 2^1 = 2.0
         delays = [call.args[0] for call in mock_sleep.call_args_list]
-        assert delays[0] == pytest.approx(0.1)
-        assert delays[1] == pytest.approx(0.2)
+        assert delays[0] == pytest.approx(1.0)
+        assert delays[1] == pytest.approx(2.0)
 
     @pytest.mark.asyncio
     async def test_mixed_timeout_then_exception_then_success(

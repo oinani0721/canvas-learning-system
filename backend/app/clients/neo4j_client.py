@@ -517,6 +517,7 @@ class Neo4jClient:
         user_id = params.get("userId")
         concept = params.get("concept")
         score = params.get("score")
+        group_id = params.get("groupId")
 
         if not user_id or not concept:
             return []
@@ -560,6 +561,8 @@ class Neo4jClient:
             rel["last_score"] = score
             rel["next_review"] = next_review.isoformat()
             rel["review_count"] = rel.get("review_count", 0) + 1
+            if group_id:
+                rel["group_id"] = group_id
         else:
             # Create new relationship
             rel = {
@@ -570,7 +573,8 @@ class Neo4jClient:
                 "timestamp": now.isoformat(),
                 "last_score": score,
                 "next_review": next_review.isoformat(),
-                "review_count": 1
+                "review_count": 1,
+                "group_id": group_id
             }
             self._data["relationships"].append(rel)
 
@@ -718,6 +722,41 @@ class Neo4jClient:
         )
         return len(results) > 0
 
+    async def record_episode(self, data: Dict[str, Any]) -> bool:
+        """
+        Record a learning episode from a dict payload.
+
+        Delegates to create_learning_relationship() with extracted fields.
+        Called by MemoryService.batch_record_events() and record_temporal_event().
+
+        Args:
+            data: Dict with keys: episode_id, user_id, canvas_path,
+                  node_id, concept, agent_type, timestamp
+
+        Returns:
+            True if successful
+        """
+        user_id = data.get("user_id", "unknown")
+        concept = data.get("concept", "unknown")
+        score = data.get("score")
+        group_id = data.get("group_id")
+
+        # Infer group_id from canvas_path if not provided
+        if not group_id and data.get("canvas_path"):
+            from app.core.subject_config import (
+                extract_subject_from_canvas_path,
+                build_group_id,
+            )
+            subject = extract_subject_from_canvas_path(data["canvas_path"])
+            group_id = build_group_id(subject)
+
+        return await self.create_learning_relationship(
+            user_id=user_id,
+            concept=concept,
+            score=score,
+            group_id=group_id,
+        )
+
     async def get_review_suggestions(
         self,
         user_id: str,
@@ -803,6 +842,141 @@ class Neo4jClient:
             params["userId"] = user_id
 
         results = await self._handle_query_history(params)
+        return results[:limit]
+
+    async def get_learning_history(
+        self,
+        user_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        concept: Optional[str] = None,
+        group_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        Get learning history for a user with optional filters.
+
+        ✅ Story 31.A.2 AC-31.A.2.2: Neo4jClient method for learning history
+
+        Args:
+            user_id: User ID
+            start_date: Optional start date filter
+            end_date: Optional end date filter
+            concept: Optional concept name filter (partial match)
+            group_id: Optional group_id for subject filtering
+            limit: Maximum results
+
+        Returns:
+            List of learning history records
+
+        [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
+        """
+        if self._use_json_fallback:
+            return await self._get_learning_history_json(
+                user_id=user_id,
+                start_date=start_date,
+                end_date=end_date,
+                concept=concept,
+                group_id=group_id,
+                limit=limit
+            )
+
+        # Build Cypher query with optional filters
+        # ✅ Story 31.A.2: Cypher query for learning history
+        query = """
+        MATCH (u:User {id: $userId})-[r:LEARNED]->(c:Concept)
+        WHERE 1=1
+        """
+        params: Dict[str, Any] = {"userId": user_id, "limit": limit}
+
+        if start_date:
+            query += " AND r.timestamp >= $startDate"
+            params["startDate"] = start_date.isoformat()
+        if end_date:
+            query += " AND r.timestamp <= $endDate"
+            params["endDate"] = end_date.isoformat()
+        if concept:
+            query += " AND toLower(c.name) CONTAINS toLower($concept)"
+            params["concept"] = concept
+        if group_id:
+            query += " AND r.group_id = $groupId"
+            params["groupId"] = group_id
+
+        query += """
+        RETURN c.name as concept,
+               c.id as concept_id,
+               r.score as score,
+               r.timestamp as timestamp,
+               r.group_id as group_id,
+               r.agent_type as agent_type,
+               r.review_count as review_count,
+               u.id as user_id
+        ORDER BY r.timestamp DESC
+        LIMIT $limit
+        """
+
+        results = await self.run_query(query, **params)
+        return results
+
+    async def _get_learning_history_json(
+        self,
+        user_id: str,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        concept: Optional[str] = None,
+        group_id: Optional[str] = None,
+        limit: int = 100
+    ) -> List[Dict[str, Any]]:
+        """
+        JSON fallback implementation for get_learning_history.
+
+        ✅ Story 31.A.2: JSON fallback mode support
+
+        [Source: docs/stories/31.A.2.story.md#AC-31.A.2.2]
+        """
+        results = []
+
+        for rel in self._data.get("relationships", []):
+            # Filter by user_id
+            if rel.get("user_id") != user_id:
+                continue
+
+            # Filter by date range
+            rel_timestamp = rel.get("timestamp")
+            if rel_timestamp:
+                try:
+                    rel_dt = datetime.fromisoformat(rel_timestamp.replace("Z", "+00:00"))
+                    if start_date and rel_dt < start_date:
+                        continue
+                    if end_date and rel_dt > end_date:
+                        continue
+                except (ValueError, AttributeError):
+                    pass
+
+            # Filter by concept (partial match)
+            if concept:
+                rel_concept = rel.get("concept_name", "")
+                if concept.lower() not in rel_concept.lower():
+                    continue
+
+            # Filter by group_id
+            if group_id and rel.get("group_id") != group_id:
+                continue
+
+            results.append({
+                "user_id": rel.get("user_id"),
+                "concept": rel.get("concept_name"),
+                "concept_id": rel.get("concept_id"),
+                "score": rel.get("last_score"),
+                "timestamp": rel.get("timestamp"),
+                "group_id": rel.get("group_id"),
+                "agent_type": rel.get("agent_type"),
+                "review_count": rel.get("review_count", 0)
+            })
+
+        # Sort by timestamp (newest first)
+        results.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
         return results[:limit]
 
     async def create_canvas_node_relationship(
@@ -1698,6 +1872,62 @@ class Neo4jClient:
         concepts2 = set(await self._get_canvas_concepts_json_fallback(canvas2))
 
         return list(concepts1.intersection(concepts2))
+
+    async def get_all_recent_episodes(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        """
+        Get all recent learning episodes across all users.
+
+        Story 38.2 AC-2: Query recent episodes for startup recovery.
+        Used by MemoryService._recover_episodes_from_neo4j() to populate
+        the in-memory episode cache on restart.
+
+        Args:
+            limit: Maximum number of episodes to return (default: 1000)
+
+        Returns:
+            List of episode dicts with user_id, concept, score, timestamp, etc.
+
+        [Source: docs/stories/38.2.story.md#Task-1]
+        """
+        if self._use_json_fallback:
+            return await self._get_all_recent_episodes_json(limit)
+
+        query = """
+        MATCH (u:User)-[r:LEARNED]->(c:Concept)
+        RETURN u.id as user_id,
+               c.name as concept,
+               c.id as concept_id,
+               r.score as score,
+               r.timestamp as timestamp,
+               r.group_id as group_id,
+               r.review_count as review_count
+        ORDER BY r.timestamp DESC
+        LIMIT $limit
+        """
+        return await self.run_query(query, limit=limit)
+
+    async def _get_all_recent_episodes_json(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        """
+        JSON fallback: get all recent episodes from relationships.
+
+        Story 38.2 AC-2: JSON fallback for episode recovery.
+
+        [Source: docs/stories/38.2.story.md#Task-1.2]
+        """
+        rels = self._data.get("relationships", [])
+        results = []
+        for rel in rels:
+            results.append({
+                "user_id": rel.get("user_id"),
+                "concept": rel.get("concept_name"),
+                "concept_id": rel.get("concept_id"),
+                "score": rel.get("last_score"),
+                "timestamp": rel.get("timestamp"),
+                "group_id": rel.get("group_id"),
+                "review_count": rel.get("review_count", 0),
+            })
+        results.sort(key=lambda x: x.get("timestamp") or "", reverse=True)
+        return results[:limit]
 
     async def cleanup(self) -> None:
         """Cleanup client resources."""
