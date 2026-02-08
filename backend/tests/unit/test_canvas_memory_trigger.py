@@ -441,3 +441,50 @@ class TestEdgeCases:
 
         call_args = mock_memory_client.record_temporal_event.call_args
         assert call_args.kwargs["session_id"] == "test-session-123"
+
+
+# =============================================================================
+# Story 30.6: Color metadata extraction tests
+# =============================================================================
+
+class TestColorMetadataExtraction:
+    """Test CanvasEventContext color metadata extraction for Story 30.6."""
+
+    def test_to_metadata_extracts_node_color(self):
+        """Test that to_metadata() extracts node_color from node_data (AC-30.6.1)."""
+        context = CanvasEventContext(
+            canvas_name="test-canvas",
+            node_id="node1",
+            node_data={"color": "1", "text": "Concept", "type": "text"}
+        )
+        metadata = context.to_metadata()
+        assert metadata["node_color"] == "1"
+
+    def test_to_metadata_no_color_field(self):
+        """Test that to_metadata() omits node_color when color is absent."""
+        context = CanvasEventContext(
+            canvas_name="test-canvas",
+            node_id="node1",
+            node_data={"text": "No color node", "type": "text"}
+        )
+        metadata = context.to_metadata()
+        assert "node_color" not in metadata
+
+    def test_to_metadata_color_with_text(self):
+        """Test that both node_color and node_text are extracted together."""
+        context = CanvasEventContext(
+            canvas_name="test-canvas",
+            node_id="node1",
+            node_data={"color": "4", "text": "Yellow concept", "type": "text"}
+        )
+        metadata = context.to_metadata()
+        assert metadata["node_color"] == "4"
+        assert metadata["node_text"] == "Yellow concept"
+
+    def test_color_changed_event_type_exists(self):
+        """Test that COLOR_CHANGED event type is defined (AC-30.6.1)."""
+        assert CanvasEventType.COLOR_CHANGED.value == "color_changed"
+
+    def test_color_removed_event_type_exists(self):
+        """Test that COLOR_REMOVED event type is defined (AC-30.6.1)."""
+        assert CanvasEventType.COLOR_REMOVED.value == "color_removed"
