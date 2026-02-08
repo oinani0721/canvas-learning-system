@@ -80,17 +80,21 @@ class TestHealthEndpointHTTP:
     def test_health_fsrs_ok_when_library_available(self, qa_client):
         """
         [P0] Story 38.3: When py-fsrs is installed, /health shows fsrs: "ok".
-        This tests the actual code path in health.py L99-114.
+        Patches FSRS flags to True to ensure deterministic assertion.
         """
-        from app.services.review_service import FSRS_AVAILABLE
+        import app.services.review_service as review_mod
 
-        resp = qa_client.get("/api/v1/health")
-        data = resp.json()
-
-        if FSRS_AVAILABLE:
+        orig_available = review_mod.FSRS_AVAILABLE
+        orig_runtime = review_mod.FSRS_RUNTIME_OK
+        try:
+            review_mod.FSRS_AVAILABLE = True
+            review_mod.FSRS_RUNTIME_OK = True
+            resp = qa_client.get("/api/v1/health")
+            data = resp.json()
             assert data["components"]["fsrs"] == "ok"
-        else:
-            assert data["components"]["fsrs"] == "degraded"
+        finally:
+            review_mod.FSRS_AVAILABLE = orig_available
+            review_mod.FSRS_RUNTIME_OK = orig_runtime
 
     def test_health_fsrs_degraded_when_library_unavailable(self, qa_client):
         """

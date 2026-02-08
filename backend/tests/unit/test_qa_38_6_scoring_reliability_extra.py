@@ -53,7 +53,8 @@ class TestWriteWithTimeoutIntegration:
         fallback_file = tmp_path / "data" / "failed_writes.jsonl"
 
         async def slow_write(*args, **kwargs):
-            await asyncio.sleep(30)  # Will be killed by timeout
+            # JUSTIFIED: Mock simulating slow write; cancelled by asyncio.wait_for, not a hard wait
+            await asyncio.sleep(30)
 
         with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
              patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \

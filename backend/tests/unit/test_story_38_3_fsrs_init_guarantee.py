@@ -314,18 +314,18 @@ class TestCodeReviewC1FireAndForgetPersistence:
             mock_asyncio.create_task.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_persistence_failure_does_not_break_response(self, review_service, mock_fsrs_manager):
-        """If persistence task fails, get_fsrs_state still returns the card."""
+    async def test_persistence_create_task_failure_returns_error(self, review_service, mock_fsrs_manager):
+        """When asyncio.create_task raises, get_fsrs_state returns error gracefully.
+
+        review_service.py L1815 catches all exceptions and returns
+        {"found": False, "reason": "error: ..."} instead of propagating.
+        """
         with patch('app.services.review_service.asyncio') as mock_asyncio:
             mock_asyncio.create_task = MagicMock(side_effect=RuntimeError("no event loop"))
-            # Should still succeed — fire-and-forget failure shouldn't block
-            # Note: create_task raising means the task wasn't spawned, but the card is still returned
-            try:
-                result = await review_service.get_fsrs_state("persist-fail")
-            except RuntimeError:
-                # If create_task raises, the code may propagate it
-                # This test documents the current behavior
-                pass
+            result = await review_service.get_fsrs_state("persist-fail")
+            assert result["found"] is False
+            assert "error" in result["reason"]
+            assert "no event loop" in result["reason"]
 
 
 class TestCodeReviewC2ReviewServiceSingleton:

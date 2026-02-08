@@ -218,7 +218,8 @@ class TestAC2Neo4jDownFallback:
         fallback_file = tmp_path / "canvas_events_fallback.json"
 
         async def slow_record(**kwargs):
-            await asyncio.sleep(5)  # Far exceeds 500ms timeout
+            # JUSTIFIED: Mock simulating slow Neo4j; cancelled by wait_for timeout, not a hard wait
+            await asyncio.sleep(5)
 
         mock_memory = AsyncMock()
         mock_memory.record_temporal_event = slow_record
