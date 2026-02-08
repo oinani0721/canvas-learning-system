@@ -94,9 +94,11 @@ def test_canvas_file(tmp_path: Path, test_canvas_data: dict) -> Path:
 
 
 @pytest.fixture
-def mock_canvas_utils():
+def mock_canvas_utils(monkeypatch):
     """
     Mock canvas_utils module to avoid import issues in IntelligentGroupingService.
+
+    Uses monkeypatch.setitem for automatic cleanup (safe even if setup fails).
 
     [Fix for: canvas_utils.path_manager module import error]
     [Source: docs/qa/gates/33.8-e2e-integration-testing.yml#recommendations]
@@ -142,20 +144,10 @@ def mock_canvas_utils():
     mock_module = MagicMock()
     mock_module.CanvasBusinessLogic = MockCanvasBusinessLogic
 
-    # Patch sys.modules
-    original_modules = {}
-    if 'canvas_utils' in sys.modules:
-        original_modules['canvas_utils'] = sys.modules['canvas_utils']
+    # monkeypatch.setitem automatically restores on teardown (even on exceptions)
+    monkeypatch.setitem(sys.modules, 'canvas_utils', mock_module)
 
-    sys.modules['canvas_utils'] = mock_module
-
-    yield mock_module
-
-    # Restore original modules
-    if 'canvas_utils' in original_modules:
-        sys.modules['canvas_utils'] = original_modules['canvas_utils']
-    elif 'canvas_utils' in sys.modules:
-        del sys.modules['canvas_utils']
+    return mock_module
 
 
 # =============================================================================

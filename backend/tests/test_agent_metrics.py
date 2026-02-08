@@ -29,9 +29,10 @@ from app.middleware.agent_metrics import (
 @pytest.fixture(autouse=True)
 def reset_metrics():
     """Reset Prometheus metrics before each test."""
-    # Clear any existing samples by creating new metric instances
-    # This is a workaround since prometheus_client doesn't have a reset method
+    from tests.conftest import clear_prometheus_metrics
+    clear_prometheus_metrics()
     yield
+    clear_prometheus_metrics()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

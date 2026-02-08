@@ -31,6 +31,15 @@ from fastapi.testclient import TestClient
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.fixture(autouse=True)
+def reset_metrics():
+    """Reset Prometheus metrics before each test."""
+    from tests.conftest import clear_prometheus_metrics
+    clear_prometheus_metrics()
+    yield
+    clear_prometheus_metrics()
+
+
 @pytest.fixture
 def test_app():
     """Create a test FastAPI application with MetricsMiddleware."""

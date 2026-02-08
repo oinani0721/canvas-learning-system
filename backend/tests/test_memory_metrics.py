@@ -22,6 +22,19 @@ from app.middleware.memory_metrics import (
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Fixtures
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@pytest.fixture(autouse=True)
+def reset_metrics():
+    """Reset Prometheus metrics before each test."""
+    from tests.conftest import clear_prometheus_metrics
+    clear_prometheus_metrics()
+    yield
+    clear_prometheus_metrics()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Test: Valid Memory Types and Operations
 # ═══════════════════════════════════════════════════════════════════════════════
 

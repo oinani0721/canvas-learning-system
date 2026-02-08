@@ -137,6 +137,65 @@ def wait_condition():
 
 
 # ============================================================================
+# Prometheus Metrics Isolation
+# ============================================================================
+
+
+def clear_prometheus_metrics():
+    """Clear accumulated state from all Canvas Prometheus metrics.
+
+    Prometheus Counters/Histograms/Gauges are module-level singletons.
+    Without clearing, values accumulate across tests, causing
+    non-deterministic snapshot assertions and parallel-test races.
+
+    Uses internal ``_metrics`` dict (labeled metrics) and ``_value``
+    (unlabeled Gauge). This is the accepted pattern for testing with
+    prometheus_client — there is no public reset API.
+    """
+    from app.middleware.agent_metrics import (
+        AGENT_ERRORS,
+        AGENT_EXECUTION_TIME,
+        AGENT_INVOCATIONS,
+    )
+    from app.middleware.memory_metrics import (
+        MEMORY_ERRORS,
+        MEMORY_QUERIES,
+        MEMORY_QUERY_LATENCY,
+    )
+    from app.middleware.metrics import (
+        CONCURRENT_REQUESTS,
+        REQUEST_COUNT,
+        REQUEST_LATENCY,
+    )
+
+    labeled_metrics = [
+        AGENT_EXECUTION_TIME, AGENT_ERRORS, AGENT_INVOCATIONS,
+        MEMORY_QUERY_LATENCY, MEMORY_ERRORS, MEMORY_QUERIES,
+        REQUEST_COUNT, REQUEST_LATENCY,
+    ]
+    for metric in labeled_metrics:
+        if hasattr(metric, '_metrics'):
+            metric._metrics.clear()
+
+    # Unlabeled Gauge — reset value to 0
+    if hasattr(CONCURRENT_REQUESTS, '_value'):
+        CONCURRENT_REQUESTS._value.set(0)
+
+
+@pytest.fixture
+def reset_prometheus():
+    """Fixture that clears Prometheus metrics before and after the test.
+
+    Not autouse — apply explicitly or as autouse in metrics test files:
+
+        pytestmark = pytest.mark.usefixtures("reset_prometheus")
+    """
+    clear_prometheus_metrics()
+    yield
+    clear_prometheus_metrics()
+
+
+# ============================================================================
 # Autouse Isolation Fixtures
 # ============================================================================
 
