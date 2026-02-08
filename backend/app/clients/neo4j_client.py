@@ -541,9 +541,12 @@ class Neo4jClient:
             concept_node = {
                 "id": concept_id,
                 "name": concept,
-                "created_at": datetime.now().isoformat()
+                "created_at": datetime.now().isoformat(),
+                "group_id": group_id
             }
             self._data["concepts"].append(concept_node)
+        elif group_id:
+            concept_node["group_id"] = group_id
 
         # Create or update relationship
         now = datetime.now()
@@ -706,6 +709,7 @@ class Neo4jClient:
         query = """
         MERGE (u:User {id: $userId})
         MERGE (c:Concept {name: $concept})
+        SET c.group_id = $groupId
         MERGE (u)-[r:LEARNED]->(c)
         SET r.timestamp = datetime(),
             r.score = $score,
