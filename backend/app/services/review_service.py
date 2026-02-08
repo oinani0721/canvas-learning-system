@@ -87,6 +87,11 @@ except ImportError:
     get_rating_from_score = None
     CardState = None
 
+# Story 38.3 AC-3 Code Review M2 Fix: Module-level runtime FSRS status.
+# FSRS_AVAILABLE = library importable (compile-time).
+# FSRS_RUNTIME_OK = FSRSManager actually initialized (runtime). None = not yet attempted.
+FSRS_RUNTIME_OK: Optional[bool] = None
+
 if TYPE_CHECKING:
     from app.services.background_task_manager import BackgroundTaskManager
     from app.services.canvas_service import CanvasService
@@ -199,22 +204,27 @@ class ReviewService:
         # Story 38.3 AC-3: Enhanced init logging for FSRS status
         self._fsrs_init_ok = False
         self._fsrs_init_reason: Optional[str] = None
+        global FSRS_RUNTIME_OK
         if fsrs_manager is not None:
             self._fsrs_manager = fsrs_manager
             self._fsrs_init_ok = True
+            FSRS_RUNTIME_OK = True
             logger.info("FSRS manager initialized successfully")
         elif FSRS_AVAILABLE and FSRSManager is not None:
             try:
                 self._fsrs_manager = FSRSManager(desired_retention=0.9)
                 self._fsrs_init_ok = True
+                FSRS_RUNTIME_OK = True
                 logger.info("FSRS manager initialized successfully")
             except Exception as e:
                 self._fsrs_manager = None
                 self._fsrs_init_reason = str(e)
+                FSRS_RUNTIME_OK = False
                 logger.warning(f"FSRS manager failed to initialize: {e}")
         else:
             self._fsrs_manager = None
             self._fsrs_init_reason = "py-fsrs library not available"
+            FSRS_RUNTIME_OK = False
             logger.warning(f"FSRS manager failed to initialize: {self._fsrs_init_reason}")
 
         self._initialized = True
@@ -1739,25 +1749,30 @@ class ReviewService:
                 card_data = self._fsrs_manager.serialize_card(card)
                 # Cache the newly created card
                 self._card_states[concept_id] = card_data
-                # Persist auto-created card to Graphiti (fire-and-forget, no canvas_name/rating needed)
-                if self.graphiti_client:
+                # Story 38.3 AC-4 + Code Review C1/M3 Fix:
+                # Persist auto-created card via fire-and-forget background task.
+                # Bypasses self.graphiti_client gate (not injected by dependencies.py)
+                # and uses get_learning_memory_client() directly.
+                async def _persist_auto_created_card(cid: str, cdata: str) -> None:
                     try:
                         from app.clients.graphiti_client import get_learning_memory_client
                         memory_client = get_learning_memory_client()
                         await memory_client.initialize()
                         memory_data = {
-                            "concept": concept_id,
+                            "concept": cid,
                             "canvas_name": "auto-created",
                             "rating": 0,
-                            "card_data": card_data,
+                            "card_data": cdata,
                             "algorithm": "fsrs-4.5",
                             "auto_created": True,
                             "timestamp": datetime.now().isoformat()
                         }
                         await memory_client.add_learning_memory(memory_data)
-                        logger.info(f"Persisted auto-created card to Graphiti: {concept_id}")
+                        logger.info(f"Persisted auto-created card to Graphiti: {cid}")
                     except Exception as e:
-                        logger.warning(f"Failed to persist auto-created card for {concept_id}: {e}")
+                        logger.warning(f"Failed to persist auto-created card for {cid}: {e}")
+
+                asyncio.create_task(_persist_auto_created_card(concept_id, card_data))
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)
