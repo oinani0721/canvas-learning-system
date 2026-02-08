@@ -537,19 +537,52 @@ async def get_verification_service(
         config=textbook_config
     )
 
+    # Story 31.5: Get MemoryService for difficulty adaptation
+    # Lazy import to avoid circular dependency (memory.py imports from dependencies.py)
+    from app.api.v1.endpoints.memory import get_memory_service as _get_memory_svc
+    try:
+        memory_service = await _get_memory_svc(settings)
+    except Exception as e:
+        logger.warning(f"MemoryService not available for difficulty adaptation: {e}")
+        memory_service = None
+
+    # P0-2: Create AgentService for AI question generation and scoring
+    agent_service = None
+    try:
+        gemini_client = None
+        if settings.AI_API_KEY:
+            gemini_client = GeminiClient(
+                api_key=settings.AI_API_KEY,
+                model=settings.AI_MODEL_NAME,
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+            )
+        neo4j_client = get_neo4j_client_dep()
+        agent_service = AgentService(
+            gemini_client=gemini_client,
+            neo4j_client=neo4j_client
+        )
+        logger.info("AgentService created for VerificationService AI integration")
+    except Exception as e:
+        logger.warning(f"AgentService not available for verification: {e}")
+
     # Create VerificationService with all dependencies
     # AC5: Services are optional - graceful degradation built into VerificationService
     # Story 31.A.1 AC-31.A.1.1: Added graphiti_client injection
+    # Story 31.5: Added memory_service injection for difficulty adaptation
     service = VerificationService(
         rag_service=rag_service,
         cross_canvas_service=cross_canvas_service,
         textbook_context_service=textbook_service,
-        graphiti_client=graphiti_client  # Story 31.A.1: Enable question deduplication
+        graphiti_client=graphiti_client,  # Story 31.A.1: Enable question deduplication
+        memory_service=memory_service,  # Story 31.5: Enable difficulty adaptation
+        agent_service=agent_service  # P0-2: Enable AI question generation and scoring
     )
 
     try:
         yield service
     finally:
+        if agent_service:
+            await agent_service.cleanup()
         await service.cleanup()
         logger.debug("VerificationService cleanup completed")
 

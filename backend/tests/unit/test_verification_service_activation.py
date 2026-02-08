@@ -59,15 +59,34 @@ def mock_canvas_service() -> MagicMock:
 def mock_agent_service() -> MagicMock:
     """Mock agent service for testing."""
     service = MagicMock()
-    service._call_gemini_api = AsyncMock(return_value="这是一个测试问题：请解释概念A的核心含义？")
-    service.call_scoring = AsyncMock(return_value={
+
+    # Mock call_agent for question generation (returns AgentResult-like object)
+    question_result = MagicMock()
+    question_result.success = True
+    question_result.data = {
+        "questions": [{
+            "source_node_id": "verification_test",
+            "question_text": "这是一个测试问题：请解释概念A的核心含义？",
+            "question_type": "检验型",
+            "difficulty": "基础",
+            "guidance": "",
+            "rationale": "测试"
+        }]
+    }
+    service.call_agent = AsyncMock(return_value=question_result)
+
+    # Mock call_scoring (returns AgentResult-like object)
+    scoring_result = MagicMock()
+    scoring_result.success = True
+    scoring_result.data = {
         "total_score": 75.0,
         "accuracy": 20,
         "imagery": 18,
         "completeness": 19,
         "originality": 18,
         "color": "2"
-    })
+    }
+    service.call_scoring = AsyncMock(return_value=scoring_result)
     return service
 
 
@@ -217,8 +236,8 @@ class TestGenerateQuestionCallsGemini:
             canvas_name="test_canvas"
         )
 
-        # Then: Gemini API should be called
-        assert mock_agent_service._call_gemini_api.called
+        # Then: Agent service should be called via call_agent()
+        assert mock_agent_service.call_agent.called
         assert question is not None
         assert len(question) > 0
 
@@ -281,8 +300,11 @@ class TestProcessAnswerCallsScoringAgent:
         temp_canvas_file: str
     ):
         """Test that 0-100 score is mapped to 0-40 range."""
-        # Given: Scoring agent returns 75/100
-        mock_agent_service.call_scoring.return_value = {"total_score": 75.0}
+        # Given: Scoring agent returns 75/100 (as AgentResult-like object)
+        scoring_result = MagicMock()
+        scoring_result.success = True
+        scoring_result.data = {"total_score": 75.0}
+        mock_agent_service.call_scoring.return_value = scoring_result
 
         session = await verification_service.start_session(
             canvas_name="test",
@@ -358,7 +380,7 @@ class TestTimeoutGracefulDegradation:
         """Test that timeout triggers graceful degradation to mock."""
         # Given: Agent service that times out
         mock_agent_service = MagicMock()
-        mock_agent_service._call_gemini_api = AsyncMock(
+        mock_agent_service.call_agent = AsyncMock(
             side_effect=asyncio.TimeoutError()
         )
         mock_agent_service.call_scoring = AsyncMock(
@@ -382,10 +404,10 @@ class TestTimeoutGracefulDegradation:
         assert "测试概念" in question
 
     @pytest.mark.asyncio
-    async def test_timeout_500ms_protection(self):
-        """Test that timeout is set to 500ms (0.5 seconds)."""
-        # Verify the constant is set correctly
-        assert VERIFICATION_AI_TIMEOUT == 0.5
+    async def test_timeout_15s_protection(self):
+        """Test that timeout is set to 15 seconds (sufficient for Gemini API)."""
+        # Verify the constant is set correctly (changed from 0.5 to 15 for real API calls)
+        assert VERIFICATION_AI_TIMEOUT == 15.0
 
     @pytest.mark.asyncio
     async def test_mock_mode_returns_default_concepts(self):

@@ -135,7 +135,7 @@ class TestTriggerMemoryWrite:
 
     @pytest.mark.asyncio
     async def test_trigger_memory_write_calls_record_learning_episode(
-        self, mock_agent_service
+        self, mock_agent_service, wait_for_call
     ):
         """Test that _trigger_memory_write calls record_learning_episode."""
         await mock_agent_service._trigger_memory_write(
@@ -145,8 +145,8 @@ class TestTriggerMemoryWrite:
             concept="Test concept",
         )
 
-        # Wait a bit for the fire-and-forget task to complete
-        await asyncio.sleep(0.1)
+        # Poll until the fire-and-forget task completes
+        await wait_for_call(mock_agent_service.record_learning_episode)
 
         mock_agent_service.record_learning_episode.assert_called_once()
 
@@ -240,7 +240,9 @@ class TestTriggerMemoryWrite:
         # No exception should be raised - silent degradation
 
     @pytest.mark.asyncio
-    async def test_trigger_memory_write_passes_all_parameters(self, mock_agent_service):
+    async def test_trigger_memory_write_passes_all_parameters(
+        self, mock_agent_service, wait_for_call
+    ):
         """Test that all parameters are passed to record_learning_episode."""
         await mock_agent_service._trigger_memory_write(
             agent_type="scoring-agent",
@@ -252,7 +254,7 @@ class TestTriggerMemoryWrite:
             agent_feedback="Good understanding",
         )
 
-        await asyncio.sleep(0.1)
+        await wait_for_call(mock_agent_service.record_learning_episode)
 
         mock_agent_service.record_learning_episode.assert_called_once_with(
             canvas_name="test.canvas",

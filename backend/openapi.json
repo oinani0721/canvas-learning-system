@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-07T08:29:10.639951+00:00",
+    "x-generated-at": "2026-02-08T07:21:21.908429+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -7830,12 +7830,7 @@
       "HealthCheckResponse": {
         "properties": {
           "status": {
-            "type": "string",
-            "enum": [
-              "healthy",
-              "unhealthy"
-            ],
-            "title": "Status",
+            "$ref": "#/components/schemas/HealthStatus",
             "description": "Application health status"
           },
           "app_name": {
@@ -7852,7 +7847,22 @@
             "type": "string",
             "format": "date-time",
             "title": "Timestamp",
-            "description": "Health check timestamp (ISO 8601 format)"
+            "description": "Check timestamp"
+          },
+          "components": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Components",
+            "description": "Optional component health status (e.g., fsrs, neo4j)"
           }
         },
         "type": "object",
@@ -7863,15 +7873,16 @@
           "timestamp"
         ],
         "title": "HealthCheckResponse",
-        "description": "Health check response model.\n\n✅ Verified from specs/data/health-check-response.schema.json\nSchema fields: status, app_name, version, timestamp (all required)\n\nAttributes:\n    status: Application health status (\"healthy\" or \"unhealthy\")\n    app_name: Application name\n    version: Application version\n    timestamp: ISO 8601 timestamp of the health check",
-        "examples": [
-          {
-            "app_name": "Canvas Learning System",
-            "status": "healthy",
-            "timestamp": "2025-11-24T10:30:00Z",
-            "version": "1.0.0"
-          }
-        ]
+        "description": "Health check response model.\n\n[Source: specs/api/fastapi-backend-api.openapi.yml#/components/schemas/HealthCheckResponse]"
+      },
+      "HealthStatus": {
+        "type": "string",
+        "enum": [
+          "healthy",
+          "unhealthy"
+        ],
+        "title": "HealthStatus",
+        "description": "Health status enum."
       },
       "HistoryContext": {
         "properties": {

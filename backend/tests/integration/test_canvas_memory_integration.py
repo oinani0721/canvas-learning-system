@@ -27,6 +27,17 @@ from app.services.memory_service import MemoryService, reset_memory_service
 from app.clients.neo4j_client import Neo4jClient, reset_neo4j_client
 
 
+def _spy_on_record(memory_service):
+    """Wrap memory_service.record_temporal_event with an AsyncMock spy.
+
+    Returns the spy mock so callers can use ``wait_for_call(spy)``
+    instead of a hard ``asyncio.sleep``.
+    """
+    spy = AsyncMock(wraps=memory_service.record_temporal_event)
+    memory_service.record_temporal_event = spy
+    return spy
+
+
 # =============================================================================
 # Test Fixtures
 # =============================================================================
@@ -97,11 +108,12 @@ class TestFullCRUDFlow:
     """Test full CRUD flow with memory integration."""
 
     @pytest.mark.asyncio
-    async def test_add_node_full_flow(self, integrated_canvas_service, memory_service):
+    async def test_add_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test add_node triggers complete memory flow."""
         # Arrange
         await memory_service.initialize()
         initial_episode_count = len(memory_service._episodes)
+        spy = _spy_on_record(memory_service)
 
         # Act
         result = await integrated_canvas_service.add_node(
@@ -114,8 +126,8 @@ class TestFullCRUDFlow:
             }
         )
 
-        # Wait for async task
-        await asyncio.sleep(0.2)
+        # Wait for background memory task
+        await wait_for_call(spy)
 
         # Assert - CRUD succeeded
         assert result["id"] is not None
@@ -137,9 +149,10 @@ class TestFullCRUDFlow:
         assert recorded_event["node_id"] == result["id"]
 
     @pytest.mark.asyncio
-    async def test_update_node_full_flow(self, integrated_canvas_service, memory_service):
+    async def test_update_node_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test update_node triggers complete memory flow."""
         await memory_service.initialize()
+        spy = _spy_on_record(memory_service)
 
         # Act
         result = await integrated_canvas_service.update_node(
@@ -148,7 +161,7 @@ class TestFullCRUDFlow:
             {"text": "Updated Text", "color": "3"}
         )
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(spy)
 
         # Assert - CRUD succeeded
         assert result["text"] == "Updated Text"
@@ -162,7 +175,7 @@ class TestFullCRUDFlow:
         assert len(node_updated_events) > 0
 
     @pytest.mark.asyncio
-    async def test_add_edge_full_flow(self, integrated_canvas_service, memory_service):
+    async def test_add_edge_full_flow(self, integrated_canvas_service, memory_service, wait_for_call):
         """Test add_edge triggers complete memory flow."""
         await memory_service.initialize()
 
@@ -175,6 +188,9 @@ class TestFullCRUDFlow:
         # Clear to isolate edge test
         initial_count = len(memory_service._episodes)
 
+        # Install spy AFTER setup node creation to only track the edge event
+        spy = _spy_on_record(memory_service)
+
         # Act
         result = await integrated_canvas_service.add_edge(
             "test-canvas",
@@ -186,7 +202,7 @@ class TestFullCRUDFlow:
             }
         )
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(spy)
 
         # Assert - CRUD succeeded
         assert result["id"] is not None
@@ -210,17 +226,18 @@ class TestMemoryPersistence:
 
     @pytest.mark.asyncio
     async def test_episode_structure_matches_schema(
-        self, integrated_canvas_service, memory_service
+        self, integrated_canvas_service, memory_service, wait_for_call
     ):
         """Test recorded episode matches temporal-event.schema.json structure."""
         await memory_service.initialize()
+        spy = _spy_on_record(memory_service)
 
         await integrated_canvas_service.add_node(
             "test-canvas",
             {"type": "text", "text": "Schema Test", "x": 0, "y": 0}
         )
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(spy)
 
         # Get latest episode
         latest = memory_service._episodes[-1]
@@ -238,11 +255,12 @@ class TestMemoryPersistence:
 
     @pytest.mark.asyncio
     async def test_multiple_events_accumulated(
-        self, integrated_canvas_service, memory_service
+        self, integrated_canvas_service, memory_service, wait_for_call
     ):
         """Test multiple events are accumulated in memory."""
         await memory_service.initialize()
         initial_count = len(memory_service._episodes)
+        spy = _spy_on_record(memory_service)
 
         # Perform multiple operations
         node1 = await integrated_canvas_service.add_node(
@@ -261,7 +279,7 @@ class TestMemoryPersistence:
             {"type": "text", "text": "Node 2", "x": 100, "y": 0}
         )
 
-        await asyncio.sleep(0.3)
+        await wait_for_call(spy, expected_count=3)
 
         # Should have at least 3 new events
         new_events = len(memory_service._episodes) - initial_count
@@ -277,10 +295,11 @@ class TestConcurrentOperations:
 
     @pytest.mark.asyncio
     async def test_concurrent_add_nodes(
-        self, integrated_canvas_service, memory_service
+        self, integrated_canvas_service, memory_service, wait_for_call
     ):
         """Test concurrent node additions don't cause race conditions."""
         await memory_service.initialize()
+        spy = _spy_on_record(memory_service)
 
         # Create multiple nodes concurrently
         tasks = []
@@ -295,7 +314,7 @@ class TestConcurrentOperations:
         # Execute all concurrently
         results = await asyncio.gather(*tasks)
 
-        await asyncio.sleep(0.3)
+        await wait_for_call(spy, expected_count=5)
 
         # All should succeed
         assert len(results) == 5
@@ -312,10 +331,11 @@ class TestConcurrentOperations:
 
     @pytest.mark.asyncio
     async def test_concurrent_operations_different_canvases(
-        self, temp_canvas_dir, memory_service
+        self, temp_canvas_dir, memory_service, wait_for_call
     ):
         """Test concurrent operations on different canvases."""
         await memory_service.initialize()
+        spy = _spy_on_record(memory_service)
 
         # Create two services for different canvases
         service1 = CanvasService(
@@ -341,7 +361,7 @@ class TestConcurrentOperations:
 
         results = await asyncio.gather(task1, task2)
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(spy, expected_count=2)
 
         # Both should succeed
         assert results[0]["text"] == "Canvas 1 Node"
@@ -362,7 +382,7 @@ class TestCanvasConceptRelationship:
 
     @pytest.mark.asyncio
     async def test_node_relationship_created_on_connected_neo4j(
-        self, temp_canvas_dir, mock_neo4j_client
+        self, temp_canvas_dir, mock_neo4j_client, wait_for_call
     ):
         """Test Canvas-Node relationship created when Neo4j is connected."""
         # Configure mock to simulate connected Neo4j
@@ -383,7 +403,7 @@ class TestCanvasConceptRelationship:
             {"type": "text", "text": "Concept: Machine Learning", "x": 0, "y": 0}
         )
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(mock_neo4j_client.create_canvas_node_relationship)
 
         # Assert - relationship creation was attempted
         mock_neo4j_client.create_canvas_node_relationship.assert_called()
@@ -395,7 +415,7 @@ class TestCanvasConceptRelationship:
 
     @pytest.mark.asyncio
     async def test_edge_relationship_created_on_connected_neo4j(
-        self, temp_canvas_dir, mock_neo4j_client
+        self, temp_canvas_dir, mock_neo4j_client, wait_for_call
     ):
         """Test edge relationship created when Neo4j is connected."""
         # Configure mock to simulate connected Neo4j
@@ -430,14 +450,14 @@ class TestCanvasConceptRelationship:
             }
         )
 
-        await asyncio.sleep(0.2)
+        await wait_for_call(mock_neo4j_client.create_edge_relationship)
 
         # Assert - edge relationship creation was attempted
         mock_neo4j_client.create_edge_relationship.assert_called()
 
     @pytest.mark.asyncio
     async def test_relationship_not_created_when_neo4j_disconnected(
-        self, temp_canvas_dir, mock_neo4j_client
+        self, temp_canvas_dir, mock_neo4j_client, wait_for_call
     ):
         """Test no relationship creation attempted when Neo4j is disconnected."""
         # Configure mock to simulate disconnected Neo4j
@@ -445,6 +465,7 @@ class TestCanvasConceptRelationship:
 
         memory_service = MemoryService(neo4j_client=mock_neo4j_client)
         await memory_service.initialize()
+        spy = _spy_on_record(memory_service)
 
         service = CanvasService(
             canvas_base_path=str(temp_canvas_dir),
@@ -458,7 +479,8 @@ class TestCanvasConceptRelationship:
             {"type": "text", "text": "Test Node", "x": 0, "y": 0}
         )
 
-        await asyncio.sleep(0.2)
+        # Wait for background task to complete (event is recorded but Neo4j skipped)
+        await wait_for_call(spy)
 
         # Assert - no Neo4j relationship calls made
         mock_neo4j_client.create_canvas_node_relationship.assert_not_called()

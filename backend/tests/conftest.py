@@ -9,6 +9,7 @@ This module provides test fixtures and configuration for the test suite.
 [Source: ADR-008 - Testing Framework pytest]
 """
 
+import asyncio
 import json
 import tempfile
 from pathlib import Path
@@ -20,6 +21,92 @@ from app.main import app
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
 from fastapi.testclient import TestClient
+
+
+# ============================================================================
+# Shared Test Utilities
+# ============================================================================
+
+
+async def wait_for_mock_call(
+    mock_method,
+    *,
+    timeout: float = 2.0,
+    interval: float = 0.05,
+    expected_count: int = 1,
+):
+    """Poll until mock is called expected number of times or timeout.
+
+    Use instead of asyncio.sleep() to wait for fire-and-forget background tasks.
+
+    Args:
+        mock_method: The mock to check call_count on.
+        timeout: Maximum wait time in seconds.
+        interval: Polling interval in seconds.
+        expected_count: Minimum call_count to wait for.
+
+    Raises:
+        TimeoutError: If mock not called within timeout.
+    """
+    loop = asyncio.get_event_loop()
+    start = loop.time()
+    while (loop.time() - start) < timeout:
+        if mock_method.call_count >= expected_count:
+            return
+        await asyncio.sleep(interval)
+    raise TimeoutError(
+        f"{mock_method} not called {expected_count} time(s) within {timeout}s "
+        f"(actual: {mock_method.call_count})"
+    )
+
+
+@pytest.fixture
+def wait_for_call():
+    """Provide wait_for_mock_call as a pytest fixture.
+
+    Usage:
+        async def test_something(wait_for_call):
+            await service.do_something()
+            await wait_for_call(mock.method)
+            mock.method.assert_called_once()
+    """
+    return wait_for_mock_call
+
+
+# ============================================================================
+# Autouse Isolation Fixtures
+# ============================================================================
+
+
+@pytest.fixture(autouse=True)
+def isolate_dependency_overrides():
+    """Save and restore app.dependency_overrides for each test.
+
+    Prevents dependency override leaks between tests. Module-scoped
+    overrides (e.g., from the `client` fixture) are preserved because
+    this fixture captures the state AFTER module fixtures have run.
+    """
+    original = app.dependency_overrides.copy()
+    yield
+    app.dependency_overrides.clear()
+    app.dependency_overrides.update(original)
+
+
+@pytest.fixture
+async def isolate_memory_singleton():
+    """Safely reset and restore the memory service singleton.
+
+    Use with autouse=True in test files that modify _memory_service_instance.
+    Ensures the singleton is always restored even if the test fails mid-execution.
+    """
+    from app.api.v1.endpoints import memory as memory_module
+
+    original = memory_module._memory_service_instance
+    memory_module._memory_service_instance = None
+    try:
+        yield
+    finally:
+        memory_module._memory_service_instance = original
 
 
 def get_settings_override() -> Settings:
@@ -339,3 +426,100 @@ def provider_factory_clean():
 
     # Cleanup after test
     ProviderFactory.reset_instance()
+
+
+# ============================================================================
+# Story 31.A.5 Fixtures - Integration Test with Real Neo4j
+# [Source: docs/stories/31.A.5.story.md#AC-31.A.5.1]
+# ============================================================================
+
+import os
+
+@pytest.fixture(scope="module")
+async def real_neo4j_client():
+    """
+    Real Neo4j client for integration tests.
+
+    Story 31.A.5 AC-31.A.5.1: Requires Docker Neo4j service.
+
+    Environment variables (with defaults for CI):
+        NEO4J_URI: bolt://localhost:7687
+        NEO4J_USER: neo4j
+        NEO4J_PASSWORD: test_password
+
+    Usage:
+        @pytest.mark.integration
+        @pytest.mark.asyncio
+        async def test_something(real_neo4j_client):
+            await real_neo4j_client.run_query("...")
+
+    [Source: docs/stories/31.A.5.story.md#3.2-测试基础设施]
+    """
+    from app.clients.neo4j_client import Neo4jClient
+
+    # Get config from environment (CI-compatible)
+    uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
+    user = os.getenv("NEO4J_USER", "neo4j")
+    password = os.getenv("NEO4J_PASSWORD", "test_password")
+
+    client = Neo4jClient(
+        uri=uri,
+        user=user,
+        password=password,
+        database="neo4j",
+    )
+
+    try:
+        await client.initialize()
+
+        # Clean up test data before tests
+        await client.run_query(
+            "MATCH (n) WHERE n.id STARTS WITH 'test_' DETACH DELETE n"
+        )
+
+        yield client
+
+    finally:
+        # Clean up test data after tests
+        try:
+            await client.run_query(
+                "MATCH (n) WHERE n.id STARTS WITH 'test_' DETACH DELETE n"
+            )
+        except Exception:
+            pass  # Ignore cleanup errors
+
+
+@pytest.fixture(scope="module")
+async def real_memory_service(real_neo4j_client):
+    """
+    Real MemoryService with Neo4j for integration tests.
+
+    Story 31.A.5: Creates a fresh MemoryService instance with real Neo4j.
+
+    [Source: docs/stories/31.A.5.story.md#AC-31.A.5.1]
+    """
+    from app.services.memory_service import MemoryService
+
+    service = MemoryService(neo4j_client=real_neo4j_client)
+    await service.initialize()
+    yield service
+
+
+@pytest.fixture
+def test_user_id():
+    """Generate unique test user ID to prevent data collision."""
+    import uuid
+    return f"test_user_{uuid.uuid4().hex[:8]}"
+
+
+@pytest.fixture
+def test_canvas_path():
+    """Test canvas path for memory service tests."""
+    return "test/integration/test.canvas"
+
+
+@pytest.fixture
+def test_node_id():
+    """Generate unique test node ID."""
+    import uuid
+    return f"test_node_{uuid.uuid4().hex[:8]}"

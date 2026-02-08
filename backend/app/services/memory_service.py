@@ -179,19 +179,38 @@ class MemoryService:
         try:
             records = await self.neo4j.get_all_recent_episodes(limit=1000)
             if records:
-                for record in records:
+                # Build set of existing episode keys to avoid duplicates (M1 fix)
+                existing_keys = {
+                    (e.get("user_id"), e.get("concept"))
+                    for e in self._episodes
+                }
+                added = 0
+                for idx, record in enumerate(records):
+                    user_id = record.get("user_id")
+                    concept = record.get("concept")
+                    # M1: Skip if already in cache (from degraded-mode recording)
+                    if (user_id, concept) in existing_keys:
+                        continue
                     episode = {
-                        "episode_id": f"recovered-{record.get('concept_id', 'unknown')}",
-                        "user_id": record.get("user_id"),
-                        "concept": record.get("concept"),
+                        # H1 fix: unique episode_id using index + user_id + concept_id
+                        "episode_id": f"recovered-{idx}-{user_id or 'unknown'}-{record.get('concept_id') or 'unknown'}",
+                        "user_id": user_id,
+                        "concept": concept,
                         "concept_id": record.get("concept_id"),
                         "score": record.get("score"),
-                        "timestamp": str(record.get("timestamp", "")),
+                        # H2 fix: use `or` to handle None values correctly
+                        "timestamp": str(record.get("timestamp") or ""),
                         "group_id": record.get("group_id"),
-                        "review_count": record.get("review_count", 0),
+                        "review_count": record.get("review_count") or 0,
                         "episode_type": "recovered",
                     }
                     self._episodes.append(episode)
+                    existing_keys.add((user_id, concept))
+                    added += 1
+                # M2: Cap episode cache to prevent unbounded growth
+                max_episodes = 2000
+                if len(self._episodes) > max_episodes:
+                    self._episodes = self._episodes[-max_episodes:]
             self._episodes_recovered = True
             logger.info(f"MemoryService: recovered {len(records)} episodes from Neo4j")
         except Exception as e:
@@ -1114,8 +1133,10 @@ class MemoryService:
                     episode_id=f"recovery-{entry.get('concept_id', 'unknown')}",
                     canvas_name=entry.get("canvas_name", ""),
                     node_id=entry.get("concept_id", ""),
-                    concept=entry.get("concept_id", ""),
+                    concept=entry.get("concept", "") or entry.get("concept_id", ""),
                     score=entry.get("score"),
+                    user_understanding=entry.get("user_understanding"),
+                    agent_feedback=entry.get("agent_feedback"),
                     max_retries=1,  # fewer retries during recovery to avoid blocking startup
                 )
                 if success:
@@ -1125,12 +1146,14 @@ class MemoryService:
             except Exception:
                 still_pending.append(line)
 
-        # Rewrite file with only still-pending entries
+        # Rewrite file with only still-pending entries (atomic write-then-rename)
         try:
             if still_pending:
-                FAILED_WRITES_FILE.write_text(
+                tmp_file = FAILED_WRITES_FILE.with_suffix(".tmp")
+                tmp_file.write_text(
                     "\n".join(still_pending) + "\n", encoding="utf-8"
                 )
+                tmp_file.replace(FAILED_WRITES_FILE)
             else:
                 FAILED_WRITES_FILE.unlink(missing_ok=True)
         except Exception as e:
@@ -1161,7 +1184,7 @@ class MemoryService:
                         "timestamp": entry.get("timestamp", ""),
                         "canvas_name": entry.get("canvas_name", ""),
                         "node_id": entry.get("concept_id", ""),
-                        "concept": entry.get("concept_id", ""),
+                        "concept": entry.get("concept", "") or entry.get("concept_id", ""),
                         "score": entry.get("score"),
                         "source": "fallback",
                         "error_reason": entry.get("error_reason", ""),

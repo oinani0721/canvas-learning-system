@@ -157,7 +157,7 @@ class TestAddNodeMemoryTrigger:
 
     @pytest.mark.asyncio
     async def test_add_node_triggers_memory_event(
-        self, canvas_service_with_memory, mock_memory_client
+        self, canvas_service_with_memory, mock_memory_client, wait_for_call
     ):
         """Test that add_node triggers node_created memory event (AC-30.5.1)."""
         # Act
@@ -176,8 +176,8 @@ class TestAddNodeMemoryTrigger:
         assert result["type"] == "text"
         assert result["text"] == "New Concept Node"
 
-        # Assert - Memory event was triggered (allow time for async task)
-        await asyncio.sleep(0.1)
+        # Assert - Memory event was triggered (poll for async task)
+        await wait_for_call(mock_memory_client.record_temporal_event)
         mock_memory_client.record_temporal_event.assert_called()
 
         # Verify call arguments
@@ -209,7 +209,7 @@ class TestUpdateNodeMemoryTrigger:
 
     @pytest.mark.asyncio
     async def test_update_node_triggers_memory_event(
-        self, canvas_service_with_memory, mock_memory_client
+        self, canvas_service_with_memory, mock_memory_client, wait_for_call
     ):
         """Test that update_node triggers node_updated memory event (AC-30.5.3)."""
         # Act
@@ -225,7 +225,7 @@ class TestUpdateNodeMemoryTrigger:
         assert result["color"] == "2"
 
         # Assert - Memory event was triggered
-        await asyncio.sleep(0.1)
+        await wait_for_call(mock_memory_client.record_temporal_event)
         mock_memory_client.record_temporal_event.assert_called()
 
         # Verify call arguments
@@ -243,7 +243,8 @@ class TestAddEdgeMemoryTrigger:
 
     @pytest.mark.asyncio
     async def test_add_edge_triggers_memory_event(
-        self, canvas_service_with_memory, mock_memory_client, temp_canvas_dir
+        self, canvas_service_with_memory, mock_memory_client, temp_canvas_dir,
+        wait_for_call
     ):
         """Test that add_edge triggers edge_created memory event (AC-30.5.2)."""
         # First add a second node for the edge
@@ -272,7 +273,7 @@ class TestAddEdgeMemoryTrigger:
         assert result["toNode"] == "node2"
 
         # Assert - Memory event was triggered
-        await asyncio.sleep(0.1)
+        await wait_for_call(mock_memory_client.record_temporal_event)
         mock_memory_client.record_temporal_event.assert_called()
 
         # Verify call arguments
@@ -392,7 +393,7 @@ class TestEdgeCases:
 
     @pytest.mark.asyncio
     async def test_multiple_consecutive_operations(
-        self, canvas_service_with_memory, mock_memory_client
+        self, canvas_service_with_memory, mock_memory_client, wait_for_call
     ):
         """Test multiple CRUD operations trigger correct events."""
         # Add node
@@ -420,15 +421,15 @@ class TestEdgeCases:
             {"fromNode": node1["id"], "toNode": node2["id"]}
         )
 
-        # Wait for async tasks
-        await asyncio.sleep(0.2)
+        # Wait for async tasks (poll until all 4 events are recorded)
+        await wait_for_call(mock_memory_client.record_temporal_event, expected_count=4)
 
         # Should have 4 memory event calls
         assert mock_memory_client.record_temporal_event.call_count >= 4
 
     @pytest.mark.asyncio
     async def test_session_id_is_passed_to_memory_event(
-        self, canvas_service_with_memory, mock_memory_client
+        self, canvas_service_with_memory, mock_memory_client, wait_for_call
     ):
         """Test that session_id is correctly passed to memory events."""
         await canvas_service_with_memory.add_node(
@@ -436,7 +437,7 @@ class TestEdgeCases:
             {"type": "text", "text": "Test", "x": 0, "y": 0}
         )
 
-        await asyncio.sleep(0.1)
+        await wait_for_call(mock_memory_client.record_temporal_event)
 
         call_args = mock_memory_client.record_temporal_event.call_args
         assert call_args.kwargs["session_id"] == "test-session-123"

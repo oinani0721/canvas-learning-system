@@ -57,7 +57,7 @@ class TestAgentMemoryIntegration:
 
     @pytest.mark.asyncio
     async def test_full_agent_execution_flow_triggers_memory_write(
-        self, agent_service, mock_memory_client
+        self, agent_service, mock_memory_client, wait_for_call
     ):
         """Test that full agent execution triggers memory write (Task 6.1)."""
         # Trigger memory write directly (simulating post-agent execution)
@@ -70,15 +70,15 @@ class TestAgentMemoryIntegration:
             agent_feedback="Test feedback",
         )
 
-        # Wait for fire-and-forget task
-        await asyncio.sleep(0.2)
+        # Poll until fire-and-forget task completes
+        await wait_for_call(mock_memory_client.add_learning_episode)
 
         # Verify memory client was called
         mock_memory_client.add_learning_episode.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_memory_write_persists_correct_data(
-        self, agent_service, mock_memory_client
+        self, agent_service, mock_memory_client, wait_for_call
     ):
         """Test memory write persists to MemoryService with correct data (Task 6.2)."""
         # Trigger memory write
@@ -91,8 +91,8 @@ class TestAgentMemoryIntegration:
             agent_feedback="Good understanding of the formula",
         )
 
-        # Wait for fire-and-forget task
-        await asyncio.sleep(0.2)
+        # Poll until fire-and-forget task completes
+        await wait_for_call(mock_memory_client.add_learning_episode)
 
         # Verify the call was made with correct parameters
         call_args = mock_memory_client.add_learning_episode.call_args
@@ -106,7 +106,7 @@ class TestAgentMemoryIntegration:
 
     @pytest.mark.asyncio
     async def test_concurrent_agent_executions_with_memory_writes(
-        self, agent_service, mock_memory_client
+        self, agent_service, mock_memory_client, wait_for_call
     ):
         """Test concurrent agent executions with memory writes (Task 6.3)."""
         # Execute multiple agents concurrently
@@ -133,8 +133,8 @@ class TestAgentMemoryIntegration:
         # Wait for all triggers to start
         await asyncio.gather(*tasks)
 
-        # Wait for fire-and-forget tasks to complete
-        await asyncio.sleep(0.5)
+        # Poll until all 5 fire-and-forget tasks complete
+        await wait_for_call(mock_memory_client.add_learning_episode, expected_count=5)
 
         # All 5 agents should have triggered memory writes
         assert mock_memory_client.add_learning_episode.call_count == 5

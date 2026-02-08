@@ -10,6 +10,7 @@ the schema and validates responses match the expected format.
 [Source: ADR-008 - Testing Framework pytest]
 """
 
+import os
 import pytest
 import schemathesis
 from app.main import app
@@ -79,7 +80,10 @@ class TestCanvasWorkflow:
         import uuid
         return f"test-canvas-{uuid.uuid4().hex[:8]}"
 
-    @pytest.mark.xfail(reason="Placeholder routers - full validation in future stories")
+    @pytest.mark.skipif(
+        not os.environ.get("RUN_E2E_TESTS"),
+        reason="E2E tests require RUN_E2E_TESTS=1 and running backend"
+    )
     def test_canvas_crud_workflow(self, test_canvas_name):
         """
         Test complete canvas CRUD workflow.

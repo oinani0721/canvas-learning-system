@@ -34,12 +34,12 @@ from app.middleware.memory_metrics import get_memory_metrics_snapshot
 from app.models.common import (
     AgentMetricsSummary,
     AgentTypeStats,
-    HealthCheckResponse,
     MemoryMetricsSummary,
     MemoryTypeStats,
     MetricsSummary,
     ResourceMetricsSummary,
 )
+from app.models.schemas import HealthCheckResponse
 from app.services.resource_monitor import get_resource_metrics_snapshot
 
 # Get logger for this module
@@ -97,14 +97,11 @@ async def health_check(
     logger.debug("Health check requested")
 
     # Story 38.3 AC-3: Include FSRS status in health check
+    # Fix: Use module-level FSRS_AVAILABLE flag instead of broken async generator call
     components = {}
     try:
-        from app.dependencies import get_review_service
-        review_service = get_review_service()
-        if review_service and getattr(review_service, '_fsrs_init_ok', False):
-            components["fsrs"] = "ok"
-        else:
-            components["fsrs"] = "degraded"
+        from app.services.review_service import FSRS_AVAILABLE
+        components["fsrs"] = "ok" if FSRS_AVAILABLE else "degraded"
     except Exception:
         components["fsrs"] = "degraded"
 

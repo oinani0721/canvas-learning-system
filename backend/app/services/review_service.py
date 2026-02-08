@@ -1739,6 +1739,25 @@ class ReviewService:
                 card_data = self._fsrs_manager.serialize_card(card)
                 # Cache the newly created card
                 self._card_states[concept_id] = card_data
+                # Persist auto-created card to Graphiti (fire-and-forget, no canvas_name/rating needed)
+                if self.graphiti_client:
+                    try:
+                        from app.clients.graphiti_client import get_learning_memory_client
+                        memory_client = get_learning_memory_client()
+                        await memory_client.initialize()
+                        memory_data = {
+                            "concept": concept_id,
+                            "canvas_name": "auto-created",
+                            "rating": 0,
+                            "card_data": card_data,
+                            "algorithm": "fsrs-4.5",
+                            "auto_created": True,
+                            "timestamp": datetime.now().isoformat()
+                        }
+                        await memory_client.add_learning_memory(memory_data)
+                        logger.info(f"Persisted auto-created card to Graphiti: {concept_id}")
+                    except Exception as e:
+                        logger.warning(f"Failed to persist auto-created card for {concept_id}: {e}")
             else:
                 # Deserialize existing card
                 card = self._fsrs_manager.deserialize_card(card_data)

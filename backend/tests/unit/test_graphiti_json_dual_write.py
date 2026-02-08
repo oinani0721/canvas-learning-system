@@ -61,7 +61,7 @@ class TestGraphitiJsonDualWrite:
 
     @pytest.mark.asyncio
     async def test_dual_write_called_after_neo4j_success(
-        self, memory_service, mock_learning_memory_client
+        self, memory_service, mock_learning_memory_client, wait_for_call
     ):
         """
         Task 4.1: Test _write_to_graphiti_json() is called after Neo4j write succeeds.
@@ -87,7 +87,7 @@ class TestGraphitiJsonDualWrite:
                 )
 
                 # Wait for fire-and-forget task
-                await asyncio.sleep(0.1)
+                await wait_for_call(mock_write)
 
         # Assert
         assert episode_id is not None
@@ -246,7 +246,7 @@ class TestGraphitiJsonDualWrite:
 
     @pytest.mark.asyncio
     async def test_config_flag_enables_dual_write(
-        self, memory_service, mock_learning_memory_client
+        self, memory_service, mock_learning_memory_client, wait_for_call
     ):
         """
         Test config flag enables dual-write when true.
@@ -271,7 +271,7 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task
-            await asyncio.sleep(0.2)
+            await wait_for_call(mock_learning_memory_client.add_learning_episode)
 
         # Assert
         assert episode_id is not None
@@ -371,7 +371,7 @@ class TestGraphitiJsonDualWrite:
 
     @pytest.mark.asyncio
     async def test_record_temporal_event_dual_write(
-        self, memory_service, mock_learning_memory_client
+        self, memory_service, mock_learning_memory_client, wait_for_call
     ):
         """
         Test dual-write is called from record_temporal_event().
@@ -394,7 +394,7 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task
-            await asyncio.sleep(0.2)
+            await wait_for_call(mock_learning_memory_client.add_learning_episode)
 
         # Assert
         assert event_id is not None

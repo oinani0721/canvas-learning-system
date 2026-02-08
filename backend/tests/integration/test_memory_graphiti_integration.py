@@ -120,7 +120,7 @@ class TestMemoryGraphitiIntegration:
 
     @pytest.mark.asyncio
     async def test_learning_memory_client_unavailable_graceful_degradation(
-        self, mock_neo4j_client
+        self, mock_neo4j_client, wait_for_call
     ):
         """
         Task 5.2: Test LearningMemoryClient unavailable scenario (graceful degradation).
@@ -154,7 +154,7 @@ class TestMemoryGraphitiIntegration:
             )
 
             # Wait for fire-and-forget task
-            await asyncio.sleep(0.3)
+            await wait_for_call(failing_client.add_learning_episode)
 
         # Assert - Main flow should complete successfully
         assert episode_id is not None

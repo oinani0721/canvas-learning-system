@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -44,10 +45,11 @@ logger = logging.getLogger(__name__)
 MEMORY_WRITE_TIMEOUT = 15.0
 
 # Story 38.6: Failed writes fallback file path
+# NOTE: Also defined in memory_service.py — keep both in sync
 FAILED_WRITES_FILE = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
 
-# Story 38.6 AC-2: Lock for concurrent JSONL writes
-_failed_writes_lock = asyncio.Lock()
+# Story 38.6 AC-2: Lock for concurrent JSONL writes (threading.Lock for sync IO)
+_failed_writes_lock = threading.Lock()
 
 
 def _record_failed_write(
@@ -56,12 +58,17 @@ def _record_failed_write(
     canvas_name: str,
     score: Optional[float],
     error_reason: str,
+    concept: str = "",
+    user_understanding: Optional[str] = None,
+    agent_feedback: Optional[str] = None,
 ) -> None:
     """
     Story 38.6 AC-2: Record a failed memory write to data/failed_writes.jsonl.
 
-    Each entry includes timestamp, event_type, concept_id, canvas_name, score, error_reason.
+    Each entry includes timestamp, event_type, concept_id, canvas_name, score, error_reason,
+    plus concept, user_understanding, agent_feedback for complete recovery.
     Uses append mode so multiple failures accumulate for later recovery.
+    Thread-safe via _failed_writes_lock.
     """
     try:
         entry = {
@@ -71,10 +78,14 @@ def _record_failed_write(
             "canvas_name": canvas_name,
             "score": score,
             "error_reason": error_reason,
+            "concept": concept,
+            "user_understanding": user_understanding,
+            "agent_feedback": agent_feedback,
         }
         FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+        with _failed_writes_lock:
+            with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         logger.warning(
             f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
         )
@@ -3045,7 +3056,7 @@ class AgentService:
         This method implements async non-blocking memory write with:
         - AC-30.4.2: asyncio.create_task() for fire-and-forget pattern
         - AC-30.4.3: Silent degradation on failure (log error but don't raise)
-        - 500ms timeout protection to prevent hanging
+        - Story 38.6: 15s timeout protection aligned with inner retry budget
 
         The method wraps record_learning_episode() and fires it asynchronously
         so the agent response can return immediately.
@@ -3104,7 +3115,10 @@ class AgentService:
                     concept_id=node_id,
                     canvas_name=canvas_name,
                     score=score,
-                    error_reason=f"timeout after {MEMORY_WRITE_TIMEOUT}s"
+                    error_reason=f"timeout after {MEMORY_WRITE_TIMEOUT}s",
+                    concept=concept,
+                    user_understanding=user_understanding,
+                    agent_feedback=agent_feedback,
                 )
             except Exception as e:
                 # AC-30.4.3 + Story 38.6 AC-2: Log and track failed write
@@ -3117,7 +3131,10 @@ class AgentService:
                     concept_id=node_id,
                     canvas_name=canvas_name,
                     score=score,
-                    error_reason=str(e)[:200]
+                    error_reason=str(e)[:200],
+                    concept=concept,
+                    user_understanding=user_understanding,
+                    agent_feedback=agent_feedback,
                 )
 
         # Fire-and-forget: create task but don't await it

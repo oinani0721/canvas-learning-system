@@ -1,0 +1,465 @@
+# Canvas Learning System - API Specification Sync Pipeline
+# 规范文档自动化同步检查
+#
+# 触发条件: OpenAPI 规范或 API 代码变更时
+# 功能:
+#   1. 验证 OpenAPI 规范格式
+#   2. 检测破坏性变更 (oasdiff)
+#   3. 合约测试 (Dredd)
+#   4. 生成差异报告
+
+name: API Specification Sync
+
+on:
+  pull_request:
+    paths:
+      - 'backend/app/api/**'
+      - 'backend/app/models/**'
+      - 'specs/api/**'
+      - 'openapi.json'
+  push:
+    branches:
+      - main
+      - clean-release
+    paths:
+      - 'backend/app/api/**'
+      - 'backend/app/models/**'
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '20'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Phase 1: 导出当前 OpenAPI 规范
+  # ═══════════════════════════════════════════════════════════════════════════════
+  export-openapi:
+    name: Export OpenAPI Spec
+    runs-on: ubuntu-latest
+    outputs:
+      spec-changed: ${{ steps.check-diff.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Export OpenAPI spec from FastAPI
+        run: |
+          cd backend
+          python -c "
+          import json
+          from app.main import app
+
+          openapi_schema = app.openapi()
+          with open('../openapi-current.json', 'w', encoding='utf-8') as f:
+              json.dump(openapi_schema, f, indent=2, ensure_ascii=False)
+          print('OpenAPI spec exported successfully')
+          print(f'Paths: {len(openapi_schema.get(\"paths\", {}))}')
+          print(f'Schemas: {len(openapi_schema.get(\"components\", {}).get(\"schemas\", {}))}')
+          "
+
+      - name: Upload OpenAPI spec
+        uses: actions/upload-artifact@v4
+        with:
+          name: openapi-current
+          path: openapi-current.json
+          retention-days: 7
+
+      - name: Check if spec changed
+        id: check-diff
+        run: |
+          if [ -f "openapi.json" ]; then
+            if diff -q openapi.json openapi-current.json > /dev/null 2>&1; then
+              echo "changed=false" >> $GITHUB_OUTPUT
+              echo "OpenAPI spec unchanged"
+            else
+              echo "changed=true" >> $GITHUB_OUTPUT
+              echo "OpenAPI spec has changes"
+            fi
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "No existing openapi.json found"
+          fi
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Phase 2: 验证 OpenAPI 规范格式
+  # ═══════════════════════════════════════════════════════════════════════════════
+  validate-spec:
+    name: Validate OpenAPI Spec
+    runs-on: ubuntu-latest
+    needs: export-openapi
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download current spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-current
+
+      - name: Install Spectral
+        run: npm install -g @stoplight/spectral-cli
+
+      - name: Validate OpenAPI format
+        run: |
+          spectral lint openapi-current.json --format stylish || true
+          # 不强制失败，只报告问题
+
+      - name: Check for critical issues
+        run: |
+          # 检查必需字段
+          python3 -c "
+          import json
+          with open('openapi-current.json') as f:
+              spec = json.load(f)
+
+          issues = []
+          if 'openapi' not in spec:
+              issues.append('Missing openapi version')
+          if 'info' not in spec:
+              issues.append('Missing info section')
+          if 'paths' not in spec:
+              issues.append('Missing paths section')
+
+          if issues:
+              print('Critical issues found:')
+              for issue in issues:
+                  print(f'  - {issue}')
+              exit(1)
+          else:
+              print('OpenAPI spec validation passed')
+              print(f'  - Version: {spec.get(\"openapi\")}')
+              print(f'  - Title: {spec.get(\"info\", {}).get(\"title\")}')
+              print(f'  - Paths: {len(spec.get(\"paths\", {}))}')
+          "
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Phase 3: 检测破坏性变更
+  # ═══════════════════════════════════════════════════════════════════════════════
+  detect-breaking-changes:
+    name: Detect Breaking Changes
+    runs-on: ubuntu-latest
+    needs: export-openapi
+    if: github.event_name == 'pull_request'
+    outputs:
+      has-breaking: ${{ steps.oasdiff.outputs.breaking }}
+      breaking-count: ${{ steps.oasdiff.outputs.breaking-count }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download current spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-current
+
+      - name: Get base branch spec
+        run: |
+          git checkout origin/${{ github.base_ref }} -- openapi.json 2>/dev/null || echo "{}" > openapi-base.json
+          if [ -f "openapi.json" ]; then
+            mv openapi.json openapi-base.json
+          fi
+          git checkout ${{ github.head_ref }} -- . 2>/dev/null || true
+
+      - name: Install oasdiff
+        run: |
+          curl -sSL https://github.com/Tufin/oasdiff/releases/latest/download/oasdiff_linux_amd64.tar.gz | tar xz
+          sudo mv oasdiff /usr/local/bin/
+
+      - name: Run oasdiff
+        id: oasdiff
+        run: |
+          # 检测破坏性变更
+          oasdiff breaking openapi-base.json openapi-current.json \
+            --format json > breaking-changes.json 2>&1 || true
+
+          # 解析结果
+          BREAKING_COUNT=$(python3 -c "
+          import json
+          try:
+              with open('breaking-changes.json') as f:
+                  data = json.load(f)
+              count = len(data) if isinstance(data, list) else 0
+              print(count)
+          except:
+              print(0)
+          ")
+
+          echo "breaking-count=$BREAKING_COUNT" >> $GITHUB_OUTPUT
+
+          if [ "$BREAKING_COUNT" -gt 0 ]; then
+            echo "breaking=true" >> $GITHUB_OUTPUT
+            echo "::warning::Found $BREAKING_COUNT breaking changes!"
+          else
+            echo "breaking=false" >> $GITHUB_OUTPUT
+            echo "No breaking changes detected"
+          fi
+
+      - name: Generate diff report
+        run: |
+          oasdiff diff openapi-base.json openapi-current.json \
+            --format markdown > api-diff-report.md 2>&1 || echo "No changes" > api-diff-report.md
+
+      - name: Upload diff report
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-diff-report
+          path: |
+            api-diff-report.md
+            breaking-changes.json
+
+      - name: Comment PR with changes
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            let diffReport = '';
+            try {
+              diffReport = fs.readFileSync('api-diff-report.md', 'utf8');
+            } catch (e) {
+              diffReport = 'No API changes detected.';
+            }
+
+            let breakingCount = '${{ steps.oasdiff.outputs.breaking-count }}';
+            let breakingSection = '';
+
+            if (parseInt(breakingCount) > 0) {
+              breakingSection = `
+            ## :warning: Breaking Changes Detected
+
+            **${breakingCount} breaking change(s) found!**
+
+            Please review carefully before merging. Breaking changes may affect:
+            - Frontend API calls
+            - External integrations
+            - Obsidian plugin compatibility
+            `;
+            }
+
+            const body = `## :mag: API Specification Change Report
+
+            ${breakingSection}
+
+            <details>
+            <summary>View API Diff</summary>
+
+            ${diffReport}
+
+            </details>
+
+            ---
+            *Generated by API Spec Sync workflow*
+            `;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Phase 4: 合约测试 (Dredd)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  contract-test:
+    name: Contract Test (Dredd)
+    runs-on: ubuntu-latest
+    needs: [export-openapi, validate-spec]
+    services:
+      neo4j:
+        image: neo4j:5.26-community
+        ports:
+          - 7474:7474
+          - 7687:7687
+        env:
+          NEO4J_AUTH: neo4j/testpassword
+        options: >-
+          --health-cmd "curl -f http://localhost:7474 || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Download current spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-current
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+          npm install -g dredd
+
+      - name: Start FastAPI server
+        run: |
+          cd backend
+          export NEO4J_URI=bolt://localhost:7687
+          export NEO4J_USER=neo4j
+          export NEO4J_PASSWORD=testpassword
+          uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+          sleep 10  # 等待服务器启动
+
+      - name: Wait for API to be ready
+        run: |
+          for i in {1..30}; do
+            if curl -s http://localhost:8000/api/v1/health > /dev/null; then
+              echo "API is ready"
+              break
+            fi
+            echo "Waiting for API... ($i/30)"
+            sleep 2
+          done
+
+      - name: Run Dredd contract tests
+        id: dredd
+        continue-on-error: true
+        run: |
+          dredd openapi-current.json http://localhost:8000 \
+            --reporter json:dredd-report.json \
+            --reporter markdown:dredd-report.md \
+            --hookfiles scripts/spec-tools/dredd-hooks.js \
+            --method GET \
+            --names || true
+
+      - name: Parse Dredd results
+        run: |
+          python3 -c "
+          import json
+          try:
+              with open('dredd-report.json') as f:
+                  data = json.load(f)
+
+              stats = data.get('stats', {})
+              print('Contract Test Results:')
+              print(f'  - Tests: {stats.get(\"tests\", 0)}')
+              print(f'  - Passes: {stats.get(\"passes\", 0)}')
+              print(f'  - Failures: {stats.get(\"failures\", 0)}')
+              print(f'  - Pending: {stats.get(\"pending\", 0)}')
+
+              if stats.get('failures', 0) > 0:
+                  print('::warning::Contract test failures detected')
+          except Exception as e:
+              print(f'Could not parse Dredd results: {e}')
+          "
+
+      - name: Upload Dredd report
+        uses: actions/upload-artifact@v4
+        with:
+          name: dredd-report
+          path: |
+            dredd-report.json
+            dredd-report.md
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Phase 5: 更新 OpenAPI 规范文件
+  # ═══════════════════════════════════════════════════════════════════════════════
+  update-spec:
+    name: Update OpenAPI Spec
+    runs-on: ubuntu-latest
+    needs: [export-openapi, validate-spec]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download current spec
+        uses: actions/download-artifact@v4
+        with:
+          name: openapi-current
+
+      - name: Check if update needed
+        id: check
+        run: |
+          if [ -f "openapi.json" ]; then
+            if diff -q openapi.json openapi-current.json > /dev/null 2>&1; then
+              echo "update-needed=false" >> $GITHUB_OUTPUT
+            else
+              echo "update-needed=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "update-needed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update OpenAPI spec
+        if: steps.check.outputs.update-needed == 'true'
+        run: |
+          mv openapi-current.json openapi.json
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add openapi.json
+          git commit -m "chore: update OpenAPI specification [skip ci]" || true
+          git push || true
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Summary Job
+  # ═══════════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Summary
+    runs-on: ubuntu-latest
+    needs: [export-openapi, validate-spec, detect-breaking-changes, contract-test]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## API Specification Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.export-openapi.result }}" == "success" ]; then
+            echo "| Export OpenAPI | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Export OpenAPI | :x: |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.validate-spec.result }}" == "success" ]; then
+            echo "| Validate Spec | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Validate Spec | :x: |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.detect-breaking-changes.outputs.has-breaking }}" == "true" ]; then
+            echo "| Breaking Changes | :warning: ${{ needs.detect-breaking-changes.outputs.breaking-count }} found |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Breaking Changes | :white_check_mark: None |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.contract-test.result }}" == "success" ]; then
+            echo "| Contract Tests | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Contract Tests | :warning: |" >> $GITHUB_STEP_SUMMARY
+          fi

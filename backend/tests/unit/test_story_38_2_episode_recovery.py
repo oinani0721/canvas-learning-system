@@ -153,6 +153,8 @@ class TestEpisodeRecovery:
         assert memory_service._episodes_recovered is True
         assert memory_service._episodes[0]["concept"] == "concept-0"
         assert memory_service._episodes[0]["episode_type"] == "recovered"
+        # H1 fix: episode_id is now unique per record
+        assert memory_service._episodes[0]["episode_id"].startswith("recovered-0-")
 
     @pytest.mark.asyncio
     async def test_recover_episodes_startup_log(self, memory_service, mock_neo4j_client, caplog):

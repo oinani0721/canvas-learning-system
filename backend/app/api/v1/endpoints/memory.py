@@ -164,14 +164,14 @@ async def create_learning_episode(
     description="查询用户的学习历史，支持分页和过滤"
 )
 async def get_learning_history(
+    memory_service: MemoryServiceDep,
     user_id: str = Query(..., description="用户ID"),
     start_date: Optional[datetime] = Query(None, description="开始日期"),
     end_date: Optional[datetime] = Query(None, description="结束日期"),
     concept: Optional[str] = Query(None, description="概念过滤"),
     subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
     page: int = Query(1, ge=1, description="页码"),
-    page_size: int = Query(50, ge=1, le=100, description="每页大小"),
-    memory_service: MemoryServiceDep = None
+    page_size: int = Query(50, ge=1, le=100, description="每页大小")
 ) -> LearningHistoryResponse:
     """
     查询学习历史
@@ -199,17 +199,19 @@ async def get_learning_history(
         )
 
         # Convert items to LearningHistoryItem models
+        # Note: Use `or ""` instead of default param to handle None values
+        # from legacy data where agent_type may be stored as null
         items = [
             LearningHistoryItem(
-                episode_id=item.get("episode_id", ""),
-                user_id=item.get("user_id", ""),
-                canvas_path=item.get("canvas_path", ""),
-                node_id=item.get("node_id", ""),
-                concept=item.get("concept", ""),
-                agent_type=item.get("agent_type", ""),
+                episode_id=item.get("episode_id") or "",
+                user_id=item.get("user_id") or "",
+                canvas_path=item.get("canvas_path") or "",
+                node_id=item.get("node_id") or "",
+                concept=item.get("concept") or "",
+                agent_type=item.get("agent_type") or "unknown",
                 score=item.get("score"),
                 duration_seconds=item.get("duration_seconds"),
-                timestamp=item.get("timestamp", "")
+                timestamp=item.get("timestamp") or ""
             )
             for item in result.get("items", [])
         ]
@@ -243,9 +245,9 @@ async def get_learning_history(
 )
 async def get_concept_history(
     concept_id: str,
+    memory_service: MemoryServiceDep,
     user_id: Optional[str] = Query(None, description="用户ID (optional)"),
-    limit: int = Query(50, ge=1, le=200, description="最大返回数量"),
-    memory_service: MemoryServiceDep = None
+    limit: int = Query(50, ge=1, le=200, description="最大返回数量")
 ) -> ConceptHistoryResponse:
     """
     查询概念学习历史
@@ -286,10 +288,10 @@ async def get_concept_history(
     description="获取基于艾宾浩斯遗忘曲线的复习建议"
 )
 async def get_review_suggestions(
+    memory_service: MemoryServiceDep,
     user_id: str = Query(..., description="用户ID"),
     limit: int = Query(10, ge=1, le=50, description="返回数量"),
-    subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)"),
-    memory_service: MemoryServiceDep = None
+    subject: Optional[str] = Query(None, description="学科过滤 (AC-30.8.3)")
 ) -> List[ReviewSuggestionResponse]:
     """
     获取复习建议

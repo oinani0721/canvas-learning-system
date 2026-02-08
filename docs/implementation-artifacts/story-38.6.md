@@ -1,6 +1,6 @@
 # Story 38.6: Scoring Write Reliability (Timeout vs Retry Fix)
 
-Status: review
+Status: done
 
 ## Story
 
@@ -118,9 +118,30 @@ Key improvements:
 | Modified | `backend/app/services/memory_service.py` |
 | Modified | `backend/app/main.py` |
 | Created | `backend/tests/unit/test_story_38_6_scoring_reliability.py` |
+| Created | `backend/tests/unit/test_qa_38_6_scoring_reliability_extra.py` |
 | Modified | `backend/tests/unit/test_graphiti_json_dual_write.py` |
 | Modified | `backend/tests/unit/test_memory_service_write_retry.py` |
 
+## Senior Developer Review (AI)
+
+**Reviewer:** ROG | **Date:** 2026-02-07 | **Result:** Changes Requested → Fixed
+
+**Issues Found:** 3 High, 3 Medium, 2 Low
+
+| ID | Severity | Description | Status |
+|----|----------|-------------|--------|
+| H1 | 🔴 HIGH | `_failed_writes_lock` declared as `asyncio.Lock()` but never used — Task 3.3 not implemented | ✅ Fixed: Changed to `threading.Lock()`, wrapped file write |
+| H2 | 🔴 HIGH | `_record_failed_write` missing `concept`, `user_understanding`, `agent_feedback` — data loss on recovery | ✅ Fixed: Added fields to signature, callers, and consumers |
+| H3 | 🔴 HIGH | `recover_failed_writes()` non-atomic rewrite could lose data on crash | ✅ Fixed: Atomic write-then-rename via `.tmp` file |
+| M1 | 🟡 MEDIUM | File List missing `test_qa_38_6_scoring_reliability_extra.py` | ✅ Fixed: Added to File List |
+| M2 | 🟡 MEDIUM | `FAILED_WRITES_FILE` duplicated in two modules | ✅ Mitigated: Added sync note comment |
+| M3 | 🟡 MEDIUM | Stale docstring "500ms timeout" in `_trigger_memory_write` | ✅ Fixed: Updated to "15s" |
+| L1 | 🟢 LOW | Sync IO in async context (`_record_failed_write`) | Accepted: Low traffic, acceptable |
+| L2 | 🟢 LOW | `load_failed_scores` concept field uses node_id | ✅ Fixed via H2 |
+
+**All 61 related tests pass (32 + 29 regression).**
+
 ## Change Log
 
+- 2026-02-07: Code review fixes — threading lock, complete fallback fields, atomic recovery write, stale docstring
 - 2026-02-06: Story 38.6 implemented — scoring write reliability with timeout/retry alignment, failed write tracking, startup recovery, and merged view

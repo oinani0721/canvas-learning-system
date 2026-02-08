@@ -134,6 +134,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Story 38.6] Failed write recovery skipped: {e}")
 
+    # ✅ Story 38.1 AC-3: Recover pending LanceDB index operations on startup
+    try:
+        from app.services.lancedb_index_service import get_lancedb_index_service
+        lancedb_idx_svc = get_lancedb_index_service()
+        if lancedb_idx_svc:
+            idx_result = await lancedb_idx_svc.recover_pending(settings.canvas_base_path)
+            recovered = idx_result.get("recovered", 0)
+            pending = idx_result.get("pending", 0)
+            if recovered > 0 or pending > 0:
+                logger.info(
+                    f"[Story 38.1] LanceDB index recovery: "
+                    f"{recovered} recovered, {pending} still pending"
+                )
+            else:
+                logger.info("[Story 38.1] No pending LanceDB index operations")
+    except Exception as e:
+        logger.warning(f"[Story 38.1] LanceDB index recovery skipped: {e}")
+
     yield  # Application runs here
 
     # Shutdown
@@ -146,6 +164,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ✅ Stop resource monitoring gracefully
     await resource_monitor.stop_background_collection()
     logger.info("Resource monitoring stopped")
+
+    # ✅ Story 38.1: Cleanup LanceDB index service (cancel pending debounce tasks)
+    try:
+        from app.services.lancedb_index_service import get_lancedb_index_service
+        lancedb_idx_svc = get_lancedb_index_service()
+        if lancedb_idx_svc:
+            await lancedb_idx_svc.cleanup()
+            logger.info("LanceDB index service cleaned up")
+    except Exception as e:
+        logger.warning(f"LanceDB index service cleanup failed: {e}")
 
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()

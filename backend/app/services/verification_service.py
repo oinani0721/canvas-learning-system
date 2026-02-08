@@ -54,7 +54,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "true"
 
 # Story 31.1: AI timeout configuration (AC-31.1.5)
-VERIFICATION_AI_TIMEOUT = float(os.getenv("VERIFICATION_AI_TIMEOUT", "0.5"))  # 500ms default
+VERIFICATION_AI_TIMEOUT = float(os.getenv("VERIFICATION_AI_TIMEOUT", "15"))  # 15s default for Gemini API
+
+from app.services.agent_service import AgentType
 
 if TYPE_CHECKING:
     from app.services.canvas_service import CanvasService
@@ -473,6 +475,14 @@ class VerificationService:
             f"MockMode: {USE_MOCK_VERIFICATION})"
         )
 
+    def _get_neo4j_client(self):
+        """Safe accessor for Neo4jClient via GraphitiTemporalClient."""
+        if not self._graphiti_client:
+            return None
+        if hasattr(self._graphiti_client, 'neo4j_client'):
+            return self._graphiti_client.neo4j_client
+        return getattr(self._graphiti_client, '_neo4j', None)
+
     async def start_session(
         self,
         canvas_name: str,
@@ -550,6 +560,9 @@ class VerificationService:
                 canvas_name=canvas_name
             )
 
+        # Store current question in state for hint generation context
+        state["current_question"] = first_question
+
         logger.info(f"Session {session_id} started with {len(concepts)} concepts")
 
         return {
@@ -605,6 +618,10 @@ class VerificationService:
             canvas_name=canvas_name
         )
 
+        # Store scoring result in state for hint generation context
+        state["last_quality"] = quality
+        state["last_score"] = score
+
         # 决定下一步动作
         hints_given = state["hints_given"]
         max_hints = state["max_hints"]
@@ -614,8 +631,8 @@ class VerificationService:
             # 掌握，进入下一概念
             action = await self._advance_concept(state, progress, quality, score)
         elif hints_given < max_hints:
-            # 需要提示
-            action = self._provide_hint(state, progress)
+            # 需要提示 (Story 24.4: RAG-based hint generation)
+            action = await self._provide_hint(state, progress, user_answer=user_answer)
         else:
             # 已达最大提示次数，进入下一概念
             action = await self._advance_concept(state, progress, quality, score)
@@ -689,6 +706,8 @@ class VerificationService:
                 concept=concept_queue[next_idx],
                 canvas_name=state["source_canvas"]
             )
+            # Store question in state for hint generation context
+            state["current_question"] = next_question
             return {
                 "action": "next",
                 "next_question": next_question,
@@ -701,17 +720,38 @@ class VerificationService:
                 "action": "complete",
             }
 
-    def _provide_hint(
+    async def _provide_hint(
         self,
         state: Dict[str, Any],
-        progress: VerificationProgress
+        progress: VerificationProgress,
+        user_answer: str = ""
     ) -> Dict[str, Any]:
-        """提供提示"""
+        """
+        提供提示 - 优先使用 RAG 上下文生成个性化提示
+
+        Story 24.4: 使用 generate_hint_with_rag() 替代静态模板
+        AC5: RAG 失败时降级为静态提示
+        """
         current_concept = state["current_concept"]
         hints_given = state["hints_given"]
+        canvas_name = state.get("source_canvas", "")
+        # Pass question_text and scoring context for richer hint generation
+        question_text = state.get("current_question", "")
+        last_quality = state.get("last_quality", "")
 
-        # TODO: Story 24.4 - 动态选择Agent生成提示
-        hint = f"提示 {hints_given + 1}: 思考「{current_concept}」的定义和核心特点。"
+        # 优先使用 RAG 生成个性化提示，失败则降级为静态模板
+        try:
+            hint = await self.generate_hint_with_rag(
+                concept=current_concept,
+                user_answer=user_answer,
+                attempt_number=hints_given + 1,
+                canvas_name=canvas_name,
+                question_text=question_text,
+                last_quality=last_quality
+            )
+        except Exception as e:
+            logger.warning(f"RAG hint generation failed, using fallback: {e}")
+            hint = f"提示 {hints_given + 1}: 思考「{current_concept}」的定义和核心特点。"
 
         state["hints_given"] += 1
         state["current_hints"].append(hint)
@@ -1134,10 +1174,13 @@ class VerificationService:
         # Call scoring-agent through agent_service if available
         if self._agent_service and hasattr(self._agent_service, "call_scoring"):
             try:
-                # Get RAG context for enhanced scoring
-                rag_context = await self._get_rag_context_for_concept(
+                # P2: Get enriched context (RAG + Graph + FSRS in parallel)
+                enriched = await self._get_enriched_context(
                     concept, canvas_name, timeout=self.RAG_TIMEOUT
                 )
+                rag_context = enriched.get("rag")
+                graph_context = enriched.get("graph")
+                fsrs_context = enriched.get("fsrs")
 
                 # Build context dict for scoring-agent
                 context = {
@@ -1152,18 +1195,27 @@ class VerificationService:
                     context["textbook_excerpts"] = rag_context.get("textbook_excerpts", "")
                     context["related_concepts"] = rag_context.get("related_concepts", [])
 
-                # Call scoring-agent
-                # [Source: backend/app/services/agent_service.py - call_scoring]
-                scoring_response = await self._agent_service.call_scoring(
-                    node_id=f"verification_{concept}",
-                    canvas_name=canvas_name,
-                    user_answer=user_answer,
-                    context=context
+                # P2: Inject graph relationship context for scoring
+                if graph_context:
+                    context["graph_relationships"] = graph_context.get("connected_concepts", [])
+
+                # P2: Inject FSRS history for scoring trend awareness
+                if fsrs_context:
+                    context["score_history"] = fsrs_context.get("recent_scores", [])
+                    context["score_trend"] = fsrs_context.get("score_trend", "unknown")
+
+                # Call scoring-agent with correct signature
+                # call_scoring(node_content, user_understanding, context, question_text)
+                context_str = json.dumps(context, ensure_ascii=False) if context else None
+                scoring_result = await self._agent_service.call_scoring(
+                    node_content=concept,
+                    user_understanding=user_answer,
+                    context=context_str
                 )
 
-                if scoring_response:
+                if scoring_result and scoring_result.success and scoring_result.data:
                     # Map 0-100 score to 0-40 range (Story 31.1 requirement)
-                    raw_score = scoring_response.get("total_score", 50.0)
+                    raw_score = scoring_result.data.get("total_score", 50.0)
                     mapped_score = self._map_score_to_verification_range(raw_score)
 
                     # Determine quality from score or use provided color
@@ -1355,7 +1407,9 @@ class VerificationService:
         self,
         concept: str,
         difficulty: DifficultyResult,
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        graph_context: Optional[Dict[str, Any]] = None,
+        fsrs_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Build a prompt that incorporates difficulty level guidance.
@@ -1423,15 +1477,50 @@ class VerificationService:
                 "可以考虑生成更有挑战性的问题，或跨概念综合问题。"
             ])
 
-        # Add RAG context if available
+        # === P2: 三层上下文注入（Graph > FSRS > RAG 权重顺序） ===
+
+        # 第一优先级：知识图谱结构化关系（EPIC 30 核心层）
+        if graph_context:
+            prompt_parts.append("")
+            prompt_parts.append("## 知识图谱关系（核心上下文）")
+            if graph_context.get("connected_concepts"):
+                prompt_parts.append("概念关联网络：")
+                for c in graph_context["connected_concepts"][:5]:
+                    rel = c.get("relationship", "related")
+                    direction = c.get("direction", "")
+                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
+            if graph_context.get("sibling_concepts"):
+                siblings = ", ".join(graph_context["sibling_concepts"][:8])
+                prompt_parts.append(f"同Canvas概念网络: {siblings}")
+            if graph_context.get("graphiti_memories"):
+                prompt_parts.append("图谱知识片段：")
+                for m in graph_context["graphiti_memories"][:3]:
+                    prompt_parts.append(f"  - {m['content']}")
+
+        # 第二优先级：FSRS 学习轨迹（个性化层）
+        if fsrs_context:
+            prompt_parts.append("")
+            prompt_parts.append("## 学习轨迹")
+            scores = fsrs_context.get("recent_scores", [])
+            if scores:
+                prompt_parts.append(f"最近得分: {scores}")
+            prompt_parts.append(
+                f"平均分: {fsrs_context.get('average_score', 0)}, "
+                f"趋势: {fsrs_context.get('score_trend', 'unknown')}, "
+                f"复习次数: {fsrs_context.get('review_count', 0)}"
+            )
+
+        # 第三优先级：RAG 语义搜索（补充层，仅提供 Graph 无法覆盖的信息）
         if rag_context:
             prompt_parts.append("")
-            prompt_parts.append("## 学习上下文")
+            prompt_parts.append("## 补充上下文")
             if rag_context.get("learning_history"):
                 prompt_parts.append(f"学习历史: {rag_context['learning_history']}")
-            if rag_context.get("related_concepts"):
+            # 仅在 Graph 无 connected_concepts 时才显示 RAG 的 related_concepts（避免低精度覆盖高精度）
+            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
                 related = ", ".join(rag_context["related_concepts"][:5])
-                prompt_parts.append(f"相关概念: {related}")
+                prompt_parts.append(f"相关概念(语义): {related}")
             if rag_context.get("common_mistakes"):
                 prompt_parts.append(f"常见错误: {rag_context['common_mistakes']}")
 
@@ -1513,6 +1602,193 @@ class VerificationService:
             logger.error(f"RAG query failed for concept '{concept}': {e}")
             return None
 
+    async def _get_graph_context_for_concept(
+        self,
+        concept: str,
+        canvas_name: str,
+        timeout: float = 3.0
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Query Neo4j knowledge graph for concept relationships.
+
+        Returns structural context: connected concepts, sibling concepts in
+        the same Canvas, and Graphiti semantic memories. All sub-queries run
+        in parallel. Returns None on timeout or if no graph data available.
+        """
+        neo4j = self._get_neo4j_client()
+        if not neo4j and not self._graphiti_client:
+            return None
+
+        connected_concepts: List[Dict[str, str]] = []
+        sibling_concepts: List[str] = []
+        graphiti_memories: List[Dict[str, Any]] = []
+
+        async def fetch_connected():
+            if not neo4j:
+                return
+            try:
+                query = """
+                MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
+                WHERE c.path = $canvasPath AND toLower(n.text) CONTAINS toLower($concept)
+                WITH n LIMIT 1
+                MATCH (n)-[r:CONNECTS_TO]-(m:Node)
+                WHERE m.text IS NOT NULL AND m.text <> ''
+                RETURN m.text AS related_concept,
+                       r.label AS relationship,
+                       CASE WHEN startNode(r) = n THEN 'outgoing' ELSE 'incoming' END AS direction
+                LIMIT 8
+                """
+                results = await neo4j.run_query(query, canvasPath=canvas_name, concept=concept)
+                for r in results:
+                    name = r.get("related_concept", "")
+                    if name:
+                        connected_concepts.append({
+                            "name": name,
+                            "relationship": r.get("relationship", "related"),
+                            "direction": r.get("direction", "unknown"),
+                        })
+            except Exception as e:
+                logger.debug(f"Graph fetch_connected failed: {e}")
+
+        async def fetch_siblings():
+            if not neo4j:
+                return
+            try:
+                query = """
+                MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
+                WHERE c.path = $canvasPath AND n.text IS NOT NULL AND n.text <> ''
+                      AND toLower(n.text) <> toLower($concept)
+                RETURN DISTINCT n.text AS sibling
+                LIMIT 10
+                """
+                results = await neo4j.run_query(query, canvasPath=canvas_name, concept=concept)
+                for r in results:
+                    s = r.get("sibling", "")
+                    if s:
+                        sibling_concepts.append(s)
+            except Exception as e:
+                logger.debug(f"Graph fetch_siblings failed: {e}")
+
+        async def fetch_graphiti_memories():
+            if not self._graphiti_client:
+                return
+            try:
+                results = await self._graphiti_client.search_nodes(
+                    query=f"{concept} 知识关系 前置概念",
+                    canvas_path=canvas_name,
+                    limit=5
+                )
+                for r in results:
+                    content = r.get("content", "")
+                    if content:
+                        graphiti_memories.append({
+                            "content": content,
+                            "score": r.get("score", 0.0),
+                        })
+            except Exception as e:
+                logger.debug(f"Graph fetch_graphiti_memories failed: {e}")
+
+        try:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    fetch_connected(), fetch_siblings(), fetch_graphiti_memories(),
+                    return_exceptions=True
+                ),
+                timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            logger.warning(f"Graph context timeout for '{concept}' ({timeout}s)")
+        except Exception as e:
+            logger.warning(f"Graph context failed for '{concept}': {e}")
+
+        if not connected_concepts and not sibling_concepts and not graphiti_memories:
+            return None
+
+        return {
+            "connected_concepts": connected_concepts,
+            "sibling_concepts": sibling_concepts,
+            "graphiti_memories": graphiti_memories,
+        }
+
+    async def _get_fsrs_history_for_prompt(
+        self,
+        concept: str,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        timeout: float = 3.0
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get FSRS learning history formatted for AI prompt injection.
+
+        Returns recent scores, average, trend direction, and review count.
+        Returns None if MemoryService unavailable or no history exists.
+        """
+        if not self._memory_service:
+            return None
+        try:
+            concept_id = node_id or concept
+            score_history = await asyncio.wait_for(
+                self._memory_service.get_concept_score_history(concept_id, canvas_name, limit=5),
+                timeout=timeout
+            )
+            if not score_history or score_history.sample_size == 0:
+                return None
+
+            scores = score_history.scores
+            trend = "stable"
+            if len(scores) >= 2:
+                delta = scores[-1] - scores[0]
+                if delta > 10:
+                    trend = "improving"
+                elif delta < -10:
+                    trend = "declining"
+
+            return {
+                "recent_scores": scores,
+                "average_score": score_history.average,
+                "review_count": score_history.sample_size,
+                "score_trend": trend,
+                "last_score": scores[-1] if scores else None,
+            }
+        except asyncio.TimeoutError:
+            logger.warning(f"FSRS history timeout for '{concept}' ({timeout}s)")
+            return None
+        except Exception as e:
+            logger.warning(f"FSRS history failed for '{concept}': {e}")
+            return None
+
+    async def _get_enriched_context(
+        self,
+        concept: str,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        timeout: float = 5.0
+    ) -> Dict[str, Optional[Dict[str, Any]]]:
+        """
+        Fetch RAG + Graph + FSRS context in parallel.
+
+        All failures degrade silently — each source returning None on error.
+        Total latency ≈ max(RAG, Graph, FSRS) due to parallel execution.
+        """
+        rag_coro = self._get_rag_context_for_concept(concept, canvas_name, timeout)
+        graph_coro = self._get_graph_context_for_concept(concept, canvas_name, min(timeout, 3.0))
+        fsrs_coro = self._get_fsrs_history_for_prompt(concept, canvas_name, node_id, min(timeout, 3.0))
+
+        results = await asyncio.gather(rag_coro, graph_coro, fsrs_coro, return_exceptions=True)
+
+        rag_ctx = results[0] if not isinstance(results[0], BaseException) else None
+        graph_ctx = results[1] if not isinstance(results[1], BaseException) else None
+        fsrs_ctx = results[2] if not isinstance(results[2], BaseException) else None
+
+        for name, result in zip(["RAG", "Graph", "FSRS"], results):
+            if isinstance(result, BaseException):
+                logger.warning(f"Enriched context {name} failed: {result}")
+
+        available = [n for n, v in [("RAG", rag_ctx), ("Graph", graph_ctx), ("FSRS", fsrs_ctx)] if v]
+        logger.debug(f"Enriched context for '{concept}': [{', '.join(available) or 'none'}]")
+
+        return {"rag": rag_ctx, "graph": graph_ctx, "fsrs": fsrs_ctx}
+
     async def _get_cross_canvas_context(
         self,
         concept: str,
@@ -1568,7 +1844,13 @@ class VerificationService:
             logger.warning(f"Cross-canvas lookup failed for '{concept}': {e}")
             return []
 
-    def _build_rag_enhanced_prompt(self, concept: str, context: Dict[str, Any]) -> str:
+    def _build_rag_enhanced_prompt(
+        self,
+        concept: str,
+        context: Dict[str, Any],
+        graph_context: Optional[Dict[str, Any]] = None,
+        fsrs_context: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
         Build prompt with RAG context for question generation.
 
@@ -1587,21 +1869,59 @@ class VerificationService:
         """
         prompt_parts = [
             f"为概念「{concept}」生成一个检验问题。",
-            "",
-            "## 学习历史",
-            context.get("learning_history", "无历史记录"),
-            "",
-            "## 教材参考",
-            context.get("textbook_excerpts", "无教材引用"),
-            "",
-            "## 相关概念",
-            ", ".join(context.get("related_concepts", [])) or "无相关概念",
-            "",
-            "## 常见错误",
-            context.get("common_mistakes", "无已知错误模式"),
+        ]
+
+        # === 三层上下文注入（Graph > FSRS > RAG 权重顺序） ===
+
+        # 第一优先级：知识图谱结构化关系（核心）
+        if graph_context:
+            prompt_parts.append("")
+            prompt_parts.append("## 知识图谱关系（核心上下文）")
+            if graph_context.get("connected_concepts"):
+                prompt_parts.append("概念关联网络：")
+                for c in graph_context["connected_concepts"][:5]:
+                    rel = c.get("relationship", "related")
+                    direction = c.get("direction", "")
+                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
+            if graph_context.get("sibling_concepts"):
+                siblings = ", ".join(graph_context["sibling_concepts"][:8])
+                prompt_parts.append(f"同Canvas概念网络: {siblings}")
+            if graph_context.get("graphiti_memories"):
+                prompt_parts.append("图谱知识片段：")
+                for m in graph_context["graphiti_memories"][:3]:
+                    prompt_parts.append(f"  - {m['content']}")
+
+        # 第二优先级：FSRS 学习轨迹（个性化）
+        if fsrs_context:
+            prompt_parts.append("")
+            prompt_parts.append("## 学习轨迹")
+            scores = fsrs_context.get("recent_scores", [])
+            if scores:
+                prompt_parts.append(f"最近得分: {scores}")
+            prompt_parts.append(
+                f"平均分: {fsrs_context.get('average_score', 0)}, "
+                f"趋势: {fsrs_context.get('score_trend', 'unknown')}, "
+                f"复习次数: {fsrs_context.get('review_count', 0)}"
+            )
+
+        # 第三优先级：RAG 补充上下文（仅提供 Graph 无法覆盖的信息）
+        prompt_parts.append("")
+        prompt_parts.append("## 补充上下文")
+        if context.get("learning_history") and context["learning_history"] != "无历史记录":
+            prompt_parts.append(f"学习历史: {context['learning_history']}")
+        if context.get("textbook_excerpts") and context["textbook_excerpts"] != "无教材引用":
+            prompt_parts.append(f"教材参考: {context['textbook_excerpts']}")
+        # 仅在 Graph 无 connected_concepts 时才显示 RAG 的模糊关联
+        if context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
+            prompt_parts.append(f"相关概念(语义): {', '.join(context['related_concepts'][:5])}")
+        if context.get("common_mistakes") and context["common_mistakes"] != "无已知错误模式":
+            prompt_parts.append(f"常见错误: {context['common_mistakes']}")
+
+        prompt_parts.extend([
             "",
             "请根据以上上下文，生成一个能够检验用户对该概念理解深度的问题。"
-        ]
+        ])
         return "\n".join(prompt_parts)
 
     def _build_basic_prompt(self, concept: str) -> str:
@@ -1716,19 +2036,26 @@ class VerificationService:
         # No history - generate standard question with difficulty adaptation
         logger.debug(f"No history found for concept '{concept}', generating difficulty-adapted question")
 
-        # Get RAG context (with timeout protection)
-        rag_context = await self._get_rag_context_for_concept(
-            concept, canvas_name, timeout=self.RAG_TIMEOUT
+        # P2: Get enriched context (RAG + Graph + FSRS in parallel)
+        enriched = await self._get_enriched_context(
+            concept, canvas_name, node_id=node_id, timeout=self.RAG_TIMEOUT
         )
+        rag_context = enriched.get("rag")
+        graph_context = enriched.get("graph")
+        fsrs_context = enriched.get("fsrs")
 
         # Story 31.5 AC-31.5.3: Build difficulty-aware prompt
         if difficulty.sample_size > 0:
             # Use difficulty-aware prompt when we have history
-            prompt = self._build_difficulty_aware_prompt(concept, difficulty, rag_context)
+            prompt = self._build_difficulty_aware_prompt(
+                concept, difficulty, rag_context, graph_context, fsrs_context
+            )
             logger.debug(f"Using difficulty-aware prompt for concept: {concept} (level={difficulty.level.value})")
         elif rag_context:
             # Enhanced prompt with RAG context (no difficulty history)
-            prompt = self._build_rag_enhanced_prompt(concept, rag_context)
+            prompt = self._build_rag_enhanced_prompt(
+                concept, rag_context, graph_context, fsrs_context
+            )
             logger.debug(f"Using RAG-enhanced prompt for concept: {concept}")
         else:
             # Fallback: basic question without RAG
@@ -1736,9 +2063,13 @@ class VerificationService:
             logger.debug(f"Using basic prompt for concept: {concept} (RAG unavailable)")
 
         # Story 31.1 AC-31.1.2: Call Gemini API with timeout protection
+        # Determine node_type from difficulty for verification-question-agent
+        node_type = "red" if difficulty.level == DifficultyLevel.EASY else "purple"
         try:
             question = await asyncio.wait_for(
-                self._call_gemini_for_question(concept, prompt, rag_context),
+                self._call_gemini_for_question(
+                    concept, prompt, rag_context, node_type=node_type, graph_context=graph_context
+                ),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
 
@@ -1923,24 +2254,35 @@ class VerificationService:
 
         logger.info(f"Selected question angle '{next_angle}' for concept '{concept}'")
 
-        # Get RAG context for enhanced generation
-        rag_context = await self._get_rag_context_for_concept(
+        # P2: Get enriched context (RAG + Graph + FSRS in parallel)
+        enriched = await self._get_enriched_context(
             concept, canvas_name, timeout=self.RAG_TIMEOUT
         )
+        rag_context = enriched.get("rag")
+        graph_context = enriched.get("graph")
+        fsrs_context = enriched.get("fsrs")
 
-        # Build angle-specific prompt with difficulty awareness (Story 31.5)
+        # Build angle-specific prompt with difficulty awareness (Story 31.5) + enriched context (P2)
         prompt = self._build_angle_specific_prompt(
             concept=concept,
             angle=next_angle,
             history_questions=history_questions,
             rag_context=rag_context,
-            difficulty=difficulty
+            difficulty=difficulty,
+            graph_context=graph_context,
+            fsrs_context=fsrs_context
         )
 
         # Generate question with timeout protection
+        # Determine node_type from difficulty for verification-question-agent
+        alt_node_type = "red"
+        if difficulty and difficulty.level != DifficultyLevel.EASY:
+            alt_node_type = "purple"
         try:
             question = await asyncio.wait_for(
-                self._call_gemini_for_question(concept, prompt, rag_context),
+                self._call_gemini_for_question(
+                    concept, prompt, rag_context, node_type=alt_node_type, graph_context=graph_context
+                ),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
 
@@ -1973,7 +2315,9 @@ class VerificationService:
         angle: str,
         history_questions: List[Dict[str, Any]],
         rag_context: Optional[Dict[str, Any]] = None,
-        difficulty: Optional[DifficultyResult] = None
+        difficulty: Optional[DifficultyResult] = None,
+        graph_context: Optional[Dict[str, Any]] = None,
+        fsrs_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Build a prompt for generating angle-specific verification questions.
@@ -2061,14 +2405,57 @@ class VerificationService:
                 prompt_parts.append(f"{i}. [{q_type}] {q_text}")
             prompt_parts.append("")
 
-        # Add RAG context if available
-        if rag_context:
-            if rag_context.get("related_concepts"):
-                related = ", ".join(rag_context["related_concepts"][:5])
-                prompt_parts.append(f"## 相关概念: {related}")
-            if rag_context.get("common_mistakes"):
-                prompt_parts.append(f"## 常见错误: {rag_context['common_mistakes']}")
+        # === 三层上下文注入（Graph > FSRS > RAG 权重顺序） ===
+
+        # 第一优先级：知识图谱结构化关系（对 comparison/synthesis 角度特别关键）
+        if graph_context:
+            prompt_parts.append("## 知识图谱关系（核心上下文）")
+            if graph_context.get("connected_concepts"):
+                prompt_parts.append("概念关联网络：")
+                for c in graph_context["connected_concepts"][:5]:
+                    rel = c.get("relationship", "related")
+                    direction = c.get("direction", "")
+                    dir_label = " →" if direction == "outgoing" else " ←" if direction == "incoming" else ""
+                    prompt_parts.append(f"  - {c['name']}{dir_label} ({rel})")
+            if graph_context.get("sibling_concepts"):
+                siblings = ", ".join(graph_context["sibling_concepts"][:8])
+                prompt_parts.append(f"同Canvas概念网络: {siblings}")
+            if graph_context.get("graphiti_memories"):
+                prompt_parts.append("图谱知识片段：")
+                for m in graph_context["graphiti_memories"][:3]:
+                    prompt_parts.append(f"  - {m['content']}")
             prompt_parts.append("")
+
+        # 第二优先级：FSRS 学习轨迹
+        if fsrs_context:
+            prompt_parts.append("## 学习轨迹")
+            scores = fsrs_context.get("recent_scores", [])
+            if scores:
+                prompt_parts.append(f"最近得分: {scores}")
+            prompt_parts.append(
+                f"平均分: {fsrs_context.get('average_score', 0)}, "
+                f"趋势: {fsrs_context.get('score_trend', 'unknown')}, "
+                f"复习次数: {fsrs_context.get('review_count', 0)}"
+            )
+            prompt_parts.append("")
+
+        # 第三优先级：RAG 补充（仅 Graph 无法覆盖的信息）
+        if rag_context:
+            has_rag_content = False
+            # 仅在 Graph 无 connected_concepts 时才显示 RAG 的模糊关联
+            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
+                if not has_rag_content:
+                    prompt_parts.append("## 补充上下文")
+                    has_rag_content = True
+                related = ", ".join(rag_context["related_concepts"][:5])
+                prompt_parts.append(f"相关概念(语义): {related}")
+            if rag_context.get("common_mistakes"):
+                if not has_rag_content:
+                    prompt_parts.append("## 补充上下文")
+                    has_rag_content = True
+                prompt_parts.append(f"常见错误: {rag_context['common_mistakes']}")
+            if has_rag_content:
+                prompt_parts.append("")
 
         prompt_parts.append("请只输出问题本身，不要包含其他解释或前缀。")
 
@@ -2146,7 +2533,9 @@ class VerificationService:
         self,
         concept: str,
         prompt: str,
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        node_type: str = "red",
+        graph_context: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Internal method to call Gemini API for question generation.
@@ -2157,6 +2546,7 @@ class VerificationService:
             concept: The concept to generate question for
             prompt: The constructed prompt
             rag_context: Optional RAG context for enhanced generation
+            node_type: "red" (not understood) or "purple" (partially understood)
 
         Returns:
             Generated question string
@@ -2164,47 +2554,72 @@ class VerificationService:
         [Source: backend/app/services/agent_service.py - _call_gemini_api pattern]
         [Source: docs/stories/31.1.story.md#Task-2]
         """
-        # Build the full prompt for question generation
-        system_prompt = """你是一个专业的教学验证助手，负责生成高质量的验证问题来检验学生对概念的理解。
+        # Build JSON prompt for verification-question-agent template
+        prompt_data = {
+            "nodes": [{
+                "id": f"verification_{concept}",
+                "content": concept,
+                "type": node_type,
+                "related_yellow": [],
+                "parent_content": prompt
+            }]
+        }
 
-要求：
-1. 问题应验证学生对核心概念的深层理解，而非简单的定义背诵
-2. 使用开放式问题，鼓励学生展示自己的理解
-3. 问题应该清晰、简洁、直接
-4. 避免过于简单的"是什么"类问题，使用"为什么"、"如何"、"比较"类问题
-5. 只输出问题本身，不要包含其他解释或前缀"""
+        # Build context (Graph > RAG 权重顺序)
+        context_parts = []
 
-        # Build context-aware prompt
-        full_prompt = f"{system_prompt}\n\n"
+        # 第一优先级：Graph 结构化关系
+        if graph_context and graph_context.get("connected_concepts"):
+            concepts_with_rel = [
+                f"{c['name']}({c.get('relationship', 'related')})"
+                for c in graph_context["connected_concepts"][:5]
+            ]
+            context_parts.append(f"知识图谱关联: {', '.join(concepts_with_rel)}")
+        if graph_context and graph_context.get("sibling_concepts"):
+            context_parts.append(f"同Canvas概念: {', '.join(graph_context['sibling_concepts'][:5])}")
 
+        # 第二优先级：RAG 补充（仅 Graph 无法覆盖的信息）
         if rag_context:
             if rag_context.get("learning_history"):
-                full_prompt += f"学习背景: {rag_context['learning_history']}\n"
-            if rag_context.get("related_concepts"):
+                context_parts.append(f"学习背景: {rag_context['learning_history']}")
+            # 仅在 Graph 无关联概念时才用 RAG 的模糊关联
+            if rag_context.get("related_concepts") and not (graph_context and graph_context.get("connected_concepts")):
                 related = ", ".join(rag_context["related_concepts"][:5])
-                full_prompt += f"相关概念: {related}\n"
+                context_parts.append(f"相关概念(语义): {related}")
             if rag_context.get("common_mistakes"):
-                full_prompt += f"常见错误: {rag_context['common_mistakes']}\n"
+                context_parts.append(f"常见错误: {rag_context['common_mistakes']}")
 
-        full_prompt += f"\n请针对概念「{concept}」生成一个验证问题：\n{prompt}"
+        context_str = "\n".join(context_parts) if context_parts else None
+        json_prompt = json.dumps(prompt_data, ensure_ascii=False, indent=2)
 
-        # Call Gemini API through agent_service if available
-        if self._agent_service and hasattr(self._agent_service, "_call_gemini_api"):
+        # Call via call_agent() public API with verification-question-agent template
+        if self._agent_service:
             try:
-                response = await self._agent_service._call_gemini_api(full_prompt)
-                if response:
-                    # Clean up response - extract just the question
-                    question = response.strip()
-                    # Remove common prefixes if present
-                    for prefix in ["问题：", "问题:", "Question:", "Q:"]:
-                        if question.startswith(prefix):
-                            question = question[len(prefix):].strip()
-                    return question if question else f"请解释什么是「{concept}」？"
+                result = await self._agent_service.call_agent(
+                    AgentType.VERIFICATION_QUESTION,
+                    json_prompt,
+                    context=context_str
+                )
+                if result and result.success and result.data:
+                    # Extract first question from structured response
+                    questions = result.data.get("questions", [])
+                    if questions:
+                        question = questions[0].get("question_text", "").strip()
+                        if question:
+                            return question
+                    # If data is a string (raw response), use it directly
+                    raw = result.data.get("result", "")
+                    if isinstance(raw, str) and raw.strip():
+                        question = raw.strip()
+                        for prefix in ["问题：", "问题:", "Question:", "Q:"]:
+                            if question.startswith(prefix):
+                                question = question[len(prefix):].strip()
+                        return question if question else f"请解释什么是「{concept}」？"
             except Exception as e:
-                logger.debug(f"Agent service Gemini call failed: {e}")
+                logger.warning(f"Agent service question generation failed: {e}")
 
         # Fallback: return basic question
-        logger.debug(f"No agent service available, using fallback question for {concept}")
+        logger.warning(f"No agent service available, using fallback question for {concept}")
         return f"请解释什么是「{concept}」？"
 
     async def generate_hint_with_rag(
@@ -2212,7 +2627,9 @@ class VerificationService:
         concept: str,
         user_answer: str,
         attempt_number: int,
-        canvas_name: str
+        canvas_name: str,
+        question_text: str = "",
+        last_quality: str = ""
     ) -> str:
         """
         Generate personalized hint based on RAG context.
@@ -2227,25 +2644,81 @@ class VerificationService:
             user_answer: User's answer
             attempt_number: Number of attempts made
             canvas_name: Canvas file name
+            question_text: The original verification question (for targeted hints)
+            last_quality: Last scoring quality (wrong/partial/good/excellent)
 
         Returns:
             Generated hint string
 
         [Source: docs/stories/24.5.story.md#Dev-Notes Step 4]
         """
-        rag_context = await self._get_rag_context_for_concept(
+        # P2: Get enriched context (RAG + Graph + FSRS in parallel)
+        enriched = await self._get_enriched_context(
             concept, canvas_name, timeout=self.RAG_TIMEOUT
         )
+        rag_context = enriched.get("rag")
+        graph_context = enriched.get("graph")
+        fsrs_context = enriched.get("fsrs")
 
-        if rag_context and rag_context.get("learning_history"):
-            # Personalized hint based on history
-            past_mistakes = rag_context.get("common_mistakes", "")
+        # Build JSON prompt for hint-generation agent
+        prompt_data = {
+            "concept": concept,
+            "user_answer": user_answer,
+            "attempt_number": attempt_number,
+        }
+        # Include question text so the agent knows what specific question was asked
+        if question_text:
+            prompt_data["question_text"] = question_text
+        if rag_context:
+            if rag_context.get("learning_history"):
+                prompt_data["learning_history"] = rag_context["learning_history"]
+            if rag_context.get("common_mistakes"):
+                prompt_data["common_mistakes"] = rag_context["common_mistakes"]
+
+        # P2: Inject graph relationships for hint context
+        if graph_context and graph_context.get("connected_concepts"):
+            prompt_data["related_concepts_graph"] = [
+                f"{c['name']} ({c.get('relationship', 'related')})"
+                for c in graph_context["connected_concepts"][:5]
+            ]
+
+        # P2: Inject FSRS history for hint calibration
+        if fsrs_context:
+            prompt_data["score_history"] = fsrs_context.get("recent_scores", [])
+            prompt_data["score_trend"] = fsrs_context.get("score_trend", "unknown")
+
+        # Call hint-generation agent via Gemini
+        if self._agent_service:
+            try:
+                json_prompt = json.dumps(prompt_data, ensure_ascii=False, indent=2)
+                result = await asyncio.wait_for(
+                    self._agent_service.call_agent(
+                        AgentType.HINT_GENERATION,
+                        json_prompt
+                    ),
+                    timeout=VERIFICATION_AI_TIMEOUT
+                )
+                if result and result.success and result.data:
+                    hint_text = result.data.get("hint_text", "")
+                    if hint_text:
+                        logger.info(
+                            f"AI hint generated: concept={concept}, "
+                            f"level={result.data.get('hint_level', 'unknown')}, attempt={attempt_number}"
+                        )
+                        return hint_text
+            except asyncio.TimeoutError:
+                logger.warning(f"Hint generation timeout for concept {concept}")
+            except Exception as e:
+                logger.warning(f"Hint generation failed for concept {concept}: {e}")
+
+        # Fallback: static hint with RAG context if available
+        if rag_context and rag_context.get("common_mistakes"):
+            past_mistakes = rag_context["common_mistakes"]
             hint = f"提示 {attempt_number}: 注意避免常见错误：{past_mistakes}。思考「{concept}」的核心特点。"
-            logger.debug(f"Generated personalized hint for concept: {concept}")
+            logger.debug(f"Generated RAG-fallback hint for concept: {concept}")
         else:
-            # Generic hint
             hint = f"提示 {attempt_number}: 思考「{concept}」的定义和核心特点。"
-            logger.debug(f"Generated generic hint for concept: {concept} (no history)")
+            logger.warning(f"Generated generic fallback hint for concept: {concept}")
 
         return hint
 

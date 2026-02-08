@@ -20,6 +20,7 @@ import json
 import logging
 import time
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
@@ -30,6 +31,7 @@ from tenacity import (
     wait_exponential,
 )
 
+from app.config import settings
 from app.core.exceptions import (
     CanvasNotFoundException,
     NodeNotFoundException,
@@ -81,7 +83,72 @@ class CanvasService:
         self._memory_client: Optional[MemoryService] = memory_client
         self._session_id = session_id or str(uuid.uuid4())
 
+        # Story 38.5: JSON fallback for Canvas events when memory system unavailable
+        self._fallback_file_path: Path = Path(__file__).parent.parent / "data" / "canvas_events_fallback.json"
+        self._fallback_count: int = 0
+
         logger.debug(f"CanvasService initialized with base_path: {canvas_base_path}")
+
+    @property
+    def is_fallback_active(self) -> bool:
+        """Story 38.5 AC-3: Track whether Canvas events are in degraded (fallback) mode."""
+        return self._fallback_count > 0
+
+    def _write_canvas_event_fallback(
+        self,
+        event_type: str,
+        canvas_name: str,
+        node_id: Optional[str] = None,
+        edge_id: Optional[str] = None,
+        **kwargs: Any
+    ) -> None:
+        """
+        Write Canvas event to JSON fallback file.
+
+        Story 38.5 AC-1/AC-2: When memory system is unavailable, persist events
+        to a local JSON file for later recovery.
+
+        Args:
+            event_type: Event type string (e.g., "node_created", "edge_sync")
+            canvas_name: Canvas name or path
+            node_id: Node ID (for node events)
+            edge_id: Edge ID (for edge events)
+            **kwargs: Additional event metadata (from_node_id, to_node_id, etc.)
+        """
+        try:
+            event = {
+                "event_type": event_type,
+                "canvas_name": canvas_name,
+                "node_id": node_id,
+                "edge_id": edge_id,
+                "timestamp": datetime.now().isoformat(),
+                "session_id": self._session_id,
+                **kwargs
+            }
+
+            # Read existing events or create new list
+            events: List[Dict[str, Any]] = []
+            if self._fallback_file_path.exists():
+                try:
+                    content = self._fallback_file_path.read_text(encoding="utf-8")
+                    data = json.loads(content)
+                    events = data if isinstance(data, list) else data.get("events", [])
+                except (json.JSONDecodeError, KeyError):
+                    events = []
+
+            events.append(event)
+
+            # Ensure parent directory exists
+            self._fallback_file_path.parent.mkdir(parents=True, exist_ok=True)
+
+            self._fallback_file_path.write_text(
+                json.dumps(events, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+            self._fallback_count += 1
+
+        except Exception as e:
+            logger.error(f"Failed to write canvas event fallback: {e}")
 
     def _validate_canvas_name(self, canvas_name: str) -> None:
         """
@@ -171,7 +238,14 @@ class CanvasService:
         [Source: docs/stories/30.5.story.md#Task-2.2]
         """
         if self._memory_client is None:
-            logger.debug("Memory client not configured, skipping event trigger")
+            # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+                self._write_canvas_event_fallback(
+                    event_type.value, canvas_name, node_id=node_id, edge_id=edge_id
+                )
+                logger.warning("Memory client unavailable, writing to JSON fallback")
+            else:
+                logger.warning("Memory client unavailable, skipping event trigger")
             return
 
         try:
@@ -238,11 +312,45 @@ class CanvasService:
             logger.warning(
                 f"Memory write timed out for {event_type.value}: {context.canvas_name}"
             )
+            # Story 38.5 AC-2: Fallback on timeout
+            self._try_fallback_write(event_type, context)
         except Exception as e:
-            # Task 4: Silent degradation
-            logger.error(
+            # Story 38.5 AC-2: Fallback on error (upgraded from silent degradation)
+            logger.warning(
                 f"Memory write failed for {event_type.value}: "
                 f"{context.canvas_name}: {e}"
+            )
+            self._try_fallback_write(event_type, context)
+
+    def _try_fallback_write(
+        self, event_type: "CanvasEventType", context: "CanvasEventContext"
+    ) -> None:
+        """Story 38.5 AC-2: Try writing to JSON fallback after Neo4j failure."""
+        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+            self._write_canvas_event_fallback(
+                event_type.value, context.canvas_name,
+                node_id=context.node_id, edge_id=context.edge_id
+            )
+            logger.warning(
+                f"Event {event_type.value} written to JSON fallback for {context.canvas_name}"
+            )
+
+    def _trigger_lancedb_index(self, canvas_name: str) -> None:
+        """
+        Story 38.1 AC-1: Trigger LanceDB index update (fire-and-forget with debounce).
+
+        Non-blocking. Uses lazy import to avoid circular dependency.
+        Index failure does NOT affect CRUD operation result (AC-2).
+        """
+        try:
+            from app.services.lancedb_index_service import get_lancedb_index_service
+
+            svc = get_lancedb_index_service()
+            if svc is not None:
+                svc.schedule_index(canvas_name, self.canvas_base_path)
+        except Exception as e:
+            logger.warning(
+                f"[Story 38.1] Failed to schedule LanceDB index for {canvas_name}: {e}"
             )
 
     async def _sync_edge_to_neo4j(
@@ -276,13 +384,29 @@ class CanvasService:
         [Source: ADR-009 - tenacity retry with exponential backoff]
         """
         if self._memory_client is None:
-            logger.debug("Memory client not configured, skipping edge sync to Neo4j")
+            # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+                self._write_canvas_event_fallback(
+                    "edge_sync", canvas_path, edge_id=edge_id,
+                    from_node_id=from_node_id, to_node_id=to_node_id
+                )
+                logger.warning("Memory client unavailable, writing edge to JSON fallback")
+            else:
+                logger.warning("Memory client not configured, skipping edge sync to Neo4j")
             return False
 
         # Access Neo4jClient through MemoryService
         neo4j = self._memory_client.neo4j
         if neo4j is None:
-            logger.debug("Neo4j client not available in memory_client")
+            # Story 38.5 AC-2/AC-4: Upgrade to WARNING + JSON fallback
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+                self._write_canvas_event_fallback(
+                    "edge_sync", canvas_path, edge_id=edge_id,
+                    from_node_id=from_node_id, to_node_id=to_node_id
+                )
+                logger.warning("Neo4j unreachable, event written to JSON fallback")
+            else:
+                logger.warning("Neo4j client not available in memory_client")
             return False
 
         # Inner function with retry decorator
@@ -563,6 +687,9 @@ class CanvasService:
             node_data=new_node
         )
 
+        # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
+        self._trigger_lancedb_index(canvas_name)
+
         return new_node
 
     async def update_node(
@@ -608,6 +735,9 @@ class CanvasService:
                     node_data=updated_node
                 )
 
+                # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
+                self._trigger_lancedb_index(canvas_name)
+
                 return updated_node
 
         raise NodeNotFoundException(f"Node not found: {node_id}")
@@ -643,6 +773,10 @@ class CanvasService:
         ]
 
         await self.write_canvas(canvas_name, canvas_data)
+
+        # [Review M4] Trigger LanceDB re-index on delete to remove stale entries
+        self._trigger_lancedb_index(canvas_name)
+
         return True
 
     async def get_nodes_by_color(

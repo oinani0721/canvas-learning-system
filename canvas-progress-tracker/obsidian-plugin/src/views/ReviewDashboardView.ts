@@ -2195,7 +2195,7 @@ export class ReviewDashboardView extends ItemView {
         priorityBadge.setText(this.getPriorityLabel(task.priority));
 
         // Story 38.3 AC-2: FSRS data unavailable indicator
-        if ((task as any).fsrsUnavailable) {
+        if (task.fsrsUnavailable) {
             const fsrsBadge = badges.createSpan({ cls: 'fsrs-unavailable-badge' });
             fsrsBadge.setText('FSRS data unavailable');
             fsrsBadge.style.cssText = 'margin-left:4px;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--background-modifier-error);color:var(--text-on-accent);opacity:0.8;';

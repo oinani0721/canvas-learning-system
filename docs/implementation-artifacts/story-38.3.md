@@ -8,7 +8,7 @@ So that my review schedule is truly personalized, not falling back to a fixed sc
 
 ## Status
 
-review
+done
 
 ## Acceptance Criteria
 
@@ -107,7 +107,13 @@ review
 - `canvas-progress-tracker/obsidian-plugin/src/services/TodayReviewListService.ts` — AC-2: pass flag + log reason
 - `canvas-progress-tracker/obsidian-plugin/src/views/ReviewDashboardView.ts` — AC-2: UI indicator badge
 - `backend/tests/unit/test_story_38_3_fsrs_init_guarantee.py` — 14 unit tests for all ACs
+- `backend/tests/unit/test_story_38_3_edge_cases.py` — 12 edge case tests (unicode, persistence failure, corruption recovery)
+- `canvas-progress-tracker/obsidian-plugin/src/types/UITypes.ts` — AC-2: `fsrsUnavailable` field on `ReviewTask` interface
 
 ## Change Log
 
 - 2026-02-06: Story 38.3 implemented. All 4 ACs satisfied. 14 new tests, 0 regressions.
+- 2026-02-07: Code Review fixes applied:
+  - 🔴 C1/C2 FIX: health.py — replaced broken `get_review_service()` async generator call with `FSRS_AVAILABLE` module flag. FSRS health status now correctly reports "ok"/"degraded".
+  - 🟡 M1 FIX: review_service.py — auto-created FSRS cards now persist to Graphiti (fire-and-forget) for restart resilience.
+  - 🟡 M2 FIX: UITypes.ts + ReviewDashboardView.ts — added `fsrsUnavailable` to `ReviewTask` interface, removed `as any` cast.

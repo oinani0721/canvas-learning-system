@@ -130,7 +130,8 @@ class TestAddEdgeWithNeo4jSync:
 
     @pytest.mark.asyncio
     async def test_add_edge_triggers_sync_task(
-        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_data
+        self, canvas_service_with_memory, mock_memory_client, tmp_path, sample_canvas_data,
+        wait_for_call
     ):
         """AC-1: Verify async sync_edge_to_neo4j() triggered after add_edge()."""
         # Setup: Create canvas file
@@ -147,8 +148,8 @@ class TestAddEdgeWithNeo4jSync:
                 edge_data={"fromNode": "node-1", "toNode": "node-2", "label": "test_edge"}
             )
 
-            # Allow background task to execute
-            await asyncio.sleep(0.1)
+            # Wait for fire-and-forget background task to call the mock
+            await wait_for_call(mock_sync)
 
         # Assert: Edge created successfully
         assert result["fromNode"] == "node-1"

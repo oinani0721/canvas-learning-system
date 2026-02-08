@@ -172,6 +172,8 @@ export interface ReviewTask {
     subject?: string;
     /** 学科分类 */
     category?: string;
+    /** Story 38.3 AC-2: Whether FSRS data was unavailable for priority calculation */
+    fsrsUnavailable?: boolean;
 }
 
 // ============================================================================
