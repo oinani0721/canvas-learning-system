@@ -397,7 +397,7 @@ class Settings(BaseSettings):
     )
 
     VERIFICATION_AI_TIMEOUT: float = Field(
-        default=0.5,
+        default=15.0,
         description="Timeout in seconds for AI calls in verification service (Story 31.1 AC-31.1.5)"
     )
 
@@ -407,8 +407,27 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
 
     ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(
-        default=False,
-        description="Enable dual-write of learning events to Graphiti JSON storage (Story 36.9 AC-36.9.5)"
+        default=True,
+        description="Enable dual-write of learning events to Graphiti JSON storage. Default: True (safe default for Neo4j offline resilience). Story 36.9 AC-36.9.5, Story 38.4 AC-1"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # LanceDB Auto-Index Settings (Story 38.1)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    ENABLE_LANCEDB_AUTO_INDEX: bool = Field(
+        default=True,
+        description="Enable automatic LanceDB indexing after Canvas CRUD. Story 38.1 AC-1."
+    )
+
+    LANCEDB_INDEX_DEBOUNCE_MS: int = Field(
+        default=500,
+        description="Debounce window in ms for LanceDB auto-index. Prevents rapid re-indexing. Story 38.1."
+    )
+
+    LANCEDB_INDEX_TIMEOUT: float = Field(
+        default=5.0,
+        description="Timeout in seconds per LanceDB index attempt. Story 38.1 AC-1."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
