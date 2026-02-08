@@ -85,7 +85,9 @@ class CanvasService:
 
         # Story 38.5: JSON fallback for Canvas events when memory system unavailable
         self._fallback_file_path: Path = Path(__file__).parent.parent / "data" / "canvas_events_fallback.json"
-        self._fallback_count: int = 0
+        self._max_fallback_events: int = 10000
+        # [Review H1/M1] Initialize count from existing fallback file for cross-restart persistence
+        self._fallback_count: int = self._read_existing_fallback_count()
 
         logger.debug(f"CanvasService initialized with base_path: {canvas_base_path}")
 
@@ -93,6 +95,18 @@ class CanvasService:
     def is_fallback_active(self) -> bool:
         """Story 38.5 AC-3: Track whether Canvas events are in degraded (fallback) mode."""
         return self._fallback_count > 0
+
+    def _read_existing_fallback_count(self) -> int:
+        """[Review M1] Read existing fallback event count for cross-restart persistence."""
+        try:
+            if self._fallback_file_path.exists():
+                content = self._fallback_file_path.read_text(encoding="utf-8")
+                data = json.loads(content)
+                events = data if isinstance(data, list) else data.get("events", [])
+                return len(events)
+        except (json.JSONDecodeError, OSError):
+            pass
+        return 0
 
     def _write_canvas_event_fallback(
         self,
@@ -137,6 +151,10 @@ class CanvasService:
                     events = []
 
             events.append(event)
+
+            # [Review M2] Truncate oldest events when exceeding max limit
+            if len(events) > self._max_fallback_events:
+                events = events[-self._max_fallback_events:]
 
             # Ensure parent directory exists
             self._fallback_file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -239,7 +257,7 @@ class CanvasService:
         """
         if self._memory_client is None:
             # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
-            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 self._write_canvas_event_fallback(
                     event_type.value, canvas_name, node_id=node_id, edge_id=edge_id
                 )
@@ -258,12 +276,9 @@ class CanvasService:
                 edge_data=edge_data
             )
 
-            # Fire-and-forget with timeout protection (ADR-0003: 500ms timeout)
+            # [Review H1] Fire-and-forget with timeout + fallback on timeout/error
             asyncio.create_task(
-                asyncio.wait_for(
-                    self._write_memory_event(event_type, context),
-                    timeout=0.5  # 500ms timeout per ADR-0003
-                )
+                self._safe_write_memory_event(event_type, context)
             )
             logger.debug(f"Triggered memory event: {event_type.value} for {canvas_name}")
 
@@ -274,6 +289,40 @@ class CanvasService:
                 f"for {canvas_name}: {e}"
             )
             # Don't re-raise - CRUD operation should succeed
+
+    async def _safe_write_memory_event(
+        self,
+        event_type: CanvasEventType,
+        context: CanvasEventContext
+    ) -> None:
+        """
+        [Review H1] Wrapper that catches TimeoutError at the wait_for level.
+
+        Without this wrapper, wait_for timeout cancels the inner coroutine
+        (CancelledError, not caught by except Exception) and raises TimeoutError
+        at the task level — unhandled. This wrapper ensures fallback is triggered.
+        """
+        try:
+            await asyncio.wait_for(
+                self._write_memory_event(event_type, context),
+                timeout=0.5  # 500ms timeout per ADR-0003
+            )
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"Memory write timed out for {event_type.value}: {context.canvas_name}"
+            )
+            self._try_fallback_write(event_type, context)
+        except asyncio.CancelledError:
+            logger.warning(
+                f"Memory write cancelled for {event_type.value}: {context.canvas_name}"
+            )
+            self._try_fallback_write(event_type, context)
+        except Exception as e:
+            logger.warning(
+                f"Memory write failed for {event_type.value}: "
+                f"{context.canvas_name}: {e}"
+            )
+            self._try_fallback_write(event_type, context)
 
     async def _write_memory_event(
         self,
@@ -326,7 +375,7 @@ class CanvasService:
         self, event_type: "CanvasEventType", context: "CanvasEventContext"
     ) -> None:
         """Story 38.5 AC-2: Try writing to JSON fallback after Neo4j failure."""
-        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
             self._write_canvas_event_fallback(
                 event_type.value, context.canvas_name,
                 node_id=context.node_id, edge_id=context.edge_id
@@ -335,19 +384,27 @@ class CanvasService:
                 f"Event {event_type.value} written to JSON fallback for {context.canvas_name}"
             )
 
-    def _trigger_lancedb_index(self, canvas_name: str) -> None:
+    def _trigger_lancedb_index(
+        self, canvas_name: str, node_id: str | None = None
+    ) -> None:
         """
         Story 38.1 AC-1: Trigger LanceDB index update (fire-and-forget with debounce).
 
         Non-blocking. Uses lazy import to avoid circular dependency.
         Index failure does NOT affect CRUD operation result (AC-2).
+
+        Args:
+            canvas_name: Canvas name (without .canvas extension)
+            node_id: Node ID that triggered this index (for AC-2 logging)
         """
         try:
             from app.services.lancedb_index_service import get_lancedb_index_service
 
             svc = get_lancedb_index_service()
             if svc is not None:
-                svc.schedule_index(canvas_name, self.canvas_base_path)
+                svc.schedule_index(
+                    canvas_name, self.canvas_base_path, trigger_node_id=node_id
+                )
         except Exception as e:
             logger.warning(
                 f"[Story 38.1] Failed to schedule LanceDB index for {canvas_name}: {e}"
@@ -385,7 +442,7 @@ class CanvasService:
         """
         if self._memory_client is None:
             # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
-            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 self._write_canvas_event_fallback(
                     "edge_sync", canvas_path, edge_id=edge_id,
                     from_node_id=from_node_id, to_node_id=to_node_id
@@ -399,7 +456,7 @@ class CanvasService:
         neo4j = self._memory_client.neo4j
         if neo4j is None:
             # Story 38.5 AC-2/AC-4: Upgrade to WARNING + JSON fallback
-            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 self._write_canvas_event_fallback(
                     "edge_sync", canvas_path, edge_id=edge_id,
                     from_node_id=from_node_id, to_node_id=to_node_id
@@ -688,7 +745,7 @@ class CanvasService:
         )
 
         # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
-        self._trigger_lancedb_index(canvas_name)
+        self._trigger_lancedb_index(canvas_name, node_id=new_node["id"])
 
         return new_node
 
@@ -736,7 +793,7 @@ class CanvasService:
                 )
 
                 # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
-                self._trigger_lancedb_index(canvas_name)
+                self._trigger_lancedb_index(canvas_name, node_id=node_id)
 
                 return updated_node
 
@@ -775,7 +832,7 @@ class CanvasService:
         await self.write_canvas(canvas_name, canvas_data)
 
         # [Review M4] Trigger LanceDB re-index on delete to remove stale entries
-        self._trigger_lancedb_index(canvas_name)
+        self._trigger_lancedb_index(canvas_name, node_id=node_id)
 
         return True
 

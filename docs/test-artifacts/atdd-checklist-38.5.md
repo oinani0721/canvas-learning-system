@@ -72,28 +72,34 @@ Canvas CRUD events should gracefully degrade to JSON fallback when memory system
 ## Implementation Checklist (GREEN Phase)
 
 ### Task 1: JSON Fallback Writer (AC-1, AC-2)
-- [ ] Add `_write_canvas_event_fallback()` method to CanvasService
-- [ ] Fallback writes to `backend/data/canvas_events_fallback.json`
-- [ ] Event format: `{event_type, canvas_name, node_id, edge_id, timestamp}`
+- [x] Add `_write_canvas_event_fallback()` method to CanvasService
+- [x] Fallback writes to `backend/data/canvas_events_fallback.json`
+- [x] Event format: `{event_type, canvas_name, node_id, edge_id, timestamp}`
 
 ### Task 2: Modify _trigger_memory_event (AC-1, AC-4)
-- [ ] When memory_client is None AND dual-write enabled → call fallback writer
-- [ ] Upgrade `logger.debug` → `logger.warning` at L174
+- [x] When memory_client is None AND dual-write enabled → call fallback writer
+- [x] Upgrade `logger.debug` → `logger.warning`
 
 ### Task 3: Modify _sync_edge_to_neo4j (AC-2, AC-4)
-- [ ] When neo4j is None AND dual-write enabled → call fallback writer
-- [ ] Upgrade `logger.debug` → `logger.warning` at L279, L285
+- [x] When neo4j is None AND dual-write enabled → call fallback writer
+- [x] Upgrade `logger.debug` → `logger.warning`
 
 ### Task 4: Error Path Fallback (AC-2)
-- [ ] In `_write_memory_event`, catch Neo4j errors → write to fallback
+- [x] In `_write_memory_event`, catch Neo4j errors → write to fallback
+- [x] [Review H1] Add `_safe_write_memory_event` wrapper to catch timeout at wait_for level
 
 ### Task 5: Degraded State Tracking (AC-3)
-- [ ] Add `_fallback_count` counter to CanvasService
-- [ ] Add `is_fallback_active` property
+- [x] Add `_fallback_count` counter to CanvasService
+- [x] Add `is_fallback_active` property
+- [x] [Review M1] Initialize count from existing fallback file for cross-restart persistence
 
 ### Task 6: Remove xfail markers (Refactor)
-- [ ] Remove all `@pytest.mark.xfail` from 6 tests
-- [ ] All 8 tests pass
+- [x] Remove all `@pytest.mark.xfail` from 6 tests
+- [x] All 9 tests pass (8 original + 1 timeout scenario)
+
+### Task 7: Review Fixes (Code Review)
+- [x] [Review M2] Add max fallback events cap (10000) to prevent unlimited growth
+- [x] [Review M3] Patch settings in test_no_fallback_file_when_dual_write_disabled
 
 ---
 

@@ -211,4 +211,6 @@ class TestReviewM4DeleteNodeTrigger:
             ):
                 result = await svc.delete_node("test", node_id)
                 assert result is True
-                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir)
+                mock_index_svc.schedule_index.assert_called_once_with(
+                    "test", tmpdir, trigger_node_id=node_id
+                )

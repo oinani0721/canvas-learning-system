@@ -73,7 +73,7 @@ class TestAC1MemoryClientNoneFallback:
         [P1] No JSON fallback when dual-write is disabled (negative case).
 
         Verifies: Dual-write flag check prevents unnecessary writes.
-        This test passes because no fallback mechanism exists (correct behavior for disabled).
+        [Review M3] Patched settings to isolate from user .env
         """
         from app.models.canvas_events import CanvasEventType
         from app.services.canvas_service import CanvasService
@@ -81,12 +81,15 @@ class TestAC1MemoryClientNoneFallback:
         fallback_file = tmp_path / "canvas_events_fallback.json"
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
 
-        await service._trigger_memory_event(
-            event_type=CanvasEventType.NODE_CREATED,
-            canvas_name="test_canvas",
-            node_id="node-1",
-            node_data={"id": "node-1"}
-        )
+        with patch("app.services.canvas_service.settings") as mock_settings:
+            mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = False
+
+            await service._trigger_memory_event(
+                event_type=CanvasEventType.NODE_CREATED,
+                canvas_name="test_canvas",
+                node_id="node-1",
+                node_data={"id": "node-1"}
+            )
 
         assert not fallback_file.exists(), "No fallback file should exist when dual-write disabled"
 
@@ -199,6 +202,56 @@ class TestAC2Neo4jDownFallback:
             "JSON fallback should be created when Neo4j connection fails. "
             "Story 38.5 AC-2: Fallback on Neo4j error"
         )
+
+    @pytest.mark.asyncio
+    async def test_trigger_event_fallback_when_neo4j_slow_timeout(self, tmp_path):
+        """
+        [Review M4/H1] Fallback triggers when Neo4j is slow (timeout, not error).
+
+        Verifies: _safe_write_memory_event catches TimeoutError from wait_for
+        and writes to JSON fallback. Without this fix, timeout caused
+        CancelledError inside _write_memory_event which was never caught.
+        """
+        from app.models.canvas_events import CanvasEventType
+        from app.services.canvas_service import CanvasService
+
+        fallback_file = tmp_path / "canvas_events_fallback.json"
+
+        async def slow_record(**kwargs):
+            await asyncio.sleep(5)  # Far exceeds 500ms timeout
+
+        mock_memory = AsyncMock()
+        mock_memory.record_temporal_event = slow_record
+
+        service = CanvasService(
+            canvas_base_path=str(tmp_path),
+            memory_client=mock_memory
+        )
+        service._fallback_file_path = fallback_file
+
+        with patch("app.services.canvas_service.settings") as mock_settings:
+            mock_settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE = True
+
+            await service._trigger_memory_event(
+                event_type=CanvasEventType.NODE_CREATED,
+                canvas_name="test_canvas",
+                node_id="node-slow"
+            )
+
+            # Wait for fire-and-forget task (timeout + fallback)
+            await wait_for_condition(
+                lambda: fallback_file.exists(),
+                description="fallback file created after timeout",
+                timeout=3.0,
+            )
+
+        assert fallback_file.exists(), (
+            "JSON fallback should be created when Neo4j times out. "
+            "[Review H1] _safe_write_memory_event must catch TimeoutError"
+        )
+        events = json.loads(fallback_file.read_text(encoding="utf-8"))
+        assert len(events) >= 1
+        assert events[-1]["node_id"] == "node-slow"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

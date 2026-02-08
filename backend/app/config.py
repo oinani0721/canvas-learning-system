@@ -430,6 +430,11 @@ class Settings(BaseSettings):
         description="Timeout in seconds per LanceDB index attempt. Story 38.1 AC-1."
     )
 
+    LANCEDB_INDEX_TABLE_NAME: str = Field(
+        default="canvas_nodes",
+        description="LanceDB table name for canvas node index. Story 38.1."
+    )
+
     # ═══════════════════════════════════════════════════════════════════════════
     # Computed Properties
     # ═══════════════════════════════════════════════════════════════════════════

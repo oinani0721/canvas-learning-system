@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-08T07:21:21.908429+00:00",
+    "x-generated-at": "2026-02-08T22:26:00.556402+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {

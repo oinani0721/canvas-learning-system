@@ -87,7 +87,9 @@ class TestQAFallbackCountAccuracy:
 
         fallback_file = tmp_path / "canvas_events_fallback.json"
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
+        # [Review M1] Set fallback path to tmp_path and reset count for clean test
         service._fallback_file_path = fallback_file
+        service._fallback_count = 0
 
         assert service._fallback_count == 0, "Initial count should be 0"
 
@@ -115,7 +117,9 @@ class TestQAIsFallbackActiveLifecycle:
 
         fallback_file = tmp_path / "canvas_events_fallback.json"
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
+        # [Review M1] Set fallback path to tmp_path and reset count for clean test
         service._fallback_file_path = fallback_file
+        service._fallback_count = 0
 
         assert service.is_fallback_active is False, "Should start as False"
 
@@ -141,7 +145,9 @@ class TestQATryFallbackRespectsFlag:
 
         fallback_file = tmp_path / "canvas_events_fallback.json"
         service = CanvasService(canvas_base_path=str(tmp_path), memory_client=None)
+        # [Review M1] Set fallback path to tmp_path and reset count for clean test
         service._fallback_file_path = fallback_file
+        service._fallback_count = 0
 
         context = CanvasEventContext(
             canvas_name="test", node_id="n1"

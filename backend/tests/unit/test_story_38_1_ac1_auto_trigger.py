@@ -60,7 +60,8 @@ class TestAC1AutoTrigger:
             f"Story 38.1 AC-1: Index must complete within 5 seconds."
         )
 
-    def test_schedule_index_creates_async_task(self):
+    @pytest.mark.asyncio
+    async def test_schedule_index_creates_async_task(self):
         """
         [P0] schedule_index() creates an async task for debounced indexing.
 
@@ -74,24 +75,15 @@ class TestAC1AutoTrigger:
             mock_settings.LANCEDB_INDEX_TIMEOUT = 5.0
 
             svc = LanceDBIndexService()
-
-            loop = asyncio.new_event_loop()
+            svc.schedule_index("test_canvas", "/tmp/canvas")
+            assert "test_canvas" in svc._pending_tasks
+            task = svc._pending_tasks["test_canvas"]
+            assert isinstance(task, asyncio.Task)
+            task.cancel()
             try:
-                loop.run_until_complete(self._run_schedule_test(svc))
-            finally:
-                loop.close()
-
-    async def _run_schedule_test(self, svc):
-        """Helper: verify schedule_index creates a task."""
-        svc.schedule_index("test_canvas", "/tmp/canvas")
-        assert "test_canvas" in svc._pending_tasks
-        task = svc._pending_tasks["test_canvas"]
-        assert isinstance(task, asyncio.Task)
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+                await task
+            except asyncio.CancelledError:
+                pass
 
     def test_schedule_index_disabled_does_nothing(self):
         """
@@ -177,8 +169,10 @@ class TestAC1AutoTrigger:
                     "text": "hello",
                     "x": 0, "y": 0, "width": 200, "height": 100,
                 }
-                await svc.add_node(canvas_name="test", node_data=node_data)
-                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir)
+                result = await svc.add_node(canvas_name="test", node_data=node_data)
+                mock_index_svc.schedule_index.assert_called_once_with(
+                    "test", tmpdir, trigger_node_id=result["id"]
+                )
 
     @pytest.mark.asyncio
     async def test_canvas_service_update_node_triggers_lancedb(self):
@@ -211,7 +205,9 @@ class TestAC1AutoTrigger:
                     node_id=node_id,
                     node_data={"text": "new"},
                 )
-                mock_index_svc.schedule_index.assert_called_once_with("test", tmpdir)
+                mock_index_svc.schedule_index.assert_called_once_with(
+                    "test", tmpdir, trigger_node_id=node_id
+                )
 
     def test_trigger_lancedb_index_catches_exceptions(self):
         """
