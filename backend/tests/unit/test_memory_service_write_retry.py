@@ -25,6 +25,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from app.services.memory_service import MemoryService, GRAPHITI_JSON_WRITE_TIMEOUT
+from tests.conftest import wait_for_mock_call
 
 
 # ✅ 模块级别 fixture（不在类内定义）
@@ -479,7 +480,7 @@ class TestWriteRetryStrictQA:
                     metadata={"node_text": "QA测试节点"},
                 )
 
-                await asyncio.sleep(0.1)
+                await wait_for_mock_call(mock_retry_write)
 
         assert event_id is not None
         # 验证调用的是 _write_to_graphiti_json_with_retry 而非旧方法

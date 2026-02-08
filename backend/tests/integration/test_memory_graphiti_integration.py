@@ -26,6 +26,7 @@ from app.clients.graphiti_client import (
     LearningMemoryClient,
 )
 from app.services.memory_service import MemoryService
+from tests.conftest import wait_for_condition, yield_to_event_loop
 
 
 @pytest.fixture
@@ -100,7 +101,14 @@ class TestMemoryGraphitiIntegration:
             )
 
             # Wait for fire-and-forget task to complete
-            await asyncio.sleep(0.3)
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
+                ),
+                timeout=3.0,
+                description="JSON file written with at least 1 learning memory",
+            )
 
         # Assert
         assert episode_id is not None
@@ -191,7 +199,14 @@ class TestMemoryGraphitiIntegration:
                 score=92,
             )
 
-            await asyncio.sleep(0.3)
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
+                ),
+                timeout=3.0,
+                description="JSON file written with at least 1 learning memory",
+            )
 
         # Assert - Verify JSON schema compliance
         with open(temp_storage_path, "r", encoding="utf-8") as f:
@@ -247,11 +262,18 @@ class TestMemoryGraphitiIntegration:
                     score=70 + i * 10,
                 )
                 episodes.append(episode_id)
-                # Small delay between episodes
-                await asyncio.sleep(0.1)
+                # Yield control between episodes
+                await yield_to_event_loop()
 
-            # Wait for all fire-and-forget tasks
-            await asyncio.sleep(0.5)
+            # Wait for all fire-and-forget tasks to write 3 memories
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 3
+                ),
+                timeout=5.0,
+                description="All 3 learning memories written to JSON",
+            )
 
         # Assert
         with open(temp_storage_path, "r", encoding="utf-8") as f:
@@ -292,7 +314,14 @@ class TestMemoryGraphitiIntegration:
                 metadata={"node_text": "集合的定义与运算"},
             )
 
-            await asyncio.sleep(0.3)
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
+                ),
+                timeout=3.0,
+                description="JSON file written with temporal event memory",
+            )
 
         # Assert
         assert event_id is not None
@@ -340,8 +369,15 @@ class TestMemoryGraphitiIntegration:
             # Execute all concurrently
             results = await asyncio.gather(*tasks)
 
-            # Wait for all fire-and-forget tasks
-            await asyncio.sleep(1.0)
+            # Wait for all 5 fire-and-forget tasks to complete
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 5
+                ),
+                timeout=5.0,
+                description="All 5 concurrent learning memories written to JSON",
+            )
 
         # Assert
         assert len(results) == 5
@@ -380,7 +416,14 @@ class TestMemoryGraphitiIntegration:
                 score=88,
             )
 
-            await asyncio.sleep(0.3)
+            await wait_for_condition(
+                lambda: (
+                    temp_storage_path.exists()
+                    and len(json.loads(temp_storage_path.read_text(encoding="utf-8")).get("memories", [])) >= 1
+                ),
+                timeout=3.0,
+                description="JSON file written with Chinese content",
+            )
 
         # Assert
         with open(temp_storage_path, "r", encoding="utf-8") as f:

@@ -60,6 +60,57 @@ async def wait_for_mock_call(
     )
 
 
+async def wait_for_condition(
+    condition_fn,
+    *,
+    timeout: float = 2.0,
+    interval: float = 0.05,
+    description: str = "condition",
+):
+    """Poll until condition_fn returns truthy or timeout.
+
+    Use for integration tests where there is no mock to wait on
+    (e.g., waiting for a file to be written by a real service).
+
+    Args:
+        condition_fn: Callable returning truthy when done. May be sync or async.
+        timeout: Maximum wait time in seconds.
+        interval: Polling interval in seconds.
+        description: Human-readable label for error messages.
+
+    Raises:
+        TimeoutError: If condition not met within timeout.
+    """
+    loop = asyncio.get_event_loop()
+    start = loop.time()
+    last_error = None
+    while (loop.time() - start) < timeout:
+        try:
+            result = condition_fn()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if result:
+                return result
+        except (AssertionError, Exception) as e:
+            last_error = e
+        await asyncio.sleep(interval)
+    msg = f"{description} not met within {timeout}s"
+    if last_error:
+        msg += f" (last error: {last_error})"
+    raise TimeoutError(msg)
+
+
+async def yield_to_event_loop(iterations: int = 5):
+    """Yield control to the event loop for pending tasks.
+
+    Use instead of asyncio.sleep(0.1) when you just need to let
+    fire-and-forget tasks run but have nothing specific to wait for
+    (e.g., assert_not_called scenarios).
+    """
+    for _ in range(iterations):
+        await asyncio.sleep(0)
+
+
 @pytest.fixture
 def wait_for_call():
     """Provide wait_for_mock_call as a pytest fixture.
@@ -71,6 +122,18 @@ def wait_for_call():
             mock.method.assert_called_once()
     """
     return wait_for_mock_call
+
+
+@pytest.fixture
+def wait_condition():
+    """Provide wait_for_condition as a pytest fixture.
+
+    Usage:
+        async def test_something(wait_condition):
+            await service.write_file()
+            await wait_condition(lambda: path.exists(), description="file written")
+    """
+    return wait_for_condition
 
 
 # ============================================================================

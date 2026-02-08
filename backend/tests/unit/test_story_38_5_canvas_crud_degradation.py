@@ -18,6 +18,8 @@ import asyncio
 import json
 import logging
 from pathlib import Path
+
+from tests.conftest import wait_for_condition
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -187,7 +189,11 @@ class TestAC2Neo4jDownFallback:
             )
 
             # Allow fire-and-forget task to complete within patch context
-            await asyncio.sleep(0.6)
+            await wait_for_condition(
+                lambda: fallback_file.exists(),
+                description="fallback file created",
+                timeout=3.0,
+            )
 
         assert fallback_file.exists(), (
             "JSON fallback should be created when Neo4j connection fails. "

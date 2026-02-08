@@ -17,6 +17,8 @@ import os
 
 import pytest
 
+from tests.conftest import wait_for_condition
+
 # Skip integration tests if Neo4j is mocked
 pytestmark = pytest.mark.skipif(
     os.getenv("NEO4J_MOCK", "true").lower() == "true",
@@ -87,23 +89,30 @@ async def test_edge_appears_in_neo4j_after_add_edge(
         }
     )
 
-    # Wait for background sync to complete
-    await asyncio.sleep(1.5)  # Allow time for fire-and-forget + potential retry
+    # Wait for background sync to complete by polling Neo4j
+    edge_id = edge_result["id"]
 
-    # Assert: Verify edge exists in Neo4j
-    query = """
-    MATCH (from:Node {id: $fromNodeId})-[r:CONNECTS_TO {edge_id: $edgeId}]->(to:Node {id: $toNodeId})
-    RETURN r.edge_id as edge_id, r.label as label
-    """
-    results = await neo4j_client.run_query(
-        query,
-        fromNodeId="int-node-1",
-        toNodeId="int-node-2",
-        edgeId=edge_result["id"]
+    async def _edge_in_neo4j():
+        query = """
+        MATCH (from:Node {id: $fromNodeId})-[r:CONNECTS_TO {edge_id: $edgeId}]->(to:Node {id: $toNodeId})
+        RETURN r.edge_id as edge_id, r.label as label
+        """
+        rows = await neo4j_client.run_query(
+            query,
+            fromNodeId="int-node-1",
+            toNodeId="int-node-2",
+            edgeId=edge_id,
+        )
+        return rows if len(rows) >= 1 else None
+
+    results = await wait_for_condition(
+        _edge_in_neo4j,
+        timeout=5.0,
+        description="Edge relationship appears in Neo4j",
     )
 
     assert len(results) == 1, f"Expected 1 edge in Neo4j, found {len(results)}"
-    assert results[0]["edge_id"] == edge_result["id"]
+    assert results[0]["edge_id"] == edge_id
     assert results[0]["label"] == "integration_test_edge"
 
 
@@ -191,8 +200,12 @@ async def test_multiple_edges_sync_concurrently(
 
     results = await asyncio.gather(*edge_tasks)
 
-    # Wait for background syncs
-    await asyncio.sleep(2)
+    # Wait for all 3 edges to appear in Canvas file
+    await wait_for_condition(
+        lambda: len(json.loads(sample_canvas_file.read_text()).get("edges", [])) >= 3,
+        timeout=5.0,
+        description="All 3 edges written to canvas file",
+    )
 
     # Assert: All edges created in Canvas
     assert len(results) == 3
@@ -241,8 +254,12 @@ async def test_edge_sync_with_chinese_canvas_path(
         edge_data={"fromNode": "cn-node-1", "toNode": "cn-node-2", "label": "关系"}
     )
 
-    # Wait for sync
-    await asyncio.sleep(1.5)
+    # Wait for edge to be written to canvas file
+    await wait_for_condition(
+        lambda: len(json.loads(canvas_path.read_text(encoding="utf-8")).get("edges", [])) >= 1,
+        timeout=5.0,
+        description="Edge written to Chinese-named canvas file",
+    )
 
     # Assert: Edge created successfully
     assert result["fromNode"] == "cn-node-1"

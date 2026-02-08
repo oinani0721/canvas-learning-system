@@ -19,6 +19,7 @@ from app.services.agent_service import AgentResult, AgentService, AgentType
 from app.services.background_task_manager import BackgroundTaskManager, TaskStatus
 from app.services.canvas_service import CanvasService
 from app.services.review_service import ReviewProgress, ReviewService
+from tests.conftest import wait_for_condition, yield_to_event_loop
 
 # ============================================================================
 # CanvasService Tests
@@ -381,7 +382,10 @@ class TestBackgroundTaskManager:
         assert len(task_id) > 0
 
         # Wait for task to complete
-        await asyncio.sleep(0.2)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
+            description="task completed",
+        )
 
         task_info = task_manager.get_task_status(task_id)
         assert task_info.status == TaskStatus.COMPLETED
@@ -404,12 +408,15 @@ class TestBackgroundTaskManager:
         assert task_info.status in (TaskStatus.PENDING, TaskStatus.RUNNING)
 
         # Wait and check RUNNING or COMPLETED
-        await asyncio.sleep(0.05)
+        await yield_to_event_loop()
         task_info = task_manager.get_task_status(task_id)
         status_history.append(task_info.status)
 
         # Wait for completion
-        await asyncio.sleep(0.2)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
+            description="task completed",
+        )
         task_info = task_manager.get_task_status(task_id)
         assert task_info.status == TaskStatus.COMPLETED
 
@@ -423,7 +430,10 @@ class TestBackgroundTaskManager:
         task_id = await task_manager.create_task("test_type", failing_task)
 
         # Wait for task to fail
-        await asyncio.sleep(0.2)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.FAILED,
+            description="task failed",
+        )
 
         task_info = task_manager.get_task_status(task_id)
         assert task_info.status == TaskStatus.FAILED
@@ -439,7 +449,10 @@ class TestBackgroundTaskManager:
         task_id = await task_manager.create_task("test_type", long_task)
 
         # Wait a bit for task to start
-        await asyncio.sleep(0.05)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.RUNNING,
+            description="task started running",
+        )
 
         # Cancel
         result = await task_manager.cancel_task(task_id)
@@ -447,7 +460,10 @@ class TestBackgroundTaskManager:
         assert result is True
 
         # Wait for cancellation to process
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.CANCELLED,
+            description="task cancelled",
+        )
 
         task_info = task_manager.get_task_status(task_id)
         assert task_info.status == TaskStatus.CANCELLED
@@ -498,7 +514,10 @@ class TestBackgroundTaskManager:
         long_id = await task_manager.create_task("long", long_task)
 
         # Wait for quick task to complete
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(quick_id).status == TaskStatus.COMPLETED,
+            description="quick task completed",
+        )
 
         # List completed tasks
         completed = task_manager.list_tasks(status=TaskStatus.COMPLETED)
@@ -519,12 +538,18 @@ class TestBackgroundTaskManager:
         async def sample_task():
             return "done"
 
-        await task_manager.create_task("type_a", sample_task)
-        await task_manager.create_task("type_a", sample_task)
-        await task_manager.create_task("type_b", sample_task)
+        id_a1 = await task_manager.create_task("type_a", sample_task)
+        id_a2 = await task_manager.create_task("type_a", sample_task)
+        id_b1 = await task_manager.create_task("type_b", sample_task)
 
         # Wait for completion
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: all(
+                task_manager.get_task_status(tid).status == TaskStatus.COMPLETED
+                for tid in [id_a1, id_a2, id_b1]
+            ),
+            description="all tasks completed",
+        )
 
         type_a_tasks = task_manager.list_tasks(task_type="type_a")
         assert len(type_a_tasks) == 2
@@ -539,10 +564,17 @@ class TestBackgroundTaskManager:
             return "done"
 
         # Create and complete tasks
+        task_ids = []
         for _ in range(5):
-            await task_manager.create_task("test", quick_task)
+            task_ids.append(await task_manager.create_task("test", quick_task))
 
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: all(
+                task_manager.get_task_status(tid).status == TaskStatus.COMPLETED
+                for tid in task_ids
+            ),
+            description="all cleanup tasks completed",
+        )
 
         # All tasks should be completed
         all_tasks = task_manager.list_tasks()
@@ -574,7 +606,10 @@ class TestBackgroundTaskManager:
             metadata={"key": "value"}
         )
 
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: task_manager.get_task_status(task_id).status == TaskStatus.COMPLETED,
+            description="task completed for dict check",
+        )
 
         task_dict = task_manager.get_task_status_dict(task_id)
 
@@ -676,10 +711,14 @@ class TestReviewService:
     ):
         """Test listing review tasks"""
         # Generate a few tasks
-        await review_service.generate_review_canvas("test")
+        result = await review_service.generate_review_canvas("test")
+        task_id = result["task_id"]
 
-        # Wait a bit
-        await asyncio.sleep(0.1)
+        # Wait for task to be processable
+        await wait_for_condition(
+            lambda: len(review_service.task_manager.list_tasks()) >= 1,
+            description="review task registered",
+        )
 
         # List tasks
         tasks = await review_service.list_tasks()
@@ -696,7 +735,10 @@ class TestReviewService:
         """Test listing tasks filtered by canvas name"""
         await review_service.generate_review_canvas("test")
 
-        await asyncio.sleep(0.1)
+        await wait_for_condition(
+            lambda: len(review_service.task_manager.list_tasks()) >= 1,
+            description="review task registered for filter test",
+        )
 
         # List by canvas name
         tasks = await review_service.list_tasks(canvas_name="test")
@@ -794,7 +836,11 @@ class TestIntegration:
             task_id = review_result["task_id"]
 
             # 6. Wait and check progress
-            await asyncio.sleep(0.5)
+            await wait_for_condition(
+                lambda: review_service.get_progress(task_id) is not None,
+                description="review progress available",
+                timeout=3.0,
+            )
             progress = await review_service.get_progress(task_id)
             # Task should be completed or still running
             assert progress.status in (TaskStatus.RUNNING, TaskStatus.COMPLETED, TaskStatus.PENDING)

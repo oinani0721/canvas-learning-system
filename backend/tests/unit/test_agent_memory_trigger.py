@@ -18,6 +18,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import yield_to_event_loop
+
 # Story 30.4: Test agent memory mapping module
 from app.core.agent_memory_mapping import (
     AGENT_MEMORY_MAPPING,
@@ -160,7 +162,7 @@ class TestTriggerMemoryWrite:
             concept="Test concept",
         )
 
-        await asyncio.sleep(0.1)
+        await yield_to_event_loop()
 
         # Should not call record_learning_episode for unmapped agents
         mock_agent_service.record_learning_episode.assert_not_called()
@@ -234,8 +236,8 @@ class TestTriggerMemoryWrite:
             concept="Test concept",
         )
 
-        # Wait for task to complete
-        await asyncio.sleep(0.1)
+        # Yield control to let the fire-and-forget task run
+        await yield_to_event_loop()
 
         # No exception should be raised - silent degradation
 

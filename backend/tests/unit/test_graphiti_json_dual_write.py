@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import wait_for_condition, wait_for_mock_call, yield_to_event_loop
+
 from app.clients.graphiti_client import LearningMemory
 from app.services.memory_service import (
     GRAPHITI_JSON_WRITE_TIMEOUT,
@@ -163,7 +165,7 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task to complete
-            await asyncio.sleep(0.1)
+            await wait_for_mock_call(mock_learning_memory_client.add_learning_episode)
 
         # Assert
         assert episode_id is not None
@@ -236,8 +238,8 @@ class TestGraphitiJsonDualWrite:
                 agent_type="scoring-agent",
             )
 
-            # Wait to ensure no background tasks
-            await asyncio.sleep(0.1)
+            # Yield control to let any background tasks run
+            await yield_to_event_loop()
 
         # Assert
         assert episode_id is not None
@@ -437,7 +439,10 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task
-            await asyncio.sleep(0.2)
+            await wait_for_condition(
+                lambda: captured_memory is not None,
+                description="captured_memory set by fire-and-forget task",
+            )
 
         # Assert
         assert captured_memory is not None

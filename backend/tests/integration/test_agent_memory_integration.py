@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import yield_to_event_loop
+
 from app.core.agent_memory_mapping import (
     AGENT_MEMORY_MAPPING,
     ALL_AGENT_NAMES,
@@ -158,8 +160,8 @@ class TestAgentMemoryIntegration:
             concept="Test concept",
         )
 
-        # Wait for any async operations
-        await asyncio.sleep(0.1)
+        # Yield control for any pending async operations
+        await yield_to_event_loop()
 
         # No exception means silent degradation worked
 

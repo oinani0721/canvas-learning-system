@@ -22,6 +22,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import wait_for_condition
+
 
 # =============================================================================
 # AC-31.A.5.3: Dual Write Consistency Tests
@@ -96,8 +98,24 @@ class TestDualWriteConsistency:
             assert episode_id is not None
             assert episode_id.startswith("episode-")
 
-            # 等待异步写入完成 (fire-and-forget pattern)
-            await asyncio.sleep(2)
+            # 等待异步写入完成 - poll Neo4j until data appears
+            async def _neo4j_has_history():
+                result = await real_neo4j_client.get_learning_history(
+                    user_id=test_event_data["user_id"]
+                )
+                if isinstance(result, dict) and "items" in result:
+                    items = result["items"]
+                elif isinstance(result, list):
+                    items = result
+                else:
+                    items = []
+                return result if len(items) > 0 else None
+
+            await wait_for_condition(
+                _neo4j_has_history,
+                timeout=5.0,
+                description="Neo4j learning history written",
+            )
 
             # 验证 Neo4j 存储成功
             neo4j_result = await real_neo4j_client.get_learning_history(
@@ -182,8 +200,19 @@ class TestDualWriteConsistency:
                     score=test_event_data["score"]
                 )
 
-            # 等待异步写入完成
-            await asyncio.sleep(2)
+            # 等待异步写入完成 - poll Neo4j until data appears
+            async def _neo4j_has_data():
+                result = await real_neo4j_client.get_learning_history(
+                    user_id=test_event_data["user_id"]
+                )
+                items = result.get("items", []) if isinstance(result, dict) else result or []
+                return True if len(items) > 0 else None
+
+            await wait_for_condition(
+                _neo4j_has_data,
+                timeout=5.0,
+                description="Neo4j learning history written (dual write test)",
+            )
 
             # 验证 Neo4j 存储
             neo4j_result = await real_neo4j_client.get_learning_history(
@@ -438,8 +467,17 @@ class TestDualWriteWithRealNeo4j:
 
         assert episode_id is not None
 
-        # 等待异步操作完成
-        await asyncio.sleep(1)
+        # 等待异步操作完成 - poll Neo4j until data appears
+        async def _neo4j_has_cycle_data():
+            result = await real_neo4j_client.get_learning_history(user_id=test_user_id)
+            items = result.get("items", []) if isinstance(result, dict) else result or []
+            return True if any(item.get("concept") == concept for item in items) else None
+
+        await wait_for_condition(
+            _neo4j_has_cycle_data,
+            timeout=5.0,
+            description="Neo4j learning history written (full cycle test)",
+        )
 
         # Session 2: 读取（模拟新会话）
         service2 = MemoryService(neo4j_client=real_neo4j_client)
@@ -490,8 +528,18 @@ class TestDualWriteWithRealNeo4j:
         assert all(eid is not None for eid in episode_ids)
         assert len(set(episode_ids)) == len(concepts)  # 所有 ID 唯一
 
-        # 等待异步操作完成
-        await asyncio.sleep(2)
+        # 等待异步操作完成 - poll until all concepts appear in Neo4j
+        async def _all_concepts_persisted():
+            result = await service.get_learning_history(user_id=test_user_id)
+            items = result.get("items", []) if isinstance(result, dict) else result or []
+            persisted = {item.get("concept") for item in items if item.get("concept")}
+            return True if all(c in persisted for c in concepts) else None
+
+        await wait_for_condition(
+            _all_concepts_persisted,
+            timeout=10.0,
+            description="All 5 concurrent concepts persisted to Neo4j",
+        )
 
         # 验证所有数据都已持久化
         result = await service.get_learning_history(user_id=test_user_id)
