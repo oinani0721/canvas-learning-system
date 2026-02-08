@@ -97,11 +97,17 @@ async def health_check(
     logger.debug("Health check requested")
 
     # Story 38.3 AC-3: Include FSRS status in health check
-    # Fix: Use module-level FSRS_AVAILABLE flag instead of broken async generator call
+    # Code Review M2 Fix: Use FSRS_RUNTIME_OK (runtime init status) when available,
+    # fall back to FSRS_AVAILABLE (import-time) if ReviewService hasn't been instantiated yet.
     components = {}
     try:
-        from app.services.review_service import FSRS_AVAILABLE
-        components["fsrs"] = "ok" if FSRS_AVAILABLE else "degraded"
+        from app.services.review_service import FSRS_AVAILABLE, FSRS_RUNTIME_OK
+        if FSRS_RUNTIME_OK is not None:
+            # ReviewService has been instantiated — use runtime status
+            components["fsrs"] = "ok" if FSRS_RUNTIME_OK else "degraded"
+        else:
+            # ReviewService not yet created — fall back to import check
+            components["fsrs"] = "ok" if FSRS_AVAILABLE else "degraded"
     except Exception:
         components["fsrs"] = "degraded"
 

@@ -46,21 +46,32 @@ class TestAC1SafeDefault:
         """
         [P0] The lowercase property alias also reflects the True default.
 
-        Verifies: config.py L584-586 enable_graphiti_json_dual_write property
+        Verifies: config.py enable_graphiti_json_dual_write property
         """
         from app.config import Settings
 
-        field_info = Settings.model_fields["ENABLE_GRAPHITI_JSON_DUAL_WRITE"]
-        assert field_info.default is True
+        env_copy = os.environ.copy()
+        env_copy.pop("ENABLE_GRAPHITI_JSON_DUAL_WRITE", None)
+
+        with patch.dict(os.environ, env_copy, clear=True):
+            settings = Settings(_env_file=None)
+            assert settings.enable_graphiti_json_dual_write is True, (
+                "Lowercase property alias should return True by default"
+            )
 
     @pytest.mark.asyncio
     async def test_startup_log_dual_write_enabled_default(self, caplog):
         """
-        [P1] Startup log shows "Dual-write: enabled (default)" when enabled.
+        [P1] Startup log shows "Dual-write: enabled (default)" when enabled
+        via default (no env var set — fresh install scenario).
 
         Verifies: main.py lifespan() dual-write status log after MemoryService pre-warm
         """
         from app.main import lifespan
+
+        # Remove env var to simulate fresh install (AC-1: no .env customization)
+        env_without_dw = {k: v for k, v in os.environ.items()
+                         if k != "ENABLE_GRAPHITI_JSON_DUAL_WRITE"}
 
         with (
             patch("app.main.get_default_monitor") as mock_monitor,
@@ -72,6 +83,7 @@ class TestAC1SafeDefault:
             patch("app.main.set_alert_manager"),
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
+            patch.dict(os.environ, env_without_dw, clear=True),
         ):
             mock_monitor.return_value = AsyncMock()
             mock_alert_mgr.return_value = AsyncMock()
@@ -138,6 +150,7 @@ class TestAC2ExplicitDisable:
             patch("app.main.set_alert_manager"),
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
+            patch.dict(os.environ, {"ENABLE_GRAPHITI_JSON_DUAL_WRITE": "false"}),
         ):
             mock_monitor.return_value = AsyncMock()
             mock_alert_mgr.return_value = AsyncMock()
@@ -185,6 +198,7 @@ class TestAC2ExplicitDisable:
             patch("app.main.set_alert_manager"),
             patch("app.main.set_session_validator"),
             patch("app.main.settings") as mock_settings,
+            patch.dict(os.environ, {"ENABLE_GRAPHITI_JSON_DUAL_WRITE": "false"}),
         ):
             mock_monitor.return_value = AsyncMock()
             mock_alert_mgr.return_value = AsyncMock()

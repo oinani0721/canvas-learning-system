@@ -14,33 +14,7 @@ import pytest
 from app.services.agent_service import _record_failed_write
 from app.services.memory_service import MemoryService
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _make_mock_neo4j(*, episodes=None, health_ok=True, fail_write=False):
-    """Create a mock Neo4jClient with configurable behavior."""
-    mock = AsyncMock()
-    mock.initialize = AsyncMock()
-    mock.health_check = AsyncMock(return_value=health_ok)
-    mock.stats = {"initialized": True, "node_count": 10, "edge_count": 5, "episode_count": 3}
-    mock.get_all_recent_episodes = AsyncMock(return_value=episodes or [])
-    mock.get_learning_history = AsyncMock(return_value=[])
-    if fail_write:
-        mock.record_episode_to_neo4j = AsyncMock(side_effect=Exception("Neo4j connection refused"))
-    else:
-        mock.record_episode_to_neo4j = AsyncMock(return_value=True)
-    return mock
-
-
-def _make_mock_learning_memory():
-    """Create a mock LearningMemoryClient."""
-    mock = MagicMock()
-    mock.add_memory = MagicMock()
-    mock.save = MagicMock()
-    return mock
+from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -154,13 +128,22 @@ class TestAC4DegradedMode:
         assert hasattr(review_mod, "FSRS_AVAILABLE")
 
     @pytest.mark.asyncio
-    async def test_dual_write_persists_to_json_when_neo4j_down(self):
+    async def test_neo4j_write_failure_does_not_corrupt_service_state(self):
         """
-        [P0] Story 38.4/38.2: When Neo4j fails during record_learning_event,
-        the service does not crash and remains operational.
+        [P0] Story 38.4/38.2: When Neo4j record_episode_to_neo4j is failing,
+        record_learning_event (which uses _create_neo4j_learning_relationship
+        → create_learning_relationship) still completes and appends the episode.
+        The service remains operational.
+
+        Note: fail_write=True mocks record_episode_to_neo4j, but
+        record_learning_event calls create_learning_relationship (different method).
         """
-        neo4j = _make_mock_neo4j(fail_write=True)
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j(fail_write=True)
+        # Also make create_learning_relationship fail to test true degradation
+        neo4j.create_learning_relationship = AsyncMock(
+            side_effect=Exception("Neo4j connection refused")
+        )
+        learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         ms._initialized = True
@@ -168,7 +151,7 @@ class TestAC4DegradedMode:
 
         initial_episode_count = len(ms._episodes)
 
-        try:
+        with pytest.raises(Exception, match="Neo4j connection refused"):
             await ms.record_learning_event(
                 user_id="u1",
                 canvas_path="test",
@@ -177,11 +160,10 @@ class TestAC4DegradedMode:
                 agent_type="test",
                 score=70,
             )
-        except Exception:
-            pass  # Some implementations may raise, that's ok for degraded mode
 
+        # Service state should remain consistent after failure
         assert ms._initialized is True
-        assert len(ms._episodes) >= initial_episode_count, (
-            f"Episodes should not be lost on Neo4j failure. "
-            f"Before: {initial_episode_count}, After: {len(ms._episodes)}"
+        assert len(ms._episodes) == initial_episode_count, (
+            "Episodes count should not change when Neo4j write fails "
+            "(episode append happens after Neo4j write in the try block)"
         )

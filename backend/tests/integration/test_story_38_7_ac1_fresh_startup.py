@@ -12,33 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from app.config import Settings
 from app.services.memory_service import MemoryService
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _make_mock_neo4j(*, episodes=None, health_ok=True, fail_write=False):
-    """Create a mock Neo4jClient with configurable behavior."""
-    mock = AsyncMock()
-    mock.initialize = AsyncMock()
-    mock.health_check = AsyncMock(return_value=health_ok)
-    mock.stats = {"initialized": True, "node_count": 10, "edge_count": 5, "episode_count": 3}
-    mock.get_all_recent_episodes = AsyncMock(return_value=episodes or [])
-    mock.get_learning_history = AsyncMock(return_value=[])
-    if fail_write:
-        mock.record_episode_to_neo4j = AsyncMock(side_effect=Exception("Neo4j connection refused"))
-    else:
-        mock.record_episode_to_neo4j = AsyncMock(return_value=True)
-    return mock
-
-
-def _make_mock_learning_memory():
-    """Create a mock LearningMemoryClient."""
-    mock = MagicMock()
-    mock.add_memory = MagicMock()
-    mock.save = MagicMock()
-    return mock
+from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -95,12 +69,12 @@ class TestAC1FreshEnvironmentStartup:
         [P0] Story 38.2 AC-2: MemoryService.initialize() calls
         _recover_episodes_from_neo4j() and populates self._episodes.
         """
-        neo4j = _make_mock_neo4j(episodes=[
+        neo4j = make_mock_neo4j(episodes=[
             {"user_id": "u1", "concept": "Python", "concept_id": "c1",
              "score": 85, "timestamp": "2026-02-07T10:00:00", "group_id": "g1",
              "review_count": 2},
         ])
-        learning_mem = _make_mock_learning_memory()
+        learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         await ms.initialize()
@@ -116,11 +90,11 @@ class TestAC1FreshEnvironmentStartup:
         [P0] Story 38.2 AC-3: If Neo4j fails during init recovery,
         _episodes_recovered stays False and _episodes stays empty.
         """
-        neo4j = _make_mock_neo4j()
+        neo4j = make_mock_neo4j()
         neo4j.get_all_recent_episodes = AsyncMock(
             side_effect=Exception("Connection refused")
         )
-        learning_mem = _make_mock_learning_memory()
+        learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         await ms.initialize()

@@ -21,33 +21,7 @@ from app.services.memory_service import (
     MemoryService,
 )
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _make_mock_neo4j(*, episodes=None, health_ok=True, fail_write=False):
-    """Create a mock Neo4jClient with configurable behavior."""
-    mock = AsyncMock()
-    mock.initialize = AsyncMock()
-    mock.health_check = AsyncMock(return_value=health_ok)
-    mock.stats = {"initialized": True, "node_count": 10, "edge_count": 5, "episode_count": 3}
-    mock.get_all_recent_episodes = AsyncMock(return_value=episodes or [])
-    mock.get_learning_history = AsyncMock(return_value=[])
-    if fail_write:
-        mock.record_episode_to_neo4j = AsyncMock(side_effect=Exception("Neo4j connection refused"))
-    else:
-        mock.record_episode_to_neo4j = AsyncMock(return_value=True)
-    return mock
-
-
-def _make_mock_learning_memory():
-    """Create a mock LearningMemoryClient."""
-    mock = MagicMock()
-    mock.add_memory = MagicMock()
-    mock.save = MagicMock()
-    return mock
+from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -78,8 +52,8 @@ class TestAC5Recovery:
         }
         failed_file.write_text(json.dumps(entry) + "\n", encoding="utf-8")
 
-        neo4j = _make_mock_neo4j()
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j()
+        learning_mem = make_mock_learning_memory()
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         ms._initialized = True
         ms._episodes_recovered = True
@@ -111,8 +85,8 @@ class TestAC5Recovery:
             encoding="utf-8"
         )
 
-        neo4j = _make_mock_neo4j()
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j()
+        learning_mem = make_mock_learning_memory()
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         ms._initialized = True
         ms._episodes_recovered = True
@@ -168,8 +142,8 @@ class TestAC5Recovery:
         [P0] Story 38.6 AC-4: load_failed_scores() returns entries
         from failed_writes.jsonl for merging into learning history.
         """
-        neo4j = _make_mock_neo4j()
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j()
+        learning_mem = make_mock_learning_memory()
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         ms._initialized = True
 
@@ -249,8 +223,8 @@ class TestCrossStoryDataFlow:
             encoding="utf-8"
         )
 
-        neo4j = _make_mock_neo4j()
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j()
+        learning_mem = make_mock_learning_memory()
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         ms._initialized = True
         ms._episodes_recovered = True
@@ -282,10 +256,9 @@ class TestCrossStoryDataFlow:
             score=92,
         )
 
-        assert any(
-            e.get("node_id") == "flow-n1" or e.get("concept") == "Integration Concept"
-            for e in ms._episodes
-        )
+        matching = [e for e in ms._episodes if e.get("node_id") == "flow-n1"]
+        assert len(matching) == 1, f"Expected exactly 1 episode with node_id=flow-n1, got {len(matching)}"
+        assert matching[0]["concept"] == "Integration Concept"
 
     @pytest.mark.asyncio
     async def test_timeout_constants_are_aligned_across_services(self):

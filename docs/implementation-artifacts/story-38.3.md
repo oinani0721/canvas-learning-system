@@ -110,10 +110,23 @@ done
 - `backend/tests/unit/test_story_38_3_edge_cases.py` — 12 edge case tests (unicode, persistence failure, corruption recovery)
 - `canvas-progress-tracker/obsidian-plugin/src/types/UITypes.ts` — AC-2: `fsrsUnavailable` field on `ReviewTask` interface
 
+## AC-1 / AC-4 Relationship Note
+
+AC-1 defines `{found: false, reason: "no_card_created"}` for missing cards, and AC-4 defines auto-creation of default cards. In practice, AC-4 fires first: when `get_fsrs_state()` finds no card, it auto-creates one and returns `{found: true}`. AC-1's `"no_card_created"` branch only triggers if auto-creation itself fails (e.g., FSRSManager is None). The decision tree is:
+
+1. FSRS manager is None → `{found: false, reason: "fsrs_not_initialized"}` (AC-1)
+2. No card exists → auto-create (AC-4) → `{found: true}` on success
+3. Auto-creation fails → `{found: false, reason: "error: ..."}` (AC-1 fallback)
+
 ## Change Log
 
 - 2026-02-06: Story 38.3 implemented. All 4 ACs satisfied. 14 new tests, 0 regressions.
-- 2026-02-07: Code Review fixes applied:
+- 2026-02-07: Code Review Round 1 fixes applied:
   - 🔴 C1/C2 FIX: health.py — replaced broken `get_review_service()` async generator call with `FSRS_AVAILABLE` module flag. FSRS health status now correctly reports "ok"/"degraded".
   - 🟡 M1 FIX: review_service.py — auto-created FSRS cards now persist to Graphiti (fire-and-forget) for restart resilience.
   - 🟡 M2 FIX: UITypes.ts + ReviewDashboardView.ts — added `fsrsUnavailable` to `ReviewTask` interface, removed `as any` cast.
+- 2026-02-08: Code Review Round 2 (adversarial) fixes applied:
+  - 🔴 C1 FIX: review_service.py — `if self.graphiti_client:` gate was dead code (graphiti_client never injected by dependencies.py). Replaced with `asyncio.create_task()` calling `get_learning_memory_client()` directly for fire-and-forget persistence.
+  - 🔴 C2 FIX: review.py — `get_fsrs_state` endpoint called `get_review_service()` (async generator) without args. Added `_get_or_create_review_service()` module-level singleton.
+  - 🟡 M2 FIX: health.py — used `FSRS_AVAILABLE` (import-time) instead of runtime init status. Added `FSRS_RUNTIME_OK` module-level flag to review_service.py; health.py now checks it when available.
+  - 🟡 M1/M3/M4 DOC: Added AC-1/AC-4 relationship note, corrected Change Log claims about "persist to Graphiti" (was dead code).

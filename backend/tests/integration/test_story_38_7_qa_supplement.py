@@ -95,21 +95,24 @@ class TestHealthEndpointHTTP:
     def test_health_fsrs_degraded_when_library_unavailable(self, qa_client):
         """
         [P0] Story 38.3 AC-3: /health shows fsrs: "degraded" when
-        FSRS_AVAILABLE is False (simulated missing py-fsrs).
+        FSRS is unavailable.
 
-        health.py L103: `from app.services.review_service import FSRS_AVAILABLE`
-        This import happens inside the function body, so we patch the source module.
+        health.py uses FSRS_RUNTIME_OK (priority) then FSRS_AVAILABLE (fallback).
+        Must patch both to simulate unavailable state.
         """
         import app.services.review_service as review_mod
 
-        original = review_mod.FSRS_AVAILABLE
+        orig_available = review_mod.FSRS_AVAILABLE
+        orig_runtime = review_mod.FSRS_RUNTIME_OK
         try:
             review_mod.FSRS_AVAILABLE = False
+            review_mod.FSRS_RUNTIME_OK = False
             resp = qa_client.get("/api/v1/health")
             data = resp.json()
             assert data["components"]["fsrs"] == "degraded"
         finally:
-            review_mod.FSRS_AVAILABLE = original
+            review_mod.FSRS_AVAILABLE = orig_available
+            review_mod.FSRS_RUNTIME_OK = orig_runtime
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -121,11 +124,14 @@ class TestDegradedDualWriteStrengthened:
     """Stronger assertions for AC-4 degraded mode data persistence."""
 
     @pytest.mark.asyncio
-    async def test_record_learning_event_appends_to_episodes_despite_neo4j_failure(self):
+    async def test_record_learning_event_raises_on_neo4j_failure_state_consistent(self):
         """
-        [P0] Story 38.4/38.2 AC-4 (strengthened): When Neo4j write fails,
-        the episode is still in self._episodes (in-memory cache).
-        Previous test only checked _initialized=True which is trivially true.
+        [P0] Story 38.4/38.2 AC-4 (strengthened): When Neo4j
+        create_learning_relationship fails, record_learning_event raises
+        and service state remains consistent — no partial writes.
+
+        Note: record_learning_event → _create_neo4j_learning_relationship
+        → neo4j.create_learning_relationship (NOT record_episode_to_neo4j).
         """
         from app.services.memory_service import MemoryService
 
@@ -135,8 +141,8 @@ class TestDegradedDualWriteStrengthened:
         neo4j.stats = {"initialized": True}
         neo4j.get_all_recent_episodes = AsyncMock(return_value=[])
         neo4j.get_learning_history = AsyncMock(return_value=[])
-        # record_episode_to_neo4j fails
-        neo4j.record_episode_to_neo4j = AsyncMock(
+        # Mock the ACTUAL method called by record_learning_event
+        neo4j.create_learning_relationship = AsyncMock(
             side_effect=Exception("Neo4j connection refused")
         )
 
@@ -149,8 +155,8 @@ class TestDegradedDualWriteStrengthened:
 
         initial_count = len(ms._episodes)
 
-        # Record event — Neo4j write will fail but event should still be cached
-        try:
+        # Neo4j write fails → function raises → episode not appended
+        with pytest.raises(Exception, match="Neo4j connection refused"):
             await ms.record_learning_event(
                 user_id="u1",
                 canvas_path="test-canvas",
@@ -159,14 +165,11 @@ class TestDegradedDualWriteStrengthened:
                 agent_type="test",
                 score=70,
             )
-        except Exception:
-            pass  # Some paths may raise, that's ok
 
-        # STRONGER assertion: episode count should have increased
-        # (episode is appended before Neo4j write attempt)
-        assert len(ms._episodes) >= initial_count, (
-            f"Episodes should not decrease after failed Neo4j write. "
-            f"Before: {initial_count}, After: {len(ms._episodes)}"
+        # State consistency: episodes should not be corrupted
+        assert len(ms._episodes) == initial_count, (
+            "Episode count should stay the same when Neo4j write fails "
+            "(episode append is after Neo4j call in the try block)"
         )
 
     @pytest.mark.asyncio

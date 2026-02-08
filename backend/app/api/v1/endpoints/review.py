@@ -17,7 +17,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Depends, status
 
 from app.models import (
     ErrorResponse,
@@ -67,6 +67,30 @@ except ImportError as e:
     _scheduler = None
     _scheduler_available = False
     logging.warning(f"EbbinghausReviewScheduler not available: {e}")
+
+
+# Code Review 38.3 C2 Fix: Module-level ReviewService singleton for non-Depends endpoints.
+# Multiple endpoints (L379, L722, L807, L1006) call get_review_service() without args,
+# but it's an async generator requiring FastAPI DI. This singleton provides a working fallback.
+_review_service_instance = None
+
+
+def _get_or_create_review_service():
+    """Get or create module-level ReviewService singleton."""
+    global _review_service_instance
+    if _review_service_instance is None:
+        from app.config import get_settings
+        from app.services.canvas_service import CanvasService
+        from app.services.background_task_manager import BackgroundTaskManager
+        from app.services.review_service import ReviewService
+        settings = get_settings()
+        canvas_service = CanvasService(settings)
+        task_manager = BackgroundTaskManager()
+        _review_service_instance = ReviewService(
+            canvas_service=canvas_service,
+            task_manager=task_manager
+        )
+    return _review_service_instance
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1000,10 +1024,10 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     [Source: specs/api/review-api.openapi.yml#/review/fsrs-state/{concept_id}]
     [Source: docs/stories/32.3.story.md#Task-1]
     """
-    from app.dependencies import get_review_service
-
+    # Code Review C2 Fix: Use _get_or_create_review_service() singleton
+    # instead of broken get_review_service() async generator call.
     try:
-        review_service = get_review_service()
+        review_service = _get_or_create_review_service()
         result = await review_service.get_fsrs_state(concept_id)
 
         if not result or not result.get("found"):

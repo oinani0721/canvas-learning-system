@@ -1921,6 +1921,9 @@ class Neo4jClient:
         rels = self._data.get("relationships", [])
         results = []
         for rel in rels:
+            # Field mapping: JSON storage uses different names than Cypher output
+            # JSON "concept_name" → output "concept" (matches Cypher c.name as concept)
+            # JSON "last_score" → output "score" (matches Cypher r.score as score)
             results.append({
                 "user_id": rel.get("user_id"),
                 "concept": rel.get("concept_name"),

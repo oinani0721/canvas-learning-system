@@ -122,35 +122,50 @@ Each test verifies data flows across service boundaries:
 - After fixes: 33/33 pass
 
 ### Completion Notes
-All 5 ACs verified with 43 integration tests across 10 test classes (2 test files):
+All 5 ACs verified with 43 integration tests across 10 test classes (7 test files):
 
-**Main test file** (`test_story_38_7_e2e_integration.py`) — 33 tests:
-- `TestAC1FreshEnvironmentStartup` — 7 tests (dual-write defaults, FSRS init, episode recovery, config-driven logging path)
-- `TestAC2FullLearningFlow` — 7 tests (LanceDB index trigger, learning event, timeout alignment, FSRS state)
-- `TestAC3RestartSurvival` — 4 tests (episode recovery, deduplication, FSRS in-memory persistence, LanceDB pending)
-- `TestAC4DegradedMode` — 5 tests (JSON fallback, dual-write disabled, failed writes, FSRS module flag check)
-- `TestAC5Recovery` — 5 tests (failed write replay, partial failure, failed scores merge, response model validation)
-- `TestCrossStoryDataFlow` — 4 tests (canvas-to-history flow, timeout alignment, config defaults, path consistency)
+**AC-1 file** (`test_story_38_7_ac1_fresh_startup.py`) — 7 tests:
+- `TestAC1FreshEnvironmentStartup` — dual-write defaults, FSRS init, episode recovery, config-driven logging path
 
-**QA supplement file** (`test_story_38_7_qa_supplement.py`) — 10 tests:
+**AC-2 file** (`test_story_38_7_ac2_learning_flow.py`) — 7 tests:
+- `TestAC2FullLearningFlow` — LanceDB index trigger, learning event, timeout alignment, FSRS state
+
+**AC-3 file** (`test_story_38_7_ac3_restart_survival.py`) — 4 tests:
+- `TestAC3RestartSurvival` — episode recovery, deduplication, FSRS in-memory persistence, LanceDB pending
+
+**AC-4 file** (`test_story_38_7_ac4_degraded_mode.py`) — 5 tests:
+- `TestAC4DegradedMode` — JSON fallback, dual-write disabled, failed writes, FSRS module flag check
+
+**AC-5 + Cross-Story file** (`test_story_38_7_ac5_recovery_and_cross_story.py`) — 9 tests:
+- `TestAC5Recovery` — failed write replay, partial failure, failed scores merge, response model validation
+- `TestCrossStoryDataFlow` — canvas-to-history flow, timeout alignment, config defaults, path consistency
+
+**QA supplement file** (`test_story_38_7_qa_supplement.py`) — 11 tests:
 - `TestHealthEndpointHTTP` — 4 tests (HTTP /health endpoint via TestClient, FSRS component status)
 - `TestDegradedDualWriteStrengthened` — 2 tests (strengthened AC-4 assertions for episode persistence)
 - `TestScoringWriteRecoveryFlow` — 2 tests (failed_writes.jsonl field completeness, append behavior)
-- `TestConfigDefaultsSafety` — 3 tests (timeout, LanceDB default, VERIFICATION_AI_TIMEOUT xfail)
+- `TestConfigDefaultsSafety` — 3 tests (timeout, LanceDB default, VERIFICATION_AI_TIMEOUT)
+
+**Shared helpers** (`conftest.py`) — mock factories for Neo4j and LearningMemory
 
 Known issue found: `fsrs_manager.serialize_card()` crashes on newly created cards with `stability=None` — separate bug, not in scope of Story 38.7.
-Known issue documented: `VERIFICATION_AI_TIMEOUT` default=0.5s is too low — tracked as xfail test, pre-existing bug.
 
 ## File List
 
 | Action | File |
 |--------|------|
 | Created | `docs/implementation-artifacts/story-38.7.md` |
-| Created | `backend/tests/integration/test_story_38_7_e2e_integration.py` |
+| Created | `backend/tests/integration/conftest.py` |
+| Created | `backend/tests/integration/test_story_38_7_ac1_fresh_startup.py` |
+| Created | `backend/tests/integration/test_story_38_7_ac2_learning_flow.py` |
+| Created | `backend/tests/integration/test_story_38_7_ac3_restart_survival.py` |
+| Created | `backend/tests/integration/test_story_38_7_ac4_degraded_mode.py` |
+| Created | `backend/tests/integration/test_story_38_7_ac5_recovery_and_cross_story.py` |
 | Created | `backend/tests/integration/test_story_38_7_qa_supplement.py` |
 
 ## Change Log
 
+- 2026-02-08: Code review round 2 — fixed dedup test (timestamp-aware key), extracted shared helpers to conftest.py, replaced bare except with pytest.raises, strengthened or-assertions, fixed mock targets (create_learning_relationship vs record_episode_to_neo4j), patched FSRS_RUNTIME_OK for health degraded test
 - 2026-02-07: Code review fixes — replaced 5 fake tests with real assertions, fixed misleading test name, updated File List and Completion Notes, added xfail for known VERIFICATION_AI_TIMEOUT bug
 - 2026-02-07: QA supplement added — 10 additional tests for HTTP health endpoint, strengthened degraded assertions, scoring recovery flow
 - 2026-02-07: Story 38.7 completed — 33/33 tests passing, all 5 ACs verified, status → review

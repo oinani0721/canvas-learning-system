@@ -14,33 +14,7 @@ import pytest
 from app.services.agent_service import MEMORY_WRITE_TIMEOUT
 from app.services.memory_service import MemoryService
 
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Helpers
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-def _make_mock_neo4j(*, episodes=None, health_ok=True, fail_write=False):
-    """Create a mock Neo4jClient with configurable behavior."""
-    mock = AsyncMock()
-    mock.initialize = AsyncMock()
-    mock.health_check = AsyncMock(return_value=health_ok)
-    mock.stats = {"initialized": True, "node_count": 10, "edge_count": 5, "episode_count": 3}
-    mock.get_all_recent_episodes = AsyncMock(return_value=episodes or [])
-    mock.get_learning_history = AsyncMock(return_value=[])
-    if fail_write:
-        mock.record_episode_to_neo4j = AsyncMock(side_effect=Exception("Neo4j connection refused"))
-    else:
-        mock.record_episode_to_neo4j = AsyncMock(return_value=True)
-    return mock
-
-
-def _make_mock_learning_memory():
-    """Create a mock LearningMemoryClient."""
-    mock = MagicMock()
-    mock.add_memory = MagicMock()
-    mock.save = MagicMock()
-    return mock
+from tests.integration.conftest import make_mock_neo4j, make_mock_learning_memory
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -79,7 +53,9 @@ class TestAC2FullLearningFlow:
                 "text": "Test concept",
                 "x": 0, "y": 0
             })
-            mock_idx.assert_called_once_with("test")
+            mock_idx.assert_called_once()
+            args, kwargs = mock_idx.call_args
+            assert args[0] == "test"
 
     @pytest.mark.asyncio
     async def test_canvas_update_node_triggers_lancedb_index(self, tmp_path):
@@ -101,7 +77,9 @@ class TestAC2FullLearningFlow:
 
         with patch.object(svc, "_trigger_lancedb_index") as mock_idx:
             await svc.update_node("test", "n1", {"text": "Updated"})
-            mock_idx.assert_called_once_with("test")
+            mock_idx.assert_called_once()
+            args, kwargs = mock_idx.call_args
+            assert args[0] == "test"
 
     @pytest.mark.asyncio
     async def test_lancedb_schedule_index_creates_debounced_task(self):
@@ -124,8 +102,8 @@ class TestAC2FullLearningFlow:
         """
         [P0] Story 38.2: record_learning_event appends to self._episodes.
         """
-        neo4j = _make_mock_neo4j()
-        learning_mem = _make_mock_learning_memory()
+        neo4j = make_mock_neo4j()
+        learning_mem = make_mock_learning_memory()
 
         ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
         await ms.initialize()
@@ -141,7 +119,8 @@ class TestAC2FullLearningFlow:
 
         assert len(ms._episodes) > 0
         last = ms._episodes[-1]
-        assert last.get("concept") == "Python" or last.get("node_id") == "n1"
+        assert last["concept"] == "Python"
+        assert last["node_id"] == "n1"
 
     def test_memory_write_timeout_is_at_least_10s(self):
         """

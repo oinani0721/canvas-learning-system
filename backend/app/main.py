@@ -14,6 +14,7 @@ Usage:
 """
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -116,8 +117,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning(f"MemoryService pre-warm failed (non-fatal): {e}")
 
     # ✅ Story 38.4: Log dual-write configuration status (AC-1, AC-2)
+    _dw_explicit = os.environ.get("ENABLE_GRAPHITI_JSON_DUAL_WRITE") is not None
     if settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE:
-        logger.info("Dual-write: enabled (default)")
+        if _dw_explicit:
+            logger.info("Dual-write: enabled (explicit configuration)")
+        else:
+            logger.info("Dual-write: enabled (default)")
     else:
         logger.info("Dual-write: disabled (explicit configuration)")
         logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")

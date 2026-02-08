@@ -349,39 +349,67 @@ class TestCodeReviewFixes:
         assert len(set(ids)) == 2, f"episode_ids not unique: {ids}"
 
     @pytest.mark.asyncio
-    async def test_lazy_recovery_skips_existing_episodes(
+    async def test_lazy_recovery_skips_exact_duplicates(
         self, memory_service, mock_neo4j_client
     ):
-        """M1 fix: Lazy recovery does not duplicate episodes already in cache."""
+        """Lazy recovery deduplicates on (user_id, concept, timestamp) — exact matches only."""
         # Startup fails
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             side_effect=Exception("Connection refused")
         )
-        mock_neo4j_client.create_learning_relationship = AsyncMock(return_value=True)
         await memory_service.initialize()
 
-        # Record an episode during degraded mode
-        await memory_service.record_learning_event(
-            user_id="u1", canvas_path="math.canvas",
-            node_id="n1", concept="algebra", agent_type="test",
-        )
+        # Manually add an episode with known timestamp (simulating degraded-mode)
+        memory_service._episodes.append({
+            "user_id": "u1", "concept": "algebra", "timestamp": "2026-02-06T10:00:00",
+            "episode_type": "learning",
+        })
         assert len(memory_service._episodes) == 1
 
-        # Neo4j comes back with data including the same concept
+        # Neo4j returns same (user_id, concept, timestamp) + a new one
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
             {"user_id": "u1", "concept": "algebra", "concept_id": "cid-1",
-             "score": None, "timestamp": "2026-02-06T10:00:00"},
+             "score": None, "timestamp": "2026-02-06T10:00:00"},  # exact match → skip
             {"user_id": "u2", "concept": "calculus", "concept_id": "cid-2",
-             "score": 85, "timestamp": "2026-02-06T11:00:00"},
+             "score": 85, "timestamp": "2026-02-06T11:00:00"},  # new → add
         ])
         mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
 
         await memory_service.get_learning_history(user_id="u1")
 
-        # Should have 2 episodes: original "algebra" + new "calculus" (no dup)
+        # Should have 2: original algebra + new calculus (exact dup skipped)
         concepts = [e.get("concept") for e in memory_service._episodes]
         assert concepts.count("algebra") == 1, f"Duplicate algebra! episodes: {concepts}"
         assert "calculus" in concepts
+
+    @pytest.mark.asyncio
+    async def test_lazy_recovery_keeps_different_timestamps(
+        self, memory_service, mock_neo4j_client
+    ):
+        """Same user+concept but different timestamps are kept (not deduped)."""
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            side_effect=Exception("Connection refused")
+        )
+        await memory_service.initialize()
+
+        # Episode with one timestamp
+        memory_service._episodes.append({
+            "user_id": "u1", "concept": "algebra", "timestamp": "2026-02-05T09:00:00",
+            "episode_type": "learning",
+        })
+
+        # Neo4j returns same concept but different timestamp
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
+            {"user_id": "u1", "concept": "algebra", "concept_id": "cid-1",
+             "score": 90, "timestamp": "2026-02-06T10:00:00"},  # different timestamp → keep
+        ])
+        mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
+
+        await memory_service.get_learning_history(user_id="u1")
+
+        # Both entries should be kept (different timestamps)
+        algebra_entries = [e for e in memory_service._episodes if e.get("concept") == "algebra"]
+        assert len(algebra_entries) == 2, f"Expected 2 algebra entries, got {len(algebra_entries)}"
 
     @pytest.mark.asyncio
     async def test_episode_cache_capped_at_2000(
@@ -406,3 +434,49 @@ class TestCodeReviewFixes:
         await memory_service.initialize()
 
         assert len(memory_service._episodes) <= 2000
+
+
+class TestConcurrentRecoveryProtection:
+    """H2 fix: Verify asyncio.Lock prevents concurrent recovery."""
+
+    @pytest.mark.asyncio
+    async def test_concurrent_lazy_recovery_runs_once(
+        self, mock_neo4j_client, mock_learning_memory_client
+    ):
+        """Two concurrent get_learning_history() calls should only trigger one recovery."""
+        import asyncio
+
+        svc = MemoryService(
+            neo4j_client=mock_neo4j_client,
+            learning_memory_client=mock_learning_memory_client,
+        )
+        # Startup: Neo4j down
+        mock_neo4j_client.get_all_recent_episodes = AsyncMock(
+            side_effect=Exception("Connection refused")
+        )
+        await svc.initialize()
+        assert svc._episodes_recovered is False
+
+        # Now Neo4j comes back — add a small delay to simulate real query
+        call_count = 0
+
+        async def slow_get_episodes(limit=1000):
+            nonlocal call_count
+            call_count += 1
+            await asyncio.sleep(0.05)  # Small delay to allow concurrent entry
+            return [{"user_id": "u1", "concept": f"concept-{call_count}",
+                     "concept_id": "c1", "score": 80,
+                     "timestamp": "2026-02-06T10:00:00"}]
+
+        mock_neo4j_client.get_all_recent_episodes = slow_get_episodes
+        mock_neo4j_client.get_learning_history = AsyncMock(return_value=[])
+
+        # Fire two concurrent queries
+        await asyncio.gather(
+            svc.get_learning_history(user_id="u1"),
+            svc.get_learning_history(user_id="u2"),
+        )
+
+        # Recovery should have run exactly once (lock prevents double entry)
+        assert call_count == 1, f"Expected 1 recovery call, got {call_count}"
+        assert svc._episodes_recovered is True
