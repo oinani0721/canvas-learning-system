@@ -16,14 +16,15 @@ import json
 import logging
 import os
 import re
-import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
 # Story 12.G.2: Agent Error Type Enum
 # [Source: specs/api/agent-api.openapi.yml:617-627]
@@ -44,12 +45,8 @@ logger = logging.getLogger(__name__)
 # Must be >= sum of inner retry backoffs (1+2+4=7s) + 3 × per-attempt timeout (2s) + margin
 MEMORY_WRITE_TIMEOUT = 15.0
 
-# Story 38.6: Failed writes fallback file path
-# NOTE: Also defined in memory_service.py — keep both in sync
-FAILED_WRITES_FILE = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
-
-# Story 38.6 AC-2: Lock for concurrent JSONL writes (threading.Lock for sync IO)
-_failed_writes_lock = threading.Lock()
+# Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
+# app.core.failed_writes_constants (shared with memory_service.py)
 
 
 def _record_failed_write(
@@ -68,11 +65,11 @@ def _record_failed_write(
     Each entry includes timestamp, event_type, concept_id, canvas_name, score, error_reason,
     plus concept, user_understanding, agent_feedback for complete recovery.
     Uses append mode so multiple failures accumulate for later recovery.
-    Thread-safe via _failed_writes_lock.
+    Thread-safe via failed_writes_lock (shared with memory_service).
     """
     try:
         entry = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "event_type": event_type,
             "concept_id": concept_id,
             "canvas_name": canvas_name,
@@ -83,7 +80,7 @@ def _record_failed_write(
             "agent_feedback": agent_feedback,
         }
         FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with _failed_writes_lock:
+        with failed_writes_lock:
             with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         logger.warning(

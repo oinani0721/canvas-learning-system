@@ -43,6 +43,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
 # Story 36.9 AC-36.9.1: Import LearningMemoryClient for Graphiti JSON dual-write
 # ✅ Verified from backend/app/clients/graphiti_client.py#L594-L624
@@ -72,8 +74,8 @@ GRAPHITI_JSON_WRITE_TIMEOUT = 2.0
 # Story 38.6 AC-1: Retry backoff base (seconds). Backoff = base * 2^attempt → 1s, 2s, 4s
 GRAPHITI_RETRY_BACKOFF_BASE = 1.0
 
-# Story 38.6 AC-2/3: Failed writes fallback file (shared with agent_service)
-FAILED_WRITES_FILE = Path(__file__).parent.parent.parent / "data" / "failed_writes.jsonl"
+# Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
+# app.core.failed_writes_constants (shared with agent_service.py)
 
 
 @dataclass
@@ -122,6 +124,8 @@ class MemoryService:
     [Source: docs/stories/22.4.story.md#Dev-Notes]
     """
 
+    MAX_EPISODE_CACHE = 2000  # Story 38.2: Upper bound on in-memory episode cache
+
     def __init__(
         self,
         neo4j_client: Optional[Neo4jClient] = None,
@@ -145,6 +149,8 @@ class MemoryService:
         self._episodes: List[Dict[str, Any]] = []  # In-memory episode store
         # Story 38.2 AC-2: Track whether episodes have been recovered from Neo4j
         self._episodes_recovered: bool = False
+        # Story 38.2: Lock to prevent concurrent recovery attempts
+        self._recovery_lock = asyncio.Lock()
         # Story 31.5: Cache for score history queries (30s TTL)
         self._score_history_cache: Dict[str, Tuple[float, ScoreHistoryResponse]] = {}
         logger.debug("MemoryService initialized with Graphiti JSON dual-write support")
@@ -174,49 +180,55 @@ class MemoryService:
         _episodes remains empty, _episodes_recovered stays False, and
         recovery is re-attempted lazily on first query.
 
+        Uses _recovery_lock to prevent concurrent recovery from multiple
+        simultaneous get_learning_history() calls.
+
         [Source: docs/stories/38.2.story.md#Task-2]
         """
-        try:
-            records = await self.neo4j.get_all_recent_episodes(limit=1000)
-            if records:
-                # Build set of existing episode keys to avoid duplicates (M1 fix)
-                existing_keys = {
-                    (e.get("user_id"), e.get("concept"))
-                    for e in self._episodes
-                }
+        async with self._recovery_lock:
+            # Double-check after acquiring lock (another coroutine may have completed recovery)
+            if self._episodes_recovered:
+                return
+            try:
+                records = await self.neo4j.get_all_recent_episodes(limit=1000)
                 added = 0
-                for idx, record in enumerate(records):
-                    user_id = record.get("user_id")
-                    concept = record.get("concept")
-                    # M1: Skip if already in cache (from degraded-mode recording)
-                    if (user_id, concept) in existing_keys:
-                        continue
-                    episode = {
-                        # H1 fix: unique episode_id using index + user_id + concept_id
-                        "episode_id": f"recovered-{idx}-{user_id or 'unknown'}-{record.get('concept_id') or 'unknown'}",
-                        "user_id": user_id,
-                        "concept": concept,
-                        "concept_id": record.get("concept_id"),
-                        "score": record.get("score"),
-                        # H2 fix: use `or` to handle None values correctly
-                        "timestamp": str(record.get("timestamp") or ""),
-                        "group_id": record.get("group_id"),
-                        "review_count": record.get("review_count") or 0,
-                        "episode_type": "recovered",
+                if records:
+                    # Build set of existing episode keys to avoid duplicates
+                    # Key includes timestamp so same user+concept at different times are kept
+                    existing_keys = {
+                        (e.get("user_id"), e.get("concept"), str(e.get("timestamp") or ""))
+                        for e in self._episodes
                     }
-                    self._episodes.append(episode)
-                    existing_keys.add((user_id, concept))
-                    added += 1
-                # M2: Cap episode cache to prevent unbounded growth
-                max_episodes = 2000
-                if len(self._episodes) > max_episodes:
-                    self._episodes = self._episodes[-max_episodes:]
-            self._episodes_recovered = True
-            logger.info(f"MemoryService: recovered {len(records)} episodes from Neo4j")
-        except Exception as e:
-            # AC-3: Graceful degradation — start with empty history
-            self._episodes_recovered = False
-            logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
+                    for idx, record in enumerate(records):
+                        user_id = record.get("user_id")
+                        concept = record.get("concept")
+                        timestamp = str(record.get("timestamp") or "")
+                        # Skip if already in cache (from degraded-mode recording)
+                        if (user_id, concept, timestamp) in existing_keys:
+                            continue
+                        episode = {
+                            "episode_id": f"recovered-{idx}-{user_id or 'unknown'}-{record.get('concept_id') or 'unknown'}",
+                            "user_id": user_id,
+                            "concept": concept,
+                            "concept_id": record.get("concept_id"),
+                            "score": record.get("score"),
+                            "timestamp": timestamp,
+                            "group_id": record.get("group_id"),
+                            "review_count": record.get("review_count") or 0,
+                            "episode_type": "recovered",
+                        }
+                        self._episodes.append(episode)
+                        existing_keys.add((user_id, concept, timestamp))
+                        added += 1
+                    # Cap episode cache to prevent unbounded growth
+                    if len(self._episodes) > self.MAX_EPISODE_CACHE:
+                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+                self._episodes_recovered = True
+                logger.info(f"MemoryService: recovered {added} episodes from Neo4j ({len(records)} returned, {len(records) - added} deduped)")
+            except Exception as e:
+                # AC-3: Graceful degradation — start with empty history
+                self._episodes_recovered = False
+                logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
 
     async def _write_to_graphiti_json(
         self,
@@ -441,7 +453,7 @@ class MemoryService:
             # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
             # ✅ AC-36.9.5: Check config flag before calling dual-write
             # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
-            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 asyncio.create_task(
                     self._write_to_graphiti_json_with_retry(
                         episode_id=episode_id,
@@ -560,7 +572,8 @@ class MemoryService:
             episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
         # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps
-        failed_scores = self.load_failed_scores()
+        # Run sync file I/O in thread to avoid blocking the event loop (#3)
+        failed_scores = await asyncio.to_thread(self.load_failed_scores)
         if failed_scores:
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {
@@ -1072,7 +1085,7 @@ class MemoryService:
         # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
         # ✅ AC-36.9.5: Check config flag before calling dual-write
         # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
-        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", False):
+        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
             # Extract concept from metadata (node_text for node events)
             concept = ""
             if metadata:
@@ -1103,17 +1116,22 @@ class MemoryService:
         Reads each entry, attempts to re-record it. Successfully replayed entries
         are removed; still-failing entries remain in the file.
 
+        Uses failed_writes_lock to avoid racing with _record_failed_write.
+
         Returns:
             dict with 'recovered' and 'pending' counts
         """
         if not FAILED_WRITES_FILE.exists():
             return {"recovered": 0, "pending": 0}
 
-        try:
-            lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
-        except Exception as e:
-            logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
-            return {"recovered": 0, "pending": 0}
+        # Acquire shared lock to prevent _record_failed_write from appending
+        # while we read + rewrite the file (fixes #1 race condition).
+        with failed_writes_lock:
+            try:
+                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+            except Exception as e:
+                logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
+                return {"recovered": 0, "pending": 0}
 
         if not lines:
             return {"recovered": 0, "pending": 0}
@@ -1126,11 +1144,15 @@ class MemoryService:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 logger.warning(f"[Story 38.6] Skipping malformed fallback entry")
+                still_pending.append(line)  # preserve malformed lines to avoid data loss
                 continue
 
             try:
+                # Use concept_id + timestamp for unique episode_id (#7)
+                cid = entry.get("concept_id", "unknown")
+                ts = entry.get("timestamp", "unknown")
                 success = await self._write_to_graphiti_json_with_retry(
-                    episode_id=f"recovery-{entry.get('concept_id', 'unknown')}",
+                    episode_id=f"recovery-{cid}-{ts}",
                     canvas_name=entry.get("canvas_name", ""),
                     node_id=entry.get("concept_id", ""),
                     concept=entry.get("concept", "") or entry.get("concept_id", ""),
@@ -1146,18 +1168,29 @@ class MemoryService:
             except Exception:
                 still_pending.append(line)
 
-        # Rewrite file with only still-pending entries (atomic write-then-rename)
-        try:
-            if still_pending:
-                tmp_file = FAILED_WRITES_FILE.with_suffix(".tmp")
-                tmp_file.write_text(
-                    "\n".join(still_pending) + "\n", encoding="utf-8"
-                )
-                tmp_file.replace(FAILED_WRITES_FILE)
-            else:
-                FAILED_WRITES_FILE.unlink(missing_ok=True)
-        except Exception as e:
-            logger.warning(f"[Story 38.6] Failed to update fallback file: {e}")
+        # Rewrite file with only still-pending entries under lock
+        with failed_writes_lock:
+            try:
+                if still_pending:
+                    tmp_file = FAILED_WRITES_FILE.with_suffix(".tmp")
+                    tmp_file.write_text(
+                        "\n".join(still_pending) + "\n", encoding="utf-8"
+                    )
+                    # Windows-safe replace: retry on PermissionError (#2)
+                    for attempt in range(3):
+                        try:
+                            tmp_file.replace(FAILED_WRITES_FILE)
+                            break
+                        except PermissionError:
+                            if attempt < 2:
+                                import time as _time
+                                _time.sleep(0.1)
+                            else:
+                                raise
+                else:
+                    FAILED_WRITES_FILE.unlink(missing_ok=True)
+            except Exception as e:
+                logger.warning(f"[Story 38.6] Failed to update fallback file: {e}")
 
         logger.info(
             f"[Story 38.6] Recovered {recovered} failed writes, {len(still_pending)} still pending"
@@ -1170,13 +1203,16 @@ class MemoryService:
 
         Returns list of dicts that can be merged into learning history results,
         so the user never sees a "missing score" gap.
+
+        Uses failed_writes_lock to avoid reading a partially-written line.
         """
         if not FAILED_WRITES_FILE.exists():
             return []
 
         results = []
         try:
-            lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
+            with failed_writes_lock:
+                lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
             for line in lines:
                 try:
                     entry = json.loads(line)

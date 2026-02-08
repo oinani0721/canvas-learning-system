@@ -19,15 +19,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
-    FAILED_WRITES_FILE,
     _record_failed_write,
 )
 from app.services.memory_service import (
     GRAPHITI_JSON_WRITE_TIMEOUT,
     GRAPHITI_RETRY_BACKOFF_BASE,
-    FAILED_WRITES_FILE as MS_FAILED_WRITES_FILE,
     MemoryService,
 )
+from app.core.failed_writes_constants import FAILED_WRITES_FILE
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -56,7 +55,8 @@ class TestWriteWithTimeoutIntegration:
         async def slow_write(*args, **kwargs):
             await asyncio.sleep(30)  # Will be killed by timeout
 
-        with patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
+        with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \
              patch("app.services.agent_service.MEMORY_WRITE_TIMEOUT", 0.05):
             # Directly test the _write_with_timeout pattern
             try:
@@ -162,7 +162,8 @@ class TestRecoveryEdgeCases:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             result = await memory_service.recover_failed_writes()
 
         assert result == {"recovered": 0, "pending": 0}
@@ -173,22 +174,24 @@ class TestRecoveryEdgeCases:
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("\n\n   \n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             result = await memory_service.recover_failed_writes()
 
         assert result == {"recovered": 0, "pending": 0}
 
     @pytest.mark.asyncio
     async def test_recover_all_malformed(self, memory_service, tmp_path):
-        """[P1] File with only malformed entries → recovered=0, pending=0."""
+        """[P1] File with only malformed entries → recovered=0, pending=2 (preserved)."""
         fallback_file = tmp_path / "failed_writes.jsonl"
         fallback_file.write_text("not json\nalso not json\n", encoding="utf-8")
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             result = await memory_service.recover_failed_writes()
 
         assert result["recovered"] == 0
-        assert result["pending"] == 0
+        assert result["pending"] == 2  # Malformed entries preserved to avoid data loss
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -227,7 +230,8 @@ class TestMergedViewEdgeCases:
         )
 
         ms = MemoryService.__new__(MemoryService)
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             results = ms.load_failed_scores()
 
         assert len(results) == 1
@@ -265,7 +269,8 @@ class TestMergedViewEdgeCases:
         }
         memory_service.neo4j.get_learning_history = AsyncMock(return_value=[neo4j_episode])
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             result = await memory_service.get_learning_history(user_id="test")
 
         items = result["items"]
@@ -280,7 +285,8 @@ class TestMergedViewEdgeCases:
         fallback_file.write_text("", encoding="utf-8")
 
         ms = MemoryService.__new__(MemoryService)
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             results = ms.load_failed_scores()
 
         assert results == []
@@ -329,7 +335,8 @@ class TestFullCycleIntegration:
         # Mock the retry to succeed
         ms._write_to_graphiti_json_with_retry = AsyncMock(return_value=True)
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             result = await ms.recover_failed_writes()
 
         assert result["recovered"] == 1
@@ -368,7 +375,8 @@ class TestFullCycleIntegration:
 
         ms._write_to_graphiti_json_with_retry = AsyncMock(return_value=False)
 
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             recovery = await ms.recover_failed_writes()
 
         assert recovery["recovered"] == 0
@@ -376,7 +384,8 @@ class TestFullCycleIntegration:
         assert fallback_file.exists()  # Still there
 
         # Step 3: Merged view includes the stuck entry
-        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file):
+        with patch("app.services.memory_service.FAILED_WRITES_FILE", fallback_file), \
+             patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file):
             history = await ms.get_learning_history(user_id="test")
 
         assert history["total"] == 1
