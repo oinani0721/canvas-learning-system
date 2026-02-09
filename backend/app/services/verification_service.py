@@ -31,7 +31,7 @@ Story 31.1 Implementation:
 - ✅ AC-31.1.2: generate_question_with_rag() calls Gemini API
 - ✅ AC-31.1.3: process_answer() integrates scoring-agent (0-40 mapping)
 - ✅ AC-31.1.4: RAG context injection for all methods
-- ✅ AC-31.1.5: 500ms timeout protection and graceful degradation
+- ✅ AC-31.1.5: 15s timeout protection and graceful degradation
 
 Author: Canvas Learning System Team
 Version: 3.0.0 (Story 31.1 - Real AI Integration)
@@ -55,6 +55,9 @@ USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "
 
 # Story 31.1: AI timeout configuration (AC-31.1.5)
 VERIFICATION_AI_TIMEOUT = float(os.getenv("VERIFICATION_AI_TIMEOUT", "15"))  # 15s default for Gemini API
+
+# Story 31.4 ADR-009: Graphiti query timeout (separate from Gemini API timeout)
+GRAPHITI_QUERY_TIMEOUT = float(os.getenv("GRAPHITI_QUERY_TIMEOUT", "0.5"))  # 500ms for Graphiti queries
 
 from app.services.agent_service import AgentType
 
@@ -459,6 +462,9 @@ class VerificationService:
 
         # Story 31.4: Graphiti client for question deduplication
         self._graphiti_client = graphiti_client
+
+        # Story 31.4 M2: Track fire-and-forget background tasks for cleanup
+        self._background_tasks: set = set()
 
         # Story 31.5: Memory service for difficulty adaptation
         self._memory_service = memory_service
@@ -866,6 +872,11 @@ class VerificationService:
         Story 31.4 fix: Use stored question from state (already generated with
         dedup logic) instead of hardcoded template. Falls back to
         generate_question_with_rag() which includes Graphiti dedup.
+
+        Note: If state["current_question"] is None (e.g. session was paused before
+        a question was generated), this will regenerate via generate_question_with_rag()
+        which queries Graphiti for dedup. The regenerated question may differ from
+        what would have been generated at the original time if Graphiti state changed.
         """
         if session_id not in self._sessions:
             raise ValueError(f"Session not found: {session_id}")
@@ -992,7 +1003,7 @@ class VerificationService:
             return ["概念1", "概念2", "概念3"]
 
         try:
-            # AC-31.1.5: 500ms timeout protection for Canvas reading
+            # AC-31.1.5: 15s timeout protection for Canvas reading
             concepts = await asyncio.wait_for(
                 self._do_extract_concepts(canvas_name, canvas_path, node_ids),
                 timeout=VERIFICATION_AI_TIMEOUT
@@ -1186,7 +1197,7 @@ class VerificationService:
             return self._mock_evaluate_answer(user_answer)
 
         try:
-            # AC-31.1.5: 500ms timeout protection
+            # AC-31.1.5: 15s timeout protection
             quality, score = await asyncio.wait_for(
                 self._do_scoring_agent_call(concept, user_answer, canvas_name),
                 timeout=VERIFICATION_AI_TIMEOUT
@@ -1413,7 +1424,7 @@ class VerificationService:
             return default_result
 
         try:
-            # AC-31.1.5: 500ms timeout protection (Story 31.5 Task 7.2)
+            # AC-31.1.5: 15s timeout protection (Story 31.5 Task 7.2)
             concept_id = node_id if node_id else concept
             score_history = await asyncio.wait_for(
                 self._memory_service.get_concept_score_history(
@@ -2129,9 +2140,9 @@ class VerificationService:
             )
 
             # Story 31.4 Task 6: Store generated question to Graphiti (fire-and-forget)
-            # Include question_type from difficulty
+            # M2 fix: Save task reference for cleanup
             question_type = difficulty.question_type.value if difficulty else "verification"
-            asyncio.create_task(
+            task = asyncio.create_task(
                 self._store_question_to_graphiti(
                     question=question,
                     concept=concept,
@@ -2140,6 +2151,8 @@ class VerificationService:
                     group_id=group_id
                 )
             )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
             # Story 31.5 AC-31.5.4: Return with difficulty info if requested
             if return_difficulty_info:
@@ -2232,7 +2245,7 @@ class VerificationService:
             return []
 
         try:
-            # AC-31.1.5: 500ms timeout protection (ADR-009)
+            # Story 31.4 ADR-009: 500ms timeout for Graphiti queries (separate from Gemini 15s)
             history = await asyncio.wait_for(
                 self._graphiti_client.search_verification_questions(
                     concept=concept,
@@ -2240,14 +2253,14 @@ class VerificationService:
                     group_id=group_id,
                     limit=10  # Get last 10 questions for deduplication
                 ),
-                timeout=VERIFICATION_AI_TIMEOUT
+                timeout=GRAPHITI_QUERY_TIMEOUT
             )
             return history if history else []
 
         except asyncio.TimeoutError:
             logger.warning(
                 f"Graphiti history query timeout for concept '{concept}' "
-                f"(timeout={VERIFICATION_AI_TIMEOUT}s), proceeding without history"
+                f"(timeout={GRAPHITI_QUERY_TIMEOUT}s), proceeding without history"
             )
             return []
 
@@ -2342,7 +2355,8 @@ class VerificationService:
             )
 
             # Store the generated question to Graphiti (fire-and-forget)
-            asyncio.create_task(
+            # M2 fix: Save task reference for cleanup
+            task = asyncio.create_task(
                 self._store_question_to_graphiti(
                     question=question,
                     concept=concept,
@@ -2351,6 +2365,8 @@ class VerificationService:
                     group_id=group_id
                 )
             )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
             return question
 

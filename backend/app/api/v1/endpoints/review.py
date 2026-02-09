@@ -389,8 +389,6 @@ async def get_review_history(
     """
     from datetime import datetime as dt
 
-    from app.dependencies import get_review_service
-
     # Validate days parameter
     if days not in [7, 30, 90]:
         days = 7
@@ -399,8 +397,9 @@ async def get_review_history(
     end_date = date.today()
     start_date = end_date - timedelta(days=days)
 
-    # Get review service
-    review_service = get_review_service()
+    # Code Review C2 Fix: Use module-level singleton instead of broken
+    # get_review_service() async generator call without DI args.
+    review_service = _get_or_create_review_service()
 
     try:
         # Get history from service with pagination
@@ -740,20 +739,24 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1record]
     [Source: docs/stories/32.2.story.md - FSRS Integration]
     """
-    from app.dependencies import get_review_service
-
-    # Get ReviewService with FSRS support
-    review_service = get_review_service()
+    # Code Review C2 Fix: Use module-level singleton instead of broken
+    # get_review_service() async generator call without DI args.
+    review_service = _get_or_create_review_service()
 
     try:
         # Call record_review_result with new FSRS-enabled parameters
+        # EPIC-32 Fix: review_duration is not a direct parameter of record_review_result,
+        # pass it via details dict to avoid TypeError
+        details = {}
+        if request.review_duration is not None:
+            details["review_duration"] = request.review_duration
         result = await review_service.record_review_result(
             canvas_name=request.canvas_name,
             concept_id=request.node_id,
             rating=request.rating,
             score=request.score,
             card_state=request.card_state,
-            review_duration=request.review_duration
+            details=details if details else None
         )
 
         # Build response with FSRS state if available
@@ -825,10 +828,10 @@ async def get_multi_review_progress(
     """
     # Import here to avoid circular dependency
     from app.core.exceptions import CanvasNotFoundException
-    from app.dependencies import get_review_service
 
     try:
-        review_service = get_review_service()
+        # Code Review C2 Fix: Use module-level singleton
+        review_service = _get_or_create_review_service()
         result = await review_service.get_multi_review_progress(original_canvas_path)
         return MultiReviewProgressResponse(**result)
     except CanvasNotFoundException as e:
@@ -919,17 +922,24 @@ async def get_verification_history(
 
     try:
         # Query verification questions from Graphiti
-        # Story 31.4 AC-31.4.1: Use search_verification_questions method
+        # Story 31.4 AC-31.4.3: Use search_verification_questions method
+        # H2 fix: Fetch enough results to cover offset + limit + 1 (for has_more check)
+        # H3 fix: Use total fetched count (before slicing) as total_count
+        fetch_limit = offset + limit + 1
         raw_results = await graphiti_client.search_verification_questions(
             concept=concept,
             canvas_name=canvas_name,
             group_id=group_id,
-            limit=limit + 1  # Fetch one extra to check has_more
+            limit=fetch_limit
         )
 
-        # Determine if there are more results
-        has_more = len(raw_results) > limit
-        results = raw_results[:limit] if has_more else raw_results
+        # H3 fix: total_count reflects all available results (capped at fetch_limit)
+        total_count = len(raw_results)
+
+        # H2 fix: Apply offset slicing, then limit
+        offset_results = raw_results[offset:]
+        has_more = len(offset_results) > limit
+        results = offset_results[:limit] if has_more else offset_results
 
         # Convert to response format
         items = []
@@ -965,7 +975,7 @@ async def get_verification_history(
 
         return VerificationHistoryResponse(
             concept=concept,
-            total_count=len(items),
+            total_count=total_count,
             items=items,
             pagination=PaginationInfo(
                 limit=limit,
