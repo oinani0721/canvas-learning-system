@@ -212,6 +212,35 @@ class TestRecommendActionFromScore:
         assert action == ActionType.next
         assert review is False
 
+    def test_high_score_with_declining_trend_preserves_review(self):
+        """[Bug fix] High score with declining trend should still suggest review.
+
+        AC-31.3.4 requires considering historical trends even when current score is high.
+        Scenario: Student scores 82 but trend is 90→85→60→50→40 (declining).
+        """
+        history = HistoryContext(
+            recent_scores=[82, 60, 50, 40],
+            average_score=58.0,
+            trend=ActionTrend.declining,
+            consecutive_low_count=0,
+        )
+        action, _, _, _, review, _ = _recommend_action_from_score(82, history)
+        assert action == ActionType.next
+        assert review is True  # Must preserve declining trend warning
+
+    def test_high_score_with_consecutive_low_preserves_review(self):
+        """[Bug fix] High score after 3+ consecutive lows should still suggest review."""
+        history = HistoryContext(
+            recent_scores=[40, 35, 30],
+            average_score=35.0,
+            trend=ActionTrend.declining,
+            consecutive_low_count=3,
+        )
+        action, _, _, priority, review, alts = _recommend_action_from_score(85, history)
+        assert action == ActionType.next
+        assert review is True  # History concern persists
+        assert len(alts) >= 1  # Memory anchor alternative should be present
+
 
 class TestRecommendActionEndpoint:
     """Test recommend_action endpoint (AC-31.3.1, AC-31.3.2)."""
@@ -381,6 +410,60 @@ class TestRecommendActionEndpoint:
         assert response.history_context is not None
         assert response.history_context.trend == ActionTrend.declining
 
+    @pytest.mark.asyncio
+    async def test_history_with_timestamps_sorted_correctly(self):
+        """[Bug fix] History items with timestamps should be sorted most-recent-first.
+
+        Covers SORT-001 branch: when items have 'timestamp' field,
+        they must be sorted by timestamp descending before extracting scores.
+        """
+        mock_memory = MockMemoryService(
+            history_items=[
+                # Deliberately out of order
+                {"score": 60, "timestamp": "2026-02-07T10:00:00Z", "concept": "test"},
+                {"score": 90, "timestamp": "2026-02-09T10:00:00Z", "concept": "test"},
+                {"score": 70, "timestamp": "2026-02-08T10:00:00Z", "concept": "test"},
+                {"score": 50, "timestamp": "2026-02-06T10:00:00Z", "concept": "test"},
+            ]
+        )
+        request = RecommendActionRequest(
+            score=75,
+            node_id="node-sort-001",
+            canvas_name="test.canvas",
+            include_history=True,
+        )
+
+        response = await recommend_action(request, mock_memory)
+
+        assert response.history_context is not None
+        # Scores should be ordered by timestamp descending: 90, 70, 60, 50
+        assert response.history_context.recent_scores == [90, 70, 60, 50]
+        # Average: (90+70+60+50)/4 = 67.5
+        assert response.history_context.average_score == 67.5
+
+    @pytest.mark.asyncio
+    async def test_history_without_timestamps_preserves_source_order(self):
+        """History items without timestamps should preserve source order."""
+        mock_memory = MockMemoryService(
+            history_items=[
+                {"score": 80, "concept": "test"},
+                {"score": 60, "concept": "test"},
+                {"score": 70, "concept": "test"},
+            ]
+        )
+        request = RecommendActionRequest(
+            score=72,
+            node_id="node-sort-002",
+            canvas_name="test.canvas",
+            include_history=True,
+        )
+
+        response = await recommend_action(request, mock_memory)
+
+        assert response.history_context is not None
+        # Without timestamps, source order preserved: 80, 60, 70
+        assert response.history_context.recent_scores == [80, 60, 70]
+
 
 class TestRecommendActionModels:
     """Test Pydantic model validation."""
@@ -441,3 +524,117 @@ class TestRecommendActionModels:
         )
         assert alt.agent == "/agents/explain/memory"
         assert alt.reason == "Alternative reason"
+
+
+# =============================================================================
+# [Review fix TEST-001] HTTP Integration Tests
+# Verify the endpoint works through the full FastAPI stack
+# =============================================================================
+
+
+class TestRecommendActionHTTP:
+    """HTTP integration tests for POST /api/v1/agents/recommend-action.
+
+    These tests use FastAPI TestClient to verify:
+    - Route registration and URL correctness
+    - Pydantic request/response serialization via HTTP
+    - Dependency injection chain (MemoryServiceDep)
+    - HTTP error codes (400, 500)
+    """
+
+    @pytest.fixture(autouse=True)
+    def setup_client(self):
+        """Set up TestClient with mocked MemoryService dependency."""
+        from fastapi.testclient import TestClient
+        from app.main import app
+        from app.api.v1.endpoints.agents import get_memory_service_for_agents
+
+        mock_service = MockMemoryService()
+
+        async def override_memory_service():
+            yield mock_service
+
+        app.dependency_overrides[get_memory_service_for_agents] = override_memory_service
+        self.client = TestClient(app)
+        self.mock_service = mock_service
+        yield
+        app.dependency_overrides.pop(get_memory_service_for_agents, None)
+
+    def test_http_low_score_returns_200_decompose(self):
+        """HTTP POST with low score returns 200 and decompose action."""
+        response = self.client.post(
+            "/api/v1/agents/recommend-action",
+            json={
+                "score": 45,
+                "node_id": "node-http-001",
+                "canvas_name": "test.canvas",
+                "include_history": False,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "decompose"
+        assert data["agent"] == "/agents/decompose/basic"
+        assert "reason" in data
+        assert isinstance(data["priority"], int)
+
+    def test_http_high_score_returns_200_next(self):
+        """HTTP POST with high score returns 200 and next action."""
+        response = self.client.post(
+            "/api/v1/agents/recommend-action",
+            json={
+                "score": 92,
+                "node_id": "node-http-002",
+                "canvas_name": "math.canvas",
+                "include_history": False,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["action"] == "next"
+        assert data["agent"] is None
+
+    def test_http_invalid_score_returns_422(self):
+        """HTTP POST with out-of-range score returns 422 validation error."""
+        response = self.client.post(
+            "/api/v1/agents/recommend-action",
+            json={
+                "score": 150,
+                "node_id": "node-http-003",
+                "canvas_name": "test.canvas",
+            },
+        )
+        assert response.status_code == 422
+
+    def test_http_missing_required_field_returns_422(self):
+        """HTTP POST missing required field returns 422."""
+        response = self.client.post(
+            "/api/v1/agents/recommend-action",
+            json={"score": 50},  # missing node_id and canvas_name
+        )
+        assert response.status_code == 422
+
+    def test_http_response_structure_complete(self):
+        """HTTP response includes all expected fields."""
+        response = self.client.post(
+            "/api/v1/agents/recommend-action",
+            json={
+                "score": 70,
+                "node_id": "node-http-004",
+                "canvas_name": "physics.canvas",
+                "include_history": False,
+            },
+        )
+        assert response.status_code == 200
+        data = response.json()
+        # Verify all response fields exist
+        assert "action" in data
+        assert "agent" in data
+        assert "reason" in data
+        assert "priority" in data
+        assert "review_suggested" in data
+        assert "alternative_agents" in data
+        # Verify types
+        assert data["action"] in ["decompose", "explain", "next"]
+        assert isinstance(data["review_suggested"], bool)
+        assert isinstance(data["alternative_agents"], list)

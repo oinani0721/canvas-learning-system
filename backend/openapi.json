@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-08T22:28:23.147432+00:00",
+    "x-generated-at": "2026-02-09T13:54:30.947199+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -290,7 +290,7 @@
                       "checks": {
                         "neo4j_enabled": true,
                         "neo4j_connection": false,
-                        "error": "Connection timeout (>500ms)"
+                        "error": "Connection timeout (>30000ms)"
                       },
                       "cached": false,
                       "timestamp": "2026-01-16T10:30:00Z"

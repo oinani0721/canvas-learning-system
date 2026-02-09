@@ -1753,7 +1753,11 @@ def _recommend_action_from_score(
         agent = None
         reason = "掌握良好，可以继续下一个概念"
         priority = 3
-        review_suggested = False  # Good score, no review needed
+        # [Bug fix] Don't unconditionally clear review_suggested —
+        # preserve True if history analysis (declining trend) already set it.
+        # AC-31.3.4: historical trends should still surface even with high current score.
+        if not review_suggested:
+            review_suggested = False
 
     return action, reason, agent, priority, review_suggested, alternatives
 
@@ -1828,11 +1832,19 @@ async def recommend_action(
                 page_size=5  # Get last 5 scores
             )
 
-            # Extract scores from history items
-            recent_scores: List[int] = []
-            for item in history_result.get("items", []):
-                if "score" in item and item["score"] is not None:
-                    recent_scores.append(int(item["score"]))
+            # Extract scores from history items.
+            # [Bug fix] Consolidated from double-parse: extract once, sort if timestamps exist.
+            items = history_result.get("items", [])
+            valid_items = [
+                it for it in items
+                if "score" in it and it["score"] is not None
+            ]
+
+            # [Review fix SORT-001]: Sort by timestamp if available, otherwise trust source order.
+            if valid_items and any("timestamp" in it for it in valid_items):
+                valid_items.sort(key=lambda it: it.get("timestamp", ""), reverse=True)
+
+            recent_scores: List[int] = [int(it["score"]) for it in valid_items]
 
             if recent_scores:
                 # Calculate history context
