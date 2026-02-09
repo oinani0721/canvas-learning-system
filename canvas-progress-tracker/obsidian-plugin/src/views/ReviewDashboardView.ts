@@ -1068,20 +1068,24 @@ export class ReviewDashboardView extends ItemView {
             cls: 'verification-stat-item',
         });
 
-        // Highest score from sessions (Story 31.7 AC-31.7.3)
+        // Highest score + most recent time from sessions (Story 31.7 AC-31.7.3)
         if (relation.sessions && relation.sessions.length > 0) {
-            const highestPassRate = Math.max(...relation.sessions.map((s) => s.passRate));
-            const highestScore = (highestPassRate * 5).toFixed(1);
-            stats.createSpan({
-                text: `最高分: ${highestScore}/5`,
-                cls: 'verification-stat-item verification-stat-highest',
-            });
-        }
+            const validRates = relation.sessions
+                .map((s) => s.passRate)
+                .filter((p) => typeof p === 'number' && !isNaN(p));
+            if (validRates.length > 0) {
+                const highestPassRate = Math.max(...validRates);
+                const highestScore = (highestPassRate * 5).toFixed(1);
+                stats.createSpan({
+                    text: `最高分: ${highestScore}/5`,
+                    cls: 'verification-stat-item verification-stat-highest',
+                });
+            }
 
-        // Most recent verification time (Story 31.7 AC-31.7.3)
-        if (relation.sessions && relation.sessions.length > 0) {
-            const lastSession = relation.sessions[relation.sessions.length - 1];
-            const lastDateStr = lastSession.date.toLocaleDateString('zh-CN', {
+            const mostRecentSession = relation.sessions.reduce((a, b) =>
+                new Date(a.date).getTime() >= new Date(b.date).getTime() ? a : b
+            );
+            const lastDateStr = new Date(mostRecentSession.date).toLocaleDateString('zh-CN', {
                 month: 'short',
                 day: 'numeric',
             });
