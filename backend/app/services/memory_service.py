@@ -1111,6 +1111,12 @@ class MemoryService:
 
     async def recover_failed_writes(self) -> Dict[str, int]:
         """
+        .. deprecated:: Story 38.8
+            Replaced by ``FallbackSyncService.sync_all_fallbacks()`` which handles
+            all three fallback files with checkpoint support and conflict resolution.
+            This method is retained for backward compatibility but is no longer
+            called from the startup lifespan. See ``fallback_sync_service.py``.
+
         Story 38.6 AC-3: Replay failed writes from data/failed_writes.jsonl on startup.
 
         Reads each entry, attempts to re-record it. Successfully replayed entries

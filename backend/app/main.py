@@ -13,6 +13,7 @@ Usage:
     uvicorn app.main:app --reload
 """
 
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -127,17 +128,33 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("Dual-write: disabled (explicit configuration)")
         logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")
 
-    # ✅ Story 38.6 AC-3: Recover failed writes from fallback file on startup
+    # ✅ Story 38.8: Sync all JSON fallback files to Neo4j on startup
+    # Replaces Story 38.6 single-file recovery with comprehensive 3-file sync
     try:
-        from app.services.memory_service import get_memory_service as _get_ms
-        ms = _get_ms()
-        recovery_result = await ms.recover_failed_writes()
-        recovered = recovery_result.get("recovered", 0)
-        pending = recovery_result.get("pending", 0)
-        if recovered > 0 or pending > 0:
-            logger.info(f"[Story 38.6] Recovered {recovered} failed writes, {pending} still pending")
+        from app.services.fallback_sync_service import get_fallback_sync_service
+        sync_svc = get_fallback_sync_service()
+        sync_result = await asyncio.wait_for(
+            sync_svc.sync_all_fallbacks(), timeout=60.0
+        )
+        if not sync_result.get("skipped"):
+            for key, stats in sync_result.items():
+                if isinstance(stats, dict):
+                    r = stats.get("recovered", 0)
+                    p = stats.get("pending", 0)
+                    if r > 0 or p > 0:
+                        logger.info(
+                            f"[Story 38.8] {key}: {r} synced, {p} still pending"
+                        )
+        else:
+            logger.info(
+                f"[Story 38.8] Fallback sync skipped: {sync_result.get('reason')}"
+            )
+    except asyncio.TimeoutError:
+        logger.warning(
+            "[Story 38.8] Fallback sync timed out (60s), will resume next startup"
+        )
     except Exception as e:
-        logger.warning(f"[Story 38.6] Failed write recovery skipped: {e}")
+        logger.warning(f"[Story 38.8] Fallback sync failed (non-fatal): {e}")
 
     # ✅ Story 38.1 AC-3: Recover pending LanceDB index operations on startup
     try:
