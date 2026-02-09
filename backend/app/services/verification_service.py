@@ -487,17 +487,22 @@ class VerificationService:
         self,
         canvas_name: str,
         node_ids: Optional[List[str]] = None,
-        canvas_path: Optional[str] = None
+        canvas_path: Optional[str] = None,
+        include_mastered: bool = True
     ) -> Dict[str, Any]:
         """
         开始新的验证会话
 
         Story 31.1 AC-31.1.1: 从Canvas文件读取红色(color="4")+紫色(color="3")节点并提取概念
+        Story 31.5 AC-31.5.4: 支持跳过已掌握概念 (include_mastered=False)
 
         Args:
             canvas_name: 源Canvas名称
             node_ids: 可选，指定要验证的节点ID列表
             canvas_path: 可选，Canvas文件完整路径 (Story 31.1)
+            include_mastered: 是否包含已掌握概念 (Story 31.5 Task 5.4)
+                True=包含所有概念(默认，向后兼容)
+                False=过滤掉已掌握概念(连续3次>=80)
 
         Returns:
             {
@@ -508,6 +513,7 @@ class VerificationService:
             }
 
         [Source: docs/stories/31.1.story.md#Task-1]
+        [Source: docs/stories/31.5.story.md#Task-5.3, Task-5.4]
         """
         session_id = str(uuid.uuid4())
         logger.info(f"Starting verification session: {session_id} for canvas: {canvas_name}")
@@ -518,6 +524,40 @@ class VerificationService:
             canvas_path=canvas_path,
             node_ids=node_ids
         )
+
+        # Story 31.5 AC-31.5.4 (Task 5.3): Filter out mastered concepts
+        if not include_mastered and self._memory_service and concepts:
+            filtered = []
+            skipped = []
+            for concept in concepts:
+                try:
+                    history = await asyncio.wait_for(
+                        self._memory_service.get_concept_score_history(
+                            concept_id=concept,
+                            canvas_name=canvas_name,
+                            limit=5
+                        ),
+                        timeout=min(VERIFICATION_AI_TIMEOUT, 5.0)
+                    )
+                    if history and history.scores and is_concept_mastered(history.scores):
+                        skipped.append(concept)
+                        logger.info(f"Skipping mastered concept: '{concept}'")
+                    else:
+                        filtered.append(concept)
+                except Exception as e:
+                    logger.warning(f"Mastery check failed for '{concept}': {e}, including concept")
+                    filtered.append(concept)
+
+            if filtered:
+                concepts = filtered
+                if skipped:
+                    logger.info(
+                        f"Filtered {len(skipped)} mastered concepts, "
+                        f"{len(filtered)} remaining: {skipped}"
+                    )
+            elif skipped:
+                logger.info("All concepts mastered, including all for review")
+                # Don't leave empty — include all if everything is mastered
 
         # 创建初始状态
         state = {
@@ -820,7 +860,13 @@ class VerificationService:
         return {"status": "paused", "session_id": session_id}
 
     async def resume_session(self, session_id: str) -> Dict[str, Any]:
-        """恢复会话"""
+        """
+        恢复会话
+
+        Story 31.4 fix: Use stored question from state (already generated with
+        dedup logic) instead of hardcoded template. Falls back to
+        generate_question_with_rag() which includes Graphiti dedup.
+        """
         if session_id not in self._sessions:
             raise ValueError(f"Session not found: {session_id}")
 
@@ -831,7 +877,16 @@ class VerificationService:
         progress.status = VerificationStatus.IN_PROGRESS
 
         current_concept = state["current_concept"]
-        current_question = f"请解释什么是「{current_concept}」？"
+        # Story 31.4 AC-31.4.1: Use stored question (already deduped) or regenerate with dedup
+        current_question = state.get("current_question")
+        if not current_question:
+            # Regenerate with dedup logic if no stored question
+            canvas_name = state.get("source_canvas", "")
+            current_question = await self.generate_question_with_rag(
+                concept=current_concept,
+                canvas_name=canvas_name
+            )
+            state["current_question"] = current_question
 
         logger.info(f"Session {session_id} resumed")
 
@@ -1400,7 +1455,7 @@ class VerificationService:
             return default_result
 
         except Exception as e:
-            logger.debug(f"Difficulty calculation failed for '{concept}': {e}")
+            logger.warning(f"Difficulty calculation failed for '{concept}': {e}, using default")
             return default_result
 
     def _build_difficulty_aware_prompt(

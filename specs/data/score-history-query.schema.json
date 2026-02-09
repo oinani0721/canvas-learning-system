@@ -1,0 +1,32 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "score-history-query.schema.json",
+  "title": "ScoreHistoryQuery",
+  "description": "Story 31.5 AC-31.5.1 Task 1.1: 概念历史得分查询请求",
+  "type": "object",
+  "required": ["concept_id", "canvas_name"],
+  "properties": {
+    "concept_id": {
+      "type": "string",
+      "description": "概念节点ID"
+    },
+    "canvas_name": {
+      "type": "string",
+      "description": "Canvas文件名"
+    },
+    "limit": {
+      "type": "integer",
+      "description": "返回的历史记录数量上限",
+      "minimum": 1,
+      "maximum": 20,
+      "default": 5
+    }
+  },
+  "examples": [
+    {
+      "concept_id": "node-abc123",
+      "canvas_name": "math-101.canvas",
+      "limit": 5
+    }
+  ]
+}
