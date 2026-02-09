@@ -77,26 +77,20 @@ class TestHealthEndpointHTTP:
         # Value must be "ok" or "degraded"
         assert data["components"]["fsrs"] in ("ok", "degraded")
 
-    def test_health_fsrs_ok_when_library_available(self, qa_client):
+    def test_health_fsrs_ok_when_library_available(self, qa_client, monkeypatch):
         """
         [P0] Story 38.3: When py-fsrs is installed, /health shows fsrs: "ok".
         Patches FSRS flags to True to ensure deterministic assertion.
         """
         import app.services.review_service as review_mod
 
-        orig_available = review_mod.FSRS_AVAILABLE
-        orig_runtime = review_mod.FSRS_RUNTIME_OK
-        try:
-            review_mod.FSRS_AVAILABLE = True
-            review_mod.FSRS_RUNTIME_OK = True
-            resp = qa_client.get("/api/v1/health")
-            data = resp.json()
-            assert data["components"]["fsrs"] == "ok"
-        finally:
-            review_mod.FSRS_AVAILABLE = orig_available
-            review_mod.FSRS_RUNTIME_OK = orig_runtime
+        monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", True)
+        monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", True)
+        resp = qa_client.get("/api/v1/health")
+        data = resp.json()
+        assert data["components"]["fsrs"] == "ok"
 
-    def test_health_fsrs_degraded_when_library_unavailable(self, qa_client):
+    def test_health_fsrs_degraded_when_library_unavailable(self, qa_client, monkeypatch):
         """
         [P0] Story 38.3 AC-3: /health shows fsrs: "degraded" when
         FSRS is unavailable.
@@ -106,17 +100,11 @@ class TestHealthEndpointHTTP:
         """
         import app.services.review_service as review_mod
 
-        orig_available = review_mod.FSRS_AVAILABLE
-        orig_runtime = review_mod.FSRS_RUNTIME_OK
-        try:
-            review_mod.FSRS_AVAILABLE = False
-            review_mod.FSRS_RUNTIME_OK = False
-            resp = qa_client.get("/api/v1/health")
-            data = resp.json()
-            assert data["components"]["fsrs"] == "degraded"
-        finally:
-            review_mod.FSRS_AVAILABLE = orig_available
-            review_mod.FSRS_RUNTIME_OK = orig_runtime
+        monkeypatch.setattr(review_mod, "FSRS_AVAILABLE", False)
+        monkeypatch.setattr(review_mod, "FSRS_RUNTIME_OK", False)
+        resp = qa_client.get("/api/v1/health")
+        data = resp.json()
+        assert data["components"]["fsrs"] == "degraded"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -331,65 +331,63 @@ class TestCodeReviewC1FireAndForgetPersistence:
 class TestCodeReviewC2ReviewServiceSingleton:
     """C2 Fix: _get_or_create_review_service() module-level singleton in review.py."""
 
+    @pytest.fixture(autouse=True)
+    def reset_singleton(self):
+        """Reset review service singleton before and after each test."""
+        import app.api.v1.endpoints.review as review_module
+        review_module._review_service_instance = None
+        yield
+        review_module._review_service_instance = None
+
     def test_singleton_creates_review_service(self):
         """_get_or_create_review_service returns a ReviewService instance."""
         import app.api.v1.endpoints.review as review_module
-        # Reset singleton
-        review_module._review_service_instance = None
-        try:
-            svc = review_module._get_or_create_review_service()
-            from app.services.review_service import ReviewService
-            assert isinstance(svc, ReviewService)
-        finally:
-            # Clean up
-            review_module._review_service_instance = None
+        svc = review_module._get_or_create_review_service()
+        from app.services.review_service import ReviewService
+        assert isinstance(svc, ReviewService)
 
     def test_singleton_returns_same_instance(self):
         """Calling _get_or_create_review_service twice returns the same object."""
         import app.api.v1.endpoints.review as review_module
-        review_module._review_service_instance = None
-        try:
-            svc1 = review_module._get_or_create_review_service()
-            svc2 = review_module._get_or_create_review_service()
-            assert svc1 is svc2
-        finally:
-            review_module._review_service_instance = None
+        svc1 = review_module._get_or_create_review_service()
+        svc2 = review_module._get_or_create_review_service()
+        assert svc1 is svc2
 
 
 class TestCodeReviewM2RuntimeFSRSFlag:
     """M2 Fix: FSRS_RUNTIME_OK module-level flag reflects runtime init status."""
 
-    def test_runtime_ok_set_true_on_success(self, mock_canvas_service, mock_task_manager, mock_fsrs_manager):
-        """FSRS_RUNTIME_OK is True when FSRSManager injects successfully."""
+    @pytest.fixture(autouse=True)
+    def save_restore_runtime_flag(self):
+        """Save and restore FSRS_RUNTIME_OK around each test."""
         import app.services.review_service as rs_module
-        old_val = rs_module.FSRS_RUNTIME_OK
-        try:
-            from app.services.review_service import ReviewService
-            ReviewService(
-                canvas_service=mock_canvas_service,
-                task_manager=mock_task_manager,
-                fsrs_manager=mock_fsrs_manager
-            )
-            assert rs_module.FSRS_RUNTIME_OK is True
-        finally:
-            rs_module.FSRS_RUNTIME_OK = old_val
+        original = rs_module.FSRS_RUNTIME_OK
+        yield rs_module
+        rs_module.FSRS_RUNTIME_OK = original
 
-    def test_runtime_ok_set_false_when_unavailable(self, mock_canvas_service, mock_task_manager):
+    def test_runtime_ok_set_true_on_success(self, mock_canvas_service, mock_task_manager, mock_fsrs_manager, save_restore_runtime_flag):
+        """FSRS_RUNTIME_OK is True when FSRSManager injects successfully."""
+        rs_module = save_restore_runtime_flag
+        from app.services.review_service import ReviewService
+        ReviewService(
+            canvas_service=mock_canvas_service,
+            task_manager=mock_task_manager,
+            fsrs_manager=mock_fsrs_manager
+        )
+        assert rs_module.FSRS_RUNTIME_OK is True
+
+    def test_runtime_ok_set_false_when_unavailable(self, mock_canvas_service, mock_task_manager, save_restore_runtime_flag):
         """FSRS_RUNTIME_OK is False when FSRS library not available."""
-        import app.services.review_service as rs_module
-        old_val = rs_module.FSRS_RUNTIME_OK
-        try:
-            with patch.object(rs_module, 'FSRS_AVAILABLE', False):
-                with patch.object(rs_module, 'FSRSManager', None):
-                    from app.services.review_service import ReviewService
-                    ReviewService(
-                        canvas_service=mock_canvas_service,
-                        task_manager=mock_task_manager,
-                        fsrs_manager=None
-                    )
-                    assert rs_module.FSRS_RUNTIME_OK is False
-        finally:
-            rs_module.FSRS_RUNTIME_OK = old_val
+        rs_module = save_restore_runtime_flag
+        with patch.object(rs_module, 'FSRS_AVAILABLE', False):
+            with patch.object(rs_module, 'FSRSManager', None):
+                from app.services.review_service import ReviewService
+                ReviewService(
+                    canvas_service=mock_canvas_service,
+                    task_manager=mock_task_manager,
+                    fsrs_manager=None
+                )
+                assert rs_module.FSRS_RUNTIME_OK is False
 
     def test_health_endpoint_uses_runtime_flag(self):
         """Health endpoint prefers FSRS_RUNTIME_OK over FSRS_AVAILABLE."""

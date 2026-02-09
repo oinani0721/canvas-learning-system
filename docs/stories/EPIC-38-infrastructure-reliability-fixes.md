@@ -3,12 +3,41 @@
 > **Origin:** Deep Explore 审计发现 6 个系统性基础设施问题，全部源于 BMad 模板盲区（D1-D6 维度缺失）。
 > **Checklist applied:** `_bmad/bmm/checklists/infrastructure-ac-checklist.md` v1.0.0
 > **Priority:** P1 — 功能"看起来工作"但数据可能丢失/不完整
+> **Status:** ✅ Stories 38.1–38.7 已实现 | 🟡 Story 38.8 待实现 (JSON→Neo4j 同步)
+> **Audit:** 对抗性审核完成 (2026-02-08) — 详见 `docs/reviews/EPIC-38-adversarial-review.md`
 
 ---
 
 ## Epic Goal
 
 修复 6 个已识别的基础设施可靠性问题，确保数据持久化、错误恢复、输入验证、配置安全、降级透明、端到端集成全部达标。
+
+## Reliability Objectives (SLO)
+
+> 补充自对抗性审核 Finding #4 — 可量化可靠性目标
+
+| Metric | Target | Measurement |
+|--------|--------|-------------|
+| **数据持久化率** | 99.9% 学习事件不丢失 | `failed_writes.jsonl` + startup replay 保障 |
+| **RTO (Recovery Time)** | < 30s 应用重启后数据可用 | Episode recovery + FSRS card cache restore |
+| **RPO (Recovery Point)** | 0 (零数据丢失) | JSON dual-write 确保 Neo4j 宕机期间数据写入文件 |
+| **降级延迟上限** | < 100ms JSON fallback 写入 | 文件 I/O，非网络调用 |
+| **评分写入超时** | 15s (含 3 次重试 7s + margin) | `MEMORY_WRITE_TIMEOUT=15.0` |
+
+**注意**: 以上为内部运维目标，非面向用户的 SLA 承诺。
+
+## Known Limitations & Tech Debt
+
+> 以下为对抗性审核 (2026-02-08) 发现的非阻塞问题，记录为技术债务。
+
+| # | 类型 | 描述 | 优先级 | 备注 |
+|---|------|------|--------|------|
+| 1 | 配置耦合 | `ENABLE_GRAPHITI_JSON_DUAL_WRITE` 同时控制学习事件双写 (36.9) 和 Canvas 降级写入 (38.5) | 🟡 中 | 建议引入独立 `ENABLE_CANVAS_EVENT_FALLBACK` 配置项 |
+| 2 | 并发安全 | JSON fallback 并发保护已实现：`failed_writes.jsonl` 用 `threading.Lock`，`canvas_service.py` 用 per-canvas `asyncio.Lock` (L79-80) + `_locks_lock`，`memory_service.py` 用 `_recovery_lock` (L153) | ✅ 已解决 | 代码验证: 2026-02-08 deep explore 确认所有写入路径有锁保护 |
+| 3 | 文件轮转 | JSON fallback 文件无大小限制和清理策略 | 🟢 低 | Story 38.8 AC-5 定义了轮转策略 |
+| 4 | 可观测性 | 失败处理仅 WARNING 日志，无 Prometheus 指标或告警 | 🟢 低 | 38.6 "consider metric counter" 未升级为 AC |
+| 5 | 前后端混合 | 38.3 AC-2 引用 TypeScript 文件（UI 层）不属于基础设施 EPIC | 🟢 低 | 建议关联 EPIC-32 |
+| 6 | Pending Queue | 38.1 AC-3 的 pending index queue 使用内存队列（`asyncio.Queue`），重启后由 LanceDB 自身恢复机制保障一致性 | 🟢 低 | LanceDB 索引可从 Canvas 文件重建，无需独立持久化 queue |
 
 ## Requirements Covered
 
@@ -21,10 +50,13 @@
 | FR-38.5 | Canvas CRUD 降级写入 | 38.5 |
 | FR-38.6 | 评分写入可靠性 | 38.6 |
 | FR-38.7 | 端到端集成验证 | 38.7 |
+| FR-38.8 | JSON Fallback → Neo4j 完整同步 | 38.8 |
 
 ---
 
 ## Story 38.1: LanceDB 自动索引触发
+
+> **Status:** ✅ Implemented | Commits: `c01bd39`, `14f0412`
 
 As a learner,
 I want my Canvas node changes to be automatically indexed in LanceDB,
@@ -68,6 +100,8 @@ So that RAG context retrieval always has up-to-date content without manual API c
 ---
 
 ## Story 38.2: Learning History Persistence & Restart Recovery
+
+> **Status:** ✅ Implemented | Commits: `803793c`, `f9fb7e3`
 
 As a learner,
 I want my learning history to survive application restarts,
@@ -114,6 +148,8 @@ So that my progress is never lost and AI context always has my full history.
 
 ## Story 38.3: FSRS State Initialization Guarantee
 
+> **Status:** ✅ Implemented | Commits: `4867dd0`, `f9fb7e3`
+
 As a learner,
 I want the review priority calculation to always use real FSRS data when available,
 So that my review schedule is truly personalized, not falling back to a fixed score.
@@ -124,10 +160,14 @@ So that my review schedule is truly personalized, not falling back to a fixed sc
 **Given** a review item is requested for the dashboard
 **When** the backend queries FSRS state for a concept
 **Then** if a valid FSRS card exists, `fsrs_state` is returned with all fields non-null
-**And** if no FSRS card exists, the response is `{found: false, reason: "no_card_created"}`
+**And** if no FSRS card exists and auto-creation fails (AC-4), the response is `{found: false, reason: "auto_creation_failed"}`
 **And** if `_fsrs_manager` is None, the response is `{found: false, reason: "fsrs_not_initialized"}`
+> **Note:** AC-4 自动创建使 `no_card_created` 分支理论上不可达。AC-1 仅覆盖自动创建本身失败的防御路径。
 
 **AC-2 (D3: Input Validation — Frontend Contract)**
+> **跨 EPIC 引用**: 前端 UI 变更属于 EPIC-32 (Ebbinghaus Review System Enhancement) 范畴。
+> 本 AC 仅定义后端契约，前端实现由 EPIC-32 负责。
+
 **Given** the frontend receives a review item with `fsrs_state: null`
 **When** `calculatePriority()` is called
 **Then** the FSRS dimension uses a default score of 50 (existing behavior — validated as correct)
@@ -165,6 +205,8 @@ So that my review schedule is truly personalized, not falling back to a fixed sc
 ---
 
 ## Story 38.4: Dual-Write Default Configuration Safety
+
+> **Status:** ✅ Implemented | Commits: `e784a71`, `c01bd39`
 
 As an operator deploying the system,
 I want dual-write to JSON fallback to be enabled by default,
@@ -209,6 +251,8 @@ So that a fresh installation has Neo4j offline resilience out of the box.
 ---
 
 ## Story 38.5: Canvas CRUD Graceful Degradation with JSON Fallback
+
+> **Status:** ✅ Implemented | Commits: `5026488`, `c01bd39`
 
 As a learner,
 I want my Canvas editing actions to be recorded even when Neo4j is unavailable,
@@ -258,6 +302,8 @@ So that my knowledge graph is eventually complete regardless of infrastructure s
 ---
 
 ## Story 38.6: Scoring Write Reliability (Timeout vs Retry Fix)
+
+> **Status:** ✅ Implemented | Commits: `3bd7a66`, `e784a71`
 
 As a learner,
 I want my quiz scores to be reliably saved after submission,
@@ -310,6 +356,8 @@ So that my learning progress is accurately tracked and not silently lost.
 
 ## Story 38.7: End-to-End Integration Verification
 
+> **Status:** ✅ Implemented | Commits: `a29148c`, `cd28f0b`
+
 As a developer,
 I want to verify all Stories in this EPIC work together end-to-end,
 So that the infrastructure reliability fixes are truly complete.
@@ -354,7 +402,7 @@ So that the infrastructure reliability fixes are truly complete.
 **Given** Neo4j is restarted after a degraded period
 **When** the application detects Neo4j is back
 **Then** failed writes from `failed_writes.jsonl` are replayed (Story 38.6)
-**And** JSON fallback events are eventually synced to Neo4j (if sync mechanism exists)
+**And** JSON fallback events are eventually synced to Neo4j (see Story 38.8: JSON→Neo4j Complete Sync)
 **And** the `/health` endpoint returns to normal status
 
 ### Infrastructure Verification Checklist
@@ -367,3 +415,80 @@ So that the infrastructure reliability fixes are truly complete.
 - [ ] Send null/invalid inputs to review API, verify rejection
 - [ ] Check logs for silent failures or swallowed errors
 - [ ] Verify `/health` endpoint reflects actual system state
+
+---
+
+## Story 38.8: JSON Fallback → Neo4j Complete Sync Mechanism
+
+> **Status:** 📋 Defined (未实现) | Origin: 对抗性审核 阻塞 #3
+> **Addresses:** Adversarial Review Finding #3 — 架构空洞：降级→恢复的 JSON→Neo4j 同步机制不存在
+
+As an operator,
+I want fallback data written during Neo4j outages to be automatically synced back to Neo4j when it recovers,
+So that the knowledge graph eventually reaches full consistency without manual intervention.
+
+### Background
+
+Stories 38.4、38.5、38.6 在 Neo4j 不可用时将数据写入 JSON fallback 文件：
+- `canvas_events_fallback.json` (Story 38.5 — Canvas CRUD 事件)
+- `failed_writes.jsonl` (Story 38.6 — 评分写入失败)
+- `learning_events_fallback.json` (Story 38.4 — 学习事件 dual-write)
+
+Story 38.6 的 AC-3 已定义了 `failed_writes.jsonl` 的启动回放机制（部分实现），
+但 `canvas_events_fallback.json` 和 `learning_events_fallback.json` **没有任何回写机制**。
+
+### Acceptance Criteria
+
+**AC-1 (Startup Replay)**
+**Given** the application starts and Neo4j is available
+**When** JSON fallback files contain unsynced entries
+**Then** the system replays all entries to Neo4j in chronological order
+**And** successfully synced entries are marked as replayed (not deleted, to support audit)
+**And** startup log shows: `"Fallback sync: replayed {N} events, {M} failed"`
+
+**AC-2 (Idempotency)**
+**Given** a fallback entry is replayed to Neo4j
+**When** Neo4j already contains the same data (e.g., duplicate replay after crash)
+**Then** the replay uses MERGE (not CREATE) to ensure idempotency
+**And** no duplicate nodes/edges are created
+
+**AC-3 (Partial Failure)**
+**Given** replay is in progress and Neo4j becomes unavailable mid-replay
+**When** some entries have been synced and others have not
+**Then** a checkpoint is saved indicating the last successfully synced entry
+**And** the next startup resumes from the checkpoint (not from the beginning)
+
+**AC-4 (Conflict Resolution)**
+**Given** a fallback entry refers to a concept that was modified in Neo4j after the fallback was written
+**When** the entry is replayed
+**Then** the system uses last-write-wins based on timestamp
+**And** a WARNING log: `"Conflict detected for {concept_id}: fallback ts={X}, neo4j ts={Y}, using latest"`
+
+**AC-5 (File Rotation)**
+**Given** synced fallback files accumulate over time
+**When** all entries in a fallback file have been successfully synced
+**Then** the file is rotated to `{filename}.synced.{date}` (not deleted)
+**And** files older than 30 days in `.synced` state are eligible for cleanup
+
+### Code References
+
+| File | Current State |
+|------|--------------|
+| `backend/app/services/canvas_service.py` | `_fallback_file_path` 定义，写入逻辑已有，无回读/同步 |
+| `backend/app/services/agent_service.py` | `_record_failed_write()` + `_replay_failed_writes()` 已有启动回放 |
+| `backend/app/services/memory_service.py` | dual-write JSON 写入已有，无回读/同步 |
+
+### Implementation Notes
+
+- 复用 `agent_service.py` 中已有的 `_replay_failed_writes()` 模式，扩展到其他 fallback 文件
+- 使用 Neo4j MERGE 确保幂等性
+- 考虑添加 `/api/v1/admin/sync-fallback` 手动触发端点（运维场景）
+- 回放优先级：`failed_writes.jsonl` > `canvas_events_fallback.json` > `learning_events_fallback.json`
+
+### Requirements Covered (Update)
+
+在 EPIC 级 Requirements 表中添加：
+
+| FR | Description | Story |
+|----|-------------|-------|
+| FR-38.8 | JSON Fallback → Neo4j 完整同步 | 38.8 |
