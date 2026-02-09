@@ -29,7 +29,7 @@ Story 24.5 Implementation:
 Story 31.1 Implementation:
 - ✅ AC-31.1.1: start_session() reads Canvas file for red/purple nodes
 - ✅ AC-31.1.2: generate_question_with_rag() calls Gemini API
-- ✅ AC-31.1.3: process_answer() integrates scoring-agent (0-40 mapping)
+- ✅ AC-31.1.3: process_answer() integrates scoring-agent (0-100 unified scale)
 - ✅ AC-31.1.4: RAG context injection for all methods
 - ✅ AC-31.1.5: 15s timeout protection and graceful degradation
 
@@ -343,6 +343,9 @@ class VerificationProgress:
     max_hints: int = 3
     started_at: datetime = field(default_factory=datetime.now)
     updated_at: datetime = field(default_factory=datetime.now)
+    # Story 31.6 Task 3.5: Pause time tracking (H2 fix)
+    paused_at: Optional[datetime] = None
+    total_pause_duration: float = 0.0  # seconds
 
     @property
     def progress_percentage(self) -> float:
@@ -378,6 +381,8 @@ class VerificationProgress:
             "max_hints": self.max_hints,
             "started_at": self.started_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
+            "paused_at": self.paused_at.isoformat() if self.paused_at else None,
+            "total_pause_duration": round(self.total_pause_duration, 1),
         }
 
 
@@ -627,7 +632,7 @@ class VerificationService:
         """
         处理用户回答
 
-        Story 31.1 AC-31.1.3: 集成scoring-agent评估回答（返回0-40分）
+        Story 31.1 AC-31.1.3: 集成scoring-agent评估回答（返回0-100分）
 
         评估回答质量，决定下一步动作（提供提示或进入下一概念）。
 
@@ -638,7 +643,7 @@ class VerificationService:
         Returns:
             {
                 "quality": str,  # excellent/good/partial/wrong
-                "score": float,  # 0-40 range (mapped from scoring-agent's 0-100)
+                "score": float,  # 0-100 range (unified scale)
                 "action": str,  # hint/next/complete
                 "hint": Optional[str],
                 "next_question": Optional[str],
@@ -672,8 +677,8 @@ class VerificationService:
         hints_given = state["hints_given"]
         max_hints = state["max_hints"]
 
-        # Story 31.1: Score threshold updated to 0-40 range (24 = 60 * 0.4)
-        if quality in ["excellent", "good"] or score >= 24:
+        # Unified 0-100 scale: 60+ = passing threshold
+        if quality in ["excellent", "good"] or score >= 60:
             # 掌握，进入下一概念
             action = await self._advance_concept(state, progress, quality, score)
         elif hints_given < max_hints:
@@ -707,19 +712,16 @@ class VerificationService:
         前进到下一概念
 
         Story 31.1: Updated to async for real question generation.
-        Updated score thresholds to use 0-40 range.
-
-        [Source: docs/stories/31.1.story.md#评分映射规则]
+        Score thresholds use unified 0-100 scale.
         """
-        # 更新颜色计数 (using 0-40 range thresholds)
-        # Story 31.1 thresholds:
-        # - score >= 32: excellent (掌握良好)
-        # - score 24-31: good (部分掌握)
-        # - score < 24: needs improvement
-        if quality == "excellent" or score >= 32:
+        # 更新颜色计数 (unified 0-100 scale)
+        # - score >= 80: excellent (掌握良好)
+        # - score 60-79: good (部分掌握)
+        # - score < 60: needs improvement
+        if quality == "excellent" or score >= 80:
             state["green_count"] += 1
             progress.green_count += 1
-        elif quality == "good" or score >= 24:
+        elif quality == "good" or score >= 60:
             state["yellow_count"] += 1
             progress.yellow_count += 1
         elif quality == "skipped":
@@ -851,15 +853,32 @@ class VerificationService:
         }
 
     async def pause_session(self, session_id: str) -> Dict[str, Any]:
-        """暂停会话"""
+        """
+        暂停会话
+
+        Story 31.6 AC-31.6.4: Support pause/resume session.
+        H3 fix: Validate state before transition.
+        H2 fix: Record paused_at timestamp for duration tracking.
+        """
         if session_id not in self._sessions:
             raise ValueError(f"Session not found: {session_id}")
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
 
+        # H3 fix: Only IN_PROGRESS sessions can be paused
+        if progress.status != VerificationStatus.IN_PROGRESS:
+            raise ValueError(
+                f"Cannot pause session in '{progress.status.value}' state. "
+                f"Only 'in_progress' sessions can be paused."
+            )
+
         state["status"] = VerificationStatus.PAUSED
         progress.status = VerificationStatus.PAUSED
+        # H2 fix: Record pause timestamp for duration tracking (Task 3.5)
+        progress.paused_at = datetime.now()
+        # M2 fix: Update timestamp on state change
+        progress.updated_at = datetime.now()
 
         logger.info(f"Session {session_id} paused")
 
@@ -873,6 +892,9 @@ class VerificationService:
         dedup logic) instead of hardcoded template. Falls back to
         generate_question_with_rag() which includes Graphiti dedup.
 
+        H3 fix: Validate state before transition.
+        H2 fix: Accumulate pause duration (Task 3.5).
+
         Note: If state["current_question"] is None (e.g. session was paused before
         a question was generated), this will regenerate via generate_question_with_rag()
         which queries Graphiti for dedup. The regenerated question may differ from
@@ -884,8 +906,22 @@ class VerificationService:
         state = self._sessions[session_id]
         progress = self._progress[session_id]
 
+        # H3 fix: Only PAUSED sessions can be resumed
+        if progress.status != VerificationStatus.PAUSED:
+            raise ValueError(
+                f"Cannot resume session in '{progress.status.value}' state. "
+                f"Only 'paused' sessions can be resumed."
+            )
+
         state["status"] = VerificationStatus.IN_PROGRESS
         progress.status = VerificationStatus.IN_PROGRESS
+        # H2 fix: Accumulate pause duration (Task 3.5)
+        if progress.paused_at:
+            pause_duration = (datetime.now() - progress.paused_at).total_seconds()
+            progress.total_pause_duration += pause_duration
+            progress.paused_at = None
+        # M2 fix: Update timestamp on state change
+        progress.updated_at = datetime.now()
 
         current_concept = state["current_concept"]
         # Story 31.4 AC-31.4.1: Use stored question (already deduped) or regenerate with dedup
@@ -1176,7 +1212,7 @@ class VerificationService:
         """
         Evaluate user answer using scoring-agent.
 
-        Story 31.1 AC-31.1.3: Call scoring-agent and map 0-100 score to 0-40 range.
+        Story 31.1 AC-31.1.3: Call scoring-agent (unified 0-100 scale).
 
         Args:
             concept: The concept being tested
@@ -1186,7 +1222,7 @@ class VerificationService:
         Returns:
             Tuple of (quality: str, score: float)
             - quality: "excellent", "good", "partial", or "wrong"
-            - score: 0-40 range (mapped from 0-100)
+            - score: 0-100 range (unified scale)
 
         [Source: docs/stories/31.1.story.md#Task-3]
         [Source: specs/data/scoring-response.schema.json]
@@ -1232,7 +1268,7 @@ class VerificationService:
             canvas_name: Canvas name for context
 
         Returns:
-            Tuple of (quality: str, score: float) with score in 0-40 range
+            Tuple of (quality: str, score: float) with score in 0-100 range
 
         [Source: backend/app/services/agent_service.py - call_scoring pattern]
         [Source: specs/data/scoring-response.schema.json]
@@ -1280,19 +1316,20 @@ class VerificationService:
                 )
 
                 if scoring_result and scoring_result.success and scoring_result.data:
-                    # Map 0-100 score to 0-40 range (Story 31.1 requirement)
+                    # Use raw 0-100 score directly (Wave 0: unified 0-100 scale)
                     raw_score = scoring_result.data.get("total_score", 50.0)
-                    mapped_score = self._map_score_to_verification_range(raw_score)
+                    # Clamp to valid range
+                    raw_score = max(0.0, min(100.0, raw_score))
 
-                    # Determine quality from score or use provided color
-                    quality = self._score_to_quality(mapped_score)
+                    # Determine quality from score
+                    quality = self._score_to_quality(raw_score)
 
                     logger.info(
                         f"Scoring-agent evaluation: concept={concept}, "
-                        f"raw_score={raw_score}, mapped_score={mapped_score}, quality={quality}"
+                        f"score={raw_score}, quality={quality}"
                     )
 
-                    return quality, mapped_score
+                    return quality, raw_score
 
             except Exception as e:
                 logger.debug(f"Agent service scoring call failed: {e}")
@@ -1303,46 +1340,33 @@ class VerificationService:
 
     def _map_score_to_verification_range(self, raw_score: float) -> float:
         """
-        Map scoring-agent's 0-100 score to verification's 0-40 range.
-
-        Story 31.1 mapping formula: verification_score = scoring_score * 0.4
-
-        Args:
-            raw_score: Score from scoring-agent (0-100)
-
-        Returns:
-            Mapped score (0-40)
-
-        [Source: docs/stories/31.1.story.md#评分映射规则]
+        DEPRECATED: No longer used. Scores now use unified 0-100 scale.
+        Kept for backward compatibility with tests; will be removed.
         """
-        # Ensure score is within bounds
         raw_score = max(0.0, min(100.0, raw_score))
-        # Apply mapping formula
         return round(raw_score * 0.4, 1)
 
     def _score_to_quality(self, score: float) -> str:
         """
         Convert score to quality level.
 
-        Story 31.1 thresholds (0-40 range):
-        - score >= 32: excellent (掌握良好, color="2")
-        - score 24-31: good (部分掌握, color="3")
-        - score 16-23: partial (需要加强)
-        - score < 16: wrong (不理解)
+        Unified 0-100 scale thresholds:
+        - score >= 80: excellent (掌握良好, color="2")
+        - score 60-79: good (部分掌握, color="3")
+        - score 40-59: partial (需要加强)
+        - score < 40: wrong (不理解)
 
         Args:
-            score: Score in 0-40 range
+            score: Score in 0-100 range
 
         Returns:
             Quality string: "excellent", "good", "partial", or "wrong"
-
-        [Source: docs/stories/31.1.story.md#评分映射规则]
         """
-        if score >= 32:
+        if score >= 80:
             return "excellent"
-        elif score >= 24:
+        elif score >= 60:
             return "good"
-        elif score >= 16:
+        elif score >= 40:
             return "partial"
         else:
             return "wrong"
@@ -1360,24 +1384,22 @@ class VerificationService:
             user_answer: User's answer text
 
         Returns:
-            Tuple of (quality: str, score: float) in 0-40 range
-
-        [Source: docs/stories/31.1.story.md#Task-5 - graceful degradation]
+            Tuple of (quality: str, score: float) in 0-100 range
         """
         answer_len = len(user_answer.strip())
 
         if answer_len > 100:
             quality = "excellent"
-            score = 36.0  # 90 * 0.4
+            score = 90.0
         elif answer_len > 50:
             quality = "good"
-            score = 28.0  # 70 * 0.4
+            score = 70.0
         elif answer_len > 20:
             quality = "partial"
-            score = 20.0  # 50 * 0.4
+            score = 50.0
         else:
             quality = "wrong"
-            score = 8.0   # 20 * 0.4
+            score = 20.0
 
         logger.debug(f"Mock evaluation: len={answer_len}, quality={quality}, score={score}")
         return quality, score
