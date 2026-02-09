@@ -108,27 +108,31 @@ def temp_canvas_file(sample_canvas_data: Dict[str, Any]) -> str:
 
 @pytest.fixture
 def mock_agent_service() -> MagicMock:
-    """Mock agent service with realistic responses."""
+    """Mock agent service with realistic responses returning AgentResult-like objects."""
     service = MagicMock()
 
-    # Mock Gemini API for question generation
-    async def mock_gemini(prompt: str) -> str:
-        if "机器学习" in prompt:
-            return "为什么机器学习模型需要大量数据进行训练？请解释数据量与模型性能之间的关系。"
-        elif "神经网络" in prompt:
-            return "请描述神经网络中隐藏层的作用，以及增加隐藏层数量会带来什么影响？"
-        elif "反向传播" in prompt:
-            return "反向传播算法是如何计算梯度的？请用简单的语言解释整个过程。"
-        return f"请深入解释这个概念的核心原理？"
+    # Mock call_agent for question generation (returns AgentResult-like object)
+    question_result = MagicMock()
+    question_result.success = True
+    question_result.data = {
+        "questions": [{
+            "source_node_id": "verification_e2e",
+            "question_text": "为什么机器学习模型需要大量数据进行训练？请解释数据量与模型性能之间的关系。",
+            "question_type": "检验型",
+            "difficulty": "基础",
+            "guidance": "",
+            "rationale": "测试概念理解"
+        }]
+    }
+    service.call_agent = AsyncMock(return_value=question_result)
 
-    service._call_gemini_api = AsyncMock(side_effect=mock_gemini)
-
-    # Mock scoring agent
-    async def mock_scoring(**kwargs) -> Dict[str, Any]:
-        user_answer = kwargs.get("user_answer", "")
+    # Mock scoring agent - returns AgentResult-like object (not plain dict)
+    # Uses user_understanding kwarg (matching agent_service.call_scoring signature)
+    async def mock_scoring(**kwargs):
+        user_understanding = kwargs.get("user_understanding", "")
         # Simulate realistic scoring based on answer content
-        if len(user_answer) > 200:
-            return {
+        if len(user_understanding) > 200:
+            scoring_data = {
                 "total_score": 85.0,
                 "accuracy": 22,
                 "imagery": 20,
@@ -136,8 +140,8 @@ def mock_agent_service() -> MagicMock:
                 "originality": 20,
                 "color": "2"
             }
-        elif len(user_answer) > 100:
-            return {
+        elif len(user_understanding) > 100:
+            scoring_data = {
                 "total_score": 70.0,
                 "accuracy": 18,
                 "imagery": 17,
@@ -146,7 +150,7 @@ def mock_agent_service() -> MagicMock:
                 "color": "3"
             }
         else:
-            return {
+            scoring_data = {
                 "total_score": 45.0,
                 "accuracy": 12,
                 "imagery": 11,
@@ -154,6 +158,10 @@ def mock_agent_service() -> MagicMock:
                 "originality": 10,
                 "color": "4"
             }
+        result = MagicMock()
+        result.success = True
+        result.data = scoring_data
+        return result
 
     service.call_scoring = AsyncMock(side_effect=mock_scoring)
 
@@ -239,8 +247,10 @@ class TestEndToEndVerificationFlow:
         assert result["first_question"] is not None
         assert len(result["first_question"]) > 0
 
-        # Verify Gemini was called
-        assert mock_agent_service._call_gemini_api.called
+        # Verify agent service was called for question generation
+        # Production code calls call_agent(AgentType.VERIFICATION_QUESTION, ...)
+        # not _call_gemini_api directly
+        assert mock_agent_service.call_agent.called
 
     @pytest.mark.asyncio
     async def test_e2e_answer_processing_with_scoring(
@@ -279,7 +289,7 @@ class TestEndToEndVerificationFlow:
         # Verify scoring agent was called
         assert mock_agent_service.call_scoring.called
 
-        # Verify score mapping (85 * 0.4 = 34)
+        # Scoring: answer >200 chars → total_score=85.0 → mapped=85*0.4=34.0
         assert result["score"] == 34.0
         assert result["quality"] == "excellent"
 
@@ -371,14 +381,17 @@ class TestEndToEndVerificationFlow:
         2. Score below threshold
         3. Hint provided instead of advancing
         """
-        # Configure scoring to return low score
-        mock_agent_service.call_scoring = AsyncMock(return_value={
+        # Configure scoring to return low score (AgentResult-like object)
+        low_score_result = MagicMock()
+        low_score_result.success = True
+        low_score_result.data = {
             "total_score": 35.0,  # Will map to 14.0 (below 24 threshold)
             "accuracy": 10,
             "imagery": 8,
             "completeness": 9,
             "originality": 8
-        })
+        }
+        mock_agent_service.call_scoring = AsyncMock(return_value=low_score_result)
 
         # Start session
         session = await verification_service.start_session(
