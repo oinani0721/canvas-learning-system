@@ -50,13 +50,20 @@ except ImportError:
 
 # Story 36.1: Import unified base class
 try:
-    from backend.app.clients.graphiti_client_base import (
+    from app.clients.graphiti_client_base import (
         GraphitiClientBase,
         EdgeRelationship,
     )
     GRAPHITI_BASE_AVAILABLE = True
 except ImportError:
-    GRAPHITI_BASE_AVAILABLE = False
+    try:
+        from backend.app.clients.graphiti_client_base import (
+            GraphitiClientBase,
+            EdgeRelationship,
+        )
+        GRAPHITI_BASE_AVAILABLE = True
+    except ImportError:
+        GRAPHITI_BASE_AVAILABLE = False
     GraphitiClientBase = object  # Fallback to object
 
     # ✅ Story 38.1 Fix: 定义 EdgeRelationship fallback 避免 NameError
@@ -194,10 +201,16 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         # Priority 2: Extract from canvas_path
         if canvas_path:
             try:
-                from backend.app.core.subject_config import (
-                    build_group_id,
-                    extract_subject_from_canvas_path,
-                )
+                try:
+                    from app.core.subject_config import (
+                        build_group_id,
+                        extract_subject_from_canvas_path,
+                    )
+                except ImportError:
+                    from backend.app.core.subject_config import (
+                        build_group_id,
+                        extract_subject_from_canvas_path,
+                    )
 
                 subject = extract_subject_from_canvas_path(canvas_path)
                 return build_group_id(subject)
@@ -254,25 +267,89 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
 
             # Neo4jClient doesn't expose user/password directly for security
             # We use environment-based config instead
-            from backend.app.config import settings
+            try:
+                from app.config import get_settings
+                settings = get_settings()
+            except ImportError:
+                from backend.app.config import get_settings
+                settings = get_settings()
             neo4j_user = settings.neo4j_user
             neo4j_password = settings.neo4j_password
 
-            # Create graphiti_core.Neo4jDriver with same connection params
-            self._graphiti_driver = Neo4jDriver(
+            # Configure all three Graphiti clients using AI proxy settings.
+            # Graphiti requires llm_client, embedder, AND cross_encoder;
+            # if any is missing it creates a default OpenAI client that
+            # demands OPENAI_API_KEY env var.
+            import os
+            llm_client = None
+            embedder = None
+            cross_encoder = None
+            try:
+                ai_api_key = settings.AI_API_KEY
+                ai_base_url = settings.AI_BASE_URL or None
+                ai_model = settings.AI_MODEL_NAME or "gpt-4o-mini"
+
+                if ai_api_key:
+                    # Set env var as fallback for any internal OpenAI client creation
+                    os.environ.setdefault("OPENAI_API_KEY", ai_api_key)
+                    if ai_base_url:
+                        os.environ.setdefault("OPENAI_BASE_URL", ai_base_url)
+
+                    from graphiti_core.llm_client import OpenAIClient
+                    from graphiti_core.llm_client.config import LLMConfig
+                    from graphiti_core.embedder.openai import (
+                        OpenAIEmbedder,
+                        OpenAIEmbedderConfig,
+                    )
+                    from graphiti_core.cross_encoder.openai_reranker_client import (
+                        OpenAIRerankerClient,
+                    )
+
+                    llm_config = LLMConfig(
+                        api_key=ai_api_key,
+                        base_url=ai_base_url,
+                        model=ai_model,
+                    )
+                    llm_client = OpenAIClient(config=llm_config)
+
+                    embedder_config = OpenAIEmbedderConfig(
+                        api_key=ai_api_key,
+                        base_url=ai_base_url,
+                    )
+                    embedder = OpenAIEmbedder(config=embedder_config)
+
+                    reranker_config = LLMConfig(
+                        api_key=ai_api_key,
+                        base_url=ai_base_url,
+                        model=ai_model,
+                    )
+                    cross_encoder = OpenAIRerankerClient(config=reranker_config)
+
+            except Exception as llm_err:
+                if LOGURU_ENABLED:
+                    logger.warning(f"LLM clients for Graphiti not configured: {llm_err}")
+
+            # Create Graphiti instance with keyword args (not positional driver)
+            self._graphiti = Graphiti(
                 uri=neo4j_uri,
                 user=neo4j_user,
-                password=neo4j_password
+                password=neo4j_password,
+                llm_client=llm_client,
+                embedder=embedder,
+                cross_encoder=cross_encoder,
             )
-
-            # Create Graphiti instance
-            self._graphiti = Graphiti(self._graphiti_driver)
+            self._graphiti_driver = (
+                self._graphiti.driver
+                if hasattr(self._graphiti, 'driver')
+                else None
+            )
 
             self._initialized = True
 
             if LOGURU_ENABLED:
                 logger.info(
-                    f"GraphitiTemporalClient initialized: uri={neo4j_uri}"
+                    f"GraphitiTemporalClient initialized: uri={neo4j_uri}, "
+                    f"llm={'configured' if llm_client else 'none'}"
                 )
 
             return True
@@ -370,7 +447,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 }
 
                 if effective_group_id:
-                    search_kwargs["group_id"] = effective_group_id
+                    search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
                     self._graphiti.search(**search_kwargs),
@@ -442,7 +519,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 if canvas_path:
                     effective_group_id = self._build_group_id(canvas_path=canvas_path)
                     if effective_group_id:
-                        search_kwargs["group_id"] = effective_group_id
+                        search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
                     self._graphiti.search(**search_kwargs),
@@ -632,7 +709,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 }
 
                 if effective_group_id:
-                    search_kwargs["group_id"] = effective_group_id
+                    search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
                     self._graphiti.search(**search_kwargs),
@@ -731,7 +808,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 }
 
                 if effective_group_id:
-                    search_kwargs["group_id"] = effective_group_id
+                    search_kwargs["group_ids"] = [effective_group_id]
 
                 search_results = await asyncio.wait_for(
                     self._graphiti.search(**search_kwargs),
@@ -847,7 +924,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                 }
 
                 if effective_group_id:
-                    search_kwargs["group_id"] = effective_group_id
+                    search_kwargs["group_ids"] = [effective_group_id]
 
                 # ✅ Verified from ADR-0003: Graphiti search() supports query + filters
                 search_results = await asyncio.wait_for(
@@ -892,17 +969,29 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
                         f"search_verification_questions timeout ({self.timeout_ms}ms) "
                         f"for concept: {concept}"
                     )
-                # Return empty results (fallback behavior)
-                return []
+                # Fall through to Neo4j direct / local cache
 
             except Exception as e:
                 if LOGURU_ENABLED:
                     logger.error(f"search_verification_questions error: {e}")
                 if not self.enable_fallback:
                     raise
-                return []
+                # Fall through to Neo4j direct / local cache
 
-        # Fallback: search local episode cache
+        # Fallback 1: Neo4j direct query (cross-process, no LLM needed)
+        if not results:
+            results = await self._search_questions_neo4j_direct(
+                concept=concept,
+                canvas_name=canvas_name,
+                group_id=effective_group_id,
+                limit=limit,
+            )
+            if results and LOGURU_ENABLED:
+                logger.info(
+                    f"Neo4j direct found {len(results)} questions for {concept}"
+                )
+
+        # Fallback 2: search local episode cache (in-process only)
         if not results:
             for episode in self._episode_cache:
                 metadata = episode.get("metadata", {})
@@ -1002,6 +1091,96 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "canvas_name": metadata.get("canvas_name", "")
         }
 
+    async def _store_question_neo4j_direct(
+        self,
+        question_id: str,
+        question_text: str,
+        concept: str,
+        canvas_name: str,
+        question_type: str,
+        group_id: Optional[str] = None,
+    ) -> bool:
+        """Store verification question directly in Neo4j (no LLM/embedding needed)."""
+        try:
+            cypher = """
+            MERGE (q:VerificationQuestion {question_id: $question_id})
+            SET q.question_text = $question_text,
+                q.concept = $concept,
+                q.canvas_name = $canvas_name,
+                q.question_type = $question_type,
+                q.group_id = $group_id,
+                q.asked_at = datetime()
+            RETURN q.question_id AS qid
+            """
+            result = await self._neo4j.run_query(
+                cypher,
+                question_id=question_id,
+                question_text=question_text,
+                concept=concept,
+                canvas_name=canvas_name,
+                question_type=question_type,
+                group_id=group_id or "",
+            )
+            return len(result) > 0
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.warning(f"Neo4j direct store failed: {e}")
+            return False
+
+    async def _search_questions_neo4j_direct(
+        self,
+        concept: str,
+        canvas_name: Optional[str] = None,
+        group_id: Optional[str] = None,
+        limit: int = 10,
+    ) -> List[Dict[str, Any]]:
+        """Query verification questions directly from Neo4j (no embedding needed)."""
+        try:
+            cypher = """
+            MATCH (q:VerificationQuestion)
+            WHERE q.concept = $concept
+            """
+            params: Dict[str, Any] = {"concept": concept}
+
+            if canvas_name:
+                cypher += " AND q.canvas_name = $canvas_name"
+                params["canvas_name"] = canvas_name
+            if group_id:
+                cypher += " AND q.group_id = $group_id"
+                params["group_id"] = group_id
+
+            cypher += """
+            RETURN q.question_id AS question_id,
+                   q.question_text AS question_text,
+                   q.question_type AS question_type,
+                   q.asked_at AS asked_at,
+                   q.canvas_name AS canvas_name
+            ORDER BY q.asked_at DESC
+            LIMIT $limit
+            """
+            params["limit"] = limit
+
+            results = await self._neo4j.run_query(cypher, **params)
+            formatted = []
+            for r in results:
+                asked_at = r.get("asked_at")
+                if hasattr(asked_at, "isoformat"):
+                    asked_at = asked_at.isoformat()
+                formatted.append({
+                    "question_id": r.get("question_id", ""),
+                    "question_text": r.get("question_text", ""),
+                    "question_type": r.get("question_type", "standard"),
+                    "asked_at": asked_at,
+                    "score": None,
+                    "user_answer": None,
+                    "canvas_name": r.get("canvas_name", ""),
+                })
+            return formatted
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.warning(f"Neo4j direct search failed: {e}")
+            return []
+
     async def add_verification_question(
         self,
         question_text: str,
@@ -1015,6 +1194,8 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         存储检验问题到Graphiti
 
         Story 31.4 Task 6.1: 在问题生成后调用此方法存储检验问题
+        Uses Neo4j direct storage as primary (no LLM needed),
+        with local cache for in-process fast access.
 
         Args:
             question_text: 问题内容
@@ -1038,15 +1219,29 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
         if not question_id:
             question_id = f"vq-{uuid_module.uuid4().hex[:8]}"
 
-        # Build episode content (Task 6.2 format)
+        # Build effective group_id (Task 6.3)
+        effective_group_id = self._build_group_id(
+            canvas_path=canvas_name,
+            group_id=group_id
+        )
+
+        # Primary: Neo4j direct storage (no LLM needed, cross-process persistent)
+        neo4j_stored = await self._store_question_neo4j_direct(
+            question_id=question_id,
+            question_text=question_text,
+            concept=concept,
+            canvas_name=canvas_name,
+            question_type=question_type,
+            group_id=effective_group_id,
+        )
+
+        # Also store in local cache for in-process fast access
         content = (
             f"验证问题: {question_text} | "
             f"概念: {concept} | "
             f"Canvas: {canvas_name} | "
             f"类型: {question_type}"
         )
-
-        # Build metadata (Task 6.2)
         metadata = {
             "type": "verification_question",
             "concept": concept,
@@ -1054,25 +1249,23 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             "question_type": question_type,
             "question_id": question_id,
         }
-
-        # Build effective group_id (Task 6.3)
-        effective_group_id = self._build_group_id(
-            canvas_path=canvas_name,
-            group_id=group_id
-        )
-
-        # Store using add_learning_episode (fire-and-forget pattern from ADR-0003)
-        episode_id = await self.add_learning_episode(
-            content=content,
-            episode_type="verification_question",
-            metadata=metadata,
-            group_id=effective_group_id
-        )
+        self._episode_cache.append({
+            "uuid": question_id,
+            "name": f"verification_question_{question_id}",
+            "episode_body": content,
+            "source_description": "Canvas Learning - verification_question",
+            "reference_time": datetime.now(),
+            "created_at": datetime.now(),
+            "episode_type": "verification_question",
+            "metadata": metadata,
+            "group_id": effective_group_id,
+        })
 
         if LOGURU_ENABLED:
             logger.info(
                 f"Stored verification question: id={question_id}, "
-                f"concept={concept}, type={question_type}"
+                f"concept={concept}, type={question_type}, "
+                f"neo4j={'ok' if neo4j_stored else 'fallback'}"
             )
 
         return question_id
@@ -1287,7 +1480,10 @@ def get_graphiti_temporal_client(
 
     if _client_instance is None:
         if neo4j_client is None:
-            from backend.app.clients.neo4j_client import get_neo4j_client
+            try:
+                from app.clients.neo4j_client import get_neo4j_client
+            except ImportError:
+                from backend.app.clients.neo4j_client import get_neo4j_client
             neo4j_client = get_neo4j_client()
 
         _client_instance = GraphitiTemporalClient(
