@@ -691,8 +691,9 @@ class TestMultimodalDeletionE2E:
 
         [Source: docs/stories/35.1.story.md#AC-35.1.3]
         """
-        # Act
-        response = client.delete("/api/v1/multimodal/nonexistent-id-12345")
+        # Act - Use valid UUID format (matches endpoint's pattern constraint)
+        # but a UUID that doesn't exist in storage
+        response = client.delete("/api/v1/multimodal/00000000-0000-0000-0000-000000000000")
 
         # Assert
         assert response.status_code == 404
