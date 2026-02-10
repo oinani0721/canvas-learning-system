@@ -837,7 +837,6 @@ class TestRealReviewServiceHistory:
         with patch("app.services.review_service.datetime") as mock_dt:
             mock_dt.now.return_value = _fixed_now
             mock_dt.fromisoformat = datetime.fromisoformat
-            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             yield
 
     async def test_default_limit_returns_max_5_records(self):
@@ -1026,7 +1025,6 @@ class TestShowAllHardCap:
         with patch("app.services.review_service.datetime") as mock_dt:
             mock_dt.now.return_value = _fixed_now
             mock_dt.fromisoformat = datetime.fromisoformat
-            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
             yield
 
     def test_max_history_records_constant_exists(self):

@@ -260,7 +260,7 @@ try:
     _services_available = True
 except ImportError:
     _services_available = False
-    logging.warning("QuestionGenerator/TopicClusterer not available, using fallback")
+    logger.warning("QuestionGenerator/TopicClusterer not available, using fallback")
 
 # AI-enhanced question generation for verification canvas
 try:
@@ -344,7 +344,7 @@ async def _get_difficulty_data(
         for r in results:
             if isinstance(r, Exception):
                 # H3 fix: Log exceptions from gather(return_exceptions=True)
-                logging.warning(f"Difficulty query task failed: {r}")
+                logger.warning(f"Difficulty query task failed: {r}")
             elif isinstance(r, tuple) and len(r) == 2:
                 nid, diff = r
                 if nid and diff is not None:
@@ -359,7 +359,7 @@ async def _get_difficulty_data(
         return None
 
     except Exception as e:
-        logging.warning(f"Difficulty data retrieval failed (graceful degradation): {e}", exc_info=True)
+        logger.warning(f"Difficulty data retrieval failed (graceful degradation): {e}", exc_info=True)
         return None
 
 
@@ -502,7 +502,7 @@ async def _generate_ai_questions(
         return None
 
     except Exception as e:
-        logging.warning(f"AI question generation failed for canvas: {e}")
+        logger.warning(f"AI question generation failed for canvas: {e}")
         return None
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -628,7 +628,7 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     """
     # ✅ Connected to real EbbinghausReviewScheduler (P0 Task #1)
     if not _scheduler_available or _scheduler is None:
-        logging.warning("EbbinghausReviewScheduler not available, returning empty schedule")
+        logger.warning("EbbinghausReviewScheduler not available, returning empty schedule")
         return ReviewScheduleResponse(items=[], total_count=0)
 
     try:
@@ -857,7 +857,7 @@ async def generate_verification_canvas(
     )
 
     if not nodes_to_review:
-        logging.warning(f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})")
+        logger.warning(f"No red/purple nodes found in {request.source_canvas} (mode={review_mode})")
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
@@ -1252,7 +1252,7 @@ async def get_verification_history(
     graphiti_client = get_graphiti_temporal_client()
 
     if not graphiti_client:
-        logging.warning("Graphiti client not available for verification history query")
+        logger.warning("Graphiti client not available for verification history query")
         # Return empty response when Graphiti is unavailable
         return VerificationHistoryResponse(
             concept=concept,
