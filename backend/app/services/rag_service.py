@@ -190,9 +190,15 @@ class RAGService:
         logger.warning(f"RAGService: Using fallback result, reason: {fallback_reason}")
         return {
             "messages": [],
+            "results": [],
             "reranked_results": [],
             "fused_results": [],
+            "multimodal_results": [],
             "quality_grade": None,
+            "result_count": 0,
+            "total_latency_ms": 0.0,
+            "latency_ms": {},
+            "metadata": {},
             "fallback_used": True,
             "fallback_reason": fallback_reason,
         }
@@ -356,8 +362,14 @@ class RAGService:
             )
             return {
                 "messages": [],
+                "results": [],
                 "reranked_results": [],
+                "multimodal_results": [],
                 "quality_grade": None,
+                "result_count": 0,
+                "total_latency_ms": 0.0,
+                "latency_ms": {},
+                "metadata": {},
                 "error": _IMPORT_ERROR,
             }
 
@@ -367,8 +379,14 @@ class RAGService:
             logger.error(f"RAG query fallback due to error: {e}")
             return {
                 "messages": [],
+                "results": [],
                 "reranked_results": [],
+                "multimodal_results": [],
                 "quality_grade": None,
+                "result_count": 0,
+                "total_latency_ms": 0.0,
+                "latency_ms": {},
+                "metadata": {},
                 "error": str(e),
             }
 

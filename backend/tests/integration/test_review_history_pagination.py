@@ -824,7 +824,21 @@ class TestRealReviewServiceHistory:
 
     These tests validate the REAL sorting, filtering, and pagination logic
     inside ReviewService.get_history() — NOT a mock.
+
+    Uses fixed dates for determinism (test-review H3 fix): test data uses
+    date(2025, 6, 15) as base, so we patch datetime.now() in the service
+    module to match, ensuring records fall within the query date range.
     """
+
+    @pytest.fixture(autouse=True)
+    def _patch_service_datetime(self):
+        """Patch datetime.now() in review_service to match fixed test dates."""
+        _fixed_now = datetime(2025, 6, 15, 23, 59, 0)
+        with patch("app.services.review_service.datetime") as mock_dt:
+            mock_dt.now.return_value = _fixed_now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            yield
 
     async def test_default_limit_returns_max_5_records(self):
         """AC1: Default limit=5 returns at most 5 individual review records."""
@@ -1004,6 +1018,16 @@ class TestReviewServiceDICompleteness:
 
 class TestShowAllHardCap:
     """Story 34.8 AC3: Verify show_all=True uses MAX_HISTORY_RECORDS cap."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_service_datetime(self):
+        """Patch datetime.now() in review_service to match fixed test dates."""
+        _fixed_now = datetime(2025, 6, 15, 23, 59, 0)
+        with patch("app.services.review_service.datetime") as mock_dt:
+            mock_dt.now.return_value = _fixed_now
+            mock_dt.fromisoformat = datetime.fromisoformat
+            mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
+            yield
 
     def test_max_history_records_constant_exists(self):
         """AC3: MAX_HISTORY_RECORDS constant must be defined."""
