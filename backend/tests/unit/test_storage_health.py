@@ -13,6 +13,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.api.v1.endpoints.health import (
     LatencyTracker,
     StorageBackendStatus,
@@ -149,7 +151,7 @@ class TestLatencyTracker:
         await tracker.record(100.0)
 
         # Wait for sample to expire
-        await asyncio.sleep(1.1)
+        await simulate_async_delay(1.1)
 
         # Should be 0 after expiration
         p95 = await tracker.get_p95()

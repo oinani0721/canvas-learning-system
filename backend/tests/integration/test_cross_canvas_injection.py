@@ -21,6 +21,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.services.context_enrichment_service import ContextEnrichmentService
 
 
@@ -561,7 +563,7 @@ class TestPerformance:
         assert canvas_path in service._association_cache
 
         # Wait for TTL to expire
-        await asyncio.sleep(0.2)
+        await simulate_async_delay(0.2)
 
         # Check cache - should be cleared on next access
         cached = service._get_cached_association(canvas_path)

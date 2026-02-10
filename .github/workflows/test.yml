@@ -1,0 +1,89 @@
+# Canvas Learning System - Test Pipeline
+# Story 30.23: CI pipeline activation for automated regression protection
+#
+# Runs non-integration tests on PRs and pushes.
+# Integration tests requiring Docker/external services are excluded.
+
+name: Test Suite
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'canvas-progress-tracker/**'
+  push:
+    branches:
+      - main
+      - clean-release
+    paths:
+      - 'backend/**'
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # All Tests (excluding @pytest.mark.integration — no Docker in CI)
+  # ═══════════════════════════════════════════════════════════════════════════════
+  tests:
+    name: Tests (non-integration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Create reports directory
+        run: mkdir -p backend/reports
+
+      - name: Run tests
+        run: |
+          cd backend
+          python -m pytest tests/ \
+            -m "not integration" \
+            -v --tb=short \
+            --junitxml=reports/test-results.xml \
+            -q --no-header \
+            -p no:cacheprovider \
+            --override-ini="addopts=" 2>&1
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: backend/reports/test-results.xml
+          retention-days: 14
+
+  # ═══════════════════════════════════════════════════════════════════════════════
+  # Summary
+  # ═══════════════════════════════════════════════════════════════════════════════
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [tests]
+    if: always()
+    steps:
+      - name: Generate summary
+        run: |
+          echo "## Test Suite Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.tests.result }}" == "success" ]; then
+            echo "| Tests (non-integration) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Tests (non-integration) | :x: |" >> $GITHUB_STEP_SUMMARY
+          fi

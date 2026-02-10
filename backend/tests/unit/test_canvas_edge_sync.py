@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.services.canvas_service import CanvasService
 
 
@@ -172,7 +174,7 @@ class TestAddEdgeWithNeo4jSync:
 
         # Make Neo4j sync slow (simulating network delay)
         async def slow_sync(*args, **kwargs):
-            await asyncio.sleep(2)  # 2 second delay
+            await simulate_async_delay(2)  # 2 second delay
             return True
 
         mock_memory_client.neo4j.create_edge_relationship = slow_sync

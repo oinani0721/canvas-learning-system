@@ -20,6 +20,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.services.canvas_service import CanvasService
 
 
@@ -176,7 +178,7 @@ class TestSyncAllEdgesToNeo4j:
             async with lock:
                 current_concurrent += 1
                 max_concurrent = max(max_concurrent, current_concurrent)
-            await asyncio.sleep(0.05)  # Simulate some work
+            await simulate_async_delay(0.05)  # Simulate some work
             async with lock:
                 current_concurrent -= 1
             return True

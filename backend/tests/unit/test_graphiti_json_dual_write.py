@@ -20,7 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import wait_for_condition, wait_for_mock_call, yield_to_event_loop
+from tests.conftest import simulate_async_delay, wait_for_condition, wait_for_mock_call, yield_to_event_loop
 
 from app.clients.graphiti_client import LearningMemory
 from app.services.memory_service import (
@@ -111,7 +111,7 @@ class TestGraphitiJsonDualWrite:
 
         # Make JSON write slow (1 second)
         async def slow_write(*args, **kwargs):
-            await asyncio.sleep(1.0)
+            await simulate_async_delay(1.0)
             return True
 
         mock_learning_memory_client.add_learning_episode = slow_write
@@ -183,7 +183,7 @@ class TestGraphitiJsonDualWrite:
 
         # Make JSON write slow (2 seconds, way beyond 500ms timeout)
         async def very_slow_write(*args, **kwargs):
-            await asyncio.sleep(2.0)
+            await simulate_async_delay(2.0)
             return True
 
         mock_learning_memory_client.add_learning_episode = very_slow_write
@@ -203,7 +203,7 @@ class TestGraphitiJsonDualWrite:
             )
 
             # Wait for fire-and-forget task to timeout
-            await asyncio.sleep(GRAPHITI_JSON_WRITE_TIMEOUT + 0.5)
+            await simulate_async_delay(GRAPHITI_JSON_WRITE_TIMEOUT + 0.5)
             total_elapsed = time.time() - start_time
 
         # Assert
@@ -322,7 +322,7 @@ class TestGraphitiJsonDualWrite:
         await memory_service.initialize()
 
         async def very_slow_write(*args, **kwargs):
-            await asyncio.sleep(2.0)
+            await simulate_async_delay(2.0)
             return True
 
         mock_learning_memory_client.add_learning_episode = very_slow_write

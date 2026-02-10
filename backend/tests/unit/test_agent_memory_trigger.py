@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import yield_to_event_loop
+from tests.conftest import simulate_async_delay, yield_to_event_loop
 
 # Story 30.4: Test agent memory mapping module
 from app.core.agent_memory_mapping import (
@@ -174,7 +174,7 @@ class TestTriggerMemoryWrite:
 
         # Make record_learning_episode take 200ms
         async def slow_record(*args, **kwargs):
-            await asyncio.sleep(0.2)
+            await simulate_async_delay(0.2)
             return True
 
         mock_agent_service.record_learning_episode = slow_record
@@ -199,7 +199,7 @@ class TestTriggerMemoryWrite:
 
         # Make record_learning_episode take longer than 500ms timeout
         async def very_slow_record(*args, **kwargs):
-            await asyncio.sleep(1.0)
+            await simulate_async_delay(1.0)
             return True
 
         mock_agent_service.record_learning_episode = very_slow_record
@@ -213,7 +213,7 @@ class TestTriggerMemoryWrite:
         )
 
         # Wait for timeout to occur
-        await asyncio.sleep(0.6)
+        await simulate_async_delay(0.6)
 
         # No exception should be raised - silent degradation
 
