@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-10T02:50:20.078173+00:00",
+    "x-generated-at": "2026-02-10T05:53:00.953818+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -2636,7 +2636,7 @@
           "Review"
         ],
         "summary": "Get review history",
-        "description": "Get review history with pagination support.\n\nStory 34.4 AC1: Default display shows most recent 5 records (limit=5).\nStory 34.4 AC2: show_all=True loads complete history.\nStory 34.4 AC3: API supports `limit` and `show_all` parameters.\n\n- **days**: Number of days to look back (7, 30, or 90)\n- **canvas_path**: Filter by canvas file path\n- **concept_name**: Filter by concept name\n- **limit**: Maximum records to return (default: 5, Story 34.4 AC1)\n- **show_all**: If True, ignore limit and return all records (Story 34.4 AC2)\n\n[Source: specs/api/review-api.openapi.yml#L185-216]\n[Source: docs/stories/34.4.story.md]",
+        "description": "Get review history with pagination support.\n\nStory 34.4 AC1: Default display shows most recent 5 records (limit=5).\nStory 34.4 AC2: show_all=True loads complete history.\nStory 34.4 AC3: API supports `limit` and `show_all` parameters.\n\n- **days**: Number of days to look back (1-365, default 7)\n- **canvas_path**: Filter by canvas file path\n- **concept_name**: Filter by concept name\n- **limit**: Maximum records to return (default: 5, Story 34.4 AC1)\n- **show_all**: If True, ignore limit and return all records (Story 34.4 AC2)\n\n[Source: specs/api/review-api.openapi.yml#L185-216]\n[Source: docs/stories/34.4.story.md]",
         "operationId": "get_review_history",
         "parameters": [
           {
@@ -2645,9 +2645,13 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 365,
+              "minimum": 1,
+              "description": "Number of days to look back (1-365)",
               "default": 7,
               "title": "Days"
-            }
+            },
+            "description": "Number of days to look back (1-365)"
           },
           {
             "name": "canvas_path",
@@ -3214,6 +3218,143 @@
           },
           "400": {
             "description": "Session cannot be resumed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/session/start": {
+      "post": {
+        "tags": [
+          "Review",
+          "verification-session"
+        ],
+        "summary": "Start interactive verification session",
+        "description": "Start an interactive verification session for a canvas.\n\nEPIC-31: Calls VerificationService.start_session() which reads the canvas,\nextracts red/purple concepts, and generates the first AI question.\n\n- **canvas_name**: Source canvas name (without .canvas extension)\n- **node_ids**: Optional specific node IDs to verify\n- **include_mastered**: Whether to include already-mastered concepts (default: true)\n\nReturns session_id and first_question for the frontend modal.",
+        "operationId": "start_verification_session",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StartSessionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Session started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StartSessionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Canvas not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI timeout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/review/session/{session_id}/answer": {
+      "post": {
+        "tags": [
+          "Review",
+          "verification-session"
+        ],
+        "summary": "Submit answer for current concept",
+        "description": "Submit an answer for the current concept in an interactive verification session.\n\nEPIC-31: Calls VerificationService.process_answer() which evaluates the answer\nvia scoring-agent and returns quality, score, and the next action (hint/next/complete).\n\n- **session_id**: Active session identifier\n- **user_answer**: User's answer text\n\nReturns scoring result and updated progress.",
+        "operationId": "submit_verification_answer",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitAnswerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Answer evaluated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubmitAnswerResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Session not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "504": {
+            "description": "AI scoring timeout",
             "content": {
               "application/json": {
                 "schema": {
@@ -5244,6 +5385,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
               "description": "Content UUID",
               "title": "Content Id"
             },
@@ -5302,6 +5444,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
               "description": "Content UUID",
               "title": "Content Id"
             },
@@ -5370,6 +5513,7 @@
             "required": true,
             "schema": {
               "type": "string",
+              "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
               "description": "Content UUID",
               "title": "Content Id"
             },
@@ -6516,7 +6660,14 @@
             "description": "Canvas node ID to associate"
           },
           "canvas_path": {
-            "type": "string",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Canvas Path",
             "description": "Canvas file path"
           },
@@ -6536,8 +6687,7 @@
         "type": "object",
         "required": [
           "file",
-          "related_concept_id",
-          "canvas_path"
+          "related_concept_id"
         ],
         "title": "Body_upload_file_api_v1_multimodal_upload_post"
       },
@@ -10018,7 +10168,7 @@
             "type": "string",
             "minLength": 1,
             "title": "Url",
-            "description": "URL to fetch content from (must be accessible)"
+            "description": "URL to fetch content from (must be http/https)"
           },
           "related_concept_id": {
             "type": "string",
@@ -10027,8 +10177,14 @@
             "description": "Canvas node ID to associate this content with"
           },
           "canvas_path": {
-            "type": "string",
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Canvas Path",
             "description": "Canvas file path for context"
           },
@@ -10049,8 +10205,7 @@
         "type": "object",
         "required": [
           "url",
-          "related_concept_id",
-          "canvas_path"
+          "related_concept_id"
         ],
         "title": "MultimodalUploadUrlRequest",
         "description": "Request model for uploading content from URL.\n\n[Source: docs/stories/35.1.story.md#AC-35.1.2]\n[Source: specs/api/multimodal-api.openapi.yml#MultimodalUploadUrlRequest]"
@@ -12991,6 +13146,86 @@
         "title": "SnapshotTypeEnum",
         "description": "快照类型枚举\n\n[Source: docs/architecture/rollback-recovery-architecture.md:212-250]"
       },
+      "StartSessionRequest": {
+        "properties": {
+          "canvas_name": {
+            "type": "string",
+            "title": "Canvas Name",
+            "description": "Source canvas name (without .canvas extension)",
+            "example": "离散数学"
+          },
+          "node_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Node Ids",
+            "description": "Optional list of specific node IDs to verify"
+          },
+          "include_mastered": {
+            "type": "boolean",
+            "title": "Include Mastered",
+            "description": "Whether to include already-mastered concepts",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "canvas_name"
+        ],
+        "title": "StartSessionRequest",
+        "description": "Request to start an interactive verification session.\n\nEPIC-31: Bridges the gap between static canvas generation and interactive Q&A."
+      },
+      "StartSessionResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "description": "Unique session identifier",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "total_concepts": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Total Concepts",
+            "description": "Total concepts to verify",
+            "example": 8
+          },
+          "first_question": {
+            "type": "string",
+            "title": "First Question",
+            "description": "First verification question to display",
+            "example": "请用自己的话解释什么是「逆否命题」？"
+          },
+          "current_concept": {
+            "type": "string",
+            "title": "Current Concept",
+            "description": "Name of the first concept being verified",
+            "example": "逆否命题"
+          },
+          "status": {
+            "$ref": "#/components/schemas/VerificationStatusEnum",
+            "description": "Session status (always in_progress on creation)",
+            "default": "in_progress"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "total_concepts",
+          "first_question",
+          "current_concept"
+        ],
+        "title": "StartSessionResponse",
+        "description": "Response after starting a verification session.\n\nContains session_id and the first question to display."
+      },
       "StorageBackendStatus": {
         "properties": {
           "name": {
@@ -13225,6 +13460,91 @@
           "pattern": "Math 54/**",
           "subject": "math54"
         }
+      },
+      "SubmitAnswerRequest": {
+        "properties": {
+          "user_answer": {
+            "type": "string",
+            "minLength": 1,
+            "title": "User Answer",
+            "description": "User's answer text",
+            "example": "逆否命题是将原命题的条件和结论同时取反再交换..."
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_answer"
+        ],
+        "title": "SubmitAnswerRequest",
+        "description": "Request to submit an answer during interactive verification."
+      },
+      "SubmitAnswerResponse": {
+        "properties": {
+          "quality": {
+            "type": "string",
+            "title": "Quality",
+            "description": "Answer quality classification",
+            "example": "good"
+          },
+          "score": {
+            "type": "number",
+            "maximum": 100.0,
+            "minimum": 0.0,
+            "title": "Score",
+            "description": "Numerical score (0-100 unified scale)",
+            "example": 75.0
+          },
+          "action": {
+            "type": "string",
+            "title": "Action",
+            "description": "Recommended next action: hint, next, or complete",
+            "example": "next"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint",
+            "description": "Hint text if action is 'hint'"
+          },
+          "next_question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Question",
+            "description": "Next question text if action is 'next'"
+          },
+          "current_concept": {
+            "type": "string",
+            "title": "Current Concept",
+            "description": "Current concept being verified",
+            "example": "逆否命题"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/SessionProgressResponse",
+            "description": "Updated session progress after this answer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "quality",
+          "score",
+          "action",
+          "current_concept",
+          "progress"
+        ],
+        "title": "SubmitAnswerResponse",
+        "description": "Response after submitting an answer, with scoring and next action."
       },
       "SyncEdgesSummaryResponse": {
         "properties": {

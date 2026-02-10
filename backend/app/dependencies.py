@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from functools import lru_cache
-from typing import TYPE_CHECKING, Annotated, AsyncGenerator
+from typing import TYPE_CHECKING, Annotated, AsyncGenerator, Optional
 
 if TYPE_CHECKING:
     from .services.rollback_service import RollbackService
@@ -123,7 +123,20 @@ async def get_canvas_service(
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
     """
     logger.debug("Creating CanvasService instance")
-    service = CanvasService(canvas_base_path=settings.canvas_base_path)
+
+    # P0 Fix: Inject MemoryService for Story 36.3/36.4 edge sync to Neo4j
+    # Import from canonical singleton in memory_service.py (not endpoint)
+    memory_client = None
+    try:
+        from app.services.memory_service import get_memory_service as _get_memory_svc
+        memory_client = await _get_memory_svc()
+    except Exception as e:
+        logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
+
+    service = CanvasService(
+        canvas_base_path=settings.canvas_base_path,
+        memory_client=memory_client
+    )
     try:
         yield service
     finally:
@@ -196,14 +209,25 @@ async def get_agent_service(
     else:
         logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
 
+    # Story 36.11: Inject LearningMemoryClient for memory fallback when Neo4j unavailable
+    memory_client = None
+    try:
+        from .clients.graphiti_client import get_learning_memory_client
+        memory_client = get_learning_memory_client()
+        logger.debug("LearningMemoryClient injected into AgentService")
+    except Exception as e:
+        logger.warning(f"LearningMemoryClient not available for AgentService: {e}")
+
     # ✅ FIX-Canvas-Write: Pass canvas_service to AgentService for direct Canvas writes
     # Story 36.7: Pass neo4j_client to AgentService for learning memory queries
+    # Story 36.11: Pass memory_client for fallback when Neo4j unavailable
     service = AgentService(
         gemini_client=gemini_client,
+        memory_client=memory_client,  # Story 36.11: 注入 LearningMemoryClient
         canvas_service=canvas_service,  # ✅ FIX: 注入 canvas_service
         neo4j_client=neo4j_client  # Story 36.7: 注入 Neo4jClient
     )
-    logger.debug("AgentService created with CanvasService and Neo4jClient for direct Canvas writes and memory queries")
+    logger.debug("AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient")
 
     try:
         yield service
@@ -245,7 +269,8 @@ TaskManagerDep = Annotated[BackgroundTaskManager, Depends(get_task_manager)]
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_review_service(
     canvas_service: CanvasServiceDep,
-    task_manager: TaskManagerDep
+    task_manager: TaskManagerDep,
+    settings: SettingsDep
 ) -> AsyncGenerator[ReviewService, None]:
     """
     Get ReviewService instance with automatic resource cleanup.
@@ -281,10 +306,36 @@ async def get_review_service(
     [Source: docs/stories/15.3.story.md#Dev-Notes - 示例3: 链式依赖]
     [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
     """
+    # Story 32.8 AC-32.8.3 + AC-32.8.4: Unified FSRSManager factory
+    # Checks USE_FSRS setting and creates FSRSManager via single path
+    fsrs_manager = None
+    try:
+        from .services.review_service import create_fsrs_manager
+        fsrs_manager = create_fsrs_manager(settings)
+    except Exception as e:
+        logger.warning(f"FSRSManager DI creation failed, ReviewService will auto-create: {e}")
+
+    # Story 34.8 AC2: Explicitly inject graphiti_client (was previously missing)
+    # Uses get_graphiti_temporal_client() singleton — returns None if unavailable
+    graphiti_client = None
+    try:
+        graphiti_client = get_graphiti_temporal_client()
+        if graphiti_client:
+            logger.debug("GraphitiTemporalClient injected into ReviewService for history queries")
+        else:
+            logger.warning(
+                "Graphiti client not available for ReviewService, "
+                "history will use FSRS fallback"
+            )
+    except Exception as e:
+        logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
+
     logger.debug("Creating ReviewService instance (chained dependency)")
     service = ReviewService(
         canvas_service=canvas_service,
-        task_manager=task_manager
+        task_manager=task_manager,
+        graphiti_client=graphiti_client,
+        fsrs_manager=fsrs_manager
     )
     try:
         yield service
@@ -357,10 +408,21 @@ async def get_context_enrichment_service(
     # Story 25.3: Get CrossCanvasService singleton for cross-canvas context
     cross_canvas_service = get_cross_canvas_service()
 
+    # P1 Fix: Inject LearningMemoryClient for Graphiti learning memory enrichment
+    # Without this, ContextEnrichmentService._search_graphiti_relations() always returns []
+    graphiti_service = None
+    try:
+        from .clients.graphiti_client import get_learning_memory_client
+        graphiti_service = get_learning_memory_client()
+        logger.debug("LearningMemoryClient injected into ContextEnrichmentService")
+    except Exception as e:
+        logger.warning(f"LearningMemoryClient not available for context enrichment: {e}")
+
     service = ContextEnrichmentService(
         canvas_service=canvas_service,
         textbook_service=textbook_service,
-        cross_canvas_service=cross_canvas_service
+        cross_canvas_service=cross_canvas_service,
+        graphiti_service=graphiti_service  # P1 Fix: Enable Graphiti learning memory context
     )
 
     try:
@@ -469,7 +531,8 @@ def _get_rollback_service_dep():
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_verification_service(
-    settings: SettingsDep
+    settings: SettingsDep,
+    canvas_service: CanvasServiceDep  # P0 Fix: Inject CanvasService for concept extraction
 ) -> AsyncGenerator[VerificationService, None]:
     """
     Get VerificationService instance with RAG context injection.
@@ -538,10 +601,10 @@ async def get_verification_service(
     )
 
     # Story 31.5: Get MemoryService for difficulty adaptation
-    # Lazy import to avoid circular dependency (memory.py imports from dependencies.py)
-    from app.api.v1.endpoints.memory import get_memory_service as _get_memory_svc
+    # Import from canonical singleton in memory_service.py (not endpoint)
+    from app.services.memory_service import get_memory_service as _get_memory_svc
     try:
-        memory_service = await _get_memory_svc(settings)
+        memory_service = await _get_memory_svc()
     except Exception as e:
         logger.warning(f"MemoryService not available for difficulty adaptation: {e}")
         memory_service = None
@@ -575,7 +638,9 @@ async def get_verification_service(
         textbook_context_service=textbook_service,
         graphiti_client=graphiti_client,  # Story 31.A.1: Enable question deduplication
         memory_service=memory_service,  # Story 31.5: Enable difficulty adaptation
-        agent_service=agent_service  # P0-2: Enable AI question generation and scoring
+        agent_service=agent_service,  # P0-2: Enable AI question generation and scoring
+        canvas_service=canvas_service,  # P0 Fix: Enable Canvas concept extraction
+        canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None  # P0 Fix
     )
 
     try:
@@ -853,6 +918,180 @@ def get_graphiti_temporal_client():
 
 
 # =============================================================================
+# MultimodalService Dependency (Story 35.1)
+# [Source: docs/stories/35.1.story.md]
+# =============================================================================
+
+from .services.multimodal_service import MultimodalService
+
+
+async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService:
+    """
+    Get MultimodalService singleton instance and ensure it's initialized.
+
+    Uses the module-level singleton pattern from multimodal_service.py.
+    Injects storage_base_path from settings and attempts to create
+    MultimodalStore for vector search / Neo4j integration.
+
+    Returns:
+        MultimodalService: Singleton multimodal service instance
+
+    [Source: docs/stories/35.1.story.md#Task-3.1]
+    """
+    from .services.multimodal_service import get_multimodal_service
+
+    logger.debug("Getting MultimodalService singleton instance")
+
+    # D1 Persistence: Compute storage path from settings
+    storage_base_path = None
+    if settings.canvas_base_path:
+        storage_base_path = str(_PathLib(settings.canvas_base_path) / "multimodal")
+
+    # D5 Degradation: Try to inject MultimodalStore, fall back gracefully
+    multimodal_store = None
+    try:
+        from src.agentic_rag.storage.multimodal_store import MultimodalStore as _MMStore
+        multimodal_store = _MMStore()
+        logger.info("MultimodalStore injected — vector search and Neo4j enabled")
+    except ImportError:
+        logger.warning(
+            "MultimodalStore not available (agentic_rag not installed) — "
+            "using JSON fallback. Vector search disabled."
+        )
+    except Exception as e:
+        logger.warning(f"MultimodalStore creation failed: {e} — using JSON fallback")
+
+    service = get_multimodal_service(
+        storage_base_path=storage_base_path,
+        multimodal_store=multimodal_store,
+    )
+    await service.initialize()
+    return service
+
+
+# Type alias for MultimodalService dependency
+MultimodalServiceDep = Annotated[MultimodalService, Depends(get_multimodal_service_dep)]
+
+
+# =============================================================================
+# EPIC-33: Intelligent Parallel Processing Dependencies
+# =============================================================================
+
+from .services.session_manager import SessionManager
+from .services.intelligent_grouping_service import IntelligentGroupingService
+from .services.agent_routing_engine import AgentRoutingEngine
+
+
+def get_session_manager() -> SessionManager:
+    """
+    Get SessionManager singleton instance.
+
+    EPIC-33 Story 33.3: Session lifecycle management.
+
+    Returns:
+        SessionManager: Singleton session manager instance
+    """
+    logger.debug("Getting SessionManager singleton instance")
+    return SessionManager.get_instance()
+
+
+# Type alias for SessionManager dependency
+SessionManagerDep = Annotated[SessionManager, Depends(get_session_manager)]
+
+
+def get_intelligent_grouping_service(
+    settings: SettingsDep
+) -> IntelligentGroupingService:
+    """
+    Get IntelligentGroupingService instance.
+
+    EPIC-33 Story 33.4: TF-IDF + K-Means canvas node clustering.
+
+    Args:
+        settings: Application settings for canvas_base_path
+
+    Returns:
+        IntelligentGroupingService: Grouping service instance
+    """
+    logger.debug("Creating IntelligentGroupingService instance")
+    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    return IntelligentGroupingService(canvas_base_path=canvas_base_path)
+
+
+# Type alias for IntelligentGroupingService dependency
+IntelligentGroupingServiceDep = Annotated[IntelligentGroupingService, Depends(get_intelligent_grouping_service)]
+
+
+# AgentRoutingEngine singleton
+_agent_routing_engine_instance: Optional[AgentRoutingEngine] = None
+
+
+def get_agent_routing_engine() -> AgentRoutingEngine:
+    """
+    Get AgentRoutingEngine singleton instance.
+
+    EPIC-33 Story 33.5: Content-based agent routing.
+
+    Returns:
+        AgentRoutingEngine: Singleton routing engine instance
+    """
+    global _agent_routing_engine_instance
+    if _agent_routing_engine_instance is None:
+        _agent_routing_engine_instance = AgentRoutingEngine()
+        logger.info("AgentRoutingEngine singleton initialized")
+    return _agent_routing_engine_instance
+
+
+# Type alias for AgentRoutingEngine dependency
+AgentRoutingEngineDep = Annotated[AgentRoutingEngine, Depends(get_agent_routing_engine)]
+
+
+async def get_batch_orchestrator(
+    settings: SettingsDep,
+    agent_service: AgentServiceDep,
+    canvas_service: CanvasServiceDep,
+):
+    """
+    Get BatchOrchestrator instance with all dependencies.
+
+    EPIC-33 Story 33.6: Parallel execution orchestration.
+
+    Args:
+        settings: Application settings
+        agent_service: AgentService for agent calls
+        canvas_service: CanvasService for node content
+
+    Yields:
+        BatchOrchestrator: Orchestrator instance
+    """
+    from .services.batch_orchestrator import BatchOrchestrator
+
+    session_manager = get_session_manager()
+    vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+
+    orchestrator = BatchOrchestrator(
+        session_manager=session_manager,
+        agent_service=agent_service,
+        canvas_service=canvas_service,
+        vault_path=vault_path,
+    )
+
+    logger.debug("BatchOrchestrator created with SessionManager, AgentService, CanvasService")
+    yield orchestrator
+
+
+# Type alias for BatchOrchestrator dependency
+from .services.batch_orchestrator import BatchOrchestrator as _BatchOrchestrator
+BatchOrchestratorDep = Annotated[_BatchOrchestrator, Depends(get_batch_orchestrator)]
+
+
+# NOTE: get_intelligent_parallel_service() and IntelligentParallelServiceDep
+# were dead code (never used by endpoints). Removed per AC-33.9.8.
+# The endpoint uses a singleton pattern with _ensure_async_deps() instead,
+# because BatchOrchestrator._cancel_requested requires a shared instance.
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -871,6 +1110,12 @@ __all__ = [
     "get_neo4j_client_dep",  # Story 36.1
     "get_graphiti_client",  # Story 36.1
     "get_graphiti_temporal_client",  # Story 31.4
+    "get_multimodal_service_dep",  # Story 35.1
+    "get_session_manager",  # EPIC-33
+    "get_intelligent_grouping_service",  # EPIC-33
+    "get_agent_routing_engine",  # EPIC-33
+    "get_batch_orchestrator",  # EPIC-33
+    # get_intelligent_parallel_service removed per AC-33.9.8 (dead code)
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -883,4 +1128,10 @@ __all__ = [
     "RAGServiceDep",  # Story 12.A.2
     "Neo4jClientDep",  # Story 36.1
     "GraphitiClientDep",  # Story 36.1
+    "MultimodalServiceDep",  # Story 35.1
+    "SessionManagerDep",  # EPIC-33
+    "IntelligentGroupingServiceDep",  # EPIC-33
+    "AgentRoutingEngineDep",  # EPIC-33
+    "BatchOrchestratorDep",  # EPIC-33
+    # IntelligentParallelServiceDep removed per AC-33.9.8 (dead code)
 ]

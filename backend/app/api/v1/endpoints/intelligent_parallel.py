@@ -16,11 +16,14 @@ Provides 5 endpoints:
 [Source: docs/stories/33.1.story.md]
 """
 
+import logging
 from typing import Optional
 
 # ✅ Verified from Context7:/fastapi/fastapi (topic: APIRouter, HTTPException)
 from fastapi import APIRouter, HTTPException, Path, status
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 from app.models.intelligent_parallel_models import (
     CancelResponse,
@@ -60,28 +63,49 @@ single_agent_router = APIRouter(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Service Import (Stub - Full implementation in Story 33.2)
+# Service Import (EPIC-33 P0 Fix: uses DI from dependencies.py)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Service singleton - initialized lazily
+# Lazy-init singleton with async dep injection (Story 33.9 P0 Fix)
 _service: Optional["IntelligentParallelService"] = None  # type: ignore
 _validator_set: bool = False
+_deps_initialized: bool = False
 
 
 def get_service():
     """
-    Get IntelligentParallelService instance.
+    Get IntelligentParallelService singleton (sync skeleton).
 
-    [Source: docs/stories/33.1.story.md - Task 4]
-    [Source: docs/stories/33.2.story.md - Task 4]
+    Creates the service with sync-available dependencies only.
+    Async dependencies (batch_orchestrator, agent_service) are injected
+    lazily by _ensure_async_deps() on first request.
     """
     global _service, _validator_set
     if _service is None:
-        # Import here to avoid circular imports
         from app.services.intelligent_parallel_service import (
             IntelligentParallelService,
         )
-        _service = IntelligentParallelService()
+        from app.dependencies import (
+            get_settings,
+            get_session_manager,
+            get_intelligent_grouping_service,
+            get_agent_routing_engine,
+        )
+
+        settings = get_settings()
+
+        # Assemble sync-available dependencies
+        session_manager = get_session_manager()
+        grouping_service = get_intelligent_grouping_service(settings)
+        routing_engine = get_agent_routing_engine()
+
+        _service = IntelligentParallelService(
+            grouping_service=grouping_service,
+            session_manager=session_manager,
+            batch_orchestrator=None,  # Injected by _ensure_async_deps()
+            agent_service=None,  # Injected by _ensure_async_deps()
+            routing_engine=routing_engine,
+        )
 
         # Story 33.2: Set up WebSocket session validator
         if not _validator_set:
@@ -93,6 +117,90 @@ def get_service():
                 pass  # WebSocket module not available
 
     return _service
+
+
+async def _ensure_async_deps() -> None:
+    """
+    Lazily inject batch_orchestrator and agent_service into the singleton.
+
+    Story 33.9 P0 Fix: These deps require GeminiClient + CanvasService +
+    Neo4jClient which are constructed from settings. This function is
+    idempotent — it's a no-op after the first successful call.
+
+    Called by every endpoint before using the service.
+    """
+    global _deps_initialized
+    if _deps_initialized:
+        return
+
+    service = get_service()
+
+    from app.dependencies import (
+        get_settings,
+        get_neo4j_client_dep,
+        get_session_manager,
+        get_agent_routing_engine,
+    )
+    from app.clients.gemini_client import GeminiClient
+    from app.services.agent_service import AgentService
+    from app.services.batch_orchestrator import BatchOrchestrator
+    from app.services.canvas_service import CanvasService
+
+    settings = get_settings()
+
+    # 1. GeminiClient (sync constructor)
+    gemini_client = None
+    if settings.AI_API_KEY:
+        try:
+            gemini_client = GeminiClient(
+                api_key=settings.AI_API_KEY,
+                model=settings.AI_MODEL_NAME,
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+            )
+        except Exception as e:
+            logger.error(f"[Story 33.9] Failed to create GeminiClient: {e}")
+
+    # 2. CanvasService (sync constructor)
+    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    canvas_service = CanvasService(canvas_base_path=canvas_base_path)
+
+    # 3. AgentService (sync constructor)
+    neo4j_client = get_neo4j_client_dep()
+    agent_service = AgentService(
+        gemini_client=gemini_client,
+        canvas_service=canvas_service,
+        neo4j_client=neo4j_client,
+    )
+
+    # 4. BatchOrchestrator (sync constructor, singleton-shared)
+    session_manager = get_session_manager()
+    vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    routing_engine = get_agent_routing_engine()
+
+    batch_orchestrator = BatchOrchestrator(
+        session_manager=session_manager,
+        agent_service=agent_service,
+        canvas_service=canvas_service,
+        vault_path=vault_path,
+        routing_engine=routing_engine,
+    )
+
+    # 5. Inject into the singleton service
+    service._batch_orchestrator = batch_orchestrator
+    service._agent_service = agent_service
+
+    _deps_initialized = True
+    logger.info(
+        "[Story 33.9] P0 DI fix applied: batch_orchestrator and agent_service injected"
+    )
+
+
+def reset_service():
+    """Reset the service singleton (for testing)."""
+    global _service, _validator_set, _deps_initialized
+    _service = None
+    _validator_set = False
+    _deps_initialized = False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -140,6 +248,7 @@ async def analyze_canvas(
     Raises:
         HTTPException 404: Canvas file not found
     """
+    await _ensure_async_deps()
     service = get_service()
 
     try:
@@ -219,6 +328,7 @@ async def confirm_batch(
         HTTPException 400: Invalid group configuration
         HTTPException 404: Canvas file not found
     """
+    await _ensure_async_deps()
     service = get_service()
 
     try:
@@ -302,6 +412,7 @@ async def get_progress(
     Raises:
         HTTPException 404: Session not found
     """
+    await _ensure_async_deps()
     service = get_service()
 
     try:
@@ -381,6 +492,7 @@ async def cancel_session(
         HTTPException 404: Session not found
         HTTPException 409: Session already completed or cancelled
     """
+    await _ensure_async_deps()
     service = get_service()
 
     try:
@@ -460,6 +572,7 @@ async def retry_single_node(
     Raises:
         HTTPException 404: Node or canvas not found
     """
+    await _ensure_async_deps()
     service = get_service()
 
     try:
