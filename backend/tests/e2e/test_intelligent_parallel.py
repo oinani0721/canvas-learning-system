@@ -51,15 +51,12 @@ class TestHappyPathE2E:
     """
 
     @pytest.mark.e2e
-    @pytest.mark.xfail(
-        reason="canvas_utils.path_manager not available as package in test env (pre-existing infra issue)",
-        raises=Exception,
-    )
     @pytest.mark.asyncio
     async def test_complete_batch_processing_workflow(
         self,
         test_canvas_10_nodes: Path,
         tmp_path: Path,
+        mock_canvas_utils,
     ):
         """
         Test complete happy path: analyze → confirm → execute → complete.
@@ -708,16 +705,13 @@ class TestPerformanceE2E:
     @pytest.mark.e2e
     @pytest.mark.slow
     @pytest.mark.performance
-    @pytest.mark.xfail(
-        reason="canvas_utils.path_manager not available as package in test env (pre-existing infra issue)",
-        raises=Exception,
-    )
     @pytest.mark.asyncio
     async def test_100_nodes_performance(
         self,
         test_canvas_100_nodes: Path,
         tmp_path: Path,
         performance_timer: PerformanceTimer,
+        mock_canvas_utils,
     ):
         """
         Performance test: 100 nodes < 60 seconds.

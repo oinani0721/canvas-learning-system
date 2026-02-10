@@ -330,7 +330,7 @@ async def _get_difficulty_data(
                     return (node_id, result)
                 return (node_id, None)
             except Exception as e:
-                logging.debug(f"Score history query failed for {node_id}: {e}")
+                logger.debug(f"Score history query failed for {node_id}: {e}")
                 return (node_id, None)
 
         # Parallel query all nodes with 5s total timeout
@@ -514,12 +514,12 @@ def _read_canvas(canvas_path: Path) -> Optional[Dict[str, Any]]:
     """Read Canvas JSON file and return data."""
     try:
         if not canvas_path.exists():
-            logging.error(f"Canvas file not found: {canvas_path}")
+            logger.error(f"Canvas file not found: {canvas_path}")
             return None
         with open(canvas_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        logging.error(f"Error reading canvas {canvas_path}: {e}")
+        logger.error(f"Error reading canvas {canvas_path}: {e}")
         return None
 
 
@@ -537,7 +537,7 @@ def _write_canvas(canvas_path: Path, canvas_data: Dict[str, Any]) -> bool:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
-        logging.error(f"Error writing canvas {canvas_path}: {e}")
+        logger.error(f"Error writing canvas {canvas_path}: {e}")
         return False
 
 
@@ -651,7 +651,7 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
             total_count=len(items),
         )
     except Exception as e:
-        logging.error(f"Error getting review schedule: {e}")
+        logger.error(f"Error getting review schedule: {e}")
         return ReviewScheduleResponse(items=[], total_count=0)
 
 
@@ -777,7 +777,7 @@ async def get_review_history(
         )
 
     except Exception as e:
-        logging.error(f"Error getting review history: {e}")
+        logger.error(f"Error getting review history: {e}")
         # Return empty response on error
         return HistoryResponse(
             period=HistoryPeriod(
@@ -828,7 +828,7 @@ async def generate_verification_canvas(
         # Try without .canvas extension (user might have included it)
         source_canvas_path = _canvas_base_path / request.source_canvas
         if not source_canvas_path.exists():
-            logging.error(f"Source canvas not found: {request.source_canvas}")
+            logger.error(f"Source canvas not found: {request.source_canvas}")
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
@@ -1028,7 +1028,7 @@ async def generate_verification_canvas(
     success = _write_canvas(verification_canvas_path, verification_canvas_data)
 
     if not success:
-        logging.error(f"Failed to save verification canvas: {verification_canvas_name}")
+        logger.error(f"Failed to save verification canvas: {verification_canvas_name}")
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
@@ -1125,7 +1125,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
         )
 
     except Exception as e:
-        logging.error(f"Error recording review with FSRS: {e}")
+        logger.error(f"Error recording review with FSRS: {e}")
         # Fallback to legacy Ebbinghaus calculation
         score = request.score or 50.0  # Default score if only rating provided
         if request.rating:
@@ -1330,7 +1330,7 @@ async def get_verification_history(
         )
 
     except Exception as e:
-        logging.error(f"Error querying verification history for '{concept}': {e}")
+        logger.error(f"Error querying verification history for '{concept}': {e}")
         # Return empty response on error (graceful degradation)
         return VerificationHistoryResponse(
             concept=concept,
@@ -1415,7 +1415,7 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
         )
 
     except Exception as e:
-        logging.error(f"Error getting FSRS state for '{concept_id}': {e}")
+        logger.error(f"Error getting FSRS state for '{concept_id}': {e}")
         # Story 32.3 AC-32.3.5: Graceful degradation - return not found instead of error
         return FSRSStateQueryResponse(
             concept_id=concept_id,
@@ -1498,7 +1498,7 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error getting session progress for '{session_id}': {e}")
+        logger.error(f"Error getting session progress for '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get session progress: {str(e)}"
@@ -1553,7 +1553,7 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error pausing session '{session_id}': {e}")
+        logger.error(f"Error pausing session '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to pause session: {str(e)}"
@@ -1608,7 +1608,7 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
     except HTTPException:
         raise
     except Exception as e:
-        logging.error(f"Error resuming session '{session_id}': {e}")
+        logger.error(f"Error resuming session '{session_id}': {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to resume session: {str(e)}"
@@ -1690,7 +1690,7 @@ async def start_verification_session(
             detail="AI question generation timed out"
         )
     except Exception as e:
-        logging.error(f"Error starting verification session: {e}", exc_info=True)
+        logger.error(f"Error starting verification session: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to start session: {str(e)}"
@@ -1778,7 +1778,7 @@ async def submit_verification_answer(
             detail="AI scoring timed out"
         )
     except Exception as e:
-        logging.error(f"Error processing answer for session '{session_id}': {e}", exc_info=True)
+        logger.error(f"Error processing answer for session '{session_id}': {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process answer: {str(e)}"

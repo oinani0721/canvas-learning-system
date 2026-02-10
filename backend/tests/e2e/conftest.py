@@ -16,6 +16,7 @@ Provides:
 
 import asyncio
 import json
+import sys
 import time
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, List
@@ -486,3 +487,71 @@ class EventCollector:
 def event_collector():
     """Provide event collector for WebSocket tests."""
     return EventCollector()
+
+
+# =============================================================================
+# Mock canvas_utils for E2E Tests (P1-2 fix)
+# [Source: backend/tests/integration/test_batch_processing.py:97-150]
+# =============================================================================
+
+@pytest.fixture
+def mock_canvas_utils(monkeypatch):
+    """
+    Mock canvas_utils module to avoid import issues in IntelligentGroupingService.
+
+    Promoted from test_batch_processing.py for reuse in E2E tests.
+    Uses monkeypatch.setitem for automatic cleanup (safe even if test fails).
+
+    [Fix for: canvas_utils.path_manager not available as package in test env]
+    """
+    class MockCanvasBusinessLogic:
+        def __init__(self, canvas_path: str):
+            self.canvas_path = canvas_path
+            with open(canvas_path, 'r', encoding='utf-8') as f:
+                self.canvas_data = json.load(f)
+
+        def cluster_canvas_nodes(
+            self,
+            n_clusters=None,
+            similarity_threshold=0.3,
+            create_groups=False,
+            min_cluster_size=2,
+        ):
+            """Mock clustering that returns valid cluster structure."""
+            nodes = self.canvas_data.get("nodes", [])
+            text_nodes = [n for n in nodes if n.get("type") == "text" and n.get("text")]
+
+            if len(text_nodes) < min_cluster_size:
+                raise ValueError(f"节点数量不足: {len(text_nodes)} < {min_cluster_size}")
+
+            # Split nodes into groups of ~5 for realistic clustering
+            group_size = max(min_cluster_size, 5)
+            clusters = []
+            for i in range(0, len(text_nodes), group_size):
+                chunk = text_nodes[i:i + group_size]
+                clusters.append({
+                    "id": f"cluster-{i // group_size + 1}",
+                    "label": f"测试分组{i // group_size + 1}",
+                    "top_keywords": ["测试", "概念"],
+                    "confidence": 0.75,
+                    "nodes": [n["id"] for n in chunk],
+                })
+
+            return {
+                "clusters": clusters,
+                "optimization_stats": {
+                    "clustering_accuracy": 0.6,
+                    "total_nodes": len(text_nodes),
+                    "clusters_created": len(clusters),
+                },
+                "clustering_parameters": {
+                    "n_clusters": len(clusters),
+                },
+            }
+
+    mock_module = MagicMock()
+    mock_module.CanvasBusinessLogic = MockCanvasBusinessLogic
+
+    monkeypatch.setitem(sys.modules, 'canvas_utils', mock_module)
+
+    return mock_module
