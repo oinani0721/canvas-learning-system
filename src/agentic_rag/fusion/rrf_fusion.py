@@ -179,13 +179,17 @@ def calculate_rrf_contribution(rank: int, k: int = DEFAULT_RRF_K) -> float:
 
 # ============================================================================
 # Story 6.8: 多模态RRF融合扩展
+# ⚠️ DEPRECATED: 此 3 源权重配置已被 5 源设计替代。
+# 规范权重见 agentic_rag.nodes.DEFAULT_SOURCE_WEIGHTS (Story 23.4 / 35.8)
+# 此函数仅保留用于向后兼容，主管线使用 nodes._fuse_rrf_multi_source()
 # ============================================================================
 
-# ✅ Verified from Story 6.8 Dev Notes - AC 6.8.2
+# ⚠️ DEPRECATED - 规范权重: agentic_rag.nodes.DEFAULT_SOURCE_WEIGHTS
+# Story 35.8 AC 35.8.4: multimodal 规范权重 = 0.15 (5 源设计)
 DEFAULT_MULTIMODAL_WEIGHTS = {
-    "text": 0.4,      # LanceDB文本检索权重
-    "graph": 0.3,     # Graphiti图谱检索权重
-    "multimodal": 0.3  # 多模态检索权重
+    "text": 0.425,     # LanceDB文本检索权重 (调整以匹配 multimodal=0.15)
+    "graph": 0.425,    # Graphiti图谱检索权重
+    "multimodal": 0.15  # 多模态检索权重 (与 nodes.DEFAULT_SOURCE_WEIGHTS 一致)
 }
 
 

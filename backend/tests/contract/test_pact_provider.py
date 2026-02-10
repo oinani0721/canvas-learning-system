@@ -20,6 +20,8 @@ import subprocess
 from pathlib import Path
 
 import pytest
+
+pact = pytest.importorskip("pact", reason="pact-python not installed")
 from pact import Verifier
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -81,6 +83,7 @@ class ProviderStateMiddleware:
             dict: 设置结果
         """
         handlers = {
+            # Memory API states
             "the API is healthy": self._setup_healthy,
             "memory subjects exist": self._setup_memory_subjects,
             "no memory subjects exist": self._setup_no_memory_subjects,
@@ -88,6 +91,13 @@ class ProviderStateMiddleware:
             "memory contains searchable content": self._setup_searchable_content,
             "entity with id non-existent does not exist": self._setup_no_entity,
             "API expects valid JSON": self._setup_valid_json_expected,
+            # Multimodal API states (Story 35.12)
+            "multimodal storage is ready": self._setup_multimodal_storage,
+            "multimodal content exists": self._setup_multimodal_content,
+            "multimodal content exists with searchable descriptions": self._setup_searchable_multimodal,
+            "multimodal content linked to concept": self._setup_multimodal_with_concept,
+            "multimodal service is running": self._setup_multimodal_service,
+            "multimodal content does not exist": self._setup_no_multimodal_content,
         }
 
         handler = handlers.get(state)
@@ -128,6 +138,126 @@ class ProviderStateMiddleware:
     def _setup_valid_json_expected(self, params: dict) -> dict:
         """设置期望有效 JSON"""
         return {"status": "ok"}
+
+    # ── Multimodal Provider States (Story 35.12 AC 35.12.1, 35.12.2) ──
+    # ⚠️ Known limitation: These handlers directly manipulate _content_store
+    # (private attribute) for synchronous state setup. If MultimodalService
+    # changes its internal representation, these handlers must be updated.
+    # Ideally, use public async API (upload_file, etc.) when Pact supports
+    # async provider state setup.
+
+    def _setup_multimodal_storage(self, params: dict) -> dict:
+        """Initialize multimodal storage — service ready to accept uploads."""
+        from app.services.multimodal_service import reset_multimodal_service
+
+        reset_multimodal_service()
+        return {"status": "ok", "storage_initialized": True}
+
+    def _setup_multimodal_content(self, params: dict) -> dict:
+        """Insert test multimodal content so GET/PUT/DELETE can find it."""
+        from datetime import datetime
+        from app.services.multimodal_service import get_multimodal_service
+        from app.models.multimodal_schemas import (
+            MultimodalMediaType,
+            MultimodalMetadataSchema,
+        )
+
+        service = get_multimodal_service()
+        content_id = params.get("content_id", "550e8400-e29b-41d4-a716-446655440000")
+        # NOTE: file_path points to a non-existent file on disk. This is
+        # acceptable for metadata-only Pact verification, but if future tests
+        # attempt to serve the file, they will need real fixture files.
+        service._content_store[content_id] = {
+            "id": content_id,
+            "media_type": MultimodalMediaType.IMAGE,
+            "file_path": str(service.storage_base_path / "image" / "test.png"),
+            "related_concept_id": "concept-001",
+            "created_at": datetime(2026, 1, 1, 12, 0, 0),
+            "description": "Test image for pact verification",
+            "metadata": MultimodalMetadataSchema(
+                file_size=1024, mime_type="image/png"
+            ),
+            "thumbnail_path": None,
+        }
+        return {"status": "ok", "content_id": content_id}
+
+    def _setup_searchable_multimodal(self, params: dict) -> dict:
+        """Insert content with searchable descriptions for POST /search."""
+        from datetime import datetime
+        from app.services.multimodal_service import get_multimodal_service
+        from app.models.multimodal_schemas import (
+            MultimodalMediaType,
+            MultimodalMetadataSchema,
+        )
+
+        service = get_multimodal_service()
+        items = [
+            {
+                "id": "550e8400-e29b-41d4-a716-446655440001",
+                "media_type": MultimodalMediaType.IMAGE,
+                "file_path": str(service.storage_base_path / "image" / "math.png"),
+                "related_concept_id": "concept-math",
+                "created_at": datetime(2026, 1, 1, 12, 0, 0),
+                "description": "数学公式推导图解",
+                "metadata": MultimodalMetadataSchema(
+                    file_size=2048, mime_type="image/png"
+                ),
+                "thumbnail_path": None,
+            },
+            {
+                "id": "550e8400-e29b-41d4-a716-446655440002",
+                "media_type": MultimodalMediaType.PDF,
+                "file_path": str(service.storage_base_path / "pdf" / "physics.pdf"),
+                "related_concept_id": "concept-physics",
+                "created_at": datetime(2026, 1, 2, 12, 0, 0),
+                "description": "物理力学讲义",
+                "metadata": MultimodalMetadataSchema(
+                    file_size=4096, mime_type="application/pdf"
+                ),
+                "thumbnail_path": None,
+            },
+        ]
+        for item in items:
+            service._content_store[item["id"]] = item
+        return {"status": "ok", "items_created": len(items)}
+
+    def _setup_multimodal_with_concept(self, params: dict) -> dict:
+        """Insert content linked to a specific concept for GET /by-concept."""
+        from datetime import datetime
+        from app.services.multimodal_service import get_multimodal_service
+        from app.models.multimodal_schemas import (
+            MultimodalMediaType,
+            MultimodalMetadataSchema,
+        )
+
+        service = get_multimodal_service()
+        concept_id = params.get("concept_id", "concept-test-001")
+        content_id = "550e8400-e29b-41d4-a716-446655440003"
+        service._content_store[content_id] = {
+            "id": content_id,
+            "media_type": MultimodalMediaType.IMAGE,
+            "file_path": str(service.storage_base_path / "image" / "concept.png"),
+            "related_concept_id": concept_id,
+            "created_at": datetime(2026, 1, 1, 12, 0, 0),
+            "description": "Concept-linked test image",
+            "metadata": MultimodalMetadataSchema(
+                file_size=512, mime_type="image/png"
+            ),
+            "thumbnail_path": None,
+        }
+        return {"status": "ok", "content_id": content_id, "concept_id": concept_id}
+
+    def _setup_multimodal_service(self, params: dict) -> dict:
+        """Ensure multimodal service is running for GET /health."""
+        return {"status": "ok", "service_running": True}
+
+    def _setup_no_multimodal_content(self, params: dict) -> dict:
+        """Clear all multimodal content — empty state for 404 scenarios."""
+        from app.services.multimodal_service import get_multimodal_service
+
+        service = get_multimodal_service()
+        service._content_store.clear()
+        return {"status": "ok", "content_cleared": True}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

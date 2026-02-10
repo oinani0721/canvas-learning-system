@@ -13,6 +13,8 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, List, Optional
 
+from urllib.parse import urlparse
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -68,16 +70,15 @@ class MultimodalUploadUrlRequest(BaseModel):
     url: str = Field(
         ...,
         min_length=1,
-        description="URL to fetch content from (must be accessible)"
+        description="URL to fetch content from (must be http/https)"
     )
     related_concept_id: str = Field(
         ...,
         min_length=1,
         description="Canvas node ID to associate this content with"
     )
-    canvas_path: str = Field(
-        ...,
-        min_length=1,
+    canvas_path: Optional[str] = Field(
+        None,
         description="Canvas file path for context"
     )
     description: Optional[str] = Field(
@@ -85,6 +86,25 @@ class MultimodalUploadUrlRequest(BaseModel):
         max_length=1000,
         description="Optional description for the content"
     )
+
+    @field_validator("url")
+    @classmethod
+    def validate_url_scheme(cls, v: str) -> str:
+        """Validate URL scheme is http/https to prevent SSRF attacks."""
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError(
+                f"Only http/https URLs are supported, got: '{parsed.scheme or 'none'}'"
+            )
+        if not parsed.netloc:
+            raise ValueError("Invalid URL: missing hostname")
+        # Block common internal/metadata endpoints
+        hostname = parsed.hostname or ""
+        if hostname in ("169.254.169.254", "metadata.google.internal"):
+            raise ValueError("Access to cloud metadata endpoints is not allowed")
+        if hostname.startswith("127.") or hostname == "localhost" or hostname == "::1":
+            raise ValueError("Access to localhost is not allowed")
+        return v
 
 
 class MultimodalUpdateRequest(BaseModel):
@@ -201,12 +221,28 @@ class MultimodalHealthResponse(BaseModel):
     Response model for multimodal service health check.
 
     [Source: Story 35.1 - Service health endpoint]
+    [Source: Story 35.11 AC 35.11.3 - Degradation transparency fields]
     """
     status: str = Field(..., description="Service status: healthy/degraded/unhealthy")
     lancedb_connected: bool = Field(..., description="LanceDB connection status")
     neo4j_connected: bool = Field(..., description="Neo4j connection status")
     storage_path_writable: bool = Field(..., description="Storage path write access")
     total_items: int = Field(0, ge=0, description="Total stored items count")
+    # Story 35.11 AC 35.11.3: Degradation transparency fields
+    storage_backend: str = Field(
+        default="json_fallback",
+        pattern="^(multimodal_store|json_fallback)$",
+        description="Storage backend: 'multimodal_store' (full) or 'json_fallback' (degraded)"
+    )
+    vector_search_available: bool = Field(
+        default=False,
+        description="Whether vector/semantic search is available"
+    )
+    capability_level: str = Field(
+        default="degraded",
+        pattern="^(full|degraded)$",
+        description="System capability level: 'full' (100%) or 'degraded' (~30%)"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -329,6 +365,11 @@ class MultimodalSearchResponse(BaseModel):
     query_processed: bool = Field(
         default=True,
         description="Whether the query was successfully processed"
+    )
+    search_mode: str = Field(
+        default="vector",
+        pattern="^(vector|text)$",
+        description="Actual search mode used: 'vector' (embedding) or 'text' (keyword fallback)"
     )
 
 

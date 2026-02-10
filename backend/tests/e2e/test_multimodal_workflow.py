@@ -620,10 +620,8 @@ class TestMultimodalDeletionE2E:
         # Act
         response = client.delete(f"/api/v1/multimodal/{content_id}")
 
-        # Assert
-        assert response.status_code == 200
-        result = response.json()
-        assert result.get("deleted_id") == content_id
+        # Assert - Story 35.10 AC 35.10.3: DELETE returns 204 No Content
+        assert response.status_code == 204
 
     def test_delete_removes_from_get(self, client: TestClient, test_image_file: bytes):
         """

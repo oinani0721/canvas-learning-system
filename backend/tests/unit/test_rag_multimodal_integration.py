@@ -302,7 +302,11 @@ class TestRRFMultimodalFusion:
     """AC 35.8.4: 多模态结果参与RRF融合"""
 
     def test_multimodal_included_in_source_weights(self):
-        """测试multimodal包含在默认权重配置中"""
+        """测试multimodal包含在默认权重配置中
+
+        注意: DEFAULT_SOURCE_WEIGHTS 仅用于 weighted 融合策略。
+        RRF 策略使用纯 1/(k+rank) 公式，不使用权重。
+        """
         from agentic_rag.nodes import DEFAULT_SOURCE_WEIGHTS
 
         assert "multimodal" in DEFAULT_SOURCE_WEIGHTS
@@ -353,6 +357,42 @@ class TestRRFMultimodalFusion:
         assert "g1" in doc_ids
         assert "l1" in doc_ids
         assert "m1" in doc_ids
+
+    def test_rrf_multimodal_score_contribution(self):
+        """测试RRF融合中multimodal结果的分数贡献
+
+        RRF 使用纯公式 score = Σ(1/(k+rank)), k=60。
+        每个来源的第1个结果 RRF 分数 = 1/(60+1) ≈ 0.01639。
+        multimodal 结果必须获得与其他来源相同的 RRF 分数（非零）。
+        """
+        from agentic_rag.nodes import _fuse_rrf_multi_source
+
+        all_source_results = {
+            "graphiti": [
+                {"doc_id": "g1", "content": "graphiti内容", "score": 0.9, "metadata": {}}
+            ],
+            "lancedb": [],
+            "multimodal": [
+                {"doc_id": "m1", "content": "多模态内容", "score": 0.8, "metadata": {"type": "image"}}
+            ],
+            "textbook": [],
+            "cross_canvas": [],
+        }
+
+        fused = _fuse_rrf_multi_source(all_source_results)
+
+        # 每个来源的 rank=1 结果: score = 1/(60+1) = 1/61
+        expected_rrf_score = 1.0 / (60 + 1)
+
+        # 验证 multimodal 结果获得了正确的 RRF 分数
+        m1_result = next(r for r in fused if r["doc_id"] == "m1")
+        assert m1_result["score"] == pytest.approx(expected_rrf_score, rel=1e-6)
+        assert m1_result["metadata"]["fusion_method"] == "rrf"
+        assert m1_result["metadata"]["source"] == "multimodal"
+
+        # 验证 graphiti 结果获得相同的 RRF 分数（纯 RRF 无权重区分）
+        g1_result = next(r for r in fused if r["doc_id"] == "g1")
+        assert g1_result["score"] == pytest.approx(expected_rrf_score, rel=1e-6)
 
     def test_weighted_fusion_with_multimodal(self):
         """测试Weighted融合正确处理multimodal结果"""

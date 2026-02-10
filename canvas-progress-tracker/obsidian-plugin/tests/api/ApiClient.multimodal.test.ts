@@ -429,14 +429,17 @@ describe('searchMultimodal (Story 35.3 AC3, AC5)', () => {
       ],
       total_count: 2,
       query: '数学公式',
+      search_mode: 'vector',
     };
     mockFetchImpl.mockResolvedValueOnce(createMockResponse(mockResponse));
 
     const result = await client.searchMultimodal('数学公式');
 
-    expect(result).toHaveLength(2);
-    expect(result[0].relevanceScore).toBe(0.95);
-    expect(result[1].relevanceScore).toBe(0.87);
+    // Story 35.11: result is now { items, searchMode } not MediaItem[]
+    expect(result.items).toHaveLength(2);
+    expect(result.items[0].relevanceScore).toBe(0.95);
+    expect(result.items[1].relevanceScore).toBe(0.87);
+    expect(result.searchMode).toBe('vector');
     expect(mockFetchImpl).toHaveBeenCalledWith(
       'http://localhost:8000/api/v1/multimodal/search',
       expect.objectContaining({
@@ -525,12 +528,14 @@ describe('searchMultimodal (Story 35.3 AC3, AC5)', () => {
       ],
       total_count: 1,
       query: 'lecture',
+      search_mode: 'vector',
     };
     mockFetchImpl.mockResolvedValueOnce(createMockResponse(mockResponse));
 
     const result = await client.searchMultimodal('lecture');
 
-    expect(result[0]).toEqual<MediaItem>({
+    // Story 35.11: Access items via result.items
+    expect(result.items[0]).toEqual<MediaItem>({
       id: 'transform-search',
       type: 'video',
       path: '/videos/lecture.mp4',
@@ -543,18 +548,63 @@ describe('searchMultimodal (Story 35.3 AC3, AC5)', () => {
     });
   });
 
-  test('should return empty array for no matches', async () => {
+  test('should return empty items for no matches', async () => {
     mockFetchImpl.mockResolvedValueOnce(
       createMockResponse({
         results: [],
         total_count: 0,
         query: 'nonexistent',
+        search_mode: 'vector',
       })
     );
 
     const result = await client.searchMultimodal('nonexistent');
 
-    expect(result).toEqual([]);
+    expect(result.items).toEqual([]);
+    expect(result.searchMode).toBe('vector');
+  });
+
+  // Story 35.11 AC 35.11.1: searchMode is exposed in return value
+  test('should expose searchMode from backend search_mode (vector)', async () => {
+    mockFetchImpl.mockResolvedValueOnce(
+      createMockResponse({
+        results: [],
+        total_count: 0,
+        query: 'test',
+        search_mode: 'vector',
+      })
+    );
+
+    const result = await client.searchMultimodal('test');
+    expect(result.searchMode).toBe('vector');
+  });
+
+  test('should expose searchMode from backend search_mode (text degraded)', async () => {
+    mockFetchImpl.mockResolvedValueOnce(
+      createMockResponse({
+        results: [],
+        total_count: 0,
+        query: 'test',
+        search_mode: 'text',
+      })
+    );
+
+    const result = await client.searchMultimodal('test');
+    expect(result.searchMode).toBe('text');
+  });
+
+  test('should default searchMode to vector when backend omits search_mode', async () => {
+    mockFetchImpl.mockResolvedValueOnce(
+      createMockResponse({
+        results: [],
+        total_count: 0,
+        query: 'test',
+        // no search_mode field
+      })
+    );
+
+    const result = await client.searchMultimodal('test');
+    expect(result.searchMode).toBe('vector');
   });
 });
 

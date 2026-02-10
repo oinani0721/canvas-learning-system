@@ -25,12 +25,11 @@ Story 35.2 Implementation:
 """
 
 import logging
-from typing import Annotated, Optional
+from typing import Optional
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
-    Depends,
     File,
     Form,
     HTTPException,
@@ -42,7 +41,6 @@ from fastapi import (
 
 from app.models.multimodal_schemas import (
     # Story 35.1: Upload/Management
-    MultimodalDeleteResponse,
     MultimodalHealthResponse,
     MultimodalListResponse,
     MultimodalMediaType,
@@ -58,12 +56,11 @@ from app.models.multimodal_schemas import (
     MultimodalSearchResponse,
     PaginationMeta,
 )
+from app.dependencies import MultimodalServiceDep
 from app.services.multimodal_service import (
     ContentNotFoundError,
     FileValidationError,
-    MultimodalService,
     MultimodalServiceError,
-    get_multimodal_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,24 +81,6 @@ multimodal_router = APIRouter(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Dependency Injection
-# ═══════════════════════════════════════════════════════════════════════════════
-
-async def get_service() -> MultimodalService:
-    """
-    Get MultimodalService instance.
-
-    [Source: docs/stories/35.1.story.md#Task-3.1]
-    """
-    service = get_multimodal_service()
-    await service.initialize()
-    return service
-
-
-MultimodalServiceDep = Annotated[MultimodalService, Depends(get_service)]
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 # Upload Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -117,7 +96,7 @@ async def upload_file(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(..., description="File to upload"),
     related_concept_id: str = Form(..., description="Canvas node ID to associate"),
-    canvas_path: str = Form(..., description="Canvas file path"),
+    canvas_path: Optional[str] = Form(None, description="Canvas file path"),
     description: Optional[str] = Form(None, description="Optional description"),
 ) -> MultimodalUploadResponse:
     """
@@ -136,15 +115,12 @@ async def upload_file(
     [Source: docs/stories/35.1.story.md#AC-35.1.1]
     """
     try:
-        # Read file content
-        content = await file.read()
-        file_size = len(content)
-
-        # Reset file position for service to read
-        await file.seek(0)
+        # Read file content once (avoid double-read)
+        file_bytes = await file.read()
+        file_size = len(file_bytes)
 
         result = await service.upload_file(
-            file=file.file,
+            file_bytes=file_bytes,
             filename=file.filename or "uploaded_file",
             content_type=file.content_type,
             file_size=file_size,
@@ -418,7 +394,7 @@ async def get_by_concept(
 )
 async def get_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., description="Content UUID"),
+    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
 ) -> MultimodalResponse:
     """
     Get multimodal content by ID.
@@ -445,7 +421,7 @@ async def get_content(
 )
 async def update_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., description="Content UUID"),
+    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
     request: MultimodalUpdateRequest = ...,
 ) -> MultimodalResponse:
     """
@@ -468,24 +444,24 @@ async def update_content(
 
 @multimodal_router.delete(
     "/{content_id}",
-    response_model=MultimodalDeleteResponse,
+    status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete content",
     description="Delete multimodal content and its associated files.",
 )
 async def delete_content(
     service: MultimodalServiceDep,
-    content_id: str = Path(..., description="Content UUID"),
-) -> MultimodalDeleteResponse:
+    content_id: str = Path(..., pattern=r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$", description="Content UUID"),
+) -> None:
     """
     Delete multimodal content.
 
     Removes the content metadata and associated files (including thumbnails).
-    This action cannot be undone.
+    This action cannot be undone. Returns 204 No Content on success.
 
-    [Source: docs/stories/35.1.story.md#AC-35.1.3]
+    [Source: docs/stories/35.10.story.md#AC-35.10.3]
     """
     try:
-        return await service.delete_content(content_id)
+        await service.delete_content(content_id)
 
     except ContentNotFoundError:
         raise HTTPException(

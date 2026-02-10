@@ -175,6 +175,9 @@ class MockMultimodalService:
             neo4j_connected=True,
             storage_path_writable=True,
             total_items=5,
+            storage_backend="multimodal_store",
+            vector_search_available=True,
+            capability_level="full",
         )
 
 
@@ -357,6 +360,55 @@ class TestMultimodalAPIIntegration:
         assert "neo4j_connected" in result.model_dump()
         assert "storage_path_writable" in result.model_dump()
         assert "total_items" in result.model_dump()
+        # Story 35.11 AC 35.11.3: Degradation transparency fields
+        assert "storage_backend" in result.model_dump()
+        assert "vector_search_available" in result.model_dump()
+        assert "capability_level" in result.model_dump()
+        # Verify values for full-capability mock
+        assert result.storage_backend == "multimodal_store"
+        assert result.vector_search_available is True
+        assert result.capability_level == "full"
+
+    def test_health_degraded_values(self):
+        """Story 35.11 AC 35.11.3: Health endpoint reports degraded state correctly."""
+        # Simulate degraded state: no multimodal_store, no lancedb
+        degraded_response = MultimodalHealthResponse(
+            status="degraded",
+            lancedb_connected=False,
+            neo4j_connected=False,
+            storage_path_writable=True,
+            total_items=0,
+            storage_backend="json_fallback",
+            vector_search_available=False,
+            capability_level="degraded",
+        )
+        assert degraded_response.storage_backend == "json_fallback"
+        assert degraded_response.vector_search_available is False
+        assert degraded_response.capability_level == "degraded"
+
+    def test_health_field_validation(self):
+        """Story 35.11 AC 35.11.3: storage_backend and capability_level are pattern-validated."""
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            MultimodalHealthResponse(
+                status="healthy",
+                lancedb_connected=True,
+                neo4j_connected=True,
+                storage_path_writable=True,
+                total_items=0,
+                storage_backend="invalid_backend",
+            )
+
+        with pytest.raises(ValidationError):
+            MultimodalHealthResponse(
+                status="healthy",
+                lancedb_connected=True,
+                neo4j_connected=True,
+                storage_path_writable=True,
+                total_items=0,
+                capability_level="unknown",
+            )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
