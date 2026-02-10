@@ -652,6 +652,54 @@ export interface SessionPauseResumeResponse {
 }
 
 // =============================================================================
+// Interactive Verification Session Types (EPIC-31)
+// =============================================================================
+
+/**
+ * Request to start an interactive verification session
+ * @source EPIC-31 - Interactive Q&A verification
+ */
+export interface StartSessionRequest {
+  canvas_name: string;
+  node_ids?: string[];
+  include_mastered?: boolean;
+}
+
+/**
+ * Response after starting a verification session
+ * @source EPIC-31 - Interactive Q&A verification
+ */
+export interface StartSessionResponse {
+  session_id: string;
+  total_concepts: number;
+  first_question: string;
+  current_concept: string;
+  status: VerificationSessionStatus;
+}
+
+/**
+ * Request to submit an answer during interactive verification
+ * @source EPIC-31 - Interactive Q&A verification
+ */
+export interface SubmitAnswerRequest {
+  user_answer: string;
+}
+
+/**
+ * Response after submitting an answer
+ * @source EPIC-31 - Interactive Q&A verification
+ */
+export interface SubmitAnswerResponse {
+  quality: string;
+  score: number;
+  action: string; // 'hint' | 'next' | 'complete'
+  hint?: string;
+  next_question?: string;
+  current_concept: string;
+  progress: SessionProgressResponse;
+}
+
+// =============================================================================
 // RAG Types (Story 12.5 - Plugin RAG API Client)
 // =============================================================================
 
@@ -1002,6 +1050,19 @@ export interface MultimodalSearchResponse {
   total_count: number;
   /** Query that was executed */
   query: string;
+  /** Story 35.11 AC 35.11.1: Search mode used by backend - "vector" (full) or "text" (degraded keyword fallback) */
+  search_mode: "vector" | "text";
+}
+
+/**
+ * Return type for searchMultimodal() including degradation info
+ * @source Story 35.11 AC 35.11.1
+ */
+export interface MultimodalSearchResultWithMode {
+  /** Search results transformed to MediaItem format */
+  items: MediaItem[];
+  /** Search mode: "vector" = full semantic search, "text" = degraded keyword fallback */
+  searchMode: "vector" | "text";
 }
 
 /**

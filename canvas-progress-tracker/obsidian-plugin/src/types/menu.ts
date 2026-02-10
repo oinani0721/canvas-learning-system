@@ -32,7 +32,7 @@ export interface MenuItemConfig {
   section?: 'primary' | 'secondary' | 'utility';
 
   /** Condition to check if item should be shown */
-  condition?: () => boolean | Promise<boolean>;
+  condition?: (context: MenuContext) => boolean | Promise<boolean>;
 
   /** Action to execute when clicked - receives MenuContext for Epic 12.L fix */
   action: (context: MenuContext) => void | Promise<void>;

@@ -26,35 +26,21 @@ import { createImagePreview, ImageGalleryProps } from './ImagePreview';
 import { createPDFThumbnail } from './PDFPreview';
 import { createAudioPlayer, createVideoPlayer, TimeMarker } from './MediaPlayer';
 import { ApiClient } from '../api/ApiClient';
-import { ApiError } from '../api/types';
+import { ApiError, MediaType as ApiMediaType, MediaItem as ApiMediaItem } from '../api/types';
 
 /**
- * Media item type
+ * Media filter type - extends API MediaType with 'all' for UI filtering
  */
-export type MediaType = 'image' | 'pdf' | 'audio' | 'video' | 'all';
+export type MediaType = ApiMediaType | 'all';
 
 /**
- * Media item interface
+ * Media item interface - extends API MediaItem with UI-specific fields
  */
-export interface MediaItem {
-    /** Unique identifier */
-    id: string;
-    /** Media type */
-    type: Exclude<MediaType, 'all'>;
-    /** File path or URL */
-    path: string;
-    /** Item title/description */
-    title?: string;
-    /** Relevance score (0-1) */
-    relevanceScore: number;
-    /** Associated concept ID */
-    conceptId?: string;
-    /** Additional metadata */
-    metadata?: Record<string, any>;
+export interface MediaItem extends ApiMediaItem {
+    /** Override type to exclude 'all' filter value */
+    type: ApiMediaType;
     /** Timestamp for audio/video */
     timestamp?: number;
-    /** Thumbnail URL for video */
-    thumbnail?: string;
     /** Time markers for audio/video */
     markers?: TimeMarker[];
 }
@@ -135,6 +121,8 @@ interface PanelState {
     items: MediaItem[];
     /** Story 35.4 AC 35.4.2: Current concept ID */
     conceptId: string | null;
+    /** Story 35.11 AC 35.11.2: Search mode from backend ("vector" = full, "text" = degraded) */
+    searchMode: 'vector' | 'text' | null;
 }
 
 /**
@@ -217,7 +205,9 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         isLoading: false,
         error: null,
         items: staticItems,
-        conceptId: conceptId || null
+        conceptId: conceptId || null,
+        // Story 35.11: null = no search performed yet
+        searchMode: null
     };
 
     const container = document.createElement('div');
@@ -378,6 +368,14 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
             return;
         }
 
+        // Story 35.11 AC 35.11.2: Show degradation notice when search is in text (keyword) mode
+        if (state.searchMode === 'text') {
+            const notice = document.createElement('div');
+            notice.className = 'media-panel-degradation-notice';
+            notice.textContent = '当前使用关键字搜索（语义搜索不可用），结果可能不完整';
+            content.appendChild(notice);
+        }
+
         const filteredItems = filterAndSortItems(state.items, state);
 
         if (filteredItems.length === 0) {
@@ -405,6 +403,60 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         content.appendChild(list);
     }
 
+    /**
+     * Story 35.11 AC 35.11.2: Update search mode and re-render degradation notice
+     */
+    function setSearchMode(mode: 'vector' | 'text' | null): void {
+        state.searchMode = mode;
+        renderItems();
+    }
+
+    /**
+     * Story 35.11 AC 35.11.1 + AC 35.11.2: Perform backend semantic search
+     * and wire search_mode into the degradation notice.
+     *
+     * This connects ApiClient.searchMultimodal() → MediaPanel.setSearchMode(),
+     * ensuring the degradation notice appears when backend falls back to text search.
+     */
+    async function performApiSearch(
+        query: string,
+        options?: { limit?: number; media_types?: Array<'image' | 'pdf' | 'audio' | 'video'> }
+    ): Promise<void> {
+        if (!apiClient) {
+            return;
+        }
+
+        state.isLoading = true;
+        state.error = null;
+        renderItems();
+
+        try {
+            const result = await apiClient.searchMultimodal(query, options);
+
+            state.items = result.items as MediaItem[];
+            state.searchMode = result.searchMode;
+            state.error = null;
+
+            console.log(
+                `[MediaPanel] Search returned ${result.items.length} items (mode: ${result.searchMode})`
+            );
+        } catch (error) {
+            const apiError = error instanceof ApiError
+                ? error
+                : new ApiError(
+                    error instanceof Error ? error.message : 'Search failed',
+                    'UnknownError',
+                    0
+                );
+            state.error = apiError;
+            state.items = [];
+            state.searchMode = null;
+        } finally {
+            state.isLoading = false;
+            renderItems();
+        }
+    }
+
     // Story 35.4: Initial fetch if apiClient and conceptId are provided
     if (apiClient && conceptId) {
         fetchMediaItems();
@@ -418,6 +470,8 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
     (container as any).__render = renderItems;
     (container as any).__fetchMediaItems = fetchMediaItems;
     (container as any).__handleConceptChange = handleConceptChange;
+    (container as any).__setSearchMode = setSearchMode;
+    (container as any).__performApiSearch = performApiSearch;
     (container as any).__cleanup = () => {
         // Story 35.4: Cleanup on unmount
         if (currentAbortController) {
@@ -854,7 +908,7 @@ function filterAndSortItems(items: MediaItem[], state: PanelState): MediaItem[] 
         filtered = filtered.filter(item =>
             item.title?.toLowerCase().includes(query) ||
             item.path.toLowerCase().includes(query) ||
-            item.metadata?.description?.toLowerCase().includes(query)
+            (item.metadata?.description as string | undefined)?.toLowerCase().includes(query)
         );
     }
 
@@ -868,7 +922,7 @@ function filterAndSortItems(items: MediaItem[], state: PanelState): MediaItem[] 
             case 'type':
                 return a.type.localeCompare(b.type);
             case 'date':
-                return (b.metadata?.date || 0) - (a.metadata?.date || 0);
+                return ((b.metadata?.date as number) || 0) - ((a.metadata?.date as number) || 0);
             default:
                 return 0;
         }

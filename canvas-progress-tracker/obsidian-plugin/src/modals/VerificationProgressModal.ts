@@ -60,6 +60,7 @@ export interface VerificationProgress {
 export interface QuestionResponse {
     quality: string;
     score: number;
+    degraded?: boolean;
     action: string;
     hint?: string;
     next_question?: string;
@@ -507,8 +508,8 @@ export class VerificationProgressModal extends Modal {
             this.currentConceptEl.textContent = response.current_concept;
         }
 
-        // Show feedback
-        this.showFeedback(response.quality, response.score);
+        // Show feedback (Wave 3: pass degraded flag for visibility)
+        this.showFeedback(response.quality, response.score, response.degraded);
 
         // Handle action
         switch (response.action) {
@@ -527,7 +528,7 @@ export class VerificationProgressModal extends Modal {
     /**
      * Show feedback for answer quality
      */
-    private showFeedback(quality: string, score: number): void {
+    private showFeedback(quality: string, score: number, degraded?: boolean): void {
         if (!this.feedbackEl) return;
 
         this.feedbackEl.empty();
@@ -541,12 +542,21 @@ export class VerificationProgressModal extends Modal {
             cls: `feedback-text quality-${quality}`,
         });
 
-        // Auto-hide after 3 seconds
+        // Wave 3: Show degraded mode indicator when AI scoring unavailable
+        if (degraded) {
+            this.feedbackEl.createEl('span', {
+                text: ' | ⚠️ 基础模式',
+                cls: 'feedback-degraded-indicator',
+                attr: { title: 'AI 评分服务暂时不可用，使用基础评估。分数仅供参考。' },
+            });
+        }
+
+        // Auto-hide after 3 seconds (extend to 5s if degraded for user to notice)
         setTimeout(() => {
             if (this.feedbackEl) {
                 this.feedbackEl.addClass('hidden');
             }
-        }, 3000);
+        }, degraded ? 5000 : 3000);
     }
 
     /**

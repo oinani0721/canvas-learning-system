@@ -35,7 +35,7 @@ const ACCEPT_ATTRIBUTE = 'image/*,application/pdf,audio/*,video/*';
  * @source EPIC-35 Risk Mitigation
  */
 const MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024; // 50MB default
-const MAX_VIDEO_SIZE_BYTES = 500 * 1024 * 1024; // 500MB for video
+const MAX_VIDEO_SIZE_BYTES = 50 * 1024 * 1024; // 50MB for video (must match backend MAX_FILE_SIZE)
 
 /**
  * Media type display configuration

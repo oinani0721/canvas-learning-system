@@ -39,6 +39,9 @@ import { ProgressMonitorModal, ProgressMonitorCallbacks, SessionStatus } from '.
 import { ResultSummaryModal, ResultSummaryCallbacks } from './src/modals/ResultSummaryModal';
 import { TaskQueueModal, PendingRequest, AGENT_ESTIMATED_TIMES } from './src/modals/TaskQueueModal';
 import { ContextMenuManager } from './src/managers/ContextMenuManager';
+// EPIC-31: Interactive Verification Modal
+import { VerificationProgressModal } from './src/modals/VerificationProgressModal';
+import type { VerificationModalCallbacks, VerificationProgress } from './src/modals/VerificationProgressModal';
 import type { MenuContext } from './src/types/menu';
 import { BackupProtectionManager } from './src/managers/BackupProtectionManager';
 import { ApiClient } from './src/api/ApiClient';
@@ -1039,6 +1042,94 @@ export default class CanvasReviewPlugin extends Plugin {
 
                         // AC-31.2.5: Success notice with node count
                         new Notice(`检验白板生成完成: ${verificationCanvasName} (${response.node_count}个验证节点)`);
+
+                        // EPIC-31: Start interactive verification session and open modal
+                        if (response.node_count > 0 && this.apiClient) {
+                            try {
+                                const sessionResult = await this.apiClient.startVerificationSession({
+                                    canvas_name: canvasName,
+                                });
+
+                                const apiBaseUrl = this.settings.claudeCodeUrl || 'http://localhost:8000';
+                                const initialProgress: VerificationProgress = {
+                                    session_id: sessionResult.session_id,
+                                    canvas_name: canvasName,
+                                    total_concepts: sessionResult.total_concepts,
+                                    completed_concepts: 0,
+                                    current_concept: sessionResult.current_concept,
+                                    current_concept_idx: 0,
+                                    green_count: 0,
+                                    yellow_count: 0,
+                                    purple_count: 0,
+                                    red_count: 0,
+                                    status: 'in_progress',
+                                    progress_percentage: 0,
+                                    mastery_percentage: 0,
+                                    hints_given: 0,
+                                    max_hints: 3,
+                                    started_at: new Date().toISOString(),
+                                    updated_at: new Date().toISOString(),
+                                };
+
+                                const sessionId = sessionResult.session_id;
+                                const callbacks: VerificationModalCallbacks = {
+                                    onAnswer: async (answer: string) => {
+                                        const resp = await this.apiClient!.submitVerificationAnswer(sessionId, { user_answer: answer });
+                                        return {
+                                            quality: resp.quality,
+                                            score: resp.score,
+                                            action: resp.action,
+                                            hint: resp.hint,
+                                            next_question: resp.next_question,
+                                            current_concept: resp.current_concept,
+                                            progress: resp.progress as unknown as VerificationProgress,
+                                        };
+                                    },
+                                    onSkip: async () => {
+                                        const resp = await this.apiClient!.submitVerificationAnswer(sessionId, { user_answer: '__SKIP__' });
+                                        return {
+                                            quality: resp.quality,
+                                            score: resp.score,
+                                            action: resp.action,
+                                            hint: resp.hint,
+                                            next_question: resp.next_question,
+                                            current_concept: resp.current_concept,
+                                            progress: resp.progress as unknown as VerificationProgress,
+                                        };
+                                    },
+                                    onPause: async () => {
+                                        await this.apiClient!.pauseSession(sessionId);
+                                    },
+                                    onResume: async () => {
+                                        await this.apiClient!.resumeSession(sessionId);
+                                        const progress = await this.apiClient!.getSessionProgress(sessionId);
+                                        return {
+                                            quality: '',
+                                            score: 0,
+                                            action: 'next',
+                                            current_concept: progress.current_concept,
+                                            progress: progress as unknown as VerificationProgress,
+                                        };
+                                    },
+                                    onEnd: async () => {
+                                        // Session ends naturally or user closes modal
+                                    },
+                                };
+
+                                new VerificationProgressModal(
+                                    this.app,
+                                    sessionId,
+                                    canvasName,
+                                    sessionResult.first_question,
+                                    initialProgress,
+                                    `${apiBaseUrl}/api/v1`,
+                                    callbacks
+                                ).open();
+                            } catch (sessionError) {
+                                // Graceful degradation: static canvas still works
+                                console.warn('[EPIC-31] Interactive session failed, static canvas available:', sessionError);
+                            }
+                        }
 
                     } catch (error) {
                         // AC-31.2.5: Error handling with user-friendly messages

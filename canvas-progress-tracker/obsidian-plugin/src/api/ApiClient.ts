@@ -47,6 +47,11 @@ import {
   // Story 31.6: Session Progress Types
   SessionProgressResponse,
   SessionPauseResumeResponse,
+  // EPIC-31: Interactive Verification Session Types
+  StartSessionRequest,
+  StartSessionResponse,
+  SubmitAnswerRequest,
+  SubmitAnswerResponse,
   // RAG Types (Story 12.5 - Plugin RAG API Client)
   RAGQueryRequest,
   RAGQueryResponse,
@@ -74,6 +79,7 @@ import {
   MultimodalSearchRequest,
   MultimodalSearchResult,
   MultimodalSearchResponse,
+  MultimodalSearchResultWithMode,
   MultimodalDeleteResponse,
   // Story 38.1: Canvas Metadata API Types
   CanvasMetadataResponse,
@@ -665,6 +671,41 @@ export class ApiClient {
   }
 
   // ===========================================================================
+  // Interactive Verification Session API Methods (2 endpoints) - EPIC-31
+  // ===========================================================================
+
+  /**
+   * Start an interactive verification session for a canvas
+   * @param request - Session start parameters (canvas_name, optional node_ids)
+   * @returns Session ID, first question, and initial progress
+   *
+   * @source EPIC-31: Interactive Q&A verification bridge
+   */
+  async startVerificationSession(request: StartSessionRequest): Promise<StartSessionResponse> {
+    return this.request<StartSessionResponse>(
+      'POST',
+      '/review/session/start',
+      request
+    );
+  }
+
+  /**
+   * Submit an answer for the current concept in an active session
+   * @param sessionId - Active session identifier
+   * @param request - User's answer
+   * @returns Scoring result, next action, and updated progress
+   *
+   * @source EPIC-31: Interactive Q&A verification bridge
+   */
+  async submitVerificationAnswer(sessionId: string, request: SubmitAnswerRequest): Promise<SubmitAnswerResponse> {
+    return this.request<SubmitAnswerResponse>(
+      'POST',
+      `/review/session/${encodeURIComponent(sessionId)}/answer`,
+      request
+    );
+  }
+
+  // ===========================================================================
   // Textbook API Methods (3 endpoints) - Epic 28: Bidirectional Textbook Links
   // ===========================================================================
 
@@ -756,7 +797,8 @@ export class ApiClient {
   async uploadMultimodal(
     file: File,
     conceptId: string,
-    onProgress?: (percent: number) => void
+    onProgress?: (percent: number) => void,
+    canvasPath?: string
   ): Promise<MultimodalUploadResponse> {
     // ✅ Verified from Story 35.3 Task 2 - Validate conceptId is non-empty
     if (!conceptId || conceptId.trim() === '') {
@@ -771,22 +813,41 @@ export class ApiClient {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('related_concept_id', conceptId);
+    if (canvasPath) {
+      formData.append('canvas_path', canvasPath);
+    }
 
     // Use longer timeout for file uploads (60s per Story 35.3 Task 2)
     const uploadTimeout = 60000;
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), uploadTimeout);
+
+    // Simulated progress: Fetch API lacks upload progress, so we animate
+    // from 0% to ~90% over the timeout period, then jump to 100% on success.
+    let progressInterval: ReturnType<typeof setInterval> | null = null;
+    let simulatedPercent = 0;
+    if (onProgress) {
+      onProgress(0);
+      progressInterval = setInterval(() => {
+        // Asymptotically approach 90% (never reaches it)
+        simulatedPercent += (90 - simulatedPercent) * 0.1;
+        onProgress(Math.round(simulatedPercent));
+      }, 500);
+    }
+
+    const stopProgress = () => {
+      if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
+      }
+    };
 
     // Retry logic for transient failures (ADR-009)
     let lastError: ApiError | null = null;
     for (let attempt = 0; attempt <= this.retryPolicy.maxRetries; attempt++) {
-      try {
-        // Note: Progress tracking requires XMLHttpRequest, not supported with basic fetch
-        // If onProgress is provided, we'll call it at start/end (simplified)
-        if (onProgress) {
-          onProgress(0);
-        }
+      // F1 Fix: Create fresh AbortController per retry attempt
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), uploadTimeout);
 
+      try {
         const response = await fetch(
           `${this.baseUrl}/multimodal/upload`,
           {
@@ -823,6 +884,7 @@ export class ApiClient {
           );
         }
 
+        stopProgress();
         if (onProgress) {
           onProgress(100);
         }
@@ -839,6 +901,8 @@ export class ApiClient {
           attempt < this.retryPolicy.maxRetries &&
           this.isRetryable(apiError)
         ) {
+          // Reset simulated progress for retry
+          simulatedPercent = 0;
           const delay = this.retryPolicy.backoffMs * Math.pow(2, attempt);
           console.log(
             `[ApiClient] Upload failed, retrying in ${delay}ms ` +
@@ -848,10 +912,12 @@ export class ApiClient {
           continue;
         }
 
+        stopProgress();
         throw apiError;
       }
     }
 
+    stopProgress();
     throw lastError ?? new ApiError('Upload failed', 'UnknownError');
   }
 
@@ -933,7 +999,7 @@ export class ApiClient {
   async searchMultimodal(
     query: string,
     options?: { limit?: number; media_types?: MediaType[] }
-  ): Promise<MediaItem[]> {
+  ): Promise<MultimodalSearchResultWithMode> {
     // ✅ Verified from Story 35.3 Task 4 - Validate query is non-empty
     if (!query || query.trim() === '') {
       throw new ApiError(
@@ -957,7 +1023,7 @@ export class ApiClient {
     );
 
     // Transform backend response to frontend MediaItem format
-    return response.results.map((result) => ({
+    const items: MediaItem[] = response.results.map((result) => ({
       id: result.id,
       type: result.media_type,
       path: result.file_path,
@@ -968,6 +1034,12 @@ export class ApiClient {
       extractedText: result.extracted_text,
       metadata: result.metadata,
     }));
+
+    // Story 35.11 AC 35.11.1: Expose search_mode as searchMode (snake_case → camelCase)
+    return {
+      items,
+      searchMode: response.search_mode,
+    };
   }
 
   /**
@@ -994,18 +1066,17 @@ export class ApiClient {
       );
     }
 
-    const response = await this.request<MultimodalDeleteResponse>(
+    // Story 35.10 AC 35.10.3: DELETE returns 204 No Content (no response body)
+    await this.request<void>(
       'DELETE',
       `/multimodal/${encodeURIComponent(contentId)}`
     );
 
     // Invalidate all multimodal caches on successful deletion (ADR-007)
-    if (response.success) {
-      this.invalidateMultimodalCache();
-      console.log(`[ApiClient] Deleted multimodal content: ${contentId}`);
-    }
+    this.invalidateMultimodalCache();
+    console.log(`[ApiClient] Deleted multimodal content: ${contentId}`);
 
-    return response.success;
+    return true;
   }
 
   /**

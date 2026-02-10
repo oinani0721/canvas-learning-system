@@ -776,6 +776,82 @@ export function exportSettings(settings: PluginSettings): string {
  * @returns Imported and validated settings
  * @throws Error if JSON is invalid or settings are malformed
  */
+/**
+ * Result of glob pattern validation
+ */
+export interface GlobValidationResult {
+    isValid: boolean;
+    error?: string;
+}
+
+/**
+ * Validates a glob pattern for syntactic correctness.
+ *
+ * Rules:
+ * 1. Non-empty string (after trimming whitespace)
+ * 2. No null bytes (\0)
+ * 3. Balanced brackets [] and braces {}
+ * 4. Valid wildcard usage (*, **, ?)
+ *
+ * @param pattern - Glob pattern string to validate
+ * @returns GlobValidationResult with isValid and optional error
+ */
+export function isValidGlobPattern(pattern: string): GlobValidationResult {
+    // Rule 1: Non-empty string
+    if (!pattern || pattern.trim().length === 0) {
+        return { isValid: false, error: 'Pattern cannot be empty' };
+    }
+
+    // Rule 2: No null bytes
+    if (pattern.includes('\0')) {
+        return { isValid: false, error: 'Pattern cannot contain null bytes' };
+    }
+
+    // Rule 3: Balanced brackets and braces (respecting escapes)
+    let squareBracketDepth = 0;
+    let curlyBraceDepth = 0;
+
+    for (let i = 0; i < pattern.length; i++) {
+        const ch = pattern[i];
+
+        // Skip escaped characters
+        if (ch === '\\' && i + 1 < pattern.length) {
+            i++; // skip next char
+            continue;
+        }
+
+        if (ch === '[') {
+            squareBracketDepth++;
+        } else if (ch === ']') {
+            if (squareBracketDepth > 0) {
+                squareBracketDepth--;
+            }
+            // standalone ] without matching [ is OK in glob (treated as literal)
+        } else if (ch === '{') {
+            curlyBraceDepth++;
+        } else if (ch === '}') {
+            if (curlyBraceDepth > 0) {
+                curlyBraceDepth--;
+            } else {
+                return { isValid: false, error: 'Unmatched closing brace }' };
+            }
+        }
+    }
+
+    if (squareBracketDepth > 0) {
+        return { isValid: false, error: 'Unclosed bracket [' };
+    }
+
+    if (curlyBraceDepth > 0) {
+        return { isValid: false, error: 'Unclosed brace {' };
+    }
+
+    // Rule 4: Wildcards (*, **, ?) are always valid in glob syntax
+    // No additional validation needed
+
+    return { isValid: true };
+}
+
 export function importSettings(jsonString: string): PluginSettings {
     try {
         const imported = JSON.parse(jsonString);

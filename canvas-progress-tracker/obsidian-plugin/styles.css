@@ -3275,6 +3275,18 @@
     color: var(--text-on-accent);
 }
 
+/* Story 35.11 AC 35.11.2: Search degradation notice */
+.media-panel-degradation-notice {
+    background: var(--background-modifier-warning, rgba(255, 204, 0, 0.15));
+    border: 1px solid var(--text-warning, #e0a500);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: var(--text-warning, #e0a500);
+    line-height: 1.4;
+}
+
 /* Multimodal Responsive - Tablet */
 @media screen and (max-width: 768px) {
     .image-gallery {
@@ -5088,6 +5100,13 @@
 .verification-progress-modal .quality-wrong {
     background-color: rgba(239, 68, 68, 0.15);
     color: #ef4444;
+}
+
+.verification-progress-modal .feedback-degraded-indicator {
+    font-size: 0.85em;
+    color: var(--text-warning, #eab308);
+    opacity: 0.9;
+    cursor: help;
 }
 
 .verification-progress-modal .control-buttons {

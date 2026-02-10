@@ -179,28 +179,16 @@ export class ContextMenuManager {
     // Story 13.5 Fix: Canvas views don't trigger 'editor-menu' event
     // We must intercept contextmenu DOM events directly
     // ✅ Verified from @obsidian-canvas Skill (Plugin Development - registerDomEvent)
-    console.log('[DEBUG-CANVAS] Checking DOM event registration conditions:', {
-      enableEditorMenu: this.settings.enableEditorMenu,
-      hasRegisterDomEvent: 'registerDomEvent' in plugin
-    });
     if (this.settings.enableEditorMenu && 'registerDomEvent' in plugin) {
-      console.log('[DEBUG-CANVAS] Registering DOM contextmenu event listener');
       (plugin as any).registerDomEvent(
         document,
         'contextmenu',
         (evt: MouseEvent) => {
-          console.log('[DEBUG-CANVAS] DOM contextmenu event received');
           this.handleCanvasNodeContextMenu(evt);
         },
         true  // Use capture phase to intercept before Obsidian's handler
       );
       this.log('ContextMenuManager: Canvas DOM contextmenu event registered');
-      console.log('[DEBUG-CANVAS] DOM contextmenu event registered successfully');
-    } else {
-      console.log('[DEBUG-CANVAS] SKIP: DOM event not registered', {
-        enableEditorMenu: this.settings.enableEditorMenu,
-        hasRegisterDomEvent: 'registerDomEvent' in plugin
-      });
     }
 
     this.log('ContextMenuManager: Initialized');
@@ -261,11 +249,8 @@ export class ContextMenuManager {
       section: 'primary',
       description: '将复杂概念拆解为子问题',
       action: async (ctx: MenuContext) => {
-        console.log('[Story 12.K] MenuItem "拆解此节点" clicked');
         if (this.actionRegistry.executeDecomposition) {
-          console.log('[Story 12.K] Calling executeDecomposition with context:', ctx);
           await this.actionRegistry.executeDecomposition(ctx);
-          console.log('[Story 12.K] executeDecomposition completed');
         } else {
           console.error('[Story 12.K] executeDecomposition not registered!');
           new Notice('拆解功能尚未初始化');
@@ -313,11 +298,8 @@ export class ContextMenuManager {
       section: 'primary',
       description: '对复杂概念进行深度拆解分析',
       action: async (ctx: MenuContext) => {
-        console.log('[Story 12.K] MenuItem "深度拆解" clicked');
         if (this.actionRegistry.executeDeepDecomposition) {
-          console.log('[Story 12.K] Calling executeDeepDecomposition with context:', ctx);
           await this.actionRegistry.executeDeepDecomposition(ctx);
-          console.log('[Story 12.K] executeDeepDecomposition completed');
         } else {
           console.error('[Story 12.K] executeDeepDecomposition not registered!');
           new Notice('深度拆解功能尚未初始化');
@@ -549,13 +531,8 @@ export class ContextMenuManager {
       icon: 'paperclip',
       section: 'utility',
       description: '附加图片/PDF/音视频到此节点',
-      condition: () => true, // Additional filtering in action based on nodeType
+      condition: (ctx: MenuContext) => ctx.nodeType === 'text',
       action: async (ctx: MenuContext) => {
-        // AC 35.5.1: Only show for TEXT type nodes (concept nodes)
-        if (ctx.nodeType && ctx.nodeType !== 'text') {
-          new Notice('仅支持对文本节点附加媒体文件');
-          return;
-        }
         if (this.actionRegistry.attachMedia) {
           await this.actionRegistry.attachMedia(ctx);
         } else {
@@ -608,7 +585,7 @@ export class ContextMenuManager {
    *
    * ✅ Verified from @obsidian-canvas Skill (Context Menus - Editor Menu)
    */
-  private handleEditorMenu(menu: Menu, editor: Editor, view: MarkdownView): void {
+  private async handleEditorMenu(menu: Menu, editor: Editor, view: MarkdownView): Promise<void> {
     // Check if this is a Canvas view
     const file = view.file;
     if (!file || file.extension !== 'canvas') {
@@ -639,6 +616,11 @@ export class ContextMenuManager {
       isFirstSection = false;
 
       for (const entry of sectionItems) {
+        if (entry.config.condition) {
+          const result = entry.config.condition(context);
+          const shouldShow = result instanceof Promise ? await result : result;
+          if (!shouldShow) continue;
+        }
         this.addMenuItem(menu, entry.config, context);
       }
     }
@@ -753,14 +735,11 @@ export class ContextMenuManager {
    * ✅ Verified from @obsidian-canvas Skill (Canvas Internal API)
    */
   private getActiveCanvasView(): { view: any; canvas: any; file: TFile } | null {
-    console.log('[DEBUG-CANVAS] getActiveCanvasView() called');
 
     const activeLeaf = this.app.workspace.activeLeaf;
     if (!activeLeaf) {
-      console.log('[DEBUG-CANVAS] FAIL: no activeLeaf');
       return null;
     }
-    console.log('[DEBUG-CANVAS] activeLeaf exists, viewType:', activeLeaf.view?.getViewType?.());
 
     const view = activeLeaf.view;
 
@@ -771,25 +750,16 @@ export class ContextMenuManager {
 
     // Check if it's a Canvas file
     if (!file || file.extension !== 'canvas') {
-      console.log('[DEBUG-CANVAS] FAIL: not canvas file', {
-        file: file?.path,
-        ext: file?.extension
-      });
       return null;
     }
-    console.log('[DEBUG-CANVAS] canvas file confirmed:', file.path);
 
     // Access Canvas internal API (undocumented but stable since v1.1)
     const canvas = (view as any)?.canvas;
-    console.log('[DEBUG-CANVAS] view.canvas =', canvas);
-    console.log('[DEBUG-CANVAS] view keys:', Object.keys(view || {}));
 
     if (!canvas) {
-      console.log('[DEBUG-CANVAS] FAIL: view.canvas is undefined/null');
       return null;
     }
 
-    console.log('[DEBUG-CANVAS] SUCCESS: getActiveCanvasView()');
     return { view, canvas, file };
   }
 
@@ -808,7 +778,6 @@ export class ContextMenuManager {
     nodeEl: HTMLElement;
     nodeData: any;
   } | null {
-    console.log('[DEBUG-CANVAS] getNodeFromElement() called on:', element?.tagName, element?.className);
 
     // Walk up the DOM tree to find the canvas node element
     let current: HTMLElement | null = element;
@@ -818,70 +787,53 @@ export class ContextMenuManager {
     }
 
     if (!current) {
-      console.log('[DEBUG-CANVAS] FAIL: no .canvas-node ancestor found');
       return null;
     }
-    console.log('[DEBUG-CANVAS] Found .canvas-node element');
-    console.log('[DEBUG-CANVAS] .canvas-node attributes:', Array.from(current.attributes).map(a => `${a.name}=${a.value}`));
 
     // Get Canvas view first
     const canvasView = this.getActiveCanvasView();
     if (!canvasView) {
-      console.log('[DEBUG-CANVAS] FAIL: getActiveCanvasView returned null in getNodeFromElement');
       return null;
     }
 
     // Method 1: Try data-node-id attribute first
     const dataNodeId = current.getAttribute('data-node-id');
     if (dataNodeId) {
-      console.log('[DEBUG-CANVAS] Found data-node-id:', dataNodeId);
       const nodeData = canvasView.canvas.nodes.get(dataNodeId);
       if (nodeData) {
-        console.log('[DEBUG-CANVAS] SUCCESS: getNodeFromElement() via data-node-id');
         return { nodeId: dataNodeId, nodeEl: current, nodeData };
       }
     }
 
     // Method 2: Match DOM element to canvas.nodes by their nodeEl property
-    console.log('[DEBUG-CANVAS] Trying to match via canvas.nodes iteration');
-    console.log('[DEBUG-CANVAS] canvas.nodes type:', typeof canvasView.canvas.nodes);
-    console.log('[DEBUG-CANVAS] canvas.nodes size:', canvasView.canvas.nodes?.size);
 
     // canvas.nodes is a Map<string, CanvasNode>
     // Each CanvasNode has a nodeEl property pointing to its DOM element
     for (const [nodeId, nodeData] of canvasView.canvas.nodes) {
-      console.log('[DEBUG-CANVAS] Checking node:', nodeId, 'nodeEl:', nodeData?.nodeEl?.tagName);
 
       // Check if the node's DOM element matches or contains our clicked element
       const nodeEl = (nodeData as any)?.nodeEl as HTMLElement | undefined;
       if (nodeEl && (nodeEl === current || nodeEl.contains(current) || current.contains(nodeEl))) {
-        console.log('[DEBUG-CANVAS] SUCCESS: Matched node via nodeEl reference, id=', nodeId);
         return { nodeId, nodeEl: current, nodeData };
       }
     }
 
     // Method 3: Check canvas.selection for currently selected nodes
-    console.log('[DEBUG-CANVAS] Trying canvas.selection');
     const selection = canvasView.canvas.selection;
-    console.log('[DEBUG-CANVAS] canvas.selection:', selection);
-    console.log('[DEBUG-CANVAS] canvas.selection size:', selection?.size);
 
     if (selection && selection.size > 0) {
       // Get first selected node
       const selectedNode = selection.values().next().value;
       if (selectedNode) {
         const selectedNodeEl = (selectedNode as any)?.nodeEl as HTMLElement | undefined;
-        console.log('[DEBUG-CANVAS] Selected node element:', selectedNodeEl?.tagName, selectedNodeEl?.className);
 
         if (selectedNodeEl && (selectedNodeEl === current || selectedNodeEl.contains(current) || current.contains(selectedNodeEl))) {
           const nodeId = (selectedNode as any)?.id || 'unknown';
-          console.log('[DEBUG-CANVAS] SUCCESS: Matched via canvas.selection, id=', nodeId);
           return { nodeId, nodeEl: current, nodeData: selectedNode };
         }
       }
     }
 
-    console.log('[DEBUG-CANVAS] FAIL: Could not match DOM element to any canvas node');
     return null;
   }
 
@@ -895,31 +847,24 @@ export class ContextMenuManager {
    * Story 13.5: Canvas node right-click menu fix
    */
   private async handleCanvasNodeContextMenu(evt: MouseEvent): Promise<void> {
-    console.log('[DEBUG-CANVAS] ====== handleCanvasNodeContextMenu TRIGGERED ======');
-    console.log('[DEBUG-CANVAS] evt.target:', evt.target);
 
     const target = evt.target as HTMLElement;
     if (!target) {
-      console.log('[DEBUG-CANVAS] FAIL: no target');
       return;
     }
-    console.log('[DEBUG-CANVAS] target element:', target.tagName, target.className);
 
     // Check if we're in a Canvas view
     const canvasView = this.getActiveCanvasView();
     if (!canvasView) {
-      console.log('[DEBUG-CANVAS] FAIL: not in canvas view, skipping custom menu');
       return;
     }
 
     // Check if clicked element is inside a Canvas node
     const nodeInfo = this.getNodeFromElement(target);
     if (!nodeInfo) {
-      console.log('[DEBUG-CANVAS] FAIL: target not in a canvas node, skipping custom menu');
       return;
     }
 
-    console.log('[DEBUG-CANVAS] SUCCESS: All checks passed, showing custom menu');
     this.log(`ContextMenuManager: Canvas node right-click detected - ${nodeInfo.nodeId}`);
 
     // Prevent default context menu and stop propagation
@@ -931,18 +876,6 @@ export class ContextMenuManager {
     // Must detect type by checking existence of 'file' or 'text' properties
     let nodeContent: string | undefined;
     let detectedNodeType: 'text' | 'file' | undefined = undefined;
-
-    // Story 12.F.3: Debug log nodeData structure to diagnose type detection
-    console.log('[Story 12.F.3] nodeData structure debug:', {
-      nodeDataExists: !!nodeInfo.nodeData,
-      nodeDataType: typeof nodeInfo.nodeData,
-      nodeDataKeys: nodeInfo.nodeData ? Object.keys(nodeInfo.nodeData) : [],
-      hasType: 'type' in (nodeInfo.nodeData || {}),
-      typeValue: nodeInfo.nodeData?.type,
-      hasText: 'text' in (nodeInfo.nodeData || {}),
-      hasFile: 'file' in (nodeInfo.nodeData || {}),
-      fileValue: nodeInfo.nodeData?.file,
-    });
 
     // ✅ FIX: Check for 'file' property first (TFile object or path string)
     if (nodeInfo.nodeData?.file) {
@@ -968,7 +901,6 @@ export class ContextMenuManager {
           try {
             // Use cachedRead for better performance
             nodeContent = await this.app.vault.cachedRead(abstractFile);
-            console.log(`[Story 12.F.3] FILE node content loaded: ${filePath}, length: ${nodeContent.length}`);
           } catch (error) {
             console.error(`[Story 12.F.3] Failed to read FILE node: ${filePath}`, error);
             nodeContent = undefined;
@@ -982,10 +914,6 @@ export class ContextMenuManager {
       // TEXT type: Read directly from node data
       detectedNodeType = 'text';
       nodeContent = nodeInfo.nodeData.text;
-      if (nodeContent) {
-        const preview = nodeContent.length > 100 ? nodeContent.substring(0, 100) + '...' : nodeContent;
-        console.log('[Story 12.F.3] TEXT node content extracted:', preview);
-      }
     }
 
     // Build context with node information
@@ -998,28 +926,6 @@ export class ContextMenuManager {
       nodeType: detectedNodeType,  // Story 12.F.3: Use detected type
       nodeContent: nodeContent,  // Story 12.B.2: Pass real-time content
     };
-
-    // Story 12.F.3: Log complete node content trace for debugging (updated)
-    const logFilePath = nodeInfo.nodeData?.file
-      ? (typeof nodeInfo.nodeData.file === 'string'
-          ? nodeInfo.nodeData.file
-          : nodeInfo.nodeData.file?.path || 'TFile')
-      : null;
-    const logContentSource = nodeContent
-      ? (detectedNodeType === 'file' ? 'file_read' : 'json_text')
-      : 'empty';
-    const logContentPreview = nodeContent
-      ? (nodeContent.length > 80 ? nodeContent.substring(0, 80) + '...' : nodeContent)
-      : '';
-    console.log(
-      `[Story 12.F.3] Node content trace:\n` +
-      `  - node_id: ${nodeInfo.nodeId}\n` +
-      `  - node_type: ${detectedNodeType || 'unknown'}\n` +
-      `  - file_path: ${logFilePath || 'N/A'}\n` +
-      `  - content_source: ${logContentSource}\n` +
-      `  - content_length: ${nodeContent?.length || 0} chars\n` +
-      `  - content_preview: ${logContentPreview}`
-    );
 
     // Epic 21.5.2: Cache canvas context for use in action handlers
     this.cachedCanvasContext = context;
@@ -1049,6 +955,11 @@ export class ContextMenuManager {
       isFirstSection = false;
 
       for (const entry of sectionItems) {
+        if (entry.config.condition) {
+          const result = entry.config.condition(context);
+          const shouldShow = result instanceof Promise ? await result : result;
+          if (!shouldShow) continue;
+        }
         this.addMenuItem(menu, entry.config, context);
       }
     }
@@ -1193,7 +1104,7 @@ export class ContextMenuManager {
    */
   private log(message: string): void {
     if (this.debugMode) {
-      console.log(message);
+      console.debug(message);
     }
   }
 
