@@ -1679,13 +1679,15 @@ def _calculate_trend(scores: List[int]) -> ActionTrend:
     Returns:
         ActionTrend enum value
     """
-    if len(scores) < 2:
+    # [Code Review M2 fix]: Require at least 3 scores for meaningful trend detection.
+    # With only 2 scores, a single outlier dominates — too noisy for reliable trends.
+    if len(scores) < 3:
         return ActionTrend.stable
 
     # Compare first half average with second half average
     mid = len(scores) // 2
-    recent_avg = sum(scores[:mid]) / mid if mid > 0 else scores[0]
-    older_avg = sum(scores[mid:]) / (len(scores) - mid) if (len(scores) - mid) > 0 else scores[-1]
+    recent_avg = sum(scores[:mid]) / mid
+    older_avg = sum(scores[mid:]) / (len(scores) - mid)
 
     diff = recent_avg - older_avg
     # 5-point threshold for trend detection
@@ -1753,11 +1755,8 @@ def _recommend_action_from_score(
         agent = None
         reason = "掌握良好，可以继续下一个概念"
         priority = 3
-        # [Bug fix] Don't unconditionally clear review_suggested —
-        # preserve True if history analysis (declining trend) already set it.
+        # [Bug fix] Preserve review_suggested=True if history analysis already set it.
         # AC-31.3.4: historical trends should still surface even with high current score.
-        if not review_suggested:
-            review_suggested = False
 
     return action, reason, agent, priority, review_suggested, alternatives
 
@@ -1812,6 +1811,13 @@ async def recommend_action(
     [Source: specs/data/recommend-action-request.schema.json]
     [Source: specs/data/recommend-action-response.schema.json]
     """
+    # [Code Review M3 fix]: Add request dedup for consistency with other endpoints
+    cache_key = check_duplicate_request(
+        canvas_name=request.canvas_name,
+        node_id=request.node_id,
+        agent_type="recommend_action"
+    )
+
     logger.info(
         f"[Story 31.3] recommend_action: score={request.score}, "
         f"node_id={request.node_id}, canvas_name={request.canvas_name}, "
@@ -1823,17 +1829,20 @@ async def recommend_action(
     # AC-31.3.4: Query historical scores if requested
     if request.include_history:
         try:
-            # Query learning history from MemoryService
-            # Using canvas_name as user_id proxy for now
+            # [Code Review C1 fix]: Use "default" as user_id to match what
+            # _record_learning_event() stores (agents.py:391 uses user_id="default").
+            # Previously used request.canvas_name which never matched stored events.
+            # [Code Review C3 fix]: Use node_id as concept fallback when frontend
+            # doesn't send concept, to avoid mixing scores across concepts.
+            concept_query = request.concept or request.node_id
             history_result = await memory_service.get_learning_history(
-                user_id=request.canvas_name,
-                concept=request.concept,
+                user_id="default",
+                concept=concept_query,
                 page=1,
-                page_size=5  # Get last 5 scores
+                page_size=10  # Get more to ensure enough scored items after filtering
             )
 
             # Extract scores from history items.
-            # [Bug fix] Consolidated from double-parse: extract once, sort if timestamps exist.
             items = history_result.get("items", [])
             valid_items = [
                 it for it in items
@@ -1844,7 +1853,14 @@ async def recommend_action(
             if valid_items and any("timestamp" in it for it in valid_items):
                 valid_items.sort(key=lambda it: it.get("timestamp", ""), reverse=True)
 
-            recent_scores: List[int] = [int(it["score"]) for it in valid_items]
+            # [Code Review M1 fix]: Safe int conversion — handle floats and float-strings
+            # without crashing. int("75.5") raises ValueError; int(float("75.5")) = 75.
+            recent_scores: List[int] = []
+            for it in valid_items[:5]:
+                try:
+                    recent_scores.append(int(float(it["score"])))
+                except (ValueError, TypeError):
+                    logger.warning(f"[Story 31.3] Skipping non-numeric score: {it.get('score')}")
 
             if recent_scores:
                 # Calculate history context
@@ -1884,6 +1900,9 @@ async def recommend_action(
         f"[Story 31.3] Recommendation: action={action.value}, agent={agent}, "
         f"priority={priority}, review_suggested={review_suggested}"
     )
+
+    # [Code Review M3]: Mark request as completed
+    complete_request(cache_key)
 
     return RecommendActionResponse(
         action=action,

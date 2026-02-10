@@ -117,8 +117,9 @@ class TestEdgeCases:
         assert len(result["items"]) == 0
 
     @pytest.mark.asyncio
-    async def test_concurrent_neo4j_and_memory_isolation(self):
-        """Memory written during current session doesn't contaminate Neo4j results."""
+    async def test_concurrent_neo4j_and_memory_merge(self):
+        """[Code Review C2]: Memory episodes are merged with Neo4j results
+        for complete score history (enables consecutive_low tracking)."""
         neo4j_data = [
             {"concept": "FromDB", "score": 90, "timestamp": "2026-02-05T10:00:00"}
         ]
@@ -134,12 +135,14 @@ class TestEdgeCases:
             concept="JustRecorded", agent_type="scoring"
         )
 
-        # get_learning_history should use Neo4j data only (not merge with _episodes)
+        # get_learning_history merges Neo4j + in-memory episodes (deduped)
         result = await service.get_learning_history(user_id="u1")
 
-        # Should only have Neo4j data since neo4j returned non-empty
-        assert result["total"] == 1
-        assert result["items"][0]["concept"] == "FromDB"
+        # Both Neo4j and newly recorded in-memory episode present
+        assert result["total"] == 2
+        concepts = [it["concept"] for it in result["items"]]
+        assert "FromDB" in concepts
+        assert "JustRecorded" in concepts
 
     @pytest.mark.asyncio
     async def test_large_dataset_pagination(self):

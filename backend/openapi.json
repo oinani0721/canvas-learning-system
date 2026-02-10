@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-09T13:54:30.947199+00:00",
+    "x-generated-at": "2026-02-10T00:42:17.354636+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -290,7 +290,7 @@
                       "checks": {
                         "neo4j_enabled": true,
                         "neo4j_connection": false,
-                        "error": "Connection timeout (>30000ms)"
+                        "error": "Connection timeout (>500ms)"
                       },
                       "cached": false,
                       "timestamp": "2026-01-16T10:30:00Z"
@@ -7567,6 +7567,12 @@
             "title": "Mastered Weight",
             "description": "Weight for mastered concepts in targeted mode",
             "default": 0.3
+          },
+          "skip_mastered": {
+            "type": "boolean",
+            "title": "Skip Mastered",
+            "description": "跳过已掌握概念 (连续3次>=80)",
+            "default": false
           }
         },
         "type": "object",
@@ -7618,6 +7624,18 @@
               }
             ],
             "description": "Weight configuration used in targeted mode"
+          },
+          "skipped_mastered_count": {
+            "type": "integer",
+            "title": "Skipped Mastered Count",
+            "description": "跳过的已掌握概念数量",
+            "default": 0
+          },
+          "difficulty_adapted": {
+            "type": "boolean",
+            "title": "Difficulty Adapted",
+            "description": "是否应用了难度自适应",
+            "default": false
           }
         },
         "type": "object",

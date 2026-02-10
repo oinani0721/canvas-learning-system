@@ -119,15 +119,26 @@ class TestCalculateTrend:
         result = _calculate_trend([72, 70, 70, 68, 69])
         assert result == ActionTrend.stable
 
-    def test_two_scores_improving(self):
-        """Two scores with improvement."""
-        # mid = 1, recent: [80], older: [60]
+    def test_two_scores_returns_stable(self):
+        """[Code Review M2]: Two scores should return stable (need ≥3 for trend)."""
         result = _calculate_trend([80, 60])
+        assert result == ActionTrend.stable
+
+    def test_two_scores_declining_returns_stable(self):
+        """[Code Review M2]: Two scores should return stable even with large diff."""
+        result = _calculate_trend([50, 75])
+        assert result == ActionTrend.stable
+
+    def test_three_scores_improving(self):
+        """Three scores with clear improvement → improving."""
+        # mid = 1, recent: [85], older: avg([60, 55]) = 57.5, diff = 27.5 > 5
+        result = _calculate_trend([85, 60, 55])
         assert result == ActionTrend.improving
 
-    def test_two_scores_declining(self):
-        """Two scores with decline."""
-        result = _calculate_trend([50, 75])
+    def test_three_scores_declining(self):
+        """Three scores with clear decline → declining."""
+        # mid = 1, recent: [40], older: avg([70, 80]) = 75, diff = -35 < -5
+        result = _calculate_trend([40, 70, 80])
         assert result == ActionTrend.declining
 
 

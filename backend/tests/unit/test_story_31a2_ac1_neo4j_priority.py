@@ -25,8 +25,10 @@ class TestAC31A21_Neo4jQueryPriority:
     """AC-31.A.2.1: get_learning_history() must query Neo4j first."""
 
     @pytest.mark.asyncio
-    async def test_queries_neo4j_not_memory_when_neo4j_has_data(self):
-        """When Neo4j returns data, memory should NOT be used."""
+    async def test_queries_neo4j_and_merges_memory(self):
+        """[Code Review C2]: Neo4j results are supplemented with in-memory episodes.
+        Neo4j MERGE only keeps 1 score per concept, so in-memory episodes
+        (which store all score events) are merged for complete history."""
         neo4j_data = [
             {"concept": "Neo4j-矩阵", "score": 95, "timestamp": "2026-02-05T10:00:00",
              "user_id": "u1"}
@@ -37,7 +39,7 @@ class TestAC31A21_Neo4jQueryPriority:
         service = _make_service(mock_neo4j)
         await service.initialize()
 
-        # Inject memory data that should NOT appear
+        # Memory data is now MERGED (not excluded) for complete score history
         service._episodes.append({
             "user_id": "u1", "concept": "Memory-向量",
             "score": 50, "timestamp": "2026-02-05T09:00:00"
@@ -46,11 +48,10 @@ class TestAC31A21_Neo4jQueryPriority:
         result = await service.get_learning_history(user_id="u1")
 
         mock_neo4j.get_learning_history.assert_called_once()
-        assert result["total"] == 1
+        # Both Neo4j and memory data present (sorted newest first)
+        assert result["total"] == 2
         assert result["items"][0]["concept"] == "Neo4j-矩阵"
-        # Memory data should NOT be present
-        concepts = [i["concept"] for i in result["items"]]
-        assert "Memory-向量" not in concepts
+        assert result["items"][1]["concept"] == "Memory-向量"
 
     @pytest.mark.asyncio
     async def test_neo4j_called_with_all_parameters(self):
@@ -140,24 +141,28 @@ class TestAC31A21_Neo4jQueryPriority:
         assert result["items"][0]["concept"] == "内存回退"
 
     @pytest.mark.asyncio
-    async def test_no_double_data_when_neo4j_succeeds(self):
-        """Neo4j data and memory data should NOT be merged."""
+    async def test_no_duplicate_when_same_data_in_neo4j_and_memory(self):
+        """[Code Review C2]: When same event exists in both Neo4j and memory,
+        dedup by (node_id, timestamp) ensures no duplicates."""
         mock_neo4j = _make_neo4j_mock(
             get_learning_history=AsyncMock(return_value=[
-                {"concept": "A", "score": 90, "timestamp": "2026-02-05T10:00:00"}
+                {"concept": "A", "score": 90, "timestamp": "2026-02-05T10:00:00",
+                 "node_id": "n1"}
             ])
         )
         service = _make_service(mock_neo4j)
         await service.initialize()
 
+        # Same event in memory (same node_id + timestamp = deduped)
         service._episodes.append({
-            "user_id": "u1", "concept": "B",
-            "score": 50, "timestamp": "2026-02-05T09:00:00"
+            "user_id": "u1", "concept": "A",
+            "score": 90, "timestamp": "2026-02-05T10:00:00",
+            "node_id": "n1"
         })
 
         result = await service.get_learning_history(user_id="u1")
 
-        # Only Neo4j data, no memory contamination
+        # Dedup: same (node_id, timestamp) → only 1 entry
         assert result["total"] == 1
         assert result["items"][0]["concept"] == "A"
 

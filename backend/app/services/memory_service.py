@@ -526,49 +526,62 @@ class MemoryService:
                 group_id=group_id,
                 limit=page_size * page  # Get enough data for pagination
             )
-            episodes = neo4j_results
+            episodes = neo4j_results or []
             logger.debug(f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}")
         except Exception as e:
             # ✅ Story 31.A.2: Fallback to memory if Neo4j fails
             logger.warning(f"Neo4j query failed, falling back to memory: {e}")
 
-        # Fallback to memory if Neo4j returned empty or failed
-        if not episodes:
-            # Story 38.2 AC-3: Lazy recovery — if startup recovery failed, retry now
-            if not self._episodes_recovered:
-                await self._recover_episodes_from_neo4j()
-            logger.debug("Falling back to in-memory episodes")
-            episodes = [e for e in self._episodes if e.get("user_id") == user_id]
+        # [Code Review C2 fix]: Always supplement Neo4j results with in-memory episodes.
+        # Neo4j MERGE only keeps 1 LEARNED relationship per user+concept, so it returns
+        # at most 1 record per concept. In-memory _episodes stores every score event via
+        # append(), enabling consecutive_low tracking (which requires ≥3 scores).
+        if not self._episodes_recovered:
+            await self._recover_episodes_from_neo4j()
 
-            # Apply date filters (only for memory fallback, Neo4j handles this)
-            if start_date:
-                episodes = [
-                    e for e in episodes
-                    if datetime.fromisoformat(e["timestamp"]) >= start_date
-                ]
-            if end_date:
-                episodes = [
-                    e for e in episodes
-                    if datetime.fromisoformat(e["timestamp"]) <= end_date
-                ]
+        memory_episodes = [e for e in self._episodes if e.get("user_id") == user_id]
 
-            # Apply concept filter
-            if concept:
-                concept_lower = concept.lower()
-                episodes = [
-                    e for e in episodes
-                    if concept_lower in e.get("concept", "").lower()
-                ]
+        # Apply date filters to in-memory episodes
+        if start_date:
+            memory_episodes = [
+                e for e in memory_episodes
+                if datetime.fromisoformat(e["timestamp"]) >= start_date
+            ]
+        if end_date:
+            memory_episodes = [
+                e for e in memory_episodes
+                if datetime.fromisoformat(e["timestamp"]) <= end_date
+            ]
 
-            # Apply subject filter
-            if subject:
-                subject_lower = subject.lower()
-                episodes = [
-                    e for e in episodes
-                    if subject_lower in e.get("subject", "").lower()
-                ]
+        # Apply concept filter
+        if concept:
+            concept_lower = concept.lower()
+            memory_episodes = [
+                e for e in memory_episodes
+                if concept_lower in e.get("concept", "").lower()
+            ]
 
-            # Sort by timestamp (newest first)
+        # Apply subject filter
+        if subject:
+            subject_lower = subject.lower()
+            memory_episodes = [
+                e for e in memory_episodes
+                if subject_lower in e.get("subject", "").lower()
+            ]
+
+        # Merge: deduplicate by (node_id, timestamp), prefer Neo4j (persistent)
+        if memory_episodes:
+            existing_keys = {
+                (e.get("node_id", ""), e.get("timestamp", "")) for e in episodes
+            }
+            for me in memory_episodes:
+                key = (me.get("node_id", ""), me.get("timestamp", ""))
+                if key not in existing_keys:
+                    episodes.append(me)
+                    existing_keys.add(key)
+
+        # Sort by timestamp (newest first)
+        if episodes:
             episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
 
         # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps

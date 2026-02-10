@@ -238,6 +238,7 @@ class TestAC4MergedView:
         ms._learning_memory = AsyncMock()
         ms._initialized = True
         ms._episodes = []
+        ms._episodes_recovered = True  # [Code Review C2]: skip recovery in tests
         ms._score_history_cache = {}
         return ms
 
