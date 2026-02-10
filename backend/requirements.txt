@@ -53,6 +53,10 @@ graphiti-core>=0.6.0
 # ✅ For exponential backoff retry logic
 tenacity>=8.0.0
 
+# Cache Management (NFR-P0: Bounded caches with TTL)
+# ✅ Replaces bare dict caches to prevent unbounded memory growth
+cachetools>=5.3.0
+
 # Embedding Models
 # ✅ For OpenAI embeddings (optional, can use local models)
 openai>=1.0.0

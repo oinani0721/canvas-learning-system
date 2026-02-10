@@ -610,6 +610,7 @@ async def get_verification_service(
         memory_service = None
 
     # P0-2: Create AgentService for AI question generation and scoring
+    # Code Review Fix C2: inject memory_client so hint-generation trigger can persist
     agent_service = None
     try:
         gemini_client = None
@@ -620,11 +621,19 @@ async def get_verification_service(
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
             )
         neo4j_client = get_neo4j_client_dep()
+        # Fix C2: inject memory_client for hint-generation memory writes
+        vs_memory_client = None
+        try:
+            from .clients.graphiti_client import get_learning_memory_client
+            vs_memory_client = get_learning_memory_client()
+        except Exception as e:
+            logger.warning(f"LearningMemoryClient not available for VS AgentService: {e}")
         agent_service = AgentService(
             gemini_client=gemini_client,
-            neo4j_client=neo4j_client
+            neo4j_client=neo4j_client,
+            memory_client=vs_memory_client
         )
-        logger.info("AgentService created for VerificationService AI integration")
+        logger.info("AgentService created for VerificationService AI integration (with memory_client)")
     except Exception as e:
         logger.warning(f"AgentService not available for verification: {e}")
 

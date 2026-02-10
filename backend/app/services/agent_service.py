@@ -24,6 +24,8 @@ from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
+from cachetools import TTLCache
+
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
 # Story 12.G.2: Agent Error Type Enum
@@ -1037,7 +1039,10 @@ class AgentService:
         self._use_real_api = gemini_client is not None and gemini_client.is_configured()
         # Story 12.A.4: Memory cache for AC6 (30s TTL)
         # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-6]
-        self._memory_cache: Dict[str, Tuple[List[Any], float]] = {}
+        # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
+        self._memory_cache: TTLCache = TTLCache(maxsize=1000, ttl=30)
+        # NFR-P0: Lock for cache stampede protection
+        self._memory_cache_lock = asyncio.Lock()
 
         # Log AI configuration
         if ai_config:
@@ -1122,19 +1127,22 @@ class AgentService:
         # Story 36.7 AC4: Build cache key
         cache_key = f"{canvas_name}:{node_id}:{content[:50]}"
 
-        # Story 36.7 AC4: Check cache (30s TTL)
-        if cache_key in self._memory_cache:
-            cached_data, timestamp = self._memory_cache[cache_key]
-            if time.time() - timestamp < 30:
-                logger.debug(f"[Story 36.7] Memory cache HIT for key: {cache_key[:30]}...")
-                # Return cached formatted string if it's a string, otherwise format
+        # NFR-P0: Check cache (TTLCache auto-evicts expired entries)
+        cached_data = self._memory_cache.get(cache_key)
+        if cached_data is not None:
+            logger.debug(f"[Story 36.7] Memory cache HIT for key: {cache_key[:30]}...")
+            if isinstance(cached_data, str):
+                return cached_data
+            return self._format_learning_memories(cached_data)
+
+        # NFR-P0: Double-check locking for cache stampede protection
+        async with self._memory_cache_lock:
+            cached_data = self._memory_cache.get(cache_key)
+            if cached_data is not None:
+                logger.debug(f"[Story 36.7] Memory cache HIT (after lock) for key: {cache_key[:30]}...")
                 if isinstance(cached_data, str):
                     return cached_data
                 return self._format_learning_memories(cached_data)
-            else:
-                # Cache expired, remove stale entry
-                del self._memory_cache[cache_key]
-                logger.debug(f"[Story 36.7] Memory cache EXPIRED for key: {cache_key[:30]}...")
 
         # Story 36.7: Determine which data source to use
         use_neo4j = self._neo4j_client and not getattr(self._neo4j_client, '_use_json_fallback', True)
@@ -1167,7 +1175,7 @@ class AgentService:
 
             # Story 36.7 AC4: Store in cache
             if result:
-                self._memory_cache[cache_key] = (result, time.time())
+                self._memory_cache[cache_key] = result
                 logger.debug(f"[Story 36.7] Cached memories for key: {cache_key[:30]}...")
                 return result
 

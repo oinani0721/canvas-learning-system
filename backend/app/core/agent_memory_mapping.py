@@ -5,7 +5,7 @@
 Agent to memory type mapping configuration.
 
 This module defines which agents write to which memory layers.
-Maps 14 agents to their corresponding temporal event types as defined
+Maps 15 agents to their corresponding temporal event types as defined
 in temporal-event.schema.json.
 
 Memory Event Types (from temporal-event.schema.json):
@@ -35,7 +35,7 @@ class AgentMemoryType(str, Enum):
     NODE_UPDATED = "node_updated"
 
 
-# Complete agent to memory type mapping (14 agents)
+# Complete agent to memory type mapping (15 agents)
 # Agent names use hyphen format to match AgentType enum values
 AGENT_MEMORY_MAPPING: Dict[str, AgentMemoryType] = {
     # Decomposition agents -> decomposition_completed
@@ -50,6 +50,7 @@ AGENT_MEMORY_MAPPING: Dict[str, AgentMemoryType] = {
     "clarification-path": AgentMemoryType.EXPLANATION_GENERATED,
     "comparison-table": AgentMemoryType.EXPLANATION_GENERATED,
     "verification-question-agent": AgentMemoryType.EXPLANATION_GENERATED,
+    "hint-generation": AgentMemoryType.EXPLANATION_GENERATED,  # Story 30.12 fix: was missing, trigger in verification_service.py
 
     # Scoring agent -> scoring_completed
     "scoring-agent": AgentMemoryType.SCORING_COMPLETED,
@@ -61,11 +62,12 @@ AGENT_MEMORY_MAPPING: Dict[str, AgentMemoryType] = {
     "canvas-orchestrator": AgentMemoryType.CANVAS_OPENED,
 
     # System agents -> concept_reviewed
+    # Reserved: no active call site yet (Story 30.12 AC-30.12.3)
     "review-board-agent-selector": AgentMemoryType.CONCEPT_REVIEWED,
     "graphiti-memory-agent": AgentMemoryType.CONCEPT_REVIEWED,
 }
 
-# All agent names (14 agents total)
+# All agent names (15 agents total)
 ALL_AGENT_NAMES: Set[str] = set(AGENT_MEMORY_MAPPING.keys())
 
 
