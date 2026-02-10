@@ -24,7 +24,7 @@ class TestRecordBatchLearningEventsConcept:
         """Create a mock Neo4jClient."""
         neo4j = MagicMock()
         neo4j.initialize = AsyncMock()
-        neo4j.stats = {"connected": True}
+        neo4j.stats = {"initialized": True, "connected": True}
         neo4j.record_episode = AsyncMock()
         return neo4j
 
@@ -145,7 +145,7 @@ class TestRecordBatchLearningEventsConcept:
         self, memory_service, mock_neo4j
     ):
         """Story 30.9: Events stored in-memory even when Neo4j disconnected."""
-        mock_neo4j.stats = {"connected": False}
+        mock_neo4j.stats = {"initialized": False, "connected": False}
 
         event = self._make_event({"concept": "测试概念"})
         result = await memory_service.record_batch_learning_events([event])

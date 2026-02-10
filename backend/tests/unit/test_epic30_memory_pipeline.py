@@ -280,9 +280,9 @@ class TestBatchLearningEventsFullFlow:
         # When
         result = await svc.record_batch_learning_events([event])
 
-        # Then  — in-memory storage succeeds; Neo4j failure is swallowed
+        # Then  — in-memory storage succeeds; Neo4j errors are surfaced (C3 fix)
         assert result["processed"] == 1
-        assert result["failed"] == 0
+        assert result["failed"] == 1  # C3: Neo4j errors now counted in failed
 
 
 # ===========================================================================
@@ -417,9 +417,9 @@ class TestRecordTemporalEventLifecycle:
 
     @pytest.mark.asyncio
     async def test_p0_neo4j_disconnected_skips_write(self):
-        """[P0] When Neo4j stats say connected=False, no write is attempted."""
+        """[P0] When Neo4j stats say initialized=False, no write is attempted."""
         # Given
-        neo4j = _build_mock_neo4j(connected=False)
+        neo4j = _build_mock_neo4j(connected=False, initialized=False)
         svc = await _create_memory_service(neo4j=neo4j)
 
         # When
@@ -464,13 +464,13 @@ class TestAgentMemoryMappingCompleteness:
     """Gap 3 — verify all 14 agent types are present in AGENT_MEMORY_MAPPING
     and each maps to a valid AgentMemoryType."""
 
-    def test_p1_mapping_contains_exactly_14_agents(self):
-        """[P1] AC-30.4.1: AGENT_MEMORY_MAPPING must have exactly 14 entries."""
+    def test_p1_mapping_contains_exactly_15_agents(self):
+        """[P1] AC-30.4.1: AGENT_MEMORY_MAPPING must have exactly 15 entries (C1 fix: +hint-generation)."""
         # Given
         from app.core.agent_memory_mapping import AGENT_MEMORY_MAPPING
 
         # Then
-        assert len(AGENT_MEMORY_MAPPING) == 14
+        assert len(AGENT_MEMORY_MAPPING) == 15
 
     def test_p1_all_agent_names_present(self):
         """[P1] AC-30.4.1: Every expected agent name is present in the mapping."""
@@ -486,6 +486,7 @@ class TestAgentMemoryMappingCompleteness:
             "clarification-path",
             "comparison-table",
             "verification-question-agent",
+            "hint-generation",  # C1 fix: added to mapping
             "scoring-agent",
             "memory-anchor",
             "canvas-orchestrator",

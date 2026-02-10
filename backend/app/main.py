@@ -35,8 +35,8 @@ from app.services.alert_manager import AlertManager, load_alert_rules_from_yaml
 from app.services.notification_channels import create_default_dispatcher
 from app.services.resource_monitor import get_default_monitor
 
-# ✅ Story 30.3 Fix: Import MemoryService for startup pre-warm
-from app.api.v1.endpoints.memory import get_memory_service, cleanup_memory_service
+# ✅ Story 30.3 Fix: Import MemoryService from canonical singleton location
+from app.services.memory_service import get_memory_service, cleanup_memory_service
 
 # ✅ Story 33.2: WebSocket endpoint import
 from app.api.v1.endpoints.websocket import (

@@ -34,6 +34,7 @@ Story 36.9 Implementation:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
@@ -42,6 +43,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+from cachetools import TTLCache
 
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
@@ -76,6 +79,45 @@ GRAPHITI_RETRY_BACKOFF_BASE = 1.0
 
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
+
+
+# Story 30.10 AC-30.10.1: Deterministic episode ID generation
+def _generate_deterministic_episode_id(
+    user_id: str,
+    canvas_path: str,
+    node_id: str,
+    concept: str
+) -> str:
+    """
+    Generate a deterministic episode ID based on content hash.
+
+    Same learning event (same user, canvas, node, concept) always produces
+    the same episode_id, enabling idempotent writes.
+
+    [Source: docs/stories/30.10.idempotency-fix.story.md#AC-30.10.1]
+    """
+    content = f"{user_id}:{canvas_path}:{node_id}:{concept}"
+    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    return f"episode-{hash_hex}"
+
+
+# Story 30.10 AC-30.10.4: Deterministic batch episode ID generation
+def _generate_batch_episode_id(
+    canvas_path: str,
+    node_id: str,
+    event_type: str,
+    timestamp: str
+) -> str:
+    """
+    Generate a deterministic batch episode ID based on event content.
+
+    Same batch event always produces the same episode_id.
+
+    [Source: docs/stories/30.10.idempotency-fix.story.md#AC-30.10.4]
+    """
+    content = f"{canvas_path}:{node_id}:{event_type}:{timestamp}"
+    hash_hex = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+    return f"batch-{hash_hex}"
 
 
 @dataclass
@@ -151,8 +193,13 @@ class MemoryService:
         self._episodes_recovered: bool = False
         # Story 38.2: Lock to prevent concurrent recovery attempts
         self._recovery_lock = asyncio.Lock()
+        # Fix C5: Lock to prevent concurrent _episodes mutations
+        self._episodes_lock = asyncio.Lock()
         # Story 31.5: Cache for score history queries (30s TTL)
-        self._score_history_cache: Dict[str, Tuple[float, ScoreHistoryResponse]] = {}
+        # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
+        self._score_history_cache: TTLCache = TTLCache(maxsize=1000, ttl=SCORE_HISTORY_CACHE_TTL)
+        # NFR-P0: Lock for cache stampede protection (double-check locking)
+        self._score_cache_lock = asyncio.Lock()
         logger.debug("MemoryService initialized with Graphiti JSON dual-write support")
 
     async def initialize(self) -> bool:
@@ -324,6 +371,26 @@ class MemoryService:
 
         [Source: docs/stories/31.A.3.story.md#AC-31.A.3.1]
         """
+        # Story 30.10 AC-30.10.2: Check if episode already exists before writing
+        try:
+            if self._learning_memory and self._learning_memory._initialized:
+                existing = await self._learning_memory.search_memories(
+                    query=concept,
+                    canvas_name=canvas_name,
+                    node_id=node_id,
+                    limit=1
+                )
+                if existing and any(
+                    m.get("concept", "").lower() == concept.lower()
+                    and m.get("canvas_name") == canvas_name
+                    and m.get("node_id") == node_id
+                    for m in existing
+                ):
+                    logger.info(f"Skipping duplicate write for {episode_id}")
+                    return True
+        except Exception as e:
+            logger.warning(f"Idempotency check unavailable, falling back to non-idempotent write: {e}")
+
         for attempt in range(max_retries + 1):
             try:
                 await asyncio.wait_for(
@@ -407,8 +474,8 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
-        # Generate unique episode ID
-        episode_id = f"episode-{uuid.uuid4().hex[:16]}"
+        # Story 30.10 AC-30.10.1: Deterministic episode ID (replaces uuid4)
+        episode_id = _generate_deterministic_episode_id(user_id, canvas_path, node_id, concept)
 
         # ✅ AC-30.8.2: Auto-infer subject from canvas_path if not provided
         inferred_subject = subject or extract_subject_from_canvas_path(canvas_path)
@@ -446,9 +513,20 @@ class MemoryService:
                 "subject": inferred_subject,
                 "group_id": group_id
             }
-            self._episodes.append(episode)
-
-            logger.info(f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})")
+            # Story 30.10 AC-30.10.3: Dedup _episodes - skip if exists to preserve score history
+            # Fix C4: changed from overwrite to skip-if-exists to not destroy FSRS score history
+            existing_idx = next(
+                (i for i, ep in enumerate(self._episodes) if ep.get("episode_id") == episode_id),
+                None
+            )
+            if existing_idx is not None:
+                logger.info(f"Skipped duplicate episode: {episode_id} (already exists at idx={existing_idx})")
+            else:
+                self._episodes.append(episode)
+                # Fix C5: Enforce MAX_EPISODE_CACHE to prevent unbounded memory growth
+                if len(self._episodes) > self.MAX_EPISODE_CACHE:
+                    self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+                logger.info(f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})")
 
             # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
             # ✅ AC-36.9.5: Check config flag before calling dual-write
@@ -704,11 +782,18 @@ class MemoryService:
         # Build cache key
         cache_key = f"{concept_id}:{canvas_name}:{limit}"
 
-        # Check cache (30s TTL per Task 2.4)
-        if cache_key in self._score_history_cache:
-            cached_time, cached_result = self._score_history_cache[cache_key]
-            if time.time() - cached_time < SCORE_HISTORY_CACHE_TTL:
-                logger.debug(f"Score history cache hit for {concept_id}")
+        # NFR-P0: Check cache (TTLCache auto-evicts expired entries)
+        cached_result = self._score_history_cache.get(cache_key)
+        if cached_result is not None:
+            logger.debug(f"Score history cache hit for {concept_id}")
+            return cached_result
+
+        # NFR-P0: Double-check locking for cache stampede protection
+        async with self._score_cache_lock:
+            # Re-check after acquiring lock (another coroutine may have populated)
+            cached_result = self._score_history_cache.get(cache_key)
+            if cached_result is not None:
+                logger.debug(f"Score history cache hit (after lock) for {concept_id}")
                 return cached_result
 
         # Query Neo4j for score history
@@ -742,8 +827,8 @@ class MemoryService:
                 sample_size=len(scores)
             )
 
-            # Store in cache
-            self._score_history_cache[cache_key] = (time.time(), result)
+            # Store in cache (TTLCache handles expiration automatically)
+            self._score_history_cache[cache_key] = result
 
             logger.debug(
                 f"Score history for {concept_id}: "
@@ -929,37 +1014,50 @@ class MemoryService:
         events: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
         """
-        批量记录学习事件
+        批量记录学习事件 (真并行版)
 
-        ✅ Verified from Story 30.3 AC-30.3.10:
-        - 最多50个事件
-        - 返回 processed, failed, errors
+        Story 30.10: 确定性 episode_id + 幂等去重
+        Story 30.11: asyncio.gather 并行化 Neo4j 写入
+        - AC-30.11.1: asyncio.gather + Semaphore 并行
+        - AC-30.11.2: return_exceptions=True 部分失败隔离
+        - AC-30.11.3: BATCH_NEO4J_CONCURRENCY 配置并发数
+        - AC-30.11.4: 兼容 Story 30.10 幂等键
+        - AC-30.11.5: 记录 batch_avg_latency_ms
 
         Args:
             events: List of event dictionaries
 
         Returns:
-            Dict with success, processed, failed, errors, timestamp
+            Dict with success, processed, failed, errors, episode_ids, batch_avg_latency_ms, timestamp
 
-        [Source: docs/stories/30.3.memory-api-health-endpoints.story.md#AC-30.3.10]
+        [Source: docs/stories/30.11.batch-true-parallel.story.md]
         """
         if not self._initialized:
             await self.initialize()
 
+        batch_start = time.monotonic()
+
+        # ── Phase 1: 预处理（同步，保护 _episodes 列表无竞态） ──
         processed = 0
         failed = 0
         errors: List[Dict[str, Any]] = []
+        valid_records: List[Dict[str, Any]] = []
+        episode_ids: List[str] = []
 
         for idx, event in enumerate(events):
             try:
-                # Validate required fields
                 required_fields = ["event_type", "timestamp", "canvas_path", "node_id"]
                 missing = [f for f in required_fields if f not in event]
                 if missing:
                     raise ValueError(f"Missing required fields: {missing}")
 
-                # Create episode record
-                episode_id = f"batch-{datetime.now().strftime('%Y%m%d%H%M%S')}-{idx}"
+                # Story 30.10 AC-30.10.4: Deterministic batch episode ID
+                episode_id = _generate_batch_episode_id(
+                    canvas_path=event["canvas_path"],
+                    node_id=event["node_id"],
+                    event_type=event["event_type"],
+                    timestamp=event["timestamp"]
+                )
                 episode_record = {
                     "episode_id": episode_id,
                     "event_type": event["event_type"],
@@ -969,39 +1067,92 @@ class MemoryService:
                     "metadata": event.get("metadata", {})
                 }
 
-                # Store in memory (and Neo4j if available)
-                self._episodes.append(episode_record)
+                # Story 30.10 AC-30.10.3: Dedup batch episodes
+                # Fix C4: skip-if-exists to preserve score history
+                existing_idx = next(
+                    (i for i, ep in enumerate(self._episodes) if ep.get("episode_id") == episode_id),
+                    None
+                )
+                if existing_idx is not None:
+                    logger.debug(f"Skipped duplicate batch episode: {episode_id}")
+                else:
+                    self._episodes.append(episode_record)
+                    # Fix C5: Enforce MAX_EPISODE_CACHE
+                    if len(self._episodes) > self.MAX_EPISODE_CACHE:
+                        self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
 
-                # Try to store in Neo4j if connected
-                if self.neo4j.stats.get("initialized", False):
-                    try:
-                        await self.neo4j.record_episode({
-                            "episode_id": episode_id,
-                            "user_id": "batch_user",
-                            "canvas_path": event["canvas_path"],
-                            "node_id": event["node_id"],
-                            "concept": event.get("metadata", {}).get("concept", event.get("metadata", {}).get("node_text", "unknown")),
-                            "agent_type": event["event_type"],
-                            "timestamp": event["timestamp"]
-                        })
-                    except Exception:
-                        # Continue even if Neo4j fails
-                        pass
-
+                neo4j_payload = {
+                    "episode_id": episode_id,
+                    "user_id": "batch_user",
+                    "canvas_path": event["canvas_path"],
+                    "node_id": event["node_id"],
+                    "concept": event.get("metadata", {}).get("concept", event.get("metadata", {}).get("node_text", "unknown")),
+                    "agent_type": event["event_type"],
+                    "timestamp": event["timestamp"]
+                }
+                valid_records.append({"idx": idx, "payload": neo4j_payload})
+                episode_ids.append(episode_id)
                 processed += 1
 
             except Exception as e:
                 failed += 1
-                errors.append({
-                    "index": idx,
-                    "error": str(e)
-                })
+                errors.append({"index": idx, "error": str(e)})
+
+        # ── Phase 2: 并行 Neo4j 写入 (Story 30.11 AC-30.11.1) ──
+        neo4j_available = self.neo4j.stats.get("initialized", False)
+
+        if neo4j_available and valid_records:
+            concurrency = getattr(settings, "BATCH_NEO4J_CONCURRENCY", 10)
+            semaphore = asyncio.Semaphore(concurrency)
+
+            async def _write_single(record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+                async with semaphore:
+                    try:
+                        await self.neo4j.record_episode(record["payload"])
+                        return None
+                    except Exception as e:
+                        return {"index": record["idx"], "error": str(e)}
+
+            results = await asyncio.gather(
+                *[_write_single(r) for r in valid_records],
+                return_exceptions=True,
+            )
+
+            neo4j_errors = []
+            for r in results:
+                if isinstance(r, Exception):
+                    neo4j_errors.append({"error": str(r)})
+                elif r is not None:
+                    neo4j_errors.append(r)
+
+            if neo4j_errors:
+                logger.warning(f"Batch Neo4j write: {len(neo4j_errors)} errors (non-blocking)")
+                # Fix C3: Surface Neo4j errors in response so caller knows about partial failures
+                errors.extend(neo4j_errors)
+                failed += len(neo4j_errors)
+
+        # ── Phase 3: 性能指标 (Story 30.11 AC-30.11.5) ──
+        elapsed_ms = (time.monotonic() - batch_start) * 1000
+        avg_latency = elapsed_ms / len(events) if events else 0.0
+
+        if not hasattr(self, "_batch_stats"):
+            self._batch_stats = {}
+        self._batch_stats["batch_avg_latency_ms"] = round(avg_latency, 2)
+        self._batch_stats["last_batch_total_ms"] = round(elapsed_ms, 2)
+        self._batch_stats["last_batch_size"] = len(events)
+
+        logger.debug(
+            f"Batch processed {processed} events in {elapsed_ms:.0f}ms "
+            f"(parallel, concurrency={getattr(settings, 'BATCH_NEO4J_CONCURRENCY', 10)})"
+        )
 
         return {
             "success": failed == 0,
             "processed": processed,
             "failed": failed,
             "errors": errors,
+            "episode_ids": episode_ids,
+            "batch_avg_latency_ms": round(avg_latency, 2),
             "timestamp": datetime.now().isoformat()
         }
 
@@ -1056,6 +1207,9 @@ class MemoryService:
 
         # Store in memory
         self._episodes.append(episode_record)
+        # Fix C5: Enforce MAX_EPISODE_CACHE
+        if len(self._episodes) > self.MAX_EPISODE_CACHE:
+            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
 
         # Try to store in Neo4j if connected
         if self.neo4j.stats.get("initialized", False):
