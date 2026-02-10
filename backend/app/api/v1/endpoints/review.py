@@ -9,6 +9,7 @@ Provides 3 endpoints for Ebbinghaus review system operations.
 [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review]
 """
 
+import asyncio
 import json
 import logging
 import sys
@@ -17,7 +18,7 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.models import (
     ErrorResponse,
@@ -45,6 +46,11 @@ from app.models import (
     VerificationHistoryItem,
     VerificationHistoryResponse,
     VerificationStatusEnum,
+    # EPIC-31: Interactive Verification Session Models
+    StartSessionRequest,
+    StartSessionResponse,
+    SubmitAnswerRequest,
+    SubmitAnswerResponse,
 )
 
 # ✅ Add src directory to Python path for EbbinghausReviewScheduler import
@@ -76,21 +82,170 @@ _review_service_instance = None
 
 
 def _get_or_create_review_service():
-    """Get or create module-level ReviewService singleton."""
+    """Get or create module-level ReviewService singleton.
+
+    Story 32.8 AC-32.8.4: Uses unified create_fsrs_manager() factory.
+    Story 32.8 AC-32.8.3: Factory checks USE_FSRS setting.
+    """
     global _review_service_instance
     if _review_service_instance is None:
         from app.config import get_settings
         from app.services.canvas_service import CanvasService
         from app.services.background_task_manager import BackgroundTaskManager
-        from app.services.review_service import ReviewService
+        from app.services.review_service import ReviewService, create_fsrs_manager
         settings = get_settings()
-        canvas_service = CanvasService(settings)
+        canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
         task_manager = BackgroundTaskManager()
+        # Story 32.8: Unified factory (checks USE_FSRS + creates FSRSManager)
+        fsrs_manager = create_fsrs_manager(settings)
+        # Story 34.8 AC2: Explicitly inject graphiti_client
+        graphiti_client = None
+        try:
+            from app.dependencies import get_graphiti_temporal_client
+            graphiti_client = get_graphiti_temporal_client()
+        except Exception as e:
+            # Code Review H4 Fix: Log the error instead of silently swallowing
+            logging.getLogger(__name__).warning(
+                f"Failed to get graphiti_client for ReviewService: {e}"
+            )
+        if not graphiti_client:
+            logging.getLogger(__name__).warning(
+                "Graphiti client not available for ReviewService, "
+                "history will use FSRS fallback"
+            )
         _review_service_instance = ReviewService(
             canvas_service=canvas_service,
-            task_manager=task_manager
+            task_manager=task_manager,
+            graphiti_client=graphiti_client,
+            fsrs_manager=fsrs_manager
         )
     return _review_service_instance
+
+
+# Code Review H1 Fix: Module-level VerificationService singleton with full DI.
+# The old _get_vs_singleton() created VerificationService() with zero args,
+# causing all AI scoring, RAG, difficulty adaptation to silently degrade.
+_verification_service_instance = None
+
+
+async def _get_or_create_verification_service():
+    """Get or create VerificationService singleton with complete dependency injection.
+
+    Code Review H1 Fix: Replaces broken _get_vs_singleton() that created
+    VerificationService() with zero parameters, causing all 8 optional
+    dependencies to be None and all AI features to silently degrade to
+    mock/default values.
+
+    This function mirrors the DI chain in dependencies.py:get_verification_service()
+    but as a persistent singleton (required because VerificationService stores
+    active sessions in memory dicts).
+    """
+    global _verification_service_instance
+    if _verification_service_instance is not None:
+        return _verification_service_instance
+
+    from app.config import get_settings
+    from app.services.verification_service import VerificationService
+
+    settings = get_settings()
+
+    # 1. RAG service (Story 24.5)
+    rag_service = None
+    try:
+        from app.dependencies import get_rag_service
+        rag_service = get_rag_service()
+    except Exception as e:
+        logging.warning(f"RAG service not available for VerificationService: {e}")
+
+    # 2. Cross-canvas service (Story 24.5)
+    cross_canvas_service = None
+    try:
+        from app.dependencies import get_cross_canvas_service
+        cross_canvas_service = get_cross_canvas_service()
+    except Exception as e:
+        logging.warning(f"CrossCanvas service not available: {e}")
+
+    # 3. Textbook context service (Story 24.5 AC4)
+    textbook_service = None
+    try:
+        from app.services.textbook_context_service import (
+            TextbookContextService, TextbookContextConfig
+        )
+        textbook_config = TextbookContextConfig(timeout=3.0)
+        textbook_service = TextbookContextService(
+            canvas_base_path=settings.canvas_base_path,
+            config=textbook_config
+        )
+    except Exception as e:
+        logging.warning(f"TextbookContext service not available: {e}")
+
+    # 4. Graphiti client (Story 31.4 - question deduplication)
+    graphiti_client = None
+    try:
+        from app.dependencies import get_graphiti_temporal_client
+        graphiti_client = get_graphiti_temporal_client()
+    except Exception as e:
+        logging.warning(f"Graphiti client not available for deduplication: {e}")
+
+    # 5. Memory service (Story 31.5 - difficulty adaptation, async)
+    memory_service = None
+    try:
+        from app.services.memory_service import get_memory_service
+        memory_service = await get_memory_service()
+    except Exception as e:
+        logging.warning(f"MemoryService not available for difficulty adaptation: {e}")
+
+    # 6. Agent service (Story 31.1 - AI scoring + question generation)
+    agent_service = None
+    try:
+        from app.dependencies import get_neo4j_client_dep
+        from app.clients.gemini_client import GeminiClient
+        from app.services.agent_service import AgentService
+
+        gemini_client = None
+        if settings.AI_API_KEY:
+            gemini_client = GeminiClient(
+                api_key=settings.AI_API_KEY,
+                model=settings.AI_MODEL_NAME,
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
+            )
+        neo4j_client = get_neo4j_client_dep()
+        agent_service = AgentService(
+            gemini_client=gemini_client,
+            neo4j_client=neo4j_client
+        )
+    except Exception as e:
+        logging.warning(f"AgentService not available for AI scoring: {e}")
+
+    # 7. Canvas service (EPIC-36 P0 Fix - concept extraction)
+    canvas_service = None
+    try:
+        from app.services.canvas_service import CanvasService
+        canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
+    except Exception as e:
+        logging.warning(f"CanvasService not available for concept extraction: {e}")
+
+    _verification_service_instance = VerificationService(
+        rag_service=rag_service,
+        cross_canvas_service=cross_canvas_service,
+        textbook_context_service=textbook_service,
+        graphiti_client=graphiti_client,
+        memory_service=memory_service,
+        agent_service=agent_service,
+        canvas_service=canvas_service,
+        canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None
+    )
+
+    logging.info(
+        f"VerificationService singleton created with full DI: "
+        f"rag={'Y' if rag_service else 'N'}, "
+        f"agent={'Y' if agent_service else 'N'}, "
+        f"graphiti={'Y' if graphiti_client else 'N'}, "
+        f"memory={'Y' if memory_service else 'N'}, "
+        f"canvas={'Y' if canvas_service else 'N'}"
+    )
+
+    return _verification_service_instance
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -115,19 +270,158 @@ except ImportError:
     _ai_question_available = False
     logging.info("AgentService not available, canvas uses template questions only")
 
+# Story 31.2+31.5: Difficulty adaptation for one-click canvas generation
+try:
+    from app.services.verification_service import (
+        calculate_full_difficulty_result,
+        DifficultyResult,
+        DifficultyLevel,
+    )
+    _difficulty_available = True
+except ImportError:
+    _difficulty_available = False
+    logging.info("Difficulty adaptation not available, canvas uses uniform questions")
 
-async def _generate_ai_questions(nodes_to_review: List[Dict]) -> Optional[Dict[str, str]]:
+
+async def _get_difficulty_data(
+    nodes_to_review: List[Dict],
+    source_canvas: str
+) -> Optional[Dict[str, "DifficultyResult"]]:
+    """
+    Query historical scores for all nodes and compute difficulty results.
+
+    Story 31.2+31.5: Parallel query with 5s total timeout, graceful degradation.
+
+    Args:
+        nodes_to_review: List of canvas node dicts (must have "id" and "text")
+        source_canvas: Source canvas name for score history lookup
+
+    Returns:
+        Dict mapping node_id -> DifficultyResult, or None on failure
+    """
+    if not _difficulty_available:
+        return None
+
+    try:
+        from app.services.memory_service import get_memory_service
+        memory_service = await get_memory_service()
+
+        # H1 fix: Guard against Neo4j not configured (memory_service.neo4j is None)
+        if not hasattr(memory_service, 'neo4j') or memory_service.neo4j is None:
+            logging.info("Difficulty data skipped: Neo4j not configured (graceful degradation)")
+            return None
+
+        async def _query_one(node: Dict) -> tuple:
+            """Query score history for a single node."""
+            node_id = node.get("id", "")
+            if not node_id:
+                return (node_id, None)
+            try:
+                history = await memory_service.get_concept_score_history(
+                    concept_id=node_id,
+                    canvas_name=source_canvas,
+                    limit=5
+                )
+                if history and history.scores:
+                    recent = history.scores[-1]  # M3 fix: scores guaranteed non-empty here
+                    result = calculate_full_difficulty_result(history.scores, recent)
+                    return (node_id, result)
+                return (node_id, None)
+            except Exception as e:
+                logging.debug(f"Score history query failed for {node_id}: {e}")
+                return (node_id, None)
+
+        # Parallel query all nodes with 5s total timeout
+        tasks = [_query_one(n) for n in nodes_to_review]
+        results = await asyncio.wait_for(
+            asyncio.gather(*tasks, return_exceptions=True),
+            timeout=5.0
+        )
+
+        difficulty_map: Dict[str, "DifficultyResult"] = {}
+        for r in results:
+            if isinstance(r, Exception):
+                # H3 fix: Log exceptions from gather(return_exceptions=True)
+                logging.warning(f"Difficulty query task failed: {r}")
+            elif isinstance(r, tuple) and len(r) == 2:
+                nid, diff = r
+                if nid and diff is not None:
+                    difficulty_map[nid] = diff
+
+        if difficulty_map:
+            logging.info(
+                f"Difficulty data retrieved for {len(difficulty_map)}/{len(nodes_to_review)} nodes"
+            )
+            return difficulty_map
+
+        return None
+
+    except Exception as e:
+        logging.warning(f"Difficulty data retrieval failed (graceful degradation): {e}", exc_info=True)
+        return None
+
+
+def _get_difficulty_enhanced_question_text(
+    original_text: str,
+    node_color: str,
+    node_id: str,
+    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None
+) -> str:
+    """
+    Generate difficulty-enhanced question text for fallback (non-AI) questions.
+
+    Story 31.2+31.5: Adapts question template based on difficulty level.
+
+    Args:
+        original_text: Original node text content
+        node_color: Node color code ("4"=red, "3"=purple)
+        node_id: Node ID for difficulty lookup
+        difficulty_map: Optional difficulty data map
+
+    Returns:
+        Question text string with appropriate difficulty framing
+    """
+    if difficulty_map and node_id in difficulty_map:
+        diff = difficulty_map[node_id]
+        forgetting_prefix = ""
+        if diff.forgetting_status and diff.forgetting_status.needs_review:
+            forgetting_prefix = "⚠️ 检测到遗忘趋势 | "
+
+        # M1 note: EASY = student finds concept easy → challenge with breakthrough question
+        # HARD = student struggles → give applied/contextual question for deeper engagement
+        if diff.level == DifficultyLevel.EASY:
+            return f"{forgetting_prefix}🔴 突破型：请用自己的话解释 {original_text}"
+        elif diff.level == DifficultyLevel.HARD:
+            return f"{forgetting_prefix}🔵 应用型：请分析 {original_text} 在实际场景中的应用"
+        else:  # MEDIUM
+            return f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
+
+    # No difficulty data: original color-based fallback
+    if node_color == "4":  # Red - breakthrough
+        return f"🔴 突破型问题：请用自己的话解释 {original_text}"
+    else:  # Purple - verification
+        return f"🟣 检验型问题：请详细描述 {original_text}"
+
+
+async def _generate_ai_questions(
+    nodes_to_review: List[Dict],
+    difficulty_map: Optional[Dict[str, "DifficultyResult"]] = None
+) -> Optional[Dict[str, str]]:
     """
     Generate AI-powered questions for verification canvas using verification-question-agent.
 
     Makes a single batch Gemini call with all nodes, returns a mapping of
     source node ID -> rich question text. Falls back to None on any failure.
+
+    Args:
+        nodes_to_review: List of canvas node dicts
+        difficulty_map: Optional difficulty data for each node (Story 31.2+31.5)
     """
     if not _ai_question_available or not nodes_to_review:
         return None
 
     try:
-        import asyncio as _asyncio
+        import asyncio as asyncio
         settings = get_settings()
         if not settings.AI_API_KEY:
             return None
@@ -149,13 +443,23 @@ async def _generate_ai_questions(nodes_to_review: List[Dict]) -> Optional[Dict[s
             color = node.get("color", "3")
             node_type = "red" if color == "4" else "purple"
 
-            nodes_data.append({
+            node_entry = {
                 "id": node_id,
                 "content": content,
                 "type": node_type,
                 "related_yellow": [],
                 "parent_content": ""
-            })
+            }
+
+            # Story 31.2+31.5: Inject difficulty context for AI question generation
+            if difficulty_map and node_id in difficulty_map:
+                diff = difficulty_map[node_id]
+                node_entry["difficulty_level"] = diff.level.value
+                node_entry["question_type_hint"] = diff.question_type.value
+                if diff.forgetting_status and diff.forgetting_status.needs_review:
+                    node_entry["forgetting_detected"] = True
+
+            nodes_data.append(node_entry)
 
         if not nodes_data:
             return None
@@ -163,7 +467,7 @@ async def _generate_ai_questions(nodes_to_review: List[Dict]) -> Optional[Dict[s
         prompt = json.dumps({"nodes": nodes_data}, ensure_ascii=False, indent=2)
 
         # Single batch call - all nodes in one request (20s timeout)
-        result = await _asyncio.wait_for(
+        result = await asyncio.wait_for(
             agent_service.call_agent(AgentType.VERIFICATION_QUESTION, prompt),
             timeout=20.0
         )
@@ -365,7 +669,7 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
     }
 )
 async def get_review_history(
-    days: int = 7,
+    days: int = Query(7, ge=1, le=365, description="Number of days to look back (1-365)"),
     canvas_path: Optional[str] = None,
     concept_name: Optional[str] = None,
     limit: int = 5,
@@ -378,7 +682,7 @@ async def get_review_history(
     Story 34.4 AC2: show_all=True loads complete history.
     Story 34.4 AC3: API supports `limit` and `show_all` parameters.
 
-    - **days**: Number of days to look back (7, 30, or 90)
+    - **days**: Number of days to look back (1-365, default 7)
     - **canvas_path**: Filter by canvas file path
     - **concept_name**: Filter by concept name
     - **limit**: Maximum records to return (default: 5, Story 34.4 AC1)
@@ -387,11 +691,9 @@ async def get_review_history(
     [Source: specs/api/review-api.openapi.yml#L185-216]
     [Source: docs/stories/34.4.story.md]
     """
-    from datetime import datetime as dt
+    from datetime import date, datetime as dt, timedelta
 
-    # Validate days parameter
-    if days not in [7, 30, 90]:
-        days = 7
+    # Story 34.8 AC4: days validated by Query(ge=1, le=365) — no hardcoded whitelist
 
     # Calculate date range
     end_date = date.today()
@@ -402,8 +704,9 @@ async def get_review_history(
     review_service = _get_or_create_review_service()
 
     try:
-        # Get history from service with pagination
-        effective_limit = None if show_all else limit
+        # Story 34.8 AC3: show_all uses hard cap instead of unlimited
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        effective_limit = MAX_HISTORY_RECORDS if show_all else limit
         result = await review_service.get_history(
             days=days,
             canvas_path=canvas_path,
@@ -447,19 +750,25 @@ async def get_review_history(
         )
 
         # Build pagination info
+        # Story 34.8 AC3: has_more must reflect real truncation status,
+        # even when show_all=True (cap at MAX_HISTORY_RECORDS may truncate)
         has_more = result.get("has_more", False)
         pagination = PaginationInfo(
-            limit=limit,
+            limit=effective_limit,
             offset=0,
-            has_more=has_more and not show_all
+            has_more=has_more
         )
+
+        # Story 34.8 AC3: total_reviews must reflect real total count
+        # (not affected by limit truncation)
+        real_total = result.get("total_count", total_reviews)
 
         return HistoryResponse(
             period=HistoryPeriod(
                 start=start_date.isoformat(),
                 end=end_date.isoformat()
             ),
-            total_reviews=total_reviews,
+            total_reviews=real_total,
             records=records,
             statistics=statistics,
             pagination=pagination
@@ -553,6 +862,33 @@ async def generate_verification_canvas(
             mode_used=review_mode  # ✅ Story 24.1
         )
 
+    # Step 3.5: Query difficulty data for all nodes (Story 31.2+31.5)
+    difficulty_map = None
+    skipped_mastered_count = 0
+    if _difficulty_available:
+        difficulty_map = await _get_difficulty_data(nodes_to_review, request.source_canvas)
+
+    # Step 3.6: Filter mastered concepts if requested (Story 31.5)
+    if request.skip_mastered and difficulty_map:
+        pre_filter_count = len(nodes_to_review)
+        nodes_to_review = [
+            n for n in nodes_to_review
+            if not (n.get("id") in difficulty_map and difficulty_map[n.get("id")].is_mastered)
+        ]
+        skipped_mastered_count = pre_filter_count - len(nodes_to_review)
+        if skipped_mastered_count > 0:
+            logging.info(f"Skipped {skipped_mastered_count} mastered concepts")
+
+        if not nodes_to_review:
+            logging.info(f"All concepts mastered in {request.source_canvas}, nothing to review")
+            return GenerateReviewResponse(
+                verification_canvas_name=verification_canvas_name,
+                node_count=0,
+                mode_used=review_mode,
+                skipped_mastered_count=skipped_mastered_count,
+                difficulty_adapted=difficulty_map is not None,
+            )
+
     # Step 4: Topic Clustering (PRD Story 4.3)
     # ✅ NEW: Group nodes by topic for better organization
     if _services_available:
@@ -566,9 +902,10 @@ async def generate_verification_canvas(
 
     # Step 4.5: AI-enhanced question generation (batch call)
     # Try to generate personalized questions via Gemini + verification-question-agent
+    # Story 31.2+31.5: Pass difficulty_map for difficulty-aware AI prompts
     ai_questions = None
     if _ai_question_available:
-        ai_questions = await _generate_ai_questions(nodes_to_review)
+        ai_questions = await _generate_ai_questions(nodes_to_review, difficulty_map)
         if ai_questions:
             logging.info(f"Using AI-generated questions for {len(ai_questions)} nodes")
         else:
@@ -631,12 +968,11 @@ async def generate_verification_canvas(
                 questions = question_gen.generate_questions(source_node)
                 question_text = questions[0] if questions else f"请解释：{original_text}"
             else:
-                # Fallback: simple question format
-                # Color codes: "4"=red, "3"=purple (docs/issues/canvas-layout-lessons-learned.md)
-                if node_color == "4":  # Red - breakthrough
-                    question_text = f"🔴 突破型问题：请用自己的话解释 {original_text}"
-                else:  # Purple - verification
-                    question_text = f"🟣 检验型问题：请详细描述 {original_text}"
+                # Fallback: difficulty-enhanced or simple question format
+                # Story 31.2+31.5: Use difficulty data if available
+                question_text = _get_difficulty_enhanced_question_text(
+                    original_text, node_color, source_id, difficulty_map
+                )
 
             # Create question node (Cyan color="5")
             question_node_id = _generate_node_id()
@@ -694,7 +1030,9 @@ async def generate_verification_canvas(
         return GenerateReviewResponse(
             verification_canvas_name=verification_canvas_name,
             node_count=0,
-            mode_used=review_mode  # ✅ Story 24.1: Include mode in response
+            mode_used=review_mode,
+            skipped_mastered_count=skipped_mastered_count,
+            difficulty_adapted=difficulty_map is not None,
         )
 
     # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
@@ -704,10 +1042,13 @@ async def generate_verification_canvas(
     )
 
     # ✅ Story 24.1: Include mode_used in response (AC5)
+    # ✅ Story 31.2+31.5: Include difficulty adaptation metadata
     return GenerateReviewResponse(
         verification_canvas_name=verification_canvas_name,
         node_count=len(nodes_to_review),
-        mode_used=review_mode
+        mode_used=review_mode,
+        skipped_mastered_count=skipped_mastered_count,
+        difficulty_adapted=difficulty_map is not None,
     )
 
 
@@ -739,6 +1080,8 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1record]
     [Source: docs/stories/32.2.story.md - FSRS Integration]
     """
+    from datetime import date, timedelta
+
     # Code Review C2 Fix: Use module-level singleton instead of broken
     # get_review_service() async generator call without DI args.
     review_service = _get_or_create_review_service()
@@ -1115,11 +1458,11 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
 
     [Source: docs/stories/31.6.story.md#Task-2]
     """
-    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = _get_vs_singleton()
+        # H1 Fix: Use properly-injected singleton instead of zero-param _get_vs_singleton()
+        verification_service = await _get_or_create_verification_service()
         progress = await verification_service.get_progress(session_id)
 
         if progress is None:
@@ -1186,11 +1529,11 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
-    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = _get_vs_singleton()
+        # H1 Fix: Use properly-injected singleton
+        verification_service = await _get_or_create_verification_service()
         success = await verification_service.pause_session(session_id)
 
         if not success:
@@ -1241,11 +1584,11 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
-    from app.services.verification_service import get_verification_service as _get_vs_singleton
     from fastapi import HTTPException
 
     try:
-        verification_service = _get_vs_singleton()
+        # H1 Fix: Use properly-injected singleton
+        verification_service = await _get_or_create_verification_service()
         success = await verification_service.resume_session(session_id)
 
         if not success:
@@ -1267,4 +1610,174 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to resume session: {str(e)}"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EPIC-31: Interactive Verification Session Endpoints
+# Bridges VerificationService.start_session() and process_answer() to HTTP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@review_router.post(
+    "/session/start",
+    response_model=StartSessionResponse,
+    summary="Start interactive verification session",
+    operation_id="start_verification_session",
+    responses={
+        200: {"model": StartSessionResponse, "description": "Session started"},
+        404: {"model": ErrorResponse, "description": "Canvas not found"},
+        504: {"model": ErrorResponse, "description": "AI timeout"},
+    },
+    tags=["verification-session"]
+)
+async def start_verification_session(
+    request: StartSessionRequest,
+) -> StartSessionResponse:
+    """
+    Start an interactive verification session for a canvas.
+
+    EPIC-31: Calls VerificationService.start_session() which reads the canvas,
+    extracts red/purple concepts, and generates the first AI question.
+
+    - **canvas_name**: Source canvas name (without .canvas extension)
+    - **node_ids**: Optional specific node IDs to verify
+    - **include_mastered**: Whether to include already-mastered concepts (default: true)
+
+    Returns session_id and first_question for the frontend modal.
+    """
+    from fastapi import HTTPException
+
+    try:
+        # H1 Fix: Use properly-injected singleton
+        verification_service = await _get_or_create_verification_service()
+
+        # Build canvas_path from canvas_name + _canvas_base_path
+        canvas_path = str(_canvas_base_path / f"{request.canvas_name}.canvas")
+
+        result = await verification_service.start_session(
+            canvas_name=request.canvas_name,
+            node_ids=request.node_ids,
+            canvas_path=canvas_path,
+            include_mastered=request.include_mastered,
+        )
+
+        if result["total_concepts"] == 0:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"No verifiable concepts found in canvas '{request.canvas_name}'"
+            )
+
+        return StartSessionResponse(
+            session_id=result["session_id"],
+            total_concepts=result["total_concepts"],
+            first_question=result["first_question"],
+            current_concept=result.get("current_concept", ""),
+            status=VerificationStatusEnum(result.get("status", "in_progress")),
+        )
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="AI question generation timed out"
+        )
+    except Exception as e:
+        logging.error(f"Error starting verification session: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start session: {str(e)}"
+        )
+
+
+@review_router.post(
+    "/session/{session_id}/answer",
+    response_model=SubmitAnswerResponse,
+    summary="Submit answer for current concept",
+    operation_id="submit_verification_answer",
+    responses={
+        200: {"model": SubmitAnswerResponse, "description": "Answer evaluated"},
+        404: {"model": ErrorResponse, "description": "Session not found"},
+        504: {"model": ErrorResponse, "description": "AI scoring timeout"},
+    },
+    tags=["verification-session"]
+)
+async def submit_verification_answer(
+    session_id: str,
+    request: SubmitAnswerRequest,
+) -> SubmitAnswerResponse:
+    """
+    Submit an answer for the current concept in an interactive verification session.
+
+    EPIC-31: Calls VerificationService.process_answer() which evaluates the answer
+    via scoring-agent and returns quality, score, and the next action (hint/next/complete).
+
+    - **session_id**: Active session identifier
+    - **user_answer**: User's answer text
+
+    Returns scoring result and updated progress.
+    """
+    from fastapi import HTTPException
+
+    try:
+        # H1 Fix: Use properly-injected singleton
+        verification_service = await _get_or_create_verification_service()
+
+        result = await verification_service.process_answer(
+            session_id=session_id,
+            user_answer=request.user_answer,
+        )
+
+        # Convert the progress dict from dataclass to Pydantic model
+        progress_data = result["progress"]
+        progress_response = SessionProgressResponse(
+            session_id=progress_data["session_id"],
+            canvas_name=progress_data["canvas_name"],
+            total_concepts=progress_data["total_concepts"],
+            completed_concepts=progress_data["completed_concepts"],
+            current_concept=progress_data["current_concept"],
+            current_concept_idx=progress_data["current_concept_idx"],
+            green_count=progress_data["green_count"],
+            yellow_count=progress_data["yellow_count"],
+            purple_count=progress_data["purple_count"],
+            red_count=progress_data["red_count"],
+            status=VerificationStatusEnum(progress_data["status"]),
+            progress_percentage=progress_data["progress_percentage"],
+            mastery_percentage=progress_data["mastery_percentage"],
+            hints_given=progress_data["hints_given"],
+            max_hints=progress_data["max_hints"],
+            started_at=progress_data["started_at"],
+            updated_at=progress_data["updated_at"],
+        )
+
+        return SubmitAnswerResponse(
+            quality=result["quality"],
+            score=result["score"],
+            action=result["action"],
+            hint=result.get("hint"),
+            next_question=result.get("next_question"),
+            current_concept=result["current_concept"],
+            progress=progress_response,
+        )
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+            detail="AI scoring timed out"
+        )
+    except Exception as e:
+        logging.error(f"Error processing answer for session '{session_id}': {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process answer: {str(e)}"
         )

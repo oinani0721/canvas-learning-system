@@ -18,6 +18,9 @@ from datetime import datetime, date, timedelta
 from typing import Dict, Any, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
+# Fixed timestamp for deterministic tests (avoid datetime.now() flakiness)
+_FIXED_REVIEW_TIME = datetime(2025, 1, 15, 10, 30, 0)
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -30,6 +33,7 @@ from app.models import (
     HistoryPeriod,
     PaginationInfo,
 )
+from app.services.review_service import ReviewService
 
 # The correct patch target: review.py uses _get_or_create_review_service() singleton,
 # NOT app.dependencies.get_review_service (which is a FastAPI Depends async generator).
@@ -41,8 +45,10 @@ def _reset_review_service_singleton():
     """Reset the module-level ReviewService singleton between tests to prevent contamination."""
     import app.api.v1.endpoints.review as review_module
     original = review_module._review_service_instance
-    yield
-    review_module._review_service_instance = original
+    try:
+        yield
+    finally:
+        review_module._review_service_instance = original
 
 
 class TestReviewHistoryPaginationEndpoint:
@@ -178,11 +184,12 @@ class TestReviewHistoryPaginationEndpoint:
 
             assert (end_date - start_date).days == 90
 
-    def test_history_invalid_days_defaults_to_7(self, client):
+    def test_history_custom_days_15_is_valid(self, client):
         """
-        Test invalid days value defaults to 7.
+        Test days=15 is now valid (Story 34.8 AC4: days range [1, 365]).
 
-        [Source: backend/app/api/v1/endpoints/review.py#L277-L278]
+        Previously days=15 was silently changed to 7 because of
+        hardcoded [7, 30, 90] whitelist. Now any value in [1, 365] is accepted.
         """
         with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
@@ -192,18 +199,18 @@ class TestReviewHistoryPaginationEndpoint:
             })
             mock_get.return_value = mock_service
 
-            # days=15 is not in [7, 30, 90], should default to 7
+            # days=15 is now valid (not silently changed to 7)
             response = client.get("/api/v1/review/history?days=15")
 
             assert response.status_code == 200
             data = response.json()
 
-            # Verify period defaults to 7 days
+            # Verify period is 15 days (not 7)
             period = data["period"]
             start_date = datetime.fromisoformat(period["start"]).date()
             end_date = datetime.fromisoformat(period["end"]).date()
 
-            assert (end_date - start_date).days == 7
+            assert (end_date - start_date).days == 15
 
     # =========================================================================
     # Task 2.4: Test total_reviews and statistics fields
@@ -226,14 +233,14 @@ class TestReviewHistoryPaginationEndpoint:
                         "concept_name": "逆否命题",
                         "canvas_path": "离散数学.canvas",
                         "rating": 4,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     },
                     {
                         "concept_id": "c2",
                         "concept_name": "充分条件",
                         "canvas_path": "离散数学.canvas",
                         "rating": 3,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     }
                 ]
             },
@@ -245,7 +252,7 @@ class TestReviewHistoryPaginationEndpoint:
                         "concept_name": "必要条件",
                         "canvas_path": "离散数学.canvas",
                         "rating": 4,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     }
                 ]
             }
@@ -283,7 +290,7 @@ class TestReviewHistoryPaginationEndpoint:
                         "concept_name": "测试概念",
                         "canvas_path": "测试.canvas",
                         "rating": 4,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     }
                 ]
             }
@@ -322,9 +329,9 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "a.canvas", "rating": 4, "review_time": datetime.now()},
-                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "a.canvas", "rating": 2, "review_time": datetime.now()},
-                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "a.canvas", "rating": 3, "review_time": datetime.now()},
+                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "a.canvas", "rating": 4, "review_time": _FIXED_REVIEW_TIME},
+                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "a.canvas", "rating": 2, "review_time": _FIXED_REVIEW_TIME},
+                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "a.canvas", "rating": 3, "review_time": _FIXED_REVIEW_TIME},
                 ]
             }
         ]
@@ -357,9 +364,9 @@ class TestReviewHistoryPaginationEndpoint:
             {
                 "date": "2025-01-15",
                 "reviews": [
-                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "离散数学.canvas", "rating": 4, "review_time": datetime.now()},
-                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "离散数学.canvas", "rating": 3, "review_time": datetime.now()},
-                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "线性代数.canvas", "rating": 4, "review_time": datetime.now()},
+                    {"concept_id": "c1", "concept_name": "A", "canvas_path": "离散数学.canvas", "rating": 4, "review_time": _FIXED_REVIEW_TIME},
+                    {"concept_id": "c2", "concept_name": "B", "canvas_path": "离散数学.canvas", "rating": 3, "review_time": _FIXED_REVIEW_TIME},
+                    {"concept_id": "c3", "concept_name": "C", "canvas_path": "线性代数.canvas", "rating": 4, "review_time": _FIXED_REVIEW_TIME},
                 ]
             }
         ]
@@ -456,10 +463,11 @@ class TestReviewHistoryPaginationBehavior:
 
             assert response.status_code == 200
 
-            # Verify service was called with effective_limit=None
+            # Story 34.8 AC3: show_all now passes MAX_HISTORY_RECORDS instead of None
+            from app.services.review_service import MAX_HISTORY_RECORDS
             mock_service.get_history.assert_called_once()
             call_kwargs = mock_service.get_history.call_args.kwargs
-            assert call_kwargs.get("limit") is None
+            assert call_kwargs.get("limit") == MAX_HISTORY_RECORDS
 
     def test_custom_limit_parameter(self, client):
         """
@@ -659,7 +667,7 @@ class TestReviewHistoryResponseSchema:
                         "concept_name": "测试概念",
                         "canvas_path": "测试.canvas",
                         "rating": 4,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     }
                 ]
             }
@@ -704,7 +712,7 @@ class TestReviewHistoryResponseSchema:
                         "concept_name": "测试概念",
                         "canvas_path": "测试.canvas",
                         "rating": 4,
-                        "review_time": datetime.now()
+                        "review_time": _FIXED_REVIEW_TIME
                     }
                 ]
             }
@@ -737,3 +745,370 @@ class TestReviewHistoryResponseSchema:
                     assert "canvas_path" in review
                     assert "rating" in review
                     assert "review_time" in review
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.8 AC1: Real Integration Tests (NOT mocking ReviewService)
+# These tests create a real ReviewService instance and test get_history()
+# directly, validating sorting, filtering, pagination, and limiting logic.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _make_real_review_service(card_states: Dict[str, Any] = None):
+    """Create a real ReviewService with mock CanvasService but real business logic.
+
+    Story 34.8 AC1: The key difference from mock tests is that
+    ReviewService.get_history() runs its real implementation (sorting,
+    filtering, pagination) — only CanvasService and TaskManager are mocked
+    since they are infrastructure dependencies, not the SUT.
+    """
+    from unittest.mock import MagicMock
+    from app.services.background_task_manager import BackgroundTaskManager
+
+    mock_canvas_service = MagicMock()
+    mock_canvas_service.cleanup = AsyncMock()
+    mock_canvas_service.canvas_exists = AsyncMock(return_value=True)
+    mock_canvas_service.get_canvas = AsyncMock(return_value={"nodes": [], "edges": []})
+
+    task_manager = BackgroundTaskManager()
+
+    service = ReviewService(
+        canvas_service=mock_canvas_service,
+        task_manager=task_manager,
+        graphiti_client=None,  # No Graphiti — tests use _card_states fallback
+        fsrs_manager=None  # No FSRS for history tests
+    )
+
+    # Inject test card states (this is the FSRS card data fallback path)
+    if card_states:
+        service._card_states = card_states
+
+    return service
+
+
+def _build_card_states_for_history(count: int, canvas_prefix: str = "math") -> Dict[str, Any]:
+    """Build fake _card_states entries with last_review dates for get_history() to read.
+
+    ReviewService.get_history() uses _card_states as fallback when Graphiti
+    is unavailable (lines 1041-1076). Each entry needs 'last_review' as an
+    ISO string, and the key format is 'canvas:concept'.
+    """
+    today = date.today()
+    states = {}
+    for i in range(count):
+        review_date = today - timedelta(days=i % 5)  # Spread across last 5 days
+        key = f"{canvas_prefix}.canvas:concept_{i}"
+        states[key] = {
+            "last_review": datetime(
+                review_date.year, review_date.month, review_date.day, 10, 0, 0
+            ).isoformat(),
+            "rating": (i % 4) + 1  # Ratings 1-4 cycling
+        }
+    return states
+
+
+@pytest.mark.asyncio
+class TestRealReviewServiceHistory:
+    """Story 34.8 AC1: Real integration tests using actual ReviewService instance.
+
+    These tests validate the REAL sorting, filtering, and pagination logic
+    inside ReviewService.get_history() — NOT a mock.
+    """
+
+    async def test_default_limit_returns_max_5_records(self):
+        """AC1: Default limit=5 returns at most 5 individual review records."""
+        card_states = _build_card_states_for_history(10, "math")
+        service = _make_real_review_service(card_states)
+
+        result = await service.get_history(days=7, limit=5)
+
+        # Count total individual reviews across all day records
+        total_reviews = sum(len(day["reviews"]) for day in result["records"])
+        assert total_reviews <= 5
+        assert result["has_more"] is True  # 10 records > limit 5
+        assert result["total_count"] == 10
+
+    async def test_show_all_returns_all_records_within_cap(self):
+        """AC1+AC3: Large limit returns all records when count < limit."""
+        card_states = _build_card_states_for_history(8, "physics")
+        service = _make_real_review_service(card_states)
+
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, limit=MAX_HISTORY_RECORDS)
+
+        total_reviews = sum(len(day["reviews"]) for day in result["records"])
+        assert total_reviews == 8
+        assert result["has_more"] is False
+
+    async def test_limit_parameter_slices_correctly(self):
+        """AC1: Custom limit slices records correctly."""
+        card_states = _build_card_states_for_history(12, "chem")
+        service = _make_real_review_service(card_states)
+
+        result = await service.get_history(days=7, limit=3)
+
+        total_reviews = sum(len(day["reviews"]) for day in result["records"])
+        assert total_reviews <= 3
+        assert result["has_more"] is True
+        assert result["total_count"] == 12
+
+    async def test_records_sorted_by_time_descending(self):
+        """AC1: Records are sorted by review_time descending (newest first)."""
+        card_states = _build_card_states_for_history(6, "bio")
+        service = _make_real_review_service(card_states)
+
+        # Code Review M1 Fix: Use explicit large limit instead of None
+        # (AC3: limit=None should not be used to mean "unlimited")
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, limit=MAX_HISTORY_RECORDS)
+
+        # Collect all review_time values in the order returned
+        all_times = []
+        for day_record in result["records"]:
+            for review in day_record["reviews"]:
+                all_times.append(review["review_time"])
+
+        # Verify descending order (newest first)
+        for i in range(len(all_times) - 1):
+            assert all_times[i] >= all_times[i + 1], (
+                f"Records not sorted descending: {all_times[i]} < {all_times[i+1]}"
+            )
+
+    async def test_filter_by_canvas_path(self):
+        """AC1: canvas_path filter works with real service."""
+        states = {}
+        today = date.today()
+        # 3 math records + 2 physics records
+        for i in range(3):
+            states[f"math.canvas:concept_{i}"] = {
+                "last_review": datetime(today.year, today.month, today.day, 10, 0, 0).isoformat(),
+                "rating": 3
+            }
+        for i in range(2):
+            states[f"physics.canvas:concept_{i}"] = {
+                "last_review": datetime(today.year, today.month, today.day, 11, 0, 0).isoformat(),
+                "rating": 4
+            }
+
+        service = _make_real_review_service(states)
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, canvas_path="math", limit=MAX_HISTORY_RECORDS)
+
+        total_reviews = sum(len(d["reviews"]) for d in result["records"])
+        assert total_reviews == 3  # Only math records
+
+    async def test_filter_by_concept_name(self):
+        """AC1: concept_name filter works with real service."""
+        states = {}
+        today = date.today()
+        states["math.canvas:逆否命题"] = {
+            "last_review": datetime(today.year, today.month, today.day, 10, 0, 0).isoformat(),
+            "rating": 4
+        }
+        states["math.canvas:充分条件"] = {
+            "last_review": datetime(today.year, today.month, today.day, 11, 0, 0).isoformat(),
+            "rating": 3
+        }
+
+        service = _make_real_review_service(states)
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, concept_name="逆否命题", limit=MAX_HISTORY_RECORDS)
+
+        total_reviews = sum(len(d["reviews"]) for d in result["records"])
+        assert total_reviews == 1
+
+    async def test_streak_days_calculation(self):
+        """AC1: Streak days are calculated from consecutive review days."""
+        states = {}
+        today = date.today()
+        # Reviews on today and yesterday (streak=2), skip day before
+        for day_offset in [0, 1]:
+            review_date = today - timedelta(days=day_offset)
+            states[f"math.canvas:concept_{day_offset}"] = {
+                "last_review": datetime(
+                    review_date.year, review_date.month, review_date.day, 10, 0, 0
+                ).isoformat(),
+                "rating": 3
+            }
+
+        service = _make_real_review_service(states)
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, limit=MAX_HISTORY_RECORDS)
+
+        assert result["streak_days"] == 2
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.8 AC2: DI Completeness Test — graphiti_client injection
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestReviewServiceDICompleteness:
+    """Story 34.8 AC2: Verify get_review_service explicitly handles graphiti_client."""
+
+    def test_dependencies_get_review_service_passes_graphiti_client(self):
+        """AC2: dependencies.py get_review_service() must explicitly inject graphiti_client."""
+        from pathlib import Path
+        deps_path = Path(__file__).resolve().parents[2] / "app" / "dependencies.py"
+        source = deps_path.read_text(encoding="utf-8")
+
+        # Find the get_review_service function body
+        func_start = source.find("async def get_review_service(")
+        assert func_start != -1, "get_review_service() not found in dependencies.py"
+        # Find the next top-level function/class to bound the search
+        next_func = source.find("\n# ", func_start + 10)
+        func_body = source[func_start:next_func] if next_func != -1 else source[func_start:]
+
+        # The source must contain explicit graphiti_client handling
+        assert "graphiti_client" in func_body, (
+            "get_review_service() does not mention graphiti_client — "
+            "it must explicitly inject or handle this parameter"
+        )
+        # Must pass it to ReviewService constructor
+        assert "graphiti_client=graphiti_client" in func_body, (
+            "get_review_service() does not pass graphiti_client= to ReviewService()"
+        )
+
+    def test_review_module_singleton_passes_graphiti_client(self):
+        """AC2: review.py _get_or_create_review_service() must also inject graphiti_client."""
+        import inspect
+        from app.api.v1.endpoints.review import _get_or_create_review_service
+
+        source = inspect.getsource(_get_or_create_review_service)
+        assert "graphiti_client" in source, (
+            "_get_or_create_review_service() does not mention graphiti_client"
+        )
+        assert "graphiti_client=graphiti_client" in source, (
+            "_get_or_create_review_service() does not pass graphiti_client= to ReviewService()"
+        )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.8 AC3: show_all hard cap tests (MAX_HISTORY_RECORDS=1000)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestShowAllHardCap:
+    """Story 34.8 AC3: Verify show_all=True uses MAX_HISTORY_RECORDS cap."""
+
+    def test_max_history_records_constant_exists(self):
+        """AC3: MAX_HISTORY_RECORDS constant must be defined."""
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        assert MAX_HISTORY_RECORDS == 1000
+
+    def test_show_all_uses_max_cap_in_endpoint(self):
+        """AC3: show_all=True in endpoint must use MAX_HISTORY_RECORDS, not None."""
+        from pathlib import Path
+        review_path = Path(__file__).resolve().parents[2] / "app" / "api" / "v1" / "endpoints" / "review.py"
+        source = review_path.read_text(encoding="utf-8")
+
+        # Must NOT have "effective_limit = None if show_all"
+        assert "effective_limit = None if show_all" not in source, (
+            "show_all=True still uses effective_limit=None — must use MAX_HISTORY_RECORDS"
+        )
+        # Must use MAX_HISTORY_RECORDS for show_all
+        assert "MAX_HISTORY_RECORDS" in source, (
+            "review.py endpoint does not reference MAX_HISTORY_RECORDS"
+        )
+
+    @pytest.mark.asyncio
+    async def test_show_all_truncates_above_cap(self):
+        """AC3: When records > MAX_HISTORY_RECORDS, truncate and set has_more=True."""
+        # Use a small cap for testing — we test the logic, not 1000 records
+        card_states = _build_card_states_for_history(15, "large")
+        service = _make_real_review_service(card_states)
+
+        # Simulate what the endpoint does: pass a small cap
+        result = await service.get_history(days=7, limit=8)
+
+        total_reviews = sum(len(d["reviews"]) for d in result["records"])
+        assert total_reviews <= 8
+        assert result["has_more"] is True
+        assert result["total_count"] == 15  # Real total unaffected by limit
+
+    @pytest.mark.asyncio
+    async def test_show_all_no_truncation_below_cap(self):
+        """AC3: When records < MAX_HISTORY_RECORDS, return all with has_more=False."""
+        card_states = _build_card_states_for_history(5, "small")
+        service = _make_real_review_service(card_states)
+
+        from app.services.review_service import MAX_HISTORY_RECORDS
+        result = await service.get_history(days=7, limit=MAX_HISTORY_RECORDS)
+
+        total_reviews = sum(len(d["reviews"]) for d in result["records"])
+        assert total_reviews == 5
+        assert result["has_more"] is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.8 AC4: days parameter validation — Query(ge=1, le=365)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestDaysParameterValidation:
+    """Story 34.8 AC4: days must be validated via Query(ge=1, le=365)."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_days_1_is_valid(self, client):
+        """AC4: days=1 should work (lower boundary)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?days=1")
+            assert response.status_code == 200
+
+    def test_days_365_is_valid(self, client):
+        """AC4: days=365 should work (upper boundary)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?days=365")
+            assert response.status_code == 200
+
+    def test_days_0_returns_422(self, client):
+        """AC4: days=0 must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?days=0")
+        assert response.status_code == 422
+
+    def test_days_negative_returns_422(self, client):
+        """AC4: days=-1 must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?days=-1")
+        assert response.status_code == 422
+
+    def test_days_400_returns_422(self, client):
+        """AC4: days=400 (> 365) must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?days=400")
+        assert response.status_code == 422
+
+    def test_days_14_is_valid(self, client):
+        """AC4: days=14 should work (was previously silently changed to 7)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?days=14")
+            assert response.status_code == 200
+
+            # Verify days=14 was actually passed (not silently changed to 7)
+            mock_service.get_history.assert_called_once()
+            call_kwargs = mock_service.get_history.call_args.kwargs
+            assert call_kwargs.get("days") == 14
+
+    def test_days_non_integer_returns_422(self, client):
+        """AC4: days=abc (non-integer) must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?days=abc")
+        assert response.status_code == 422

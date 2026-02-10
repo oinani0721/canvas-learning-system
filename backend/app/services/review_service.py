@@ -1083,15 +1083,33 @@ class ReviewService:
 
         # Determine if there are more records than limit
         total_count = len(all_records)
-        has_more = limit is not None and total_count > limit
+        # Code Review H3 Fix: Cap None to MAX_HISTORY_RECORDS to enforce service-level protection
+        effective_limit = limit if limit is not None else MAX_HISTORY_RECORDS
+        has_more = total_count > effective_limit
 
-        # Apply limit if specified
-        if limit is not None:
-            all_records = all_records[:limit]
-
-        # Group records by date
-        records_by_date: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        # Code Review H3 Fix: Calculate streak from ALL records BEFORE truncation
+        # (streak must reflect true consecutive days, not limited view)
+        all_dates: set = set()
         for record in all_records:
+            date_key = record.get("date", "")
+            if date_key:
+                all_dates.add(date_key)
+
+        streak_days = 0
+        check_date = end_date
+        while check_date >= start_date:
+            if check_date.isoformat() in all_dates:
+                streak_days += 1
+                check_date -= timedelta(days=1)
+            else:
+                break
+
+        # Apply limit after streak calculation
+        limited_records = all_records[:effective_limit]
+
+        # Group limited records by date for response
+        records_by_date: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for record in limited_records:
             date_key = record.get("date", "")
             if date_key:
                 records_by_date[date_key].append(record)
@@ -1103,16 +1121,6 @@ class ReviewService:
                 "date": date_key,
                 "reviews": records_by_date[date_key]
             })
-
-        # Calculate streak days
-        streak_days = 0
-        check_date = end_date
-        while check_date >= start_date:
-            if check_date.isoformat() in records_by_date:
-                streak_days += 1
-                check_date -= timedelta(days=1)
-            else:
-                break
 
         return {
             "records": daily_records,

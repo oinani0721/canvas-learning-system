@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-10T05:53:00.953818+00:00",
+    "x-generated-at": "2026-02-10T06:22:10.327969+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -5521,15 +5521,8 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MultimodalDeleteResponse"
-                }
-              }
-            }
+          "204": {
+            "description": "Successful Response"
           },
           "413": {
             "description": "File too large (max 50MB)"
@@ -9562,39 +9555,6 @@
         "title": "MultimodalByConceptResponse",
         "description": "Response model for GET /api/v1/multimodal/by-concept/{concept_id}.\n\n[Source: docs/stories/35.2.story.md#AC-35.2.1]"
       },
-      "MultimodalDeleteResponse": {
-        "properties": {
-          "deleted_id": {
-            "type": "string",
-            "title": "Deleted Id",
-            "description": "ID of deleted content"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message",
-            "description": "Status message",
-            "default": "Content deleted successfully"
-          },
-          "file_deleted": {
-            "type": "boolean",
-            "title": "File Deleted",
-            "description": "Whether physical file was deleted",
-            "default": true
-          },
-          "thumbnail_deleted": {
-            "type": "boolean",
-            "title": "Thumbnail Deleted",
-            "description": "Whether thumbnail was also deleted",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "deleted_id"
-        ],
-        "title": "MultimodalDeleteResponse",
-        "description": "Response model for successful deletion.\n\n[Source: docs/stories/35.1.story.md#AC-35.1.3]"
-      },
       "MultimodalHealthResponse": {
         "properties": {
           "status": {
@@ -9623,6 +9583,26 @@
             "title": "Total Items",
             "description": "Total stored items count",
             "default": 0
+          },
+          "storage_backend": {
+            "type": "string",
+            "pattern": "^(multimodal_store|json_fallback)$",
+            "title": "Storage Backend",
+            "description": "Storage backend: 'multimodal_store' (full) or 'json_fallback' (degraded)",
+            "default": "json_fallback"
+          },
+          "vector_search_available": {
+            "type": "boolean",
+            "title": "Vector Search Available",
+            "description": "Whether vector/semantic search is available",
+            "default": false
+          },
+          "capability_level": {
+            "type": "string",
+            "pattern": "^(full|degraded)$",
+            "title": "Capability Level",
+            "description": "System capability level: 'full' (100%) or 'degraded' (~30%)",
+            "default": "degraded"
           }
         },
         "type": "object",
@@ -9633,7 +9613,7 @@
           "storage_path_writable"
         ],
         "title": "MultimodalHealthResponse",
-        "description": "Response model for multimodal service health check.\n\n[Source: Story 35.1 - Service health endpoint]"
+        "description": "Response model for multimodal service health check.\n\n[Source: Story 35.1 - Service health endpoint]\n[Source: Story 35.11 AC 35.11.3 - Degradation transparency fields]"
       },
       "MultimodalListResponse": {
         "properties": {
