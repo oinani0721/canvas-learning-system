@@ -221,7 +221,7 @@ async def isolate_memory_singleton():
     Use with autouse=True in test files that modify _memory_service_instance.
     Ensures the singleton is always restored even if the test fails mid-execution.
     """
-    from app.api.v1.endpoints import memory as memory_module
+    from app.services import memory_service as memory_module
 
     original = memory_module._memory_service_instance
     memory_module._memory_service_instance = None

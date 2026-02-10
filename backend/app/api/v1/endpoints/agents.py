@@ -19,7 +19,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, AsyncGenerator, Dict, List, Optional, Tuple
+from typing import Annotated, Any, Dict, List, Optional, Tuple
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: BackgroundTasks)
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -61,7 +61,8 @@ from app.models import (
     VerificationQuestionResponse,
 )
 from app.services.markdown_image_extractor import MarkdownImageExtractor
-from app.services.memory_service import MemoryService
+from app.services.memory_service import MemoryService, get_memory_service
+from app.api.v1.endpoints.memory import MemoryServiceDep
 
 logger = logging.getLogger(__name__)
 
@@ -343,29 +344,10 @@ async def get_agent_health(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Story 12.A.5: MemoryService 依赖注入 - 学习事件自动记录
+# MemoryService dependency — imported from memory.py (single source of truth)
 # [Source: docs/stories/story-12.A.5-learning-event-recording.md]
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
 # ═══════════════════════════════════════════════════════════════════════════════
-
-async def get_memory_service_for_agents() -> AsyncGenerator[MemoryService, None]:
-    """
-    Get MemoryService for agents endpoint.
-
-    Uses yield syntax to support resource cleanup after request completion.
-
-    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
-    [Source: docs/stories/story-12.A.5-learning-event-recording.md#Dev-Notes]
-    """
-    service = MemoryService()
-    try:
-        await service.initialize()
-        yield service
-    finally:
-        await service.cleanup()
-
-
-MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service_for_agents)]
+# MemoryServiceDep is imported from app.api.v1.endpoints.memory (line 65)
 
 
 async def _record_learning_event(

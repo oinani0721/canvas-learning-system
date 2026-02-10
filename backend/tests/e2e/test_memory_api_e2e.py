@@ -49,7 +49,7 @@ async def e2e_client() -> AsyncGenerator[AsyncClient, None]:
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: async testing)
     """
-    import app.api.v1.endpoints.memory as memory_module
+    import app.services.memory_service as memory_module
 
     # Save and reset singleton for test isolation
     original_singleton = memory_module._memory_service_instance

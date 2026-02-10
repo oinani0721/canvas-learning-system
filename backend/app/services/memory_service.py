@@ -973,7 +973,7 @@ class MemoryService:
                 self._episodes.append(episode_record)
 
                 # Try to store in Neo4j if connected
-                if self.neo4j.stats.get("connected"):
+                if self.neo4j.stats.get("initialized", False):
                     try:
                         await self.neo4j.record_episode({
                             "episode_id": episode_id,
@@ -1058,7 +1058,7 @@ class MemoryService:
         self._episodes.append(episode_record)
 
         # Try to store in Neo4j if connected
-        if self.neo4j.stats.get("connected"):
+        if self.neo4j.stats.get("initialized", False):
             try:
                 await self.neo4j.record_episode({
                     "episode_id": event_id,
@@ -1253,37 +1253,86 @@ class MemoryService:
 
     async def cleanup(self) -> None:
         """
-        Cleanup resources when service is no longer needed.
+        Cleanup local MemoryService state.
 
-        Called by dependency injection when using yield syntax.
+        IMPORTANT: Does NOT cleanup the shared Neo4j driver, because Neo4jClient
+        is a shared singleton used by multiple services. Neo4j cleanup is handled
+        separately at application shutdown via cleanup_memory_service().
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
         """
         self._initialized = False
-        await self.neo4j.cleanup()
-        logger.debug("MemoryService cleanup completed")
+        self._episodes.clear()
+        self._score_history_cache.clear()
+        self._episodes_recovered = False
+        logger.debug("MemoryService local state cleanup completed")
 
 
-# Singleton instance
-_service_instance: Optional[MemoryService] = None
+# Singleton instance — the ONLY MemoryService singleton entry point for the entire project.
+# All modules (endpoints, dependencies, main) MUST import from here.
+_memory_service_instance: Optional[MemoryService] = None
+_memory_service_lock: asyncio.Lock = asyncio.Lock()
 
 
-def get_memory_service() -> MemoryService:
+async def get_memory_service() -> MemoryService:
     """
-    Get or create MemoryService singleton.
+    Get or create MemoryService singleton (async, auto-initializes).
+
+    This is the single canonical entry point for MemoryService across the
+    entire application. All modules (memory endpoints, agent endpoints,
+    dependencies, main) MUST use this function.
+
+    Uses asyncio.Lock to prevent race conditions when multiple coroutines
+    call this concurrently during startup.
 
     Returns:
-        MemoryService instance
+        MemoryService: Initialized singleton instance
     """
-    global _service_instance
+    global _memory_service_instance
 
-    if _service_instance is None:
-        _service_instance = MemoryService()
+    # Fast path: already initialized
+    if _memory_service_instance is not None and _memory_service_instance._initialized:
+        return _memory_service_instance
 
-    return _service_instance
+    # Slow path: acquire lock for safe initialization
+    async with _memory_service_lock:
+        # Double-check after acquiring lock
+        if _memory_service_instance is not None and _memory_service_instance._initialized:
+            return _memory_service_instance
+
+        if _memory_service_instance is None:
+            logger.info("Creating MemoryService singleton instance")
+            _memory_service_instance = MemoryService()
+
+        if not _memory_service_instance._initialized:
+            await _memory_service_instance.initialize()
+            logger.info("MemoryService singleton initialized")
+
+    return _memory_service_instance
+
+
+async def cleanup_memory_service() -> None:
+    """
+    Cleanup MemoryService singleton — called on application shutdown.
+
+    This is the ONLY place that cleans up the shared Neo4j driver,
+    since MemoryService.cleanup() only clears local state.
+    """
+    global _memory_service_instance
+    if _memory_service_instance is not None:
+        # First cleanup local MemoryService state
+        await _memory_service_instance.cleanup()
+        # Then cleanup the shared Neo4j driver (only at app shutdown)
+        try:
+            await _memory_service_instance.neo4j.cleanup()
+            logger.info("Neo4j driver cleaned up during shutdown")
+        except Exception as e:
+            logger.warning(f"Neo4j driver cleanup failed: {e}")
+        _memory_service_instance = None
+        logger.info("MemoryService singleton cleaned up")
 
 
 def reset_memory_service() -> None:
-    """Reset singleton instance (for testing)."""
-    global _service_instance
-    _service_instance = None
+    """Reset singleton instance (for testing only)."""
+    global _memory_service_instance
+    _memory_service_instance = None

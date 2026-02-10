@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-10T00:42:17.354636+00:00",
+    "x-generated-at": "2026-02-10T02:50:20.078173+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -9924,6 +9924,13 @@
             "title": "Query Processed",
             "description": "Whether the query was successfully processed",
             "default": true
+          },
+          "search_mode": {
+            "type": "string",
+            "pattern": "^(vector|text)$",
+            "title": "Search Mode",
+            "description": "Actual search mode used: 'vector' (embedding) or 'text' (keyword fallback)",
+            "default": "vector"
           }
         },
         "type": "object",

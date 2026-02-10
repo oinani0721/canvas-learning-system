@@ -41,7 +41,11 @@ from app.models.memory_schemas import (
     MemoryHealthResponse,
     ReviewSuggestionResponse,
 )
-from app.services.memory_service import MemoryService
+from app.services.memory_service import (
+    MemoryService,
+    get_memory_service,
+    cleanup_memory_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,54 +55,11 @@ memory_router = APIRouter()
 
 # =============================================================================
 # Dependency Injection - Singleton Pattern for Neo4j Connection Pooling
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies)
-# [Source: Story 30.2 - Neo4j connection pool management]
+# Singleton lives in app.services.memory_service (single source of truth).
+# This module re-exports for FastAPI Depends() usage.
 # =============================================================================
 
-# Module-level singleton for MemoryService
-# Neo4j driver should persist across requests for connection pooling
-_memory_service_instance: Optional[MemoryService] = None
-
-
-async def get_memory_service(
-    settings: Settings = Depends(get_settings)
-) -> MemoryService:
-    """
-    Get MemoryService singleton instance.
-
-    Uses singleton pattern to maintain Neo4j connection pool across requests.
-    Driver cleanup is handled by application lifespan events, not per-request.
-
-    ✅ Story 30.2 Fix: Neo4j driver should persist for connection pooling
-    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies)
-
-    [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
-    """
-    global _memory_service_instance
-
-    if _memory_service_instance is None:
-        logger.info("Creating MemoryService singleton instance")
-        _memory_service_instance = MemoryService()
-        await _memory_service_instance.initialize()
-        logger.info("MemoryService singleton initialized")
-
-    return _memory_service_instance
-
-
-async def cleanup_memory_service() -> None:
-    """
-    Cleanup MemoryService singleton - called on application shutdown.
-
-    [Source: Story 30.2 - Application lifespan management]
-    """
-    global _memory_service_instance
-    if _memory_service_instance is not None:
-        await _memory_service_instance.cleanup()
-        _memory_service_instance = None
-        logger.info("MemoryService singleton cleaned up")
-
-
-# Type alias for MemoryService dependency
+# Type alias for MemoryService dependency — delegates to service-layer singleton
 MemoryServiceDep = Annotated[MemoryService, Depends(get_memory_service)]
 
 

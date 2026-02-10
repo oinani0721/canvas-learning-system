@@ -558,18 +558,18 @@ class TestRecommendActionHTTP:
         """Set up TestClient with mocked MemoryService dependency."""
         from fastapi.testclient import TestClient
         from app.main import app
-        from app.api.v1.endpoints.agents import get_memory_service_for_agents
+        from app.services.memory_service import get_memory_service
 
         mock_service = MockMemoryService()
 
         async def override_memory_service():
-            yield mock_service
+            return mock_service
 
-        app.dependency_overrides[get_memory_service_for_agents] = override_memory_service
+        app.dependency_overrides[get_memory_service] = override_memory_service
         self.client = TestClient(app)
         self.mock_service = mock_service
         yield
-        app.dependency_overrides.pop(get_memory_service_for_agents, None)
+        app.dependency_overrides.pop(get_memory_service, None)
 
     def test_http_low_score_returns_200_decompose(self):
         """HTTP POST with low score returns 200 and decompose action."""

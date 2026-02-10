@@ -45,7 +45,7 @@ def _reset_memory_singleton():
     MEMORY.md: memory.py uses module-level `_memory_service_instance` singleton;
     tests must reset it to avoid cross-test pollution.
     """
-    import backend.app.api.v1.endpoints.memory as memory_module
+    import backend.app.services.memory_service as memory_module
 
     memory_module._memory_service_instance = None
     yield
@@ -144,7 +144,7 @@ def test_client(memory_service):
     pre-injected so that no real Neo4j connection is attempted.
     """
     from app.main import app
-    import backend.app.api.v1.endpoints.memory as memory_module
+    import backend.app.services.memory_service as memory_module
 
     # Inject the pre-built MemoryService as the module-level singleton
     memory_module._memory_service_instance = memory_service

@@ -20,8 +20,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from app.api.v1.endpoints.agents import (
     _record_learning_event,
-    get_memory_service_for_agents,
 )
+from app.services.memory_service import get_memory_service
 from fastapi import BackgroundTasks
 
 
@@ -276,35 +276,36 @@ class TestBackgroundTaskIntegration:
             pytest.fail(f"Background task failure should not propagate: {e}")
 
 
-class TestMemoryServiceDependency:
-    """Tests for get_memory_service_for_agents dependency."""
+class TestMemoryServiceSingleton:
+    """Tests for MemoryService singleton used by agents endpoint."""
 
     @pytest.mark.asyncio
-    async def test_memory_service_lifecycle(self):
-        """Test MemoryService initialize/cleanup lifecycle."""
-        # Given: Mocked MemoryService class
-        with patch('app.api.v1.endpoints.agents.MemoryService') as MockClass:
+    async def test_singleton_returns_same_instance(self):
+        """get_memory_service() always returns the same singleton instance."""
+        from app.services import memory_service as mem_module
+
+        # Given: Reset singleton
+        mem_module._memory_service_instance = None
+
+        with patch.object(mem_module, 'MemoryService') as MockClass:
             mock_instance = AsyncMock()
-            mock_instance.initialize = AsyncMock()
-            mock_instance.cleanup = AsyncMock()
+            mock_instance._initialized = False
+            mock_instance.initialize = AsyncMock(
+                side_effect=lambda: setattr(mock_instance, '_initialized', True)
+            )
             MockClass.return_value = mock_instance
 
-            # When: Using the dependency generator
-            gen = get_memory_service_for_agents()
-            service = await gen.__anext__()
+            # When: Calling get_memory_service twice
+            svc1 = await get_memory_service()
+            svc2 = await get_memory_service()
 
-            # Then: Initialize was called and service is the mock instance
+            # Then: Same instance returned, initialize called only once
+            assert svc1 is svc2
+            assert svc1 is mock_instance
             mock_instance.initialize.assert_called_once()
-            assert service is mock_instance
 
-            # When: Finishing the generator
-            try:
-                await gen.__anext__()
-            except StopAsyncIteration:
-                pass
-
-            # Then: Cleanup was called
-            mock_instance.cleanup.assert_called_once()
+        # Cleanup
+        mem_module._memory_service_instance = None
 
 
 class TestEndpointIntegration:
