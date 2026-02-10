@@ -8,7 +8,7 @@
 | **标题** | 检验白板智能引导系统完整激活 |
 | **类型** | Brownfield Enhancement |
 | **优先级** | P0 (Critical) |
-| **状态** | Draft |
+| **状态** | In Progress |
 | **创建日期** | 2026-01-17 |
 | **预计工时** | 13-16天 |
 | **关联Bug** | Bug 4 (检验白板质量差) |
@@ -78,11 +78,11 @@
 - 扩展现有ScoringResultPanel决策按钮
 
 **成功标准**:
-- [ ] 用户可一键生成检验白板
-- [ ] 检验问题与原Canvas内容高度相关
-- [ ] 根据回答质量自动推荐下一步动作
-- [ ] 实时显示检验进度（已验证 X/Y 个概念）
-- [ ] 历史记录可查询和复用
+- [x] 用户可一键生成检验白板
+- [x] 检验问题与原Canvas内容高度相关
+- [x] 根据回答质量自动推荐下一步动作
+- [x] 实时显示检验进度（已验证 X/Y 个概念）
+- [x] 历史记录可查询和复用
 
 ---
 
@@ -205,7 +205,8 @@
 
 **关键文件**:
 - `canvas-progress-tracker/obsidian-plugin/src/modals/VerificationProgressModal.ts`
-- `backend/app/services/verification_service.py` (新增get_session_progress)
+- `backend/app/services/verification_service.py` (get_progress, pause_session, resume_session)
+- `backend/app/api/v1/endpoints/review.py` (GET/POST session progress/pause/resume endpoints)
 
 **依赖**: Story 31.2
 
@@ -226,7 +227,7 @@
 - `canvas-progress-tracker/obsidian-plugin/src/views/ReviewDashboardView.ts`
 - `canvas-progress-tracker/obsidian-plugin/src/services/VerificationHistoryService.ts`
 
-**依赖**: 无（可与其他Story并行）
+**依赖**: Story 31.4 (VerificationHistoryService数据)
 
 ---
 
@@ -288,7 +289,7 @@
 
 **描述**: VERIFICATION_AI_TIMEOUT 从 0.5s 改为 15s，避免所有 Gemini API 调用超时失败
 
-**状态**: Pending
+**状态**: Complete
 
 **依赖**: 无
 
@@ -352,14 +353,14 @@
 
 ## Definition of Done
 
-- [ ] Story 31.1-31.2 完成（P0 BLOCKER）
-- [ ] Story 31.3-31.4 完成（P1）
-- [ ] Story 31.5-31.7 完成（P2）
-- [ ] Story 31.8-31.10 完成（补充 Story）
-- [ ] Story 31.A.1-31.A.6 完成（管道修复）
+- [x] Story 31.1-31.2 完成（P0 BLOCKER）
+- [x] Story 31.3-31.4 完成（P1）
+- [x] Story 31.5-31.7 完成（P2）
+- [x] Story 31.8-31.10 完成（补充 Story）
+- [x] Story 31.A.1-31.A.6 完成（管道修复）
 - [ ] 单元测试覆盖率 >= 95%
 - [ ] 端到端测试通过（生成 → 问答 → 决策 → 进度追踪）
-- [ ] 无回归（现有Agent和Review功能正常）
+- [x] 无回归（现有Agent和Review功能正常）
 - [ ] 文档更新（API文档、用户指南）
 
 ---
@@ -410,13 +411,13 @@
 
 | 组件 | 完成度 | 说明 |
 |------|--------|------|
-| 后端Agent端点 | 95% | 11个端点真实实现 |
-| VerificationService | 85% | 核心逻辑已激活（Mock已替换为Gemini调用），去重/自适应已实现 |
-| 前端评分面板 | 95% | 按钮已实现，分制统一为0-100 |
-| 前端白板生成 | 80% | 生成链路已对接后端API |
-| 记忆系统集成 | 80% | 框架完整，去重+自适应+进度追踪已实现 |
-| 暂停/恢复机制 | 90% | 跨进程会话持久化已实现 |
-| 得分历史分析 | 85% | 分数趋势追踪+对抗性测试通过 |
+| 后端Agent端点 | 95% | 11个端点真实实现，recommend-action 端点完成 |
+| VerificationService | 90% | 核心逻辑已激活（Mock已替换为Gemini调用），去重/自适应/降级透明性已实现 |
+| 前端评分面板 | 95% | 按钮已实现，分制统一为0-100，API集成完成 |
+| 前端白板生成 | 85% | 生成链路已对接后端API |
+| 记忆系统集成 | 85% | 框架完整，去重+自适应+进度追踪+DI完整性已实现 |
+| 暂停/恢复机制 | 95% | 跨进程会话持久化已实现，暂停时间追踪完成 |
+| 得分历史分析 | 90% | 分数趋势追踪+对抗性测试通过，timestamp排序修复 |
 
 ### 关键文件路径
 

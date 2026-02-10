@@ -539,6 +539,13 @@ class VerificationService:
             node_ids=node_ids
         )
 
+        # Degradation transparency: warn if using fallback concepts
+        if concepts == ["默认概念"]:
+            logger.warning(
+                f"Session {session_id} starting with degraded fallback concepts for canvas '{canvas_name}'. "
+                "Concept extraction failed or returned empty — verification quality may be reduced."
+            )
+
         # Story 31.5 AC-31.5.4 (Task 5.3): Filter out mastered concepts
         if not include_mastered and self._memory_service and concepts:
             filtered = []
@@ -1049,17 +1056,26 @@ class VerificationService:
                 self._do_extract_concepts(canvas_name, canvas_path, node_ids),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
-            return concepts if concepts else ["默认概念"]
+            if not concepts:
+                logger.warning(
+                    f"Canvas extraction returned empty concepts for {canvas_name}, "
+                    "using degraded fallback concepts [默认概念]"
+                )
+                return ["默认概念"]
+            return concepts
 
         except asyncio.TimeoutError:
             logger.warning(
                 f"Canvas extraction timeout for {canvas_name} (timeout={VERIFICATION_AI_TIMEOUT}s), "
-                "using fallback concepts"
+                "using degraded fallback concepts [默认概念]"
             )
             return ["默认概念"]
 
         except Exception as e:
-            logger.error(f"Canvas extraction failed for {canvas_name}: {e}")
+            logger.warning(
+                f"Canvas extraction failed for {canvas_name}: {e}, "
+                "using degraded fallback concepts [默认概念]"
+            )
             return ["默认概念"]
 
     async def _do_extract_concepts(
