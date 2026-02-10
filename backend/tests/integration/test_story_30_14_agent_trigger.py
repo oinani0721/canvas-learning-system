@@ -70,9 +70,9 @@ ALL_AGENTS = list(AGENT_MEMORY_MAPPING.keys())
 class TestAgentMemoryMapping:
     """AC-30.14.1: Parametrized tests for AGENT_MEMORY_MAPPING."""
 
-    def test_mapping_has_14_agents(self):
-        """AGENT_MEMORY_MAPPING contains exactly 14 agents."""
-        assert len(AGENT_MEMORY_MAPPING) == 14
+    def test_mapping_has_15_agents(self):
+        """AGENT_MEMORY_MAPPING contains exactly 15 agents (C1 fix: +hint-generation)."""
+        assert len(AGENT_MEMORY_MAPPING) == 15
 
     @pytest.mark.parametrize("agent_name", ALL_AGENTS)
     def test_get_memory_type_returns_valid_type(self, agent_name):
@@ -367,17 +367,13 @@ class TestMappingCompleteness:
             f"{expected_explanation_agents - mapped_explanation_agents}"
         )
 
-    def test_no_hint_generation_in_mapping_but_has_call_site(self):
-        """hint-generation has a call site (verification_service.py) but is not in AGENT_MEMORY_MAPPING.
+    def test_hint_generation_in_mapping_and_has_call_site(self):
+        """hint-generation is in AGENT_MEMORY_MAPPING (C1 fix) AND has a call site in verification_service.py."""
+        # C1 fix: hint-generation is now properly in the mapping
+        assert "hint-generation" in AGENT_MEMORY_MAPPING
+        assert AGENT_MEMORY_MAPPING["hint-generation"] == AgentMemoryType.EXPLANATION_GENERATED
 
-        This is a known gap documented in Story 30.12 - hint-generation agent
-        triggers memory writes via verification_service but uses a different
-        mechanism than the standard mapping.
-        """
-        # hint-generation is NOT in the mapping (it's called via verification_service)
-        assert "hint-generation" not in AGENT_MEMORY_MAPPING
-
-        # But it does have a call site in verification_service.py
+        # It also has a call site in verification_service.py
         verification_path = Path(__file__).parent.parent.parent / "app" / "services" / "verification_service.py"
         source = verification_path.read_text(encoding="utf-8")
         assert "hint-generation" in source, (

@@ -14,6 +14,9 @@ Covers scenarios not in the primary test file:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+# Use shared isolate_card_states_file fixture from conftest.py
+pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
+
 
 class FakeCard:
     """Fake FSRS card for testing."""

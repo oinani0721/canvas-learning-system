@@ -32,6 +32,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
+from cachetools import TTLCache
 import structlog
 
 # Standard logger for backward compatibility
@@ -238,9 +239,12 @@ class ContextEnrichmentService:
         self._cross_canvas_service = cross_canvas_service
         self._graphiti_service = graphiti_service
 
-        # Story 36.8: Cache for association lookups (30s TTL via _get_cached_time)
-        self._association_cache: Dict[str, Tuple[Any, float]] = {}
+        # Story 36.8: Cache for association lookups (30s TTL)
+        # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
         self._association_cache_ttl = 30.0  # seconds
+        self._association_cache: TTLCache = TTLCache(maxsize=1000, ttl=self._association_cache_ttl)
+        # NFR-P0: Lock for cache stampede protection
+        self._association_cache_lock = asyncio.Lock()
 
         logger.debug("ContextEnrichmentService initialized")
 
@@ -529,27 +533,14 @@ class ContextEnrichmentService:
 
         [Source: docs/stories/36.8.story.md#Task-5.1]
         """
-        if canvas_path not in self._association_cache:
-            return None
-
-        cached_result, cached_time = self._association_cache[canvas_path]
-        current_time = time.time()
-
-        # Check TTL (30 seconds)
-        if current_time - cached_time > self._association_cache_ttl:
-            # Cache expired, remove entry
-            del self._association_cache[canvas_path]
-            struct_logger.debug(
-                "association_cache_expired",
-                canvas_path=canvas_path,
-                age_seconds=current_time - cached_time
-            )
+        # NFR-P0: TTLCache auto-evicts expired entries
+        cached_result = self._association_cache.get(canvas_path)
+        if cached_result is None:
             return None
 
         struct_logger.debug(
             "association_cache_hit",
-            canvas_path=canvas_path,
-            age_seconds=round(current_time - cached_time, 2)
+            canvas_path=canvas_path
         )
         return (cached_result, True)
 
@@ -569,7 +560,8 @@ class ContextEnrichmentService:
 
         [Source: docs/stories/36.8.story.md#Task-5.1]
         """
-        self._association_cache[canvas_path] = (result, time.time())
+        # NFR-P0: TTLCache handles expiration automatically
+        self._association_cache[canvas_path] = result
         struct_logger.debug(
             "association_cached",
             canvas_path=canvas_path,
@@ -1217,7 +1209,7 @@ class ContextEnrichmentService:
         if not self._cross_canvas_service:
             return None
 
-        # Story 36.8 Task 5.1: Check cache first
+        # NFR-P0: Check cache first (TTLCache auto-evicts expired entries)
         cached = self._get_cached_association(canvas_path)
         if cached is not None:
             cached_result, cache_hit = cached
@@ -1230,6 +1222,13 @@ class ContextEnrichmentService:
                 has_result=cached_result is not None
             )
             return cached_result
+
+        # NFR-P0: Double-check locking for cache stampede protection
+        async with self._association_cache_lock:
+            cached = self._get_cached_association(canvas_path)
+            if cached is not None:
+                cached_result, _ = cached
+                return cached_result
 
         # Get the associated lecture canvas for this exercise
         association = await self._cross_canvas_service.get_lecture_for_exercise(canvas_path)

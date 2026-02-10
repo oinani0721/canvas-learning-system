@@ -196,6 +196,24 @@ def reset_prometheus():
 
 
 # ============================================================================
+# FSRS Card States Isolation
+# ============================================================================
+
+
+@pytest.fixture
+def isolate_card_states_file(tmp_path):
+    """Isolate fsrs_card_states.json to tmp_path to prevent test data pollution.
+
+    Usage: Add to test files that interact with FSRS card states:
+        pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
+    """
+    from unittest.mock import patch
+    tmp_file = tmp_path / "fsrs_card_states.json"
+    with patch("app.services.review_service._CARD_STATES_FILE", tmp_file):
+        yield tmp_file
+
+
+# ============================================================================
 # Autouse Isolation Fixtures
 # ============================================================================
 

@@ -351,8 +351,12 @@ class TestReviewHistoryPaginationEndpoint:
             data = response.json()
 
             # Average: (4 + 2 + 3) / 3 = 3.0
-            if data.get("statistics") and data["statistics"].get("average_rating"):
-                assert data["statistics"]["average_rating"] == 3.0
+            assert "statistics" in data, "Response must contain statistics field"
+            stats = data["statistics"]
+            if stats.get("average_rating") is not None:
+                assert stats["average_rating"] == 3.0
+            else:
+                pytest.skip("Service did not compute average_rating for this mock data")
 
     def test_statistics_by_canvas_breakdown(self, client):
         """
@@ -386,10 +390,14 @@ class TestReviewHistoryPaginationEndpoint:
             data = response.json()
 
             # by_canvas should show counts per canvas
-            if data.get("statistics") and data["statistics"].get("by_canvas"):
-                by_canvas = data["statistics"]["by_canvas"]
+            assert "statistics" in data, "Response must contain statistics field"
+            stats = data["statistics"]
+            if stats.get("by_canvas") is not None:
+                by_canvas = stats["by_canvas"]
                 assert by_canvas.get("离散数学.canvas") == 2
                 assert by_canvas.get("线性代数.canvas") == 1
+            else:
+                pytest.skip("Service did not compute by_canvas for this mock data")
 
 
 class TestReviewHistoryPaginationBehavior:
@@ -792,11 +800,14 @@ def _build_card_states_for_history(count: int, canvas_prefix: str = "math") -> D
     ReviewService.get_history() uses _card_states as fallback when Graphiti
     is unavailable (lines 1041-1076). Each entry needs 'last_review' as an
     ISO string, and the key format is 'canvas:concept'.
+
+    Uses fixed date to avoid midnight boundary flakiness (test-review H3 fix).
     """
-    today = date.today()
+    # Fixed date instead of date.today() for deterministic tests
+    base_date = date(2025, 6, 15)
     states = {}
     for i in range(count):
-        review_date = today - timedelta(days=i % 5)  # Spread across last 5 days
+        review_date = base_date - timedelta(days=i % 5)  # Spread across last 5 days
         key = f"{canvas_prefix}.canvas:concept_{i}"
         states[key] = {
             "last_review": datetime(
@@ -877,16 +888,17 @@ class TestRealReviewServiceHistory:
     async def test_filter_by_canvas_path(self):
         """AC1: canvas_path filter works with real service."""
         states = {}
-        today = date.today()
+        # Fixed date for determinism (test-review H3 fix)
+        fixed = date(2025, 6, 15)
         # 3 math records + 2 physics records
         for i in range(3):
             states[f"math.canvas:concept_{i}"] = {
-                "last_review": datetime(today.year, today.month, today.day, 10, 0, 0).isoformat(),
+                "last_review": datetime(fixed.year, fixed.month, fixed.day, 10, 0, 0).isoformat(),
                 "rating": 3
             }
         for i in range(2):
             states[f"physics.canvas:concept_{i}"] = {
-                "last_review": datetime(today.year, today.month, today.day, 11, 0, 0).isoformat(),
+                "last_review": datetime(fixed.year, fixed.month, fixed.day, 11, 0, 0).isoformat(),
                 "rating": 4
             }
 
@@ -900,13 +912,14 @@ class TestRealReviewServiceHistory:
     async def test_filter_by_concept_name(self):
         """AC1: concept_name filter works with real service."""
         states = {}
-        today = date.today()
+        # Fixed date for determinism (test-review H3 fix)
+        fixed = date(2025, 6, 15)
         states["math.canvas:逆否命题"] = {
-            "last_review": datetime(today.year, today.month, today.day, 10, 0, 0).isoformat(),
+            "last_review": datetime(fixed.year, fixed.month, fixed.day, 10, 0, 0).isoformat(),
             "rating": 4
         }
         states["math.canvas:充分条件"] = {
-            "last_review": datetime(today.year, today.month, today.day, 11, 0, 0).isoformat(),
+            "last_review": datetime(fixed.year, fixed.month, fixed.day, 11, 0, 0).isoformat(),
             "rating": 3
         }
 
@@ -920,10 +933,11 @@ class TestRealReviewServiceHistory:
     async def test_streak_days_calculation(self):
         """AC1: Streak days are calculated from consecutive review days."""
         states = {}
-        today = date.today()
-        # Reviews on today and yesterday (streak=2), skip day before
+        # Fixed date for determinism (test-review H3 fix)
+        fixed = date(2025, 6, 15)
+        # Reviews on fixed date and day before (streak=2), skip day before that
         for day_offset in [0, 1]:
-            review_date = today - timedelta(days=day_offset)
+            review_date = fixed - timedelta(days=day_offset)
             states[f"math.canvas:concept_{day_offset}"] = {
                 "last_review": datetime(
                     review_date.year, review_date.month, review_date.day, 10, 0, 0

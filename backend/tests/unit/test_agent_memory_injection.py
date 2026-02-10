@@ -148,11 +148,11 @@ class TestMemoryInjection:
         )
         assert mock_memory.call_count == 1
 
-        # Manually expire the cache by modifying timestamp
+        # Expire the cache entry (TTLCache handles TTL internally;
+        # for testing, we delete the key to simulate expiration)
         cache_key = "Math53:node1:逆否命题的定义"
         if cache_key in service._memory_cache:
-            memories, _ = service._memory_cache[cache_key]
-            service._memory_cache[cache_key] = (memories, time.time() - 31)  # 31 seconds ago
+            del service._memory_cache[cache_key]
 
         # Third call after expiration - should query again
         await service._get_learning_memories(

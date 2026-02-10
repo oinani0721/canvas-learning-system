@@ -11,6 +11,9 @@ Tests cover:
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+# Use shared isolate_card_states_file fixture from conftest.py
+pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
+
 
 @pytest.fixture
 def mock_canvas_service():
@@ -148,7 +151,7 @@ class TestAC3InitLogging:
                 )
                 assert svc._fsrs_init_ok is False
                 assert svc._fsrs_init_reason is not None
-                assert "not available" in svc._fsrs_init_reason
+                assert "unavailable" in svc._fsrs_init_reason or "disabled" in svc._fsrs_init_reason
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

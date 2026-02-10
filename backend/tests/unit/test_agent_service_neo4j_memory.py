@@ -327,12 +327,11 @@ class TestAC4CacheMechanism:
             canvas_name="数学"
         )
 
-        # Simulate cache expiration by manipulating cache timestamp
+        # Simulate cache expiration (TTLCache handles TTL internally;
+        # for testing, delete the key to simulate expiration)
         cache_key = "数学:None:微积分"
         if cache_key in agent_service_with_neo4j._memory_cache:
-            cached_data, _ = agent_service_with_neo4j._memory_cache[cache_key]
-            # Set timestamp to 31 seconds ago
-            agent_service_with_neo4j._memory_cache[cache_key] = (cached_data, time.time() - 31)
+            del agent_service_with_neo4j._memory_cache[cache_key]
 
         # Second query - should call Neo4j again due to expired cache
         await agent_service_with_neo4j._get_learning_memories(

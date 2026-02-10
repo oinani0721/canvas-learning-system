@@ -103,13 +103,18 @@ async def health_check(
     try:
         from app.services.review_service import FSRS_AVAILABLE, FSRS_RUNTIME_OK
         if FSRS_RUNTIME_OK is not None:
-            # ReviewService has been instantiated — use runtime status
             components["fsrs"] = "ok" if FSRS_RUNTIME_OK else "degraded"
         else:
-            # ReviewService not yet created — fall back to import check
             components["fsrs"] = "ok" if FSRS_AVAILABLE else "degraded"
     except Exception:
         components["fsrs"] = "degraded"
+
+    # NFR Quick Win #2: Include batch_orchestrator initialization status
+    try:
+        from app.api.v1.endpoints.intelligent_parallel import _deps_initialized
+        components["batch_orchestrator"] = "ok" if _deps_initialized else "not_initialized"
+    except Exception:
+        components["batch_orchestrator"] = "unavailable"
 
     return HealthCheckResponse(
         status="healthy",

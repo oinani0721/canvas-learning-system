@@ -50,6 +50,8 @@ from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
+from cachetools import TTLCache
+
 # Story 31.1: Environment variable for mock mode
 USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "true"
 
@@ -451,9 +453,10 @@ class VerificationService:
         [Source: docs/stories/31.5.story.md#Task-7]
         """
         # 活动会话存储 (session_id -> state)
-        self._sessions: Dict[str, Dict[str, Any]] = {}
+        # NFR-P0: TTLCache with 1h TTL for auto-cleanup of abandoned sessions
+        self._sessions: TTLCache = TTLCache(maxsize=500, ttl=3600)
         # 进度存储 (session_id -> VerificationProgress)
-        self._progress: Dict[str, VerificationProgress] = {}
+        self._progress: TTLCache = TTLCache(maxsize=500, ttl=3600)
 
         # Story 24.5: RAG Integration dependencies
         self._rag_service = rag_service
