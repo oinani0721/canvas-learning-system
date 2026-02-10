@@ -265,7 +265,7 @@ class TestEndToEndVerificationFlow:
         This tests the flow:
         1. Submit user answer
         2. Call scoring-agent for evaluation
-        3. Map score to 0-40 range
+        3. Use unified 0-100 score scale
         4. Update progress and determine next action
         """
         # Start session
@@ -289,9 +289,11 @@ class TestEndToEndVerificationFlow:
         # Verify scoring agent was called
         assert mock_agent_service.call_scoring.called
 
-        # Scoring: answer >200 chars → total_score=85.0 → mapped=85*0.4=34.0
-        assert result["score"] == 34.0
+        # Scoring: answer >200 chars → total_score=85.0 (unified 0-100 scale)
+        assert result["score"] == 85.0
         assert result["quality"] == "excellent"
+        # Wave 3: Real agent → not degraded
+        assert result["degraded"] is False
 
         # Verify progress updated
         assert result["progress"]["completed_concepts"] == 1
@@ -385,7 +387,7 @@ class TestEndToEndVerificationFlow:
         low_score_result = MagicMock()
         low_score_result.success = True
         low_score_result.data = {
-            "total_score": 35.0,  # Will map to 14.0 (below 24 threshold)
+            "total_score": 35.0,  # Below 60 threshold (unified 0-100 scale)
             "accuracy": 10,
             "imagery": 8,
             "completeness": 9,
@@ -405,9 +407,11 @@ class TestEndToEndVerificationFlow:
             user_answer="不太确定"
         )
 
-        # Should get hint (score 14.0 < 24 threshold)
+        # Should get hint (score 35.0 < 60 threshold)
         assert result["action"] == "hint"
         assert result["hint"] is not None
+        # Wave 3: Real agent → not degraded (even for low scores)
+        assert result["degraded"] is False
 
 
 # ===========================================================================
@@ -424,12 +428,10 @@ class TestPerformanceRequirements:
         temp_canvas_file: str
     ):
         """Test that mock mode responds within timeout."""
-        with patch.dict(os.environ, {"USE_MOCK_VERIFICATION": "true"}):
-            from importlib import reload
-            import app.services.verification_service as vs
-            reload(vs)
-
-            service = vs.VerificationService(
+        # H2 fix: Use direct patching instead of importlib.reload to avoid
+        # module-level class duplication and test isolation poisoning.
+        with patch.object(vs_module, "USE_MOCK_VERIFICATION", True):
+            service = vs_module.VerificationService(
                 canvas_base_path=tempfile.gettempdir()
             )
 
@@ -444,8 +446,6 @@ class TestPerformanceRequirements:
             elapsed = time.time() - start
             # Should be very fast in mock mode
             assert elapsed < 0.5, f"Mock mode took {elapsed}s, should be < 0.5s"
-
-            reload(vs)
 
 
 # Cleanup

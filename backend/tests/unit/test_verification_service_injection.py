@@ -324,12 +324,13 @@ class TestDependenciesInjection:
             # Import after patching to get patched version
             from app.dependencies import get_verification_service
 
-            # Create mock settings
+            # Create mock settings and canvas_service
             mock_settings = MagicMock()
             mock_settings.canvas_base_path = "/test/path"
+            mock_canvas_service = MagicMock()
 
-            # Execute the generator
-            gen = get_verification_service(mock_settings)
+            # Execute the generator (requires settings + canvas_service)
+            gen = get_verification_service(mock_settings, mock_canvas_service)
             service = await gen.__anext__()
 
             # Assert: get_graphiti_temporal_client was called

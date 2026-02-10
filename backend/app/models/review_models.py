@@ -588,3 +588,114 @@ class SessionPauseResumeResponse(BaseModel):
         description="Operation result message",
         json_schema_extra={"example": "Session paused successfully"}
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# EPIC-31: Interactive Verification Session Models
+# [Source: docs/epics/EPIC-31-VERIFICATION-CANVAS-INTELLIGENT-GUIDANCE.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class StartSessionRequest(BaseModel):
+    """
+    Request to start an interactive verification session.
+
+    EPIC-31: Bridges the gap between static canvas generation and interactive Q&A.
+    """
+    canvas_name: str = Field(
+        ...,
+        description="Source canvas name (without .canvas extension)",
+        json_schema_extra={"example": "离散数学"}
+    )
+    node_ids: Optional[List[str]] = Field(
+        None,
+        description="Optional list of specific node IDs to verify"
+    )
+    include_mastered: bool = Field(
+        True,
+        description="Whether to include already-mastered concepts"
+    )
+
+
+class StartSessionResponse(BaseModel):
+    """
+    Response after starting a verification session.
+
+    Contains session_id and the first question to display.
+    """
+    session_id: str = Field(
+        ...,
+        description="Unique session identifier",
+        json_schema_extra={"example": "550e8400-e29b-41d4-a716-446655440000"}
+    )
+    total_concepts: int = Field(
+        ...,
+        ge=0,
+        description="Total concepts to verify",
+        json_schema_extra={"example": 8}
+    )
+    first_question: str = Field(
+        ...,
+        description="First verification question to display",
+        json_schema_extra={"example": "请用自己的话解释什么是「逆否命题」？"}
+    )
+    current_concept: str = Field(
+        ...,
+        description="Name of the first concept being verified",
+        json_schema_extra={"example": "逆否命题"}
+    )
+    status: VerificationStatusEnum = Field(
+        default=VerificationStatusEnum.in_progress,
+        description="Session status (always in_progress on creation)"
+    )
+
+
+class SubmitAnswerRequest(BaseModel):
+    """
+    Request to submit an answer during interactive verification.
+    """
+    user_answer: str = Field(
+        ...,
+        min_length=1,
+        description="User's answer text",
+        json_schema_extra={"example": "逆否命题是将原命题的条件和结论同时取反再交换..."}
+    )
+
+
+class SubmitAnswerResponse(BaseModel):
+    """
+    Response after submitting an answer, with scoring and next action.
+    """
+    quality: str = Field(
+        ...,
+        description="Answer quality classification",
+        json_schema_extra={"example": "good"}
+    )
+    score: float = Field(
+        ...,
+        ge=0,
+        le=100,
+        description="Numerical score (0-100 unified scale)",
+        json_schema_extra={"example": 75.0}
+    )
+    action: str = Field(
+        ...,
+        description="Recommended next action: hint, next, or complete",
+        json_schema_extra={"example": "next"}
+    )
+    hint: Optional[str] = Field(
+        None,
+        description="Hint text if action is 'hint'"
+    )
+    next_question: Optional[str] = Field(
+        None,
+        description="Next question text if action is 'next'"
+    )
+    current_concept: str = Field(
+        ...,
+        description="Current concept being verified",
+        json_schema_extra={"example": "逆否命题"}
+    )
+    progress: SessionProgressResponse = Field(
+        ...,
+        description="Updated session progress after this answer"
+    )

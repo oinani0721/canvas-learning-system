@@ -95,9 +95,9 @@
 **验收标准**:
 - [ ] AC-31.1.1: `start_session()` 从Canvas文件读取红色(color="4")+紫色(color="3")节点并提取概念
 - [ ] AC-31.1.2: `generate_question_with_rag()` 调用Gemini API生成个性化验证问题
-- [ ] AC-31.1.3: `process_answer()` 集成scoring-agent评估回答（返回0-40分）
+- [ ] AC-31.1.3: `process_answer()` 集成scoring-agent评估回答（返回0-100分）
 - [ ] AC-31.1.4: 所有方法支持RAG上下文注入（学习历史、教材、相关概念）
-- [ ] AC-31.1.5: 500ms超时保护和优雅降级
+- [ ] AC-31.1.5: 15s超时保护和优雅降级
 
 **关键文件**:
 - `backend/app/services/verification_service.py` (L197, L279, L751)
@@ -135,9 +135,9 @@
 - [ ] AC-31.3.1: 新增 `POST /agents/recommend-action` 端点
 - [ ] AC-31.3.2: 请求参数包含 `score`, `node_id`, `canvas_name`
 - [ ] AC-31.3.3: 根据评分返回推荐动作:
-  - 分数 < 24: `{"action": "decompose", "agent": "/agents/decompose/basic", "reason": "概念理解不足"}`
-  - 分数 24-31: `{"action": "explain", "agent": "/agents/explain/oral", "reason": "需要补充解释"}`
-  - 分数 >= 32: `{"action": "next", "agent": null, "reason": "掌握良好"}`
+  - 分数 < 60: `{"action": "decompose", "agent": "/agents/decompose/basic", "reason": "概念理解不足"}`
+  - 分数 60-79: `{"action": "explain", "agent": "/agents/explain/oral", "reason": "需要补充解释"}`
+  - 分数 >= 80: `{"action": "next", "agent": null, "reason": "掌握良好"}`
 - [ ] AC-31.3.4: 考虑历史得分趋势（如持续低分则推荐更基础的拆解）
 - [ ] AC-31.3.5: 前端ScoringResultPanel对接此端点替代硬编码决策
 
@@ -174,11 +174,11 @@
 **验收标准**:
 - [ ] AC-31.5.1: 查询概念的历史得分（最近5次）
 - [ ] AC-31.5.2: 计算难度等级:
-  - 平均分 >= 32 → `hard` (应用型问题)
-  - 平均分 24-31 → `medium` (验证型问题)
-  - 平均分 < 24 → `easy` (突破型问题)
+  - 平均分 >= 80 → `hard` (应用型问题)
+  - 平均分 60-79 → `medium` (验证型问题)
+  - 平均分 < 60 → `easy` (突破型问题)
 - [ ] AC-31.5.3: 根据难度选择问题类型（突破/验证/应用）
-- [ ] AC-31.5.4: 支持跳过已掌握概念（连续3次得分>=32）
+- [ ] AC-31.5.4: 支持跳过已掌握概念（连续3次得分>=80）
 - [ ] AC-31.5.5: 遗忘检测：若最近得分显著低于历史平均，标记为"需要复习"
 
 **关键文件**:
@@ -196,10 +196,9 @@
 **验收标准**:
 - [ ] AC-31.6.1: 前端显示"已验证 X/Y 个概念"进度条
 - [ ] AC-31.6.2: 颜色分布实时更新:
-  - 绿色(>=32): 掌握
-  - 黄色(24-31): 部分掌握
-  - 紫色(16-23): 需复习
-  - 红色(<16): 未掌握
+  - 绿色(>=80): 掌握
+  - 黄色(60-79): 部分掌握
+  - 红色(<60): 未掌握
 - [ ] AC-31.6.3: 掌握度百分比计算 = 绿色数 / 总数 * 100%
 - [ ] AC-31.6.4: 支持暂停/继续检验会话
 - [ ] AC-31.6.5: 会话计时器显示已用时间
@@ -228,6 +227,100 @@
 - `canvas-progress-tracker/obsidian-plugin/src/services/VerificationHistoryService.ts`
 
 **依赖**: 无（可与其他Story并行）
+
+---
+
+### Story 31.8: 检验会话恢复与持久化 [合并至 31.10]
+
+**状态**: Merged into Story 31.10
+
+---
+
+### Story 31.9: 检验评分历史完整追踪 [P1]
+
+**描述**: 实现每次检验评分的完整历史记录与趋势分析
+
+**状态**: Complete
+
+**关键文件**:
+- `backend/app/services/verification_service.py`
+- `backend/app/models/schemas.py`
+
+**依赖**: Story 31.1
+
+---
+
+### Story 31.10: 跨进程会话持久化与恢复 [P1]
+
+**描述**: 解决检验会话在进程重启后丢失的问题，实现 Neo4j 直接持久化
+
+**状态**: Ready for Review
+
+**关键文件**:
+- `backend/app/services/verification_service.py`
+- `backend/app/api/v1/endpoints/review.py`
+
+**依赖**: Story 31.8 (已合并)
+
+---
+
+### Story 31.A.1: MemoryService 管道修复 — record_episode 方法不存在 [P0 Critical]
+
+**描述**: 修复 MemoryService 调用不存在的 `record_episode()` 方法导致的 AttributeError
+
+**状态**: ✅ Implemented
+
+**依赖**: 无
+
+---
+
+### Story 31.A.2: Agent 模板恢复与 hint-generation 端点 [P0]
+
+**描述**: 恢复被误删的 17 个 Agent 模板文件，新增 hint-generation Agent 枚举值
+
+**状态**: Draft
+
+**依赖**: 无
+
+---
+
+### Story 31.A.3: 检验超时值修复 (500ms→15s) [P0]
+
+**描述**: VERIFICATION_AI_TIMEOUT 从 0.5s 改为 15s，避免所有 Gemini API 调用超时失败
+
+**状态**: Pending
+
+**依赖**: 无
+
+---
+
+### Story 31.A.4: dependencies.py 依赖注入完整性修复 [P0]
+
+**描述**: 修复 VerificationService 构造函数接受的 memory_service、agent_service 参数在 dependencies.py 中未传入的问题
+
+**状态**: Review
+
+**依赖**: Story 31.A.1
+
+---
+
+### Story 31.A.5: scoring-agent 参数名不匹配修复 [P1]
+
+**描述**: 修复 call_scoring() 的参数名与 AgentService 签名不匹配的问题
+
+**状态**: Pending
+
+**依赖**: Story 31.A.4
+
+---
+
+### Story 31.A.6: 分制统一 0-40→0-100 [P1]
+
+**描述**: 统一所有评分阈值从 0-40 分制到 0-100 分制，对齐 scoring-response.schema.json
+
+**状态**: Review
+
+**依赖**: Story 31.A.5
 
 ---
 
@@ -261,7 +354,9 @@
 
 - [ ] Story 31.1-31.2 完成（P0 BLOCKER）
 - [ ] Story 31.3-31.4 完成（P1）
-- [ ] Story 31.5-31.7 完成（P2，可选）
+- [ ] Story 31.5-31.7 完成（P2）
+- [ ] Story 31.8-31.10 完成（补充 Story）
+- [ ] Story 31.A.1-31.A.6 完成（管道修复）
 - [ ] 单元测试覆盖率 >= 95%
 - [ ] 端到端测试通过（生成 → 问答 → 决策 → 进度追踪）
 - [ ] 无回归（现有Agent和Review功能正常）
@@ -273,7 +368,7 @@
 
 ### Scope Validation
 
-- [x] Epic可在7个Stories内完成（符合brownfield标准）
+- [x] Epic共16个Stories（31.1-31.10 + 31.A.1-31.A.6）
 - [x] 遵循现有AgentService和RAG模式
 - [x] 集成复杂度可控（主要是替换Mock）
 - [x] 风险可控（有降级和回滚方案）
@@ -301,7 +396,7 @@
 > - 这是对现有Canvas学习系统的增强
 > - 技术栈: FastAPI + TypeScript Obsidian Plugin + Gemini API
 > - 集成点: verification_service.py, agents.py, main.ts
-> - 现有模式: Fire-and-Forget记忆写入, RAG上下文注入, 500ms超时保护
+> - 现有模式: Fire-and-Forget记忆写入, RAG上下文注入, 15s超时保护
 > - 关键兼容性要求: 现有Agent API不变，Canvas格式不变
 > - 每个Story必须包含验证现有功能完整性的测试
 >
@@ -316,24 +411,28 @@
 | 组件 | 完成度 | 说明 |
 |------|--------|------|
 | 后端Agent端点 | 95% | 11个端点真实实现 |
-| VerificationService | 15% | 核心逻辑为Mock |
-| 前端评分面板 | 95% | 按钮已实现 |
-| 前端白板生成 | 5% | 仅显示"开发中" |
-| 记忆系统集成 | 65% | 框架完整，去重/自适应缺失 |
+| VerificationService | 85% | 核心逻辑已激活（Mock已替换为Gemini调用），去重/自适应已实现 |
+| 前端评分面板 | 95% | 按钮已实现，分制统一为0-100 |
+| 前端白板生成 | 80% | 生成链路已对接后端API |
+| 记忆系统集成 | 80% | 框架完整，去重+自适应+进度追踪已实现 |
+| 暂停/恢复机制 | 90% | 跨进程会话持久化已实现 |
+| 得分历史分析 | 85% | 分数趋势追踪+对抗性测试通过 |
 
 ### 关键文件路径
 
 ```
 backend/
-├── app/services/verification_service.py    # 核心检验逻辑 (824行)
-├── app/services/agent_service.py           # Agent执行 (3564行)
-├── app/api/v1/endpoints/agents.py          # Agent端点 (1700行)
-├── app/api/v1/endpoints/review.py          # Review端点 (500行)
-└── app/clients/graphiti_client.py          # 记忆客户端 (754行)
+├── app/services/verification_service.py    # 核心检验逻辑 (2852行)
+├── app/services/agent_service.py           # Agent执行 (3785行)
+├── app/api/v1/endpoints/agents.py          # Agent端点 (1896行)
+├── app/api/v1/endpoints/review.py          # Review端点 (1444行)
+├── app/models/schemas.py                   # 数据模型 (1107行)
+├── app/dependencies.py                     # 依赖注入 (886行)
+└── app/clients/graphiti_client.py          # 记忆客户端 (923行)
 
 canvas-progress-tracker/obsidian-plugin/
-├── main.ts                                 # 插件入口 (L751: 白板生成)
-├── src/views/ScoringResultPanel.ts         # 评分面板 (482行)
-├── src/modals/VerificationProgressModal.ts # 进度Modal (680行)
-└── src/services/VerificationHistoryService.ts # 历史服务 (304行)
+├── main.ts                                 # 插件入口 (3541行)
+├── src/views/ScoringResultPanel.ts         # 评分面板 (716行)
+├── src/modals/VerificationProgressModal.ts # 进度Modal (765行)
+└── src/services/VerificationHistoryService.ts # 历史服务 (303行)
 ```

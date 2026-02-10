@@ -233,18 +233,29 @@ class GraphitiEdgeClient(GraphitiClientBase):
 
             results = await self._neo4j.run_query(cypher_query, **params)
 
-            return [
-                {
+            # P1 Fix: Compute approximate relevance score instead of hardcoded 1.0
+            # Uses query coverage ratio: shorter content matching the query = higher relevance
+            query_len = max(len(query), 1)
+            scored_results = []
+            for r in results:
+                content = r.get("content", "")
+                content_len = max(len(content), 1)
+                # Score: ratio of query length to content length (capped at 1.0)
+                # Exact match = 1.0, query is small part of long content = lower score
+                score = min(query_len / content_len, 1.0)
+                scored_results.append({
                     "doc_id": r.get("node_id", ""),
-                    "content": r.get("content", ""),
-                    "score": 1.0,  # Basic text match, no vector scoring
+                    "content": content,
+                    "score": round(score, 3),
                     "metadata": {
                         "canvas_path": r.get("canvas_path"),
                         "group_id": r.get("group_id"),
                     }
-                }
-                for r in results
-            ]
+                })
+
+            # Sort by score descending for best results first
+            scored_results.sort(key=lambda x: x["score"], reverse=True)
+            return scored_results
 
         except Exception as e:
             logger.warning(f"search_nodes failed: {e}")

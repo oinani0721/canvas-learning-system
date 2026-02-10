@@ -57,7 +57,7 @@ USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "
 VERIFICATION_AI_TIMEOUT = float(os.getenv("VERIFICATION_AI_TIMEOUT", "15"))  # 15s default for Gemini API
 
 # Story 31.4 ADR-009: Graphiti query timeout (separate from Gemini API timeout)
-GRAPHITI_QUERY_TIMEOUT = float(os.getenv("GRAPHITI_QUERY_TIMEOUT", "0.5"))  # 500ms for Graphiti queries
+GRAPHITI_QUERY_TIMEOUT = float(os.getenv("GRAPHITI_QUERY_TIMEOUT", "5.0"))  # 5s for Graphiti queries (M1 fix: 0.5s was too aggressive)
 
 from app.services.agent_service import AgentType
 
@@ -663,7 +663,8 @@ class VerificationService:
         logger.debug(f"Processing answer for session {session_id}, concept: {current_concept}")
 
         # Story 31.1 AC-31.1.3: Call scoring-agent with timeout protection
-        quality, score = await self._evaluate_answer_with_scoring_agent(
+        # Wave 3: degraded flag indicates fallback/mock evaluation
+        quality, score, degraded = await self._evaluate_answer_with_scoring_agent(
             concept=current_concept,
             user_answer=user_answer,
             canvas_name=canvas_name
@@ -694,6 +695,7 @@ class VerificationService:
         return {
             "quality": quality,
             "score": score,
+            "degraded": degraded,
             "action": action["action"],
             "hint": action.get("hint"),
             "next_question": action.get("next_question"),
@@ -1213,6 +1215,7 @@ class VerificationService:
         Evaluate user answer using scoring-agent.
 
         Story 31.1 AC-31.1.3: Call scoring-agent (unified 0-100 scale).
+        Wave 3: Returns degraded flag when falling back to mock evaluation.
 
         Args:
             concept: The concept being tested
@@ -1220,9 +1223,10 @@ class VerificationService:
             canvas_name: Canvas name for context
 
         Returns:
-            Tuple of (quality: str, score: float)
+            Tuple of (quality: str, score: float, degraded: bool)
             - quality: "excellent", "good", "partial", or "wrong"
             - score: 0-100 range (unified scale)
+            - degraded: True when using fallback/mock evaluation
 
         [Source: docs/stories/31.1.story.md#Task-3]
         [Source: specs/data/scoring-response.schema.json]
@@ -1230,26 +1234,29 @@ class VerificationService:
         # AC-31.1.5: Check mock mode
         if USE_MOCK_VERIFICATION:
             logger.debug("Mock mode enabled, using character-length based scoring")
-            return self._mock_evaluate_answer(user_answer)
+            quality, score = self._mock_evaluate_answer(user_answer)
+            return quality, score, True
 
         try:
             # AC-31.1.5: 15s timeout protection
-            quality, score = await asyncio.wait_for(
+            quality, score, degraded = await asyncio.wait_for(
                 self._do_scoring_agent_call(concept, user_answer, canvas_name),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
-            return quality, score
+            return quality, score, degraded
 
         except asyncio.TimeoutError:
             logger.warning(
                 f"Scoring-agent timeout for concept {concept} "
                 f"(timeout={VERIFICATION_AI_TIMEOUT}s), using fallback evaluation"
             )
-            return self._mock_evaluate_answer(user_answer)
+            quality, score = self._mock_evaluate_answer(user_answer)
+            return quality, score, True
 
         except Exception as e:
             logger.error(f"Scoring-agent call failed for concept {concept}: {e}")
-            return self._mock_evaluate_answer(user_answer)
+            quality, score = self._mock_evaluate_answer(user_answer)
+            return quality, score, True
 
     async def _do_scoring_agent_call(
         self,
@@ -1261,6 +1268,7 @@ class VerificationService:
         Internal method to call scoring-agent.
 
         Story 31.1 AC-31.1.3: Real scoring-agent integration.
+        Wave 3: Returns degraded flag (3rd element) to indicate fallback.
 
         Args:
             concept: The concept being tested
@@ -1268,7 +1276,7 @@ class VerificationService:
             canvas_name: Canvas name for context
 
         Returns:
-            Tuple of (quality: str, score: float) with score in 0-100 range
+            Tuple of (quality: str, score: float, degraded: bool)
 
         [Source: backend/app/services/agent_service.py - call_scoring pattern]
         [Source: specs/data/scoring-response.schema.json]
@@ -1329,22 +1337,15 @@ class VerificationService:
                         f"score={raw_score}, quality={quality}"
                     )
 
-                    return quality, raw_score
+                    return quality, raw_score, False
 
             except Exception as e:
                 logger.debug(f"Agent service scoring call failed: {e}")
 
         # Fallback to mock evaluation
-        logger.debug(f"No agent service available for scoring, using fallback")
-        return self._mock_evaluate_answer(user_answer)
-
-    def _map_score_to_verification_range(self, raw_score: float) -> float:
-        """
-        DEPRECATED: No longer used. Scores now use unified 0-100 scale.
-        Kept for backward compatibility with tests; will be removed.
-        """
-        raw_score = max(0.0, min(100.0, raw_score))
-        return round(raw_score * 0.4, 1)
+        logger.warning("No agent service available for scoring, using fallback (degraded mode)")
+        quality, score = self._mock_evaluate_answer(user_answer)
+        return quality, score, True
 
     def _score_to_quality(self, score: float) -> str:
         """
@@ -2798,6 +2799,18 @@ class VerificationService:
                             f"AI hint generated: concept={concept}, "
                             f"level={result.data.get('hint_level', 'unknown')}, attempt={attempt_number}"
                         )
+                        # Story 30.12 AC-30.12.1: Trigger memory write for hint-generation
+                        if hasattr(self._agent_service, '_trigger_memory_write'):
+                            try:
+                                await self._agent_service._trigger_memory_write(
+                                    agent_type="hint-generation",
+                                    canvas_name=canvas_name or "",
+                                    node_id="",
+                                    concept=concept,
+                                    agent_feedback=hint_text[:200],
+                                )
+                            except Exception as mem_err:
+                                logger.warning(f"hint-generation memory write failed (non-blocking): {mem_err}")
                         return hint_text
             except asyncio.TimeoutError:
                 logger.warning(f"Hint generation timeout for concept {concept}")
@@ -2827,9 +2840,21 @@ _verification_service: Optional[VerificationService] = None
 
 
 def get_verification_service() -> VerificationService:
-    """获取VerificationService单例"""
+    """获取VerificationService单例 (零参数版，仅用于测试)。
+
+    WARNING: 此函数创建的实例不注入任何依赖 (agent_service=None,
+    memory_service=None 等)，所有 AI 功能将静默降级为 mock/默认值。
+
+    生产环境请使用 review.py:_get_or_create_verification_service() 或
+    dependencies.py:get_verification_service() (FastAPI Depends)。
+    """
     global _verification_service
     if _verification_service is None:
+        logger.warning(
+            "Creating VerificationService with ZERO dependencies via module-level singleton. "
+            "AI scoring, RAG context, difficulty adaptation will all be DEGRADED. "
+            "Use review.py:_get_or_create_verification_service() for production."
+        )
         _verification_service = VerificationService()
     return _verification_service
 

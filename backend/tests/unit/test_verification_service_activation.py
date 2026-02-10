@@ -4,7 +4,7 @@ Unit tests for Story 31.1: VerificationService核心逻辑激活
 Tests verify the activation of real AI functionality in VerificationService:
 - AC-31.1.1: start_session() reads Canvas file for red/purple nodes
 - AC-31.1.2: generate_question_with_rag() calls Gemini API
-- AC-31.1.3: process_answer() integrates scoring-agent (0-40 mapping)
+- AC-31.1.3: process_answer() integrates scoring-agent (0-100 unified scale)
 - AC-31.1.4: RAG context injection for all methods
 - AC-31.1.5: 500ms timeout protection and graceful degradation
 
@@ -299,7 +299,7 @@ class TestProcessAnswerCallsScoringAgent:
         mock_agent_service: MagicMock,
         temp_canvas_file: str
     ):
-        """Test that 0-100 score is mapped to 0-40 range."""
+        """Test that 0-100 score is used directly (unified scale)."""
         # Given: Scoring agent returns 75/100 (as AgentResult-like object)
         scoring_result = MagicMock()
         scoring_result.success = True
@@ -317,23 +317,23 @@ class TestProcessAnswerCallsScoringAgent:
             user_answer="测试回答"
         )
 
-        # Then: Score should be mapped to 0-40 range (75 * 0.4 = 30)
-        assert result["score"] == 30.0
+        # Then: Score should be 75.0 (unified 0-100 scale, no mapping)
+        assert result["score"] == 75.0
 
     @pytest.mark.asyncio
     async def test_score_to_quality_mapping(
         self,
         verification_service: VerificationService
     ):
-        """Test score to quality level mapping."""
-        # Test thresholds (0-40 range)
-        assert verification_service._score_to_quality(40) == "excellent"
-        assert verification_service._score_to_quality(32) == "excellent"
-        assert verification_service._score_to_quality(31) == "good"
-        assert verification_service._score_to_quality(24) == "good"
-        assert verification_service._score_to_quality(23) == "partial"
-        assert verification_service._score_to_quality(16) == "partial"
-        assert verification_service._score_to_quality(15) == "wrong"
+        """Test score to quality level mapping (unified 0-100 scale)."""
+        # Test thresholds (0-100 range)
+        assert verification_service._score_to_quality(100) == "excellent"
+        assert verification_service._score_to_quality(80) == "excellent"
+        assert verification_service._score_to_quality(79) == "good"
+        assert verification_service._score_to_quality(60) == "good"
+        assert verification_service._score_to_quality(59) == "partial"
+        assert verification_service._score_to_quality(40) == "partial"
+        assert verification_service._score_to_quality(39) == "wrong"
         assert verification_service._score_to_quality(0) == "wrong"
 
 
@@ -412,12 +412,10 @@ class TestTimeoutGracefulDegradation:
     @pytest.mark.asyncio
     async def test_mock_mode_returns_default_concepts(self):
         """Test that mock mode returns default concepts."""
-        with patch.dict(os.environ, {"USE_MOCK_VERIFICATION": "true"}):
-            # Need to reimport to pick up env var
-            from importlib import reload
-            import app.services.verification_service as vs
-            reload(vs)
-
+        # H2 fix: Use direct patching instead of importlib.reload to avoid
+        # module-level class duplication and test isolation poisoning.
+        import app.services.verification_service as vs
+        with patch.object(vs, "USE_MOCK_VERIFICATION", True):
             service = vs.VerificationService()
 
             # Mock mode should return hardcoded concepts
@@ -429,9 +427,6 @@ class TestTimeoutGracefulDegradation:
 
             assert concepts == ["概念1", "概念2", "概念3"]
 
-            # Reset module
-            reload(vs)
-
 
 # ===========================================================================
 # Score Mapping Tests
@@ -441,46 +436,30 @@ class TestTimeoutGracefulDegradation:
 class TestScoreMapping:
     """Test score mapping functions."""
 
-    def test_map_score_to_verification_range(
-        self,
-        verification_service: VerificationService
-    ):
-        """Test 0-100 to 0-40 score mapping."""
-        # Test various scores
-        assert verification_service._map_score_to_verification_range(100) == 40.0
-        assert verification_service._map_score_to_verification_range(75) == 30.0
-        assert verification_service._map_score_to_verification_range(50) == 20.0
-        assert verification_service._map_score_to_verification_range(25) == 10.0
-        assert verification_service._map_score_to_verification_range(0) == 0.0
-
-        # Test bounds
-        assert verification_service._map_score_to_verification_range(150) == 40.0  # Clamped
-        assert verification_service._map_score_to_verification_range(-10) == 0.0   # Clamped
-
     def test_mock_evaluate_answer(
         self,
         verification_service: VerificationService
     ):
-        """Test mock evaluation based on answer length."""
+        """Test mock evaluation based on answer length (unified 0-100 scale)."""
         # Long answer (>100 chars)
         quality, score = verification_service._mock_evaluate_answer("a" * 101)
         assert quality == "excellent"
-        assert score == 36.0
+        assert score == 90.0
 
         # Medium answer (>50 chars)
         quality, score = verification_service._mock_evaluate_answer("a" * 51)
         assert quality == "good"
-        assert score == 28.0
+        assert score == 70.0
 
         # Short answer (>20 chars)
         quality, score = verification_service._mock_evaluate_answer("a" * 21)
         assert quality == "partial"
-        assert score == 20.0
+        assert score == 50.0
 
         # Very short answer
         quality, score = verification_service._mock_evaluate_answer("a" * 10)
         assert quality == "wrong"
-        assert score == 8.0
+        assert score == 20.0
 
 
 # ===========================================================================
@@ -512,6 +491,7 @@ class TestEndToEndFlow:
         )
         assert "quality" in result
         assert "score" in result
+        assert "degraded" in result
         assert "progress" in result
 
     @pytest.mark.asyncio
