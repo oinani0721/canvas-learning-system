@@ -96,7 +96,26 @@ def _get_or_create_review_service():
         from app.services.background_task_manager import BackgroundTaskManager
         from app.services.review_service import ReviewService, create_fsrs_manager
         settings = get_settings()
-        canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
+        # Story 34.9 AC3: Inject memory_client into CanvasService
+        # (aligning with dependencies.py:get_canvas_service P0 fix)
+        memory_client = None
+        try:
+            from app.services.memory_service import get_memory_service as _get_mem_svc
+            import asyncio
+            # Attempt sync retrieval — singleton may already be initialized
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # Cannot await in sync context; try importing the cached instance
+                from app.services import memory_service as _mem_mod
+                memory_client = _mem_mod._memory_service_instance
+            else:
+                memory_client = loop.run_until_complete(_get_mem_svc())
+        except Exception as e:
+            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
+        canvas_service = CanvasService(
+            canvas_base_path=settings.canvas_base_path,
+            memory_client=memory_client
+        )
         task_manager = BackgroundTaskManager()
         # Story 32.8: Unified factory (checks USE_FSRS + creates FSRSManager)
         fsrs_manager = create_fsrs_manager(settings)
@@ -626,6 +645,7 @@ async def get_review_schedule(days: int = 7) -> ReviewScheduleResponse:
 
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1schedule]
     """
+    logger.info("GET /review/schedule days=%d", days)
     # ✅ Connected to real EbbinghausReviewScheduler (P0 Task #1)
     if not _scheduler_available or _scheduler is None:
         logger.warning("EbbinghausReviewScheduler not available, returning empty schedule")
@@ -674,8 +694,8 @@ async def get_review_history(
     days: int = Query(7, ge=1, le=365, description="Number of days to look back (1-365)"),
     canvas_path: Optional[str] = None,
     concept_name: Optional[str] = None,
-    limit: int = 5,
-    show_all: bool = False
+    limit: int = Query(5, ge=1, le=100, description="Maximum records to return (1-100)"),
+    show_all: bool = Query(False, description="If true, return all records up to hard cap")
 ) -> HistoryResponse:
     """
     Get review history with pagination support.
@@ -695,6 +715,7 @@ async def get_review_history(
     """
     from datetime import date, datetime as dt, timedelta
 
+    logger.info("GET /review/history days=%d limit=%d show_all=%s concept=%s", days, limit, show_all, concept_name)
     # Story 34.8 AC4: days validated by Query(ge=1, le=365) — no hardcoded whitelist
 
     # Calculate date range
@@ -815,6 +836,7 @@ async def generate_verification_canvas(
     [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1review~1generate]
     [Source: Story 24.1 - Mode Support]
     """
+    logger.info("POST /review/generate source=%s mode=%s node_count=%d", request.source_canvas, request.mode, len(request.node_ids or []))
     # ✅ PRD Compliant Implementation (Epic 4)
     # [Source: docs/prd/FULL-PRD-REFERENCE.md - F8, Story 4.1-4.9]
     # ✅ Story 24.1: Mode parameter support added
@@ -1084,6 +1106,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     """
     from datetime import date, timedelta
 
+    logger.info("POST /review/record canvas=%s node=%s rating=%s score=%s", request.canvas_name, request.node_id, request.rating, request.score)
     # Code Review C2 Fix: Use module-level singleton instead of broken
     # get_review_service() async generator call without DI args.
     review_service = _get_or_create_review_service()
@@ -1171,6 +1194,7 @@ async def get_multi_review_progress(
     [Source: specs/api/review-api.openapi.yml#L346-378]
     [Source: Story 24.4 - Multi-Review Trend Analysis]
     """
+    logger.info("GET /review/multi-progress canvas=%s", original_canvas_path)
     # Import here to avoid circular dependency
     from app.core.exceptions import CanvasNotFoundException
 
@@ -1230,6 +1254,7 @@ async def get_verification_history(
     [Source: specs/api/review-api.openapi.yml#/verification/history/{concept}]
     [Source: docs/stories/31.4.story.md#Task-4]
     """
+    logger.info("GET /verification/history concept=%s limit=%d offset=%d", concept, limit, offset)
     from datetime import datetime as dt
 
     from fastapi import HTTPException
@@ -1379,6 +1404,7 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     [Source: specs/api/review-api.openapi.yml#/review/fsrs-state/{concept_id}]
     [Source: docs/stories/32.3.story.md#Task-1]
     """
+    logger.info("GET /review/fsrs-state concept_id=%s", concept_id)
     # Code Review C2 Fix: Use _get_or_create_review_service() singleton
     # instead of broken get_review_service() async generator call.
     try:
@@ -1460,6 +1486,7 @@ async def get_session_progress(session_id: str) -> SessionProgressResponse:
 
     [Source: docs/stories/31.6.story.md#Task-2]
     """
+    logger.info("GET /session/%s/progress", session_id)
     from fastapi import HTTPException
 
     try:
@@ -1531,6 +1558,7 @@ async def pause_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
+    logger.info("POST /session/%s/pause", session_id)
     from fastapi import HTTPException
 
     try:
@@ -1586,6 +1614,7 @@ async def resume_session(session_id: str) -> SessionPauseResumeResponse:
 
     [Source: docs/stories/31.6.story.md#Task-3]
     """
+    logger.info("POST /session/%s/resume", session_id)
     from fastapi import HTTPException
 
     try:
@@ -1647,6 +1676,7 @@ async def start_verification_session(
 
     Returns session_id and first_question for the frontend modal.
     """
+    logger.info("POST /verification/start canvas=%s node_ids=%s", request.canvas_name, request.node_ids)
     from fastapi import HTTPException
 
     try:
@@ -1724,6 +1754,7 @@ async def submit_verification_answer(
 
     Returns scoring result and updated progress.
     """
+    logger.info("POST /session/%s/answer len=%d", session_id, len(request.user_answer))
     from fastapi import HTTPException
 
     try:

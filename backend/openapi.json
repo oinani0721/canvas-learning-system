@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-10T07:06:02.276379+00:00",
+    "x-generated-at": "2026-02-10T07:27:13.623058+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -2691,9 +2691,13 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "description": "Maximum records to return (1-100)",
               "default": 5,
               "title": "Limit"
-            }
+            },
+            "description": "Maximum records to return (1-100)"
           },
           {
             "name": "show_all",
@@ -2701,9 +2705,11 @@
             "required": false,
             "schema": {
               "type": "boolean",
+              "description": "If true, return all records up to hard cap",
               "default": false,
               "title": "Show All"
-            }
+            },
+            "description": "If true, return all records up to hard cap"
           }
         ],
         "responses": {

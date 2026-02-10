@@ -351,12 +351,14 @@ class TestReviewHistoryPaginationEndpoint:
             data = response.json()
 
             # Average: (4 + 2 + 3) / 3 = 3.0
+            # Story 34.9 AC5: Unconditional assertion — no conditional skip
             assert "statistics" in data, "Response must contain statistics field"
             stats = data["statistics"]
-            if stats.get("average_rating") is not None:
-                assert stats["average_rating"] == 3.0
-            else:
-                pytest.skip("Service did not compute average_rating for this mock data")
+            assert stats is not None, "statistics must not be None when reviews exist"
+            assert stats.get("average_rating") is not None, (
+                "average_rating must be computed when reviews exist"
+            )
+            assert stats["average_rating"] == 3.0
 
     def test_statistics_by_canvas_breakdown(self, client):
         """
@@ -390,14 +392,16 @@ class TestReviewHistoryPaginationEndpoint:
             data = response.json()
 
             # by_canvas should show counts per canvas
+            # Story 34.9 AC5: Unconditional assertion — no conditional skip
             assert "statistics" in data, "Response must contain statistics field"
             stats = data["statistics"]
-            if stats.get("by_canvas") is not None:
-                by_canvas = stats["by_canvas"]
-                assert by_canvas.get("离散数学.canvas") == 2
-                assert by_canvas.get("线性代数.canvas") == 1
-            else:
-                pytest.skip("Service did not compute by_canvas for this mock data")
+            assert stats is not None, "statistics must not be None when reviews exist"
+            assert stats.get("by_canvas") is not None, (
+                "by_canvas must be computed when canvas-specific reviews exist"
+            )
+            by_canvas = stats["by_canvas"]
+            assert by_canvas.get("离散数学.canvas") == 2
+            assert by_canvas.get("线性代数.canvas") == 1
 
 
 class TestReviewHistoryPaginationBehavior:
@@ -1147,4 +1151,78 @@ class TestDaysParameterValidation:
     def test_days_non_integer_returns_422(self, client):
         """AC4: days=abc (non-integer) must return 422 Validation Error."""
         response = client.get("/api/v1/review/history?days=abc")
+        assert response.status_code == 422
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 34.9 AC1: limit parameter validation — Query(ge=1, le=100)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestLimitParameterValidation:
+    """Story 34.9 AC1: limit must be validated via Query(ge=1, le=100)."""
+
+    @pytest.fixture
+    def client(self):
+        return TestClient(app)
+
+    def test_limit_0_returns_422(self, client):
+        """AC1: limit=0 must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?limit=0")
+        assert response.status_code == 422
+
+    def test_limit_negative_returns_422(self, client):
+        """AC1: limit=-1 must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?limit=-1")
+        assert response.status_code == 422
+
+    def test_limit_101_returns_422(self, client):
+        """AC1: limit=101 (> 100) must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?limit=101")
+        assert response.status_code == 422
+
+    def test_limit_1_is_valid(self, client):
+        """AC1: limit=1 should work (lower boundary)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?limit=1")
+            assert response.status_code == 200
+
+    def test_limit_100_is_valid(self, client):
+        """AC1: limit=100 should work (upper boundary)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?limit=100")
+            assert response.status_code == 200
+
+    def test_limit_50_is_valid(self, client):
+        """AC1: limit=50 should work (middle value)."""
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
+            mock_service = AsyncMock()
+            mock_service.get_history = AsyncMock(return_value={
+                "records": [], "has_more": False, "streak_days": 0
+            })
+            mock_get.return_value = mock_service
+
+            response = client.get("/api/v1/review/history?limit=50")
+            assert response.status_code == 200
+
+    def test_limit_non_integer_returns_422(self, client):
+        """AC1: limit=abc (non-integer) must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?limit=abc")
+        assert response.status_code == 422
+
+    def test_limit_very_large_returns_422(self, client):
+        """AC1: limit=99999999 must return 422 Validation Error."""
+        response = client.get("/api/v1/review/history?limit=99999999")
         assert response.status_code == 422

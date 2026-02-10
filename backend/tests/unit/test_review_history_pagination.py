@@ -117,8 +117,7 @@ class TestHistoryAPIEndpoint:
         # Request without limit parameter
         response = client.get("/api/v1/review/history")
 
-        # Should succeed (endpoint works)
-        # The default limit=5 is enforced internally
+        # Story 34.9 AC4: Only accept 200 — HTTP 500 is never a valid response
         assert response.status_code == 200, f"Endpoint should return 200 with default limit, got {response.status_code}"
 
     @pytest.mark.asyncio
