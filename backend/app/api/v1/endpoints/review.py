@@ -18,6 +18,8 @@ from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 from fastapi import APIRouter, Depends, Query, status
 
 from app.models import (
@@ -72,7 +74,7 @@ try:
 except ImportError as e:
     _scheduler = None
     _scheduler_available = False
-    logging.warning(f"EbbinghausReviewScheduler not available: {e}")
+    logger.warning(f"EbbinghausReviewScheduler not available: {e}")
 
 
 # Code Review 38.3 C2 Fix: Module-level ReviewService singleton for non-Depends endpoints.
@@ -105,11 +107,11 @@ def _get_or_create_review_service():
             graphiti_client = get_graphiti_temporal_client()
         except Exception as e:
             # Code Review H4 Fix: Log the error instead of silently swallowing
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 f"Failed to get graphiti_client for ReviewService: {e}"
             )
         if not graphiti_client:
-            logging.getLogger(__name__).warning(
+            logger.warning(
                 "Graphiti client not available for ReviewService, "
                 "history will use FSRS fallback"
             )
@@ -155,7 +157,7 @@ async def _get_or_create_verification_service():
         from app.dependencies import get_rag_service
         rag_service = get_rag_service()
     except Exception as e:
-        logging.warning(f"RAG service not available for VerificationService: {e}")
+        logger.warning(f"RAG service not available for VerificationService: {e}")
 
     # 2. Cross-canvas service (Story 24.5)
     cross_canvas_service = None
@@ -163,7 +165,7 @@ async def _get_or_create_verification_service():
         from app.dependencies import get_cross_canvas_service
         cross_canvas_service = get_cross_canvas_service()
     except Exception as e:
-        logging.warning(f"CrossCanvas service not available: {e}")
+        logger.warning(f"CrossCanvas service not available: {e}")
 
     # 3. Textbook context service (Story 24.5 AC4)
     textbook_service = None
@@ -177,7 +179,7 @@ async def _get_or_create_verification_service():
             config=textbook_config
         )
     except Exception as e:
-        logging.warning(f"TextbookContext service not available: {e}")
+        logger.warning(f"TextbookContext service not available: {e}")
 
     # 4. Graphiti client (Story 31.4 - question deduplication)
     graphiti_client = None
@@ -185,7 +187,7 @@ async def _get_or_create_verification_service():
         from app.dependencies import get_graphiti_temporal_client
         graphiti_client = get_graphiti_temporal_client()
     except Exception as e:
-        logging.warning(f"Graphiti client not available for deduplication: {e}")
+        logger.warning(f"Graphiti client not available for deduplication: {e}")
 
     # 5. Memory service (Story 31.5 - difficulty adaptation, async)
     memory_service = None
@@ -193,7 +195,7 @@ async def _get_or_create_verification_service():
         from app.services.memory_service import get_memory_service
         memory_service = await get_memory_service()
     except Exception as e:
-        logging.warning(f"MemoryService not available for difficulty adaptation: {e}")
+        logger.warning(f"MemoryService not available for difficulty adaptation: {e}")
 
     # 6. Agent service (Story 31.1 - AI scoring + question generation)
     agent_service = None
@@ -215,7 +217,7 @@ async def _get_or_create_verification_service():
             neo4j_client=neo4j_client
         )
     except Exception as e:
-        logging.warning(f"AgentService not available for AI scoring: {e}")
+        logger.warning(f"AgentService not available for AI scoring: {e}")
 
     # 7. Canvas service (EPIC-36 P0 Fix - concept extraction)
     canvas_service = None
@@ -223,7 +225,7 @@ async def _get_or_create_verification_service():
         from app.services.canvas_service import CanvasService
         canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
     except Exception as e:
-        logging.warning(f"CanvasService not available for concept extraction: {e}")
+        logger.warning(f"CanvasService not available for concept extraction: {e}")
 
     _verification_service_instance = VerificationService(
         rag_service=rag_service,
@@ -236,7 +238,7 @@ async def _get_or_create_verification_service():
         canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None
     )
 
-    logging.info(
+    logger.info(
         f"VerificationService singleton created with full DI: "
         f"rag={'Y' if rag_service else 'N'}, "
         f"agent={'Y' if agent_service else 'N'}, "
@@ -268,7 +270,7 @@ try:
     _ai_question_available = True
 except ImportError:
     _ai_question_available = False
-    logging.info("AgentService not available, canvas uses template questions only")
+    logger.info("AgentService not available, canvas uses template questions only")
 
 # Story 31.2+31.5: Difficulty adaptation for one-click canvas generation
 try:
@@ -280,7 +282,7 @@ try:
     _difficulty_available = True
 except ImportError:
     _difficulty_available = False
-    logging.info("Difficulty adaptation not available, canvas uses uniform questions")
+    logger.info("Difficulty adaptation not available, canvas uses uniform questions")
 
 
 async def _get_difficulty_data(
@@ -308,7 +310,7 @@ async def _get_difficulty_data(
 
         # H1 fix: Guard against Neo4j not configured (memory_service.neo4j is None)
         if not hasattr(memory_service, 'neo4j') or memory_service.neo4j is None:
-            logging.info("Difficulty data skipped: Neo4j not configured (graceful degradation)")
+            logger.info("Difficulty data skipped: Neo4j not configured (graceful degradation)")
             return None
 
         async def _query_one(node: Dict) -> tuple:
@@ -349,7 +351,7 @@ async def _get_difficulty_data(
                     difficulty_map[nid] = diff
 
         if difficulty_map:
-            logging.info(
+            logger.info(
                 f"Difficulty data retrieved for {len(difficulty_map)}/{len(nodes_to_review)} nodes"
             )
             return difficulty_map
@@ -492,7 +494,7 @@ async def _generate_ai_questions(
                     question_map[src_id] = full_text
 
             if question_map:
-                logging.info(
+                logger.info(
                     f"AI generated {len(question_map)}/{len(nodes_data)} questions for canvas"
                 )
                 return question_map
@@ -877,10 +879,10 @@ async def generate_verification_canvas(
         ]
         skipped_mastered_count = pre_filter_count - len(nodes_to_review)
         if skipped_mastered_count > 0:
-            logging.info(f"Skipped {skipped_mastered_count} mastered concepts")
+            logger.info(f"Skipped {skipped_mastered_count} mastered concepts")
 
         if not nodes_to_review:
-            logging.info(f"All concepts mastered in {request.source_canvas}, nothing to review")
+            logger.info(f"All concepts mastered in {request.source_canvas}, nothing to review")
             return GenerateReviewResponse(
                 verification_canvas_name=verification_canvas_name,
                 node_count=0,
@@ -907,9 +909,9 @@ async def generate_verification_canvas(
     if _ai_question_available:
         ai_questions = await _generate_ai_questions(nodes_to_review, difficulty_map)
         if ai_questions:
-            logging.info(f"Using AI-generated questions for {len(ai_questions)} nodes")
+            logger.info(f"Using AI-generated questions for {len(ai_questions)} nodes")
         else:
-            logging.info("AI question generation unavailable, using templates")
+            logger.info("AI question generation unavailable, using templates")
 
     # Step 5: Generate verification canvas structure with clustering
     verification_nodes = []
@@ -1036,7 +1038,7 @@ async def generate_verification_canvas(
         )
 
     # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
-    logging.info(
+    logger.info(
         f"SUCCESS: Generated verification canvas: {verification_canvas_name} "
         f"with {len(nodes_to_review)} concepts in {len(clusters)} topic groups (mode={review_mode})"
     )
