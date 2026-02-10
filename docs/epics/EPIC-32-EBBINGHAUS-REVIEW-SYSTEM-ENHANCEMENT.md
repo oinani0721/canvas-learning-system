@@ -319,13 +319,13 @@ Phase 4: 文档 [Week 3] - P2
 |---------|---------|------|
 | FSRS管理器 | `src/memory/temporal/fsrs_manager.py` | 397 |
 | Ebbinghaus调度器 | `src/ebbinghaus_review.py` | 871 |
-| 复习服务 | `backend/app/services/review_service.py` | 1099 |
-| 复习API | `backend/app/api/v1/endpoints/review.py` | 522 |
+| 复习服务 | `backend/app/services/review_service.py` | 1924 |
+| 复习API | `backend/app/api/v1/endpoints/review.py` | 1640 |
 | 学科配置 | `backend/app/core/subject_config.py` | ~100 |
-| 记忆服务 | `backend/app/services/memory_service.py` | 684 |
+| 记忆服务 | `backend/app/services/memory_service.py` | 1338 |
 | Graphiti客户端 | `src/agentic_rag/clients/graphiti_temporal_client.py` | 789 |
 | Dashboard视图 | `canvas-progress-tracker/obsidian-plugin/src/views/ReviewDashboardView.ts` | 3100+ |
-| 今日复习服务 | `canvas-progress-tracker/obsidian-plugin/src/services/TodayReviewListService.ts` | 790 |
+| 今日复习服务 | `canvas-progress-tracker/obsidian-plugin/src/services/TodayReviewListService.ts` | 910 |
 | 优先级计算器 | `canvas-progress-tracker/obsidian-plugin/src/services/PriorityCalculatorService.ts` | 627 |
 | 插件设置 | `canvas-progress-tracker/obsidian-plugin/src/settings/PluginSettingsTab.ts` | ~400 |
 | 设置类型 | `canvas-progress-tracker/obsidian-plugin/src/types/settings.ts` | ~200 |
@@ -339,7 +339,7 @@ Phase 4: 文档 [Week 3] - P2
 
 1. **Week 1**: Story 32.1 → Story 32.2 (顺序依赖)
 2. **Week 2**: Story 32.3 + Story 32.4 (可并行)
-3. **Week 3**: Story 32.5 → Story 32.6 + Story 32.7 (32.5后可并行)
+3. **Week 3**: Story 32.6 + Story 32.7 (可并行，~~32.5已删除~~)
 
 使用 `/BMad:agents:dev` 或 `*create-brownfield-story` 开始实施具体Story。
 

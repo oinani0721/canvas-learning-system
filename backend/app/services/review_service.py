@@ -59,11 +59,13 @@ Story 32.2: Migrated from Ebbinghaus fixed intervals to FSRS-4.5 dynamic schedul
 # ═══════════════════════════════════════════════════════════════════════════════
 """
 import asyncio
+import json
 import logging
 import random
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from enum import Enum
+from pathlib import Path as _Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from app.core.exceptions import CanvasNotFoundException, TaskNotFoundError
@@ -91,6 +93,15 @@ except ImportError:
 # FSRS_AVAILABLE = library importable (compile-time).
 # FSRS_RUNTIME_OK = FSRSManager actually initialized (runtime). None = not yet attempted.
 FSRS_RUNTIME_OK: Optional[bool] = None
+
+# P0-2: Card state persistence file path (matches learning_memories.json pattern)
+_CARD_STATES_FILE = _Path(__file__).parent.parent.parent / "data" / "fsrs_card_states.json"
+
+# H2 fix: Module-level asyncio.Lock for concurrent card_states write protection
+_card_states_lock = asyncio.Lock()
+
+# Story 34.8 AC3: Hard cap for show_all=True to prevent memory overflow
+MAX_HISTORY_RECORDS = 1000
 
 if TYPE_CHECKING:
     from app.services.background_task_manager import BackgroundTaskManager
@@ -163,6 +174,44 @@ class ReviewProgress:
         }
 
 
+def create_fsrs_manager(settings=None) -> Optional[Any]:
+    """
+    Unified FSRSManager factory. Used by both DI and singleton paths.
+
+    Story 32.8 AC-32.8.3 + AC-32.8.4: Single creation path with USE_FSRS check.
+
+    Args:
+        settings: Application settings. If None, loads from get_settings().
+
+    Returns:
+        FSRSManager instance or None if FSRS is disabled/unavailable.
+    """
+    if settings is None:
+        try:
+            from app.config import get_settings
+            settings = get_settings()
+        except Exception as e:
+            logger.warning(f"Cannot load settings for FSRSManager: {e}")
+            return None
+
+    if not settings.USE_FSRS:
+        logger.info("FSRS disabled via USE_FSRS=False")
+        return None
+
+    if not FSRS_AVAILABLE or FSRSManager is None:
+        logger.warning("FSRS not available (py-fsrs not installed)")
+        return None
+
+    try:
+        retention = settings.FSRS_DESIRED_RETENTION
+        mgr = FSRSManager(desired_retention=retention)
+        logger.info(f"FSRSManager created (desired_retention={retention})")
+        return mgr
+    except Exception as e:
+        logger.warning(f"FSRSManager creation failed: {e}")
+        return None
+
+
 class ReviewService:
     """
     Review and verification canvas business logic service.
@@ -200,7 +249,7 @@ class ReviewService:
         self.graphiti_client = graphiti_client
 
         # Story 32.2 AC-32.2.1: Initialize FSRSManager with configurable desired_retention
-        # Default retention rate is 0.9 (90% target recall probability)
+        # Story 32.8 AC-32.8.3: USE_FSRS=False skips FSRSManager initialization
         # Story 38.3 AC-3: Enhanced init logging for FSRS status
         self._fsrs_init_ok = False
         self._fsrs_init_reason: Optional[str] = None
@@ -210,28 +259,57 @@ class ReviewService:
             self._fsrs_init_ok = True
             FSRS_RUNTIME_OK = True
             logger.info("FSRS manager initialized successfully")
-        elif FSRS_AVAILABLE and FSRSManager is not None:
-            try:
-                self._fsrs_manager = FSRSManager(desired_retention=0.9)
+        else:
+            # Story 32.8: Auto-create via unified factory (checks USE_FSRS internally)
+            auto_mgr = create_fsrs_manager()
+            if auto_mgr is not None:
+                self._fsrs_manager = auto_mgr
                 self._fsrs_init_ok = True
                 FSRS_RUNTIME_OK = True
-                logger.info("FSRS manager initialized successfully")
-            except Exception as e:
+                logger.info("FSRS manager auto-created via factory")
+            else:
                 self._fsrs_manager = None
-                self._fsrs_init_reason = str(e)
+                self._fsrs_init_reason = "FSRS disabled or unavailable"
                 FSRS_RUNTIME_OK = False
-                logger.warning(f"FSRS manager failed to initialize: {e}")
-        else:
-            self._fsrs_manager = None
-            self._fsrs_init_reason = "py-fsrs library not available"
-            FSRS_RUNTIME_OK = False
-            logger.warning(f"FSRS manager failed to initialize: {self._fsrs_init_reason}")
+                logger.warning(f"FSRS manager not initialized: {self._fsrs_init_reason}")
 
         self._initialized = True
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
-        # Story 32.2: Card state storage for FSRS persistence (keyed by concept_id)
-        self._card_states: Dict[str, str] = {}  # concept_id -> serialized card JSON
+        # Story 32.2 + P0-2: Card state storage with file persistence
+        self._card_states: Dict[str, str] = self._load_card_states()
         logger.debug("ReviewService initialized")
+
+    @staticmethod
+    def _load_card_states() -> Dict[str, str]:
+        """P0-2: Load card states from persistent JSON file on startup."""
+        try:
+            if _CARD_STATES_FILE.exists():
+                data = _CARD_STATES_FILE.read_text(encoding="utf-8")
+                loaded = json.loads(data)
+                if isinstance(loaded, dict):
+                    logger.info(f"Loaded {len(loaded)} FSRS card states from {_CARD_STATES_FILE}")
+                    return loaded
+        except Exception as e:
+            logger.warning(f"Failed to load FSRS card states: {e}")
+        return {}
+
+    async def _save_card_states(self) -> None:
+        """P0-2: Persist card states to JSON file with concurrency protection.
+
+        H2 fix: Uses asyncio.Lock to prevent concurrent writes and atomic
+        write (temp file + rename) to prevent file corruption.
+        """
+        async with _card_states_lock:
+            try:
+                _CARD_STATES_FILE.parent.mkdir(parents=True, exist_ok=True)
+                data = json.dumps(self._card_states, ensure_ascii=False, indent=2)
+                # Atomic write: write to temp file then rename
+                tmp_file = _CARD_STATES_FILE.with_suffix(".json.tmp")
+                await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
+                await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
+                logger.debug(f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
+            except Exception as e:
+                logger.warning(f"Failed to save FSRS card states: {e}")
 
     def _extract_question_from_node(self, node: Dict[str, Any]) -> str:
         """
@@ -740,7 +818,12 @@ class ReviewService:
         elif rating is None:
             rating = 3  # Default to Good if no input provided
 
-        # Validate rating
+        # P0-3: Validate rating - handle non-integer types (e.g. "abc", 5.7)
+        try:
+            rating = int(rating)
+        except (TypeError, ValueError):
+            logger.warning(f"Invalid rating value '{rating}', defaulting to 3")
+            rating = 3
         rating = max(1, min(4, rating))
 
         # Story 32.2: Use FSRS for recording if available
@@ -778,9 +861,16 @@ class ReviewService:
                 # Serialize card for persistence
                 card_data = self._fsrs_manager.serialize_card(updated_card)
 
-                # Store in memory cache (Task 4: persistence)
+                # Store in memory cache + persist to file (P0-2)
                 if concept_id:
                     self._card_states[concept_id] = card_data
+                    await self._save_card_states()
+                else:
+                    # M3 fix: Warn when concept_id is empty — card state will not be persisted
+                    logger.warning(
+                        f"Empty concept_id for canvas '{canvas_name}' — "
+                        f"FSRS card state computed but NOT persisted"
+                    )
 
                 # Extract state value safely
                 state_val = getattr(updated_card, "state", 0)
@@ -1632,8 +1722,9 @@ class ReviewService:
                     if record.get("concept") == concept_id:
                         card_data = record.get("card_data")
                         if card_data:
-                            # Cache it
+                            # Cache it + persist (P0-2)
                             self._card_states[concept_id] = card_data
+                            await self._save_card_states()
                             logger.debug(f"Loaded card state from Graphiti: {concept_id}")
                             return card_data
 
@@ -1665,8 +1756,9 @@ class ReviewService:
         Returns:
             True if saved successfully
         """
-        # Always update in-memory cache
+        # Always update in-memory cache + persist to file (P0-2)
         self._card_states[concept_id] = card_data
+        await self._save_card_states()
         logger.debug(f"Saved card state to memory cache: {concept_id}")
 
         # Try to persist to Graphiti
@@ -1747,8 +1839,9 @@ class ReviewService:
                 logger.info(f"Auto-creating default FSRS card for concept: {concept_id}")
                 card = self._fsrs_manager.create_card()
                 card_data = self._fsrs_manager.serialize_card(card)
-                # Cache the newly created card
+                # Cache the newly created card + persist (P0-2)
                 self._card_states[concept_id] = card_data
+                await self._save_card_states()
                 # Story 38.3 AC-4 + Code Review C1/M3 Fix:
                 # Persist auto-created card via fire-and-forget background task.
                 # Bypasses self.graphiti_client gate (not injected by dependencies.py)
@@ -1820,11 +1913,15 @@ class ReviewService:
         """
         Cleanup resources when service is no longer needed.
 
+        Note: _card_states is NOT cleared here because it is shared persistent state
+        that survives across requests. Clearing it would cause unnecessary file re-reads.
+
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
         """
         self._initialized = False
         self._task_canvas_map.clear()
-        self._card_states.clear()  # Story 32.2: Clear card state cache
+        # H1 fix: Do NOT clear _card_states — it's cross-request persistent cache.
+        # Clearing here causes data loss when DI yield calls cleanup after each request.
         logger.debug("ReviewService cleanup completed")
 
     # ═══════════════════════════════════════════════════════════════════════════════
