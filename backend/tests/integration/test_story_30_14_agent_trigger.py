@@ -10,14 +10,9 @@ Task 3: Mapping completeness static analysis tests (AC-30.14.3)
 [Source: docs/stories/30.14.test-agent-trigger-integration.story.md]
 """
 
-import asyncio
 import re
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
-
-# _trigger_memory_write uses asyncio.create_task() (fire-and-forget).
-# We need to give the event loop time to process the background task.
-FIRE_AND_FORGET_SETTLE_TIME = 0.15
 
 import pytest
 
@@ -121,7 +116,7 @@ class TestTriggerMemoryWriteParametrized:
     @pytest.mark.parametrize("agent_name", ALL_AGENTS)
     @pytest.mark.asyncio
     async def test_trigger_calls_record_for_mapped_agent(
-        self, agent_service, mock_memory_client, agent_name
+        self, agent_service, mock_memory_client, agent_name, wait_for_call
     ):
         """_trigger_memory_write calls record_learning_episode for each mapped agent."""
         await agent_service._trigger_memory_write(
@@ -132,8 +127,8 @@ class TestTriggerMemoryWriteParametrized:
             user_understanding="User answer text",
         )
 
-        # Fire-and-forget: give event loop time to process the background task
-        await asyncio.sleep(FIRE_AND_FORGET_SETTLE_TIME)
+        # Wait for fire-and-forget background task to complete
+        await wait_for_call(mock_memory_client.add_learning_episode)
 
         # Should have called add_learning_episode
         mock_memory_client.add_learning_episode.assert_called_once()
@@ -163,7 +158,7 @@ class TestAgentFailureDegradation:
 
     @pytest.mark.asyncio
     async def test_memory_write_failure_non_blocking(
-        self, agent_service, mock_memory_client
+        self, agent_service, mock_memory_client, wait_for_call
     ):
         """Memory write failure does not raise exceptions (fire-and-forget)."""
         mock_memory_client.add_learning_episode = AsyncMock(
@@ -178,8 +173,8 @@ class TestAgentFailureDegradation:
             concept="Test Concept",
         )
 
-        # Fire-and-forget: give event loop time to process the background task
-        await asyncio.sleep(FIRE_AND_FORGET_SETTLE_TIME)
+        # Wait for fire-and-forget background task to complete
+        await wait_for_call(mock_memory_client.add_learning_episode)
 
         # Verify it was attempted
         mock_memory_client.add_learning_episode.assert_called_once()
@@ -219,7 +214,7 @@ class TestAgentFailureDegradation:
 
     @pytest.mark.asyncio
     async def test_trigger_with_all_optional_params(
-        self, agent_service, mock_memory_client
+        self, agent_service, mock_memory_client, wait_for_call
     ):
         """_trigger_memory_write accepts all optional parameters."""
         await agent_service._trigger_memory_write(
@@ -232,8 +227,8 @@ class TestAgentFailureDegradation:
             agent_feedback="Good understanding, needs more depth",
         )
 
-        # Fire-and-forget: give event loop time to process the background task
-        await asyncio.sleep(FIRE_AND_FORGET_SETTLE_TIME)
+        # Wait for fire-and-forget background task to complete
+        await wait_for_call(mock_memory_client.add_learning_episode)
 
         mock_memory_client.add_learning_episode.assert_called_once()
 
