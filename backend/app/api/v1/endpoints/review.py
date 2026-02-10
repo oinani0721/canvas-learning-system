@@ -77,70 +77,12 @@ except ImportError as e:
     logger.warning(f"EbbinghausReviewScheduler not available: {e}")
 
 
-# Code Review 38.3 C2 Fix: Module-level ReviewService singleton for non-Depends endpoints.
-# Multiple endpoints (L379, L722, L807, L1006) call get_review_service() without args,
-# but it's an async generator requiring FastAPI DI. This singleton provides a working fallback.
-_review_service_instance = None
-
-
-def _get_or_create_review_service():
-    """Get or create module-level ReviewService singleton.
-
-    Story 32.8 AC-32.8.4: Uses unified create_fsrs_manager() factory.
-    Story 32.8 AC-32.8.3: Factory checks USE_FSRS setting.
-    """
-    global _review_service_instance
-    if _review_service_instance is None:
-        from app.config import get_settings
-        from app.services.canvas_service import CanvasService
-        from app.services.background_task_manager import BackgroundTaskManager
-        from app.services.review_service import ReviewService, create_fsrs_manager
-        settings = get_settings()
-        # Story 34.9 AC3: Inject memory_client into CanvasService
-        # (aligning with dependencies.py:get_canvas_service P0 fix)
-        memory_client = None
-        try:
-            from app.services.memory_service import get_memory_service as _get_mem_svc
-            import asyncio
-            # Attempt sync retrieval — singleton may already be initialized
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # Cannot await in sync context; try importing the cached instance
-                from app.services import memory_service as _mem_mod
-                memory_client = _mem_mod._memory_service_instance
-            else:
-                memory_client = loop.run_until_complete(_get_mem_svc())
-        except Exception as e:
-            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
-        canvas_service = CanvasService(
-            canvas_base_path=settings.canvas_base_path,
-            memory_client=memory_client
-        )
-        task_manager = BackgroundTaskManager()
-        # Story 32.8: Unified factory (checks USE_FSRS + creates FSRSManager)
-        fsrs_manager = create_fsrs_manager(settings)
-        # Story 34.8 AC2: Explicitly inject graphiti_client
-        graphiti_client = None
-        try:
-            from app.dependencies import get_graphiti_temporal_client
-            graphiti_client = get_graphiti_temporal_client()
-        except Exception as e:
-            # Code Review H4 Fix: Log the error instead of silently swallowing
-            logger.warning(
-                f"Failed to get graphiti_client for ReviewService: {e}"
-            )
-        if not graphiti_client:
-            logger.warning(
-                "Graphiti client not available for ReviewService, "
-                "history will use FSRS fallback"
-            )
-        _review_service_instance = ReviewService(
-            canvas_service=canvas_service,
-            task_manager=task_manager,
-            graphiti_client=graphiti_client,
-            fsrs_manager=fsrs_manager
-        )
-    return _review_service_instance
+# Story 38.9 AC3: ReviewService singleton now lives in services layer.
+# Import the canonical factory instead of maintaining a duplicate here.
+from app.services.review_service import (
+    get_review_service as _get_review_service_singleton,
+    reset_review_service_singleton as _reset_review_service_singleton,
+)
 
 
 # Code Review H1 Fix: Module-level VerificationService singleton with full DI.
@@ -722,9 +664,8 @@ async def get_review_history(
     end_date = date.today()
     start_date = end_date - timedelta(days=days)
 
-    # Code Review C2 Fix: Use module-level singleton instead of broken
-    # get_review_service() async generator call without DI args.
-    review_service = _get_or_create_review_service()
+    # Story 38.9 AC3: Use canonical singleton from services layer
+    review_service = await _get_review_service_singleton()
 
     try:
         # Story 34.8 AC3: show_all uses hard cap instead of unlimited
@@ -1107,9 +1048,8 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     from datetime import date, timedelta
 
     logger.info("POST /review/record canvas=%s node=%s rating=%s score=%s", request.canvas_name, request.node_id, request.rating, request.score)
-    # Code Review C2 Fix: Use module-level singleton instead of broken
-    # get_review_service() async generator call without DI args.
-    review_service = _get_or_create_review_service()
+    # Story 38.9 AC3: Use canonical singleton from services layer
+    review_service = await _get_review_service_singleton()
 
     try:
         # Call record_review_result with new FSRS-enabled parameters
@@ -1199,8 +1139,8 @@ async def get_multi_review_progress(
     from app.core.exceptions import CanvasNotFoundException
 
     try:
-        # Code Review C2 Fix: Use module-level singleton
-        review_service = _get_or_create_review_service()
+        # Story 38.9 AC3: Use canonical singleton from services layer
+        review_service = await _get_review_service_singleton()
         result = await review_service.get_multi_review_progress(original_canvas_path)
         return MultiReviewProgressResponse(**result)
     except CanvasNotFoundException as e:
@@ -1405,10 +1345,9 @@ async def get_fsrs_state(concept_id: str) -> FSRSStateQueryResponse:
     [Source: docs/stories/32.3.story.md#Task-1]
     """
     logger.info("GET /review/fsrs-state concept_id=%s", concept_id)
-    # Code Review C2 Fix: Use _get_or_create_review_service() singleton
-    # instead of broken get_review_service() async generator call.
+    # Story 38.9 AC3: Use canonical singleton from services layer
     try:
-        review_service = _get_or_create_review_service()
+        review_service = await _get_review_service_singleton()
         result = await review_service.get_fsrs_state(concept_id)
 
         if not result or not result.get("found"):
@@ -1791,6 +1730,9 @@ async def submit_verification_answer(
         return SubmitAnswerResponse(
             quality=result["quality"],
             score=result["score"],
+            degraded=result.get("degraded", False),
+            degraded_reason=result.get("degraded_reason"),
+            degraded_warning=result.get("degraded_warning"),
             action=result["action"],
             hint=result.get("hint"),
             next_question=result.get("next_question"),

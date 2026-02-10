@@ -677,6 +677,24 @@ class SubmitAnswerResponse(BaseModel):
         description="Numerical score (0-100 unified scale)",
         json_schema_extra={"example": 75.0}
     )
+    degraded: bool = Field(
+        ...,
+        description="Whether scoring used fallback/mock evaluation",
+        json_schema_extra={"example": False}
+    )
+    degraded_reason: Optional[str] = Field(
+        None,
+        description=(
+            "Reason for degradation: mock_mode_enabled, agent_timeout, "
+            "agent_exception, or agent_unavailable. None when not degraded."
+        ),
+        json_schema_extra={"example": None}
+    )
+    degraded_warning: Optional[str] = Field(
+        None,
+        description="User-facing warning when scoring is degraded. None when not degraded.",
+        json_schema_extra={"example": None}
+    )
     action: str = Field(
         ...,
         description="Recommended next action: hint, next, or complete",

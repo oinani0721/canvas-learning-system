@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-10T07:27:13.623058+00:00",
+    "x-generated-at": "2026-02-10T12:27:17.797242+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -490,6 +490,33 @@
                       "timestamp": "2026-01-20T10:29:45Z"
                     }
                   }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/api/v1/health/storage/reset-counters": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "重置存储失败计数器",
+        "description": "重置 edge_sync_failures 和 dual_write_failures 计数器（运维用）",
+        "operationId": "reset_storage_failure_counters",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Reset Storage Failure Counters"
                 }
               }
             }
@@ -13313,6 +13340,18 @@
             "format": "date-time",
             "title": "Timestamp",
             "description": "Health check timestamp"
+          },
+          "edge_sync_failures": {
+            "type": "integer",
+            "title": "Edge Sync Failures",
+            "description": "Total edge sync failures since last reset",
+            "default": 0
+          },
+          "dual_write_failures": {
+            "type": "integer",
+            "title": "Dual Write Failures",
+            "description": "Total dual-write failures since last reset",
+            "default": 0
           }
         },
         "type": "object",
@@ -13480,6 +13519,36 @@
             "description": "Numerical score (0-100 unified scale)",
             "example": 75.0
           },
+          "degraded": {
+            "type": "boolean",
+            "title": "Degraded",
+            "description": "Whether scoring used fallback/mock evaluation",
+            "example": false
+          },
+          "degraded_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded Reason",
+            "description": "Reason for degradation: mock_mode_enabled, agent_timeout, agent_exception, or agent_unavailable. None when not degraded."
+          },
+          "degraded_warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Degraded Warning",
+            "description": "User-facing warning when scoring is degraded. None when not degraded."
+          },
           "action": {
             "type": "string",
             "title": "Action",
@@ -13525,6 +13594,7 @@
         "required": [
           "quality",
           "score",
+          "degraded",
           "action",
           "current_concept",
           "progress"
