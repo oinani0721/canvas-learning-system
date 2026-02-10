@@ -1052,6 +1052,11 @@ class AgentService:
 
         if self._memory_client:
             logger.info("AgentService will use LearningMemoryClient for historical context")
+        else:
+            logger.warning(
+                "AgentService initialized without LearningMemoryClient - "
+                "historical context fallback unavailable when Neo4j is down"
+            )
 
         # Story 36.7: Log Neo4jClient injection status
         if self._neo4j_client:
