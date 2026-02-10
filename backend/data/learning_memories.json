@@ -49,6 +49,556 @@
       "score": null,
       "agent_feedback": null,
       "timestamp": "2026-02-07T02:01:26.804220"
+    },
+    {
+      "key": "test/e2e_744808be.canvas:e2e_node_9a2323f3:2026-02-09T18:30:57.268277",
+      "canvas_name": "test/e2e_744808be.canvas",
+      "node_id": "e2e_node_9a2323f3",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:57.268277"
+    },
+    {
+      "key": "test/e2e_d71f560b.canvas:e2e_node_91cc0e81:2026-02-09T18:30:57.472167",
+      "canvas_name": "test/e2e_d71f560b.canvas",
+      "node_id": "e2e_node_91cc0e81",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:57.472167"
+    },
+    {
+      "key": "test/complete.canvas:complete_node_001:2026-02-09T18:30:57.709508",
+      "canvas_name": "test/complete.canvas",
+      "node_id": "complete_node_001",
+      "concept": "完整测试概念",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:57.709508"
+    },
+    {
+      "key": "数学/线代.canvas:math_node:2026-02-09T18:30:57.958294",
+      "canvas_name": "数学/线代.canvas",
+      "node_id": "math_node",
+      "concept": "矩阵乘法",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:57.958294"
+    },
+    {
+      "key": "test/pagination_0.canvas:pagination_node_0:2026-02-09T18:30:58.136929",
+      "canvas_name": "test/pagination_0.canvas",
+      "node_id": "pagination_node_0",
+      "concept": "分页测试概念_0",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:58.136929"
+    },
+    {
+      "key": "test/pagination_1.canvas:pagination_node_1:2026-02-09T18:30:58.303582",
+      "canvas_name": "test/pagination_1.canvas",
+      "node_id": "pagination_node_1",
+      "concept": "分页测试概念_1",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:58.303582"
+    },
+    {
+      "key": "test/pagination_2.canvas:pagination_node_2:2026-02-09T18:30:58.468465",
+      "canvas_name": "test/pagination_2.canvas",
+      "node_id": "pagination_node_2",
+      "concept": "分页测试概念_2",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:58.468465"
+    },
+    {
+      "key": "test/pagination_3.canvas:pagination_node_3:2026-02-09T18:30:58.641081",
+      "canvas_name": "test/pagination_3.canvas",
+      "node_id": "pagination_node_3",
+      "concept": "分页测试概念_3",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:58.641081"
+    },
+    {
+      "key": "test/pagination_4.canvas:pagination_node_4:2026-02-09T18:30:58.774798",
+      "canvas_name": "test/pagination_4.canvas",
+      "node_id": "pagination_node_4",
+      "concept": "分页测试概念_4",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:58.774798"
+    },
+    {
+      "key": "test/persist.canvas:persist_node:2026-02-09T18:30:59.102470",
+      "canvas_name": "test/persist.canvas",
+      "node_id": "persist_node",
+      "concept": "持久化测试_b540776a",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:59.102470"
+    },
+    {
+      "key": "test/multi_0.canvas:multi_node_0:2026-02-09T18:30:59.301072",
+      "canvas_name": "test/multi_0.canvas",
+      "node_id": "multi_node_0",
+      "concept": "概念A_1ec6",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:59.301072"
+    },
+    {
+      "key": "test/multi_1.canvas:multi_node_1:2026-02-09T18:30:59.455612",
+      "canvas_name": "test/multi_1.canvas",
+      "node_id": "multi_node_1",
+      "concept": "概念B_2524",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:30:59.455612"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-09T18:31:09.528274",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "understanding",
+      "user_understanding": null,
+      "score": 0.0,
+      "agent_feedback": "score",
+      "timestamp": "2026-02-09T18:31:09.528274"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-09T18:31:10.148881",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "understanding",
+      "user_understanding": null,
+      "score": 0.0,
+      "agent_feedback": "score",
+      "timestamp": "2026-02-09T18:31:10.148881"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-09T18:31:10.851572",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "understanding",
+      "user_understanding": null,
+      "score": 0.0,
+      "agent_feedback": "score",
+      "timestamp": "2026-02-09T18:31:10.851572"
+    },
+    {
+      "key": "test-canvas.canvas:7dbaa39d:2026-02-09T18:33:25.136737",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "7dbaa39d",
+      "concept": "Integration Test Node",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:25.136737"
+    },
+    {
+      "key": "test-canvas.canvas:existing-node:2026-02-09T18:33:25.282134",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "existing-node",
+      "concept": "Updated Text",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_updated",
+      "timestamp": "2026-02-09T18:33:25.282134"
+    },
+    {
+      "key": "test-canvas.canvas:target-node:2026-02-09T18:33:25.389821",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "target-node",
+      "concept": "Target",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:25.389821"
+    },
+    {
+      "key": "test-canvas.canvas:fd9cd976:2026-02-09T18:33:25.548400",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "fd9cd976",
+      "concept": "Schema Test",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:25.548400"
+    },
+    {
+      "key": "test-canvas.canvas:1ad1717b:2026-02-09T18:33:25.694567",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "1ad1717b",
+      "concept": "Node 1",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:25.694567"
+    },
+    {
+      "key": "test-canvas.canvas:1ad1717b:2026-02-09T18:33:25.729258",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "1ad1717b",
+      "concept": "Node 1",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_updated",
+      "timestamp": "2026-02-09T18:33:25.729258"
+    },
+    {
+      "key": "test-canvas.canvas:34179fdf:2026-02-09T18:33:25.760589",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "34179fdf",
+      "concept": "Node 2",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:25.760589"
+    },
+    {
+      "key": "test-canvas.canvas:59ed58e6:2026-02-09T18:33:26.324917",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "59ed58e6",
+      "concept": "Canvas 1 Node",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:26.324917"
+    },
+    {
+      "key": "concurrent-canvas.canvas:39fe9bf1:2026-02-09T18:33:26.335942",
+      "canvas_name": "concurrent-canvas.canvas",
+      "node_id": "39fe9bf1",
+      "concept": "Canvas 2 Node",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:26.335942"
+    },
+    {
+      "key": "test-canvas.canvas:c9dbe312:2026-02-09T18:33:26.406283",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "c9dbe312",
+      "concept": "Concept: Machine Learning",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:33:26.406283"
+    },
+    {
+      "key": "test-canvas.canvas:node-b:2026-02-09T18:35:11.081402",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "node-b",
+      "concept": "Node B",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:35:11.081402"
+    },
+    {
+      "key": "test-canvas.canvas:1d07eb22:2026-02-09T18:35:11.120451",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "1d07eb22",
+      "concept": "edge_created:1d07eb22",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "edge_created",
+      "timestamp": "2026-02-09T18:35:11.120451"
+    },
+    {
+      "key": "test-canvas.canvas:66012a4b:2026-02-09T18:35:11.271416",
+      "canvas_name": "test-canvas.canvas",
+      "node_id": "66012a4b",
+      "concept": "Test Node",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "node_created",
+      "timestamp": "2026-02-09T18:35:11.271416"
+    },
+    {
+      "key": "test/dual_write_test_bf11a184.canvas:dual_node_test_bf11a184:2026-02-09T18:35:38.134260",
+      "canvas_name": "test/dual_write_test_bf11a184.canvas",
+      "node_id": "dual_node_test_bf11a184",
+      "concept": "双写测试概念",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:35:38.134260"
+    },
+    {
+      "key": "test/integration/test.canvas:test_node_30caafab:2026-02-09T18:35:44.715792",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "test_node_30caafab",
+      "concept": "双写周期测试_2380447d",
+      "user_understanding": null,
+      "score": 95.0,
+      "agent_feedback": "dual_write_test",
+      "timestamp": "2026-02-09T18:35:44.715792"
+    },
+    {
+      "key": "test/integration/test.canvas:concurrent_node_0:2026-02-09T18:35:45.604069",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "concurrent_node_0",
+      "concept": "并发测试概念_0_2887",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "concurrent_test",
+      "timestamp": "2026-02-09T18:35:45.604069"
+    },
+    {
+      "key": "test/integration/test.canvas:concurrent_node_1:2026-02-09T18:35:45.624340",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "concurrent_node_1",
+      "concept": "并发测试概念_1_94af",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "concurrent_test",
+      "timestamp": "2026-02-09T18:35:45.624340"
+    },
+    {
+      "key": "test/integration/test.canvas:concurrent_node_2:2026-02-09T18:35:45.642636",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "concurrent_node_2",
+      "concept": "并发测试概念_2_3442",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "concurrent_test",
+      "timestamp": "2026-02-09T18:35:45.642636"
+    },
+    {
+      "key": "test/integration/test.canvas:concurrent_node_3:2026-02-09T18:35:45.660352",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "concurrent_node_3",
+      "concept": "并发测试概念_3_d451",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "concurrent_test",
+      "timestamp": "2026-02-09T18:35:45.660352"
+    },
+    {
+      "key": "test/integration/test.canvas:concurrent_node_4:2026-02-09T18:35:45.674675",
+      "canvas_name": "test/integration/test.canvas",
+      "node_id": "concurrent_node_4",
+      "concept": "并发测试概念_4_d99d",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "concurrent_test",
+      "timestamp": "2026-02-09T18:35:45.674675"
+    },
+    {
+      "key": "test/persistence/linear_algebra.canvas:test_node_e521dae4:2026-02-09T18:38:04.694648",
+      "canvas_name": "test/persistence/linear_algebra.canvas",
+      "node_id": "test_node_e521dae4",
+      "concept": "线性代数-矩阵乘法-7e799e",
+      "user_understanding": null,
+      "score": 90.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:38:04.694648"
+    },
+    {
+      "key": "test/persistence/canvas_0.canvas:test_node_9851ad16:2026-02-09T18:38:05.070541",
+      "canvas_name": "test/persistence/canvas_0.canvas",
+      "node_id": "test_node_9851ad16",
+      "concept": "微积分-dc89",
+      "user_understanding": null,
+      "score": 70.0,
+      "agent_feedback": "basic-decomposition",
+      "timestamp": "2026-02-09T18:38:05.070541"
+    },
+    {
+      "key": "test/persistence/canvas_1.canvas:test_node_3e9c264e:2026-02-09T18:38:05.078924",
+      "canvas_name": "test/persistence/canvas_1.canvas",
+      "node_id": "test_node_3e9c264e",
+      "concept": "概率论-a048",
+      "user_understanding": null,
+      "score": 80.0,
+      "agent_feedback": "basic-decomposition",
+      "timestamp": "2026-02-09T18:38:05.078924"
+    },
+    {
+      "key": "test/persistence/canvas_2.canvas:test_node_ba46f121:2026-02-09T18:38:05.088963",
+      "canvas_name": "test/persistence/canvas_2.canvas",
+      "node_id": "test_node_ba46f121",
+      "concept": "线性代数-5a71",
+      "user_understanding": null,
+      "score": 90.0,
+      "agent_feedback": "basic-decomposition",
+      "timestamp": "2026-02-09T18:38:05.088963"
+    },
+    {
+      "key": "test/数学/calculus.canvas:test_node_569f2798:2026-02-09T18:38:05.334587",
+      "canvas_name": "test/数学/calculus.canvas",
+      "node_id": "test_node_569f2798",
+      "concept": "微积分-6a9d",
+      "user_understanding": null,
+      "score": 85.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:38:05.334587"
+    },
+    {
+      "key": "test/物理/quantum.canvas:test_node_0d17e92f:2026-02-09T18:38:05.344710",
+      "canvas_name": "test/物理/quantum.canvas",
+      "node_id": "test_node_0d17e92f",
+      "concept": "量子力学-27a4",
+      "user_understanding": null,
+      "score": 78.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:38:05.344710"
+    },
+    {
+      "key": "test-canvas:node1:2026-02-09T18:38:41.869502",
+      "canvas_name": "test-canvas",
+      "node_id": "node1",
+      "concept": "understanding",
+      "user_understanding": null,
+      "score": 0.0,
+      "agent_feedback": "score",
+      "timestamp": "2026-02-09T18:38:41.869502"
+    },
+    {
+      "key": "test-canvas:node2:2026-02-09T18:38:41.879466",
+      "canvas_name": "test-canvas",
+      "node_id": "node2",
+      "concept": "understanding",
+      "user_understanding": null,
+      "score": 0.0,
+      "agent_feedback": "score",
+      "timestamp": "2026-02-09T18:38:41.879466"
+    },
+    {
+      "key": "test/e2e_983571f2.canvas:e2e_node_24428357:2026-02-09T18:41:59.796191",
+      "canvas_name": "test/e2e_983571f2.canvas",
+      "node_id": "e2e_node_24428357",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:41:59.796191"
+    },
+    {
+      "key": "test/e2e_89125542.canvas:e2e_node_d8cb635b:2026-02-09T18:41:59.942937",
+      "canvas_name": "test/e2e_89125542.canvas",
+      "node_id": "e2e_node_d8cb635b",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:41:59.942937"
+    },
+    {
+      "key": "test/complete.canvas:complete_node_001:2026-02-09T18:42:00.121588",
+      "canvas_name": "test/complete.canvas",
+      "node_id": "complete_node_001",
+      "concept": "完整测试概念",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.121588"
+    },
+    {
+      "key": "数学/线代.canvas:math_node:2026-02-09T18:42:00.320290",
+      "canvas_name": "数学/线代.canvas",
+      "node_id": "math_node",
+      "concept": "矩阵乘法",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.320290"
+    },
+    {
+      "key": "test/pagination_0.canvas:pagination_node_0:2026-02-09T18:42:00.482197",
+      "canvas_name": "test/pagination_0.canvas",
+      "node_id": "pagination_node_0",
+      "concept": "分页测试概念_0",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.482197"
+    },
+    {
+      "key": "test/pagination_1.canvas:pagination_node_1:2026-02-09T18:42:00.595022",
+      "canvas_name": "test/pagination_1.canvas",
+      "node_id": "pagination_node_1",
+      "concept": "分页测试概念_1",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.595022"
+    },
+    {
+      "key": "test/pagination_2.canvas:pagination_node_2:2026-02-09T18:42:00.699519",
+      "canvas_name": "test/pagination_2.canvas",
+      "node_id": "pagination_node_2",
+      "concept": "分页测试概念_2",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.699519"
+    },
+    {
+      "key": "test/pagination_3.canvas:pagination_node_3:2026-02-09T18:42:00.810139",
+      "canvas_name": "test/pagination_3.canvas",
+      "node_id": "pagination_node_3",
+      "concept": "分页测试概念_3",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.810139"
+    },
+    {
+      "key": "test/pagination_4.canvas:pagination_node_4:2026-02-09T18:42:00.915638",
+      "canvas_name": "test/pagination_4.canvas",
+      "node_id": "pagination_node_4",
+      "concept": "分页测试概念_4",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:00.915638"
+    },
+    {
+      "key": "test/persist.canvas:persist_node:2026-02-09T18:42:01.136728",
+      "canvas_name": "test/persist.canvas",
+      "node_id": "persist_node",
+      "concept": "持久化测试_c0836c38",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:01.136728"
+    },
+    {
+      "key": "test/multi_0.canvas:multi_node_0:2026-02-09T18:42:01.285625",
+      "canvas_name": "test/multi_0.canvas",
+      "node_id": "multi_node_0",
+      "concept": "概念A_240e",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:01.285625"
+    },
+    {
+      "key": "test/multi_1.canvas:multi_node_1:2026-02-09T18:42:01.396133",
+      "canvas_name": "test/multi_1.canvas",
+      "node_id": "multi_node_1",
+      "concept": "概念B_c2b4",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-09T18:42:01.396133"
     }
   ],
   "metadata": {

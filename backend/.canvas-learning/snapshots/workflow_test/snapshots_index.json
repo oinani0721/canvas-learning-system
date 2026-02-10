@@ -1,6 +1,84 @@
 [
   {
     "canvas_path": "workflow_test.canvas",
+    "id": "eeecb908-9db3-424c-85d5-02bd7d68df11",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:43:13.145898+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "e324a365-b4d6-4968-bd5a-03b7a07b9809",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:43:13.051143+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "f7dd8b1d-8164-49a7-9317-d209033a06cf",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:38:06.328924+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "d67f17e6-f176-43e5-bfe1-434826b8375c",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:38:06.227499+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "b30da517-124b-4983-b4af-7d0279ae3b17",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (snapshot)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T00:26:37.072921+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
+    "id": "475f798e-9f78-49ea-a637-666e86fe8c43",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Before changes",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T00:26:37.003606+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "workflow_test.canvas",
     "id": "57660990-db05-4d77-b3f6-6507894500ff",
     "last_operation_id": null,
     "metadata": {

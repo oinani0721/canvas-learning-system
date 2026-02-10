@@ -1,6 +1,84 @@
 [
   {
     "canvas_path": "schema_test.canvas",
+    "id": "7bed0dc2-96f2-4d44-bf8f-9e421a1373a0",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:43:13.850011+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "60b94076-5313-4590-9c75-e0d864f6c022",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:43:13.688176+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "9c16d526-e926-481a-b319-be61d3fda58b",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:38:06.806651+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "aaf19ccf-4eb1-482c-a94e-b23eaf5c3eec",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T02:38:06.721837+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "84d44195-5b3d-4509-9934-a67792844d54",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "rollback_engine",
+      "description": "Pre-rollback backup (operation)",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T00:26:37.356011+00:00",
+    "type": "checkpoint"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
+    "id": "a3ff3b52-d5c5-491b-8b1f-86dd87cbf760",
+    "last_operation_id": null,
+    "metadata": {
+      "created_by": "user",
+      "description": "Schema validation test",
+      "size_bytes": 23,
+      "tags": null
+    },
+    "timestamp": "2026-02-10T00:26:37.306370+00:00",
+    "type": "manual"
+  },
+  {
+    "canvas_path": "schema_test.canvas",
     "id": "e8d97cf8-116e-4ed6-99eb-6cc33dd2f93e",
     "last_operation_id": null,
     "metadata": {

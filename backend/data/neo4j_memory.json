@@ -275,6 +275,230 @@
     {
       "id": "test_user_42729111",
       "created_at": "2026-02-07T02:21:22.308588"
+    },
+    {
+      "id": "dual_write_test_d75f97e4",
+      "created_at": "2026-02-09T16:02:00.366288"
+    },
+    {
+      "id": "dual_write_test_2e6b9e9d",
+      "created_at": "2026-02-09T16:02:00.401243"
+    },
+    {
+      "id": "test_user_4017de05",
+      "created_at": "2026-02-09T16:02:06.503455"
+    },
+    {
+      "id": "test_user_0a22dcc1",
+      "created_at": "2026-02-09T16:02:06.522835"
+    },
+    {
+      "id": "test_user_9ee848d9",
+      "created_at": "2026-02-09T16:11:51.736503"
+    },
+    {
+      "id": "test_user_2abdd8b1",
+      "created_at": "2026-02-09T16:11:51.772404"
+    },
+    {
+      "id": "test_user_22a2a5f3",
+      "created_at": "2026-02-09T16:11:51.804033"
+    },
+    {
+      "id": "dual_write_test_a322f41f",
+      "created_at": "2026-02-09T17:00:46.628511"
+    },
+    {
+      "id": "dual_write_test_21b70499",
+      "created_at": "2026-02-09T17:00:46.684683"
+    },
+    {
+      "id": "test_user_66e9f973",
+      "created_at": "2026-02-09T17:00:52.812863"
+    },
+    {
+      "id": "test_user_606603d9",
+      "created_at": "2026-02-09T17:00:52.847139"
+    },
+    {
+      "id": "dual_write_test_82c3b831",
+      "created_at": "2026-02-09T17:02:15.082928"
+    },
+    {
+      "id": "dual_write_test_0878677f",
+      "created_at": "2026-02-09T17:02:15.116045"
+    },
+    {
+      "id": "test_user_a69ac671",
+      "created_at": "2026-02-09T17:02:21.231730"
+    },
+    {
+      "id": "test_user_cd39a592",
+      "created_at": "2026-02-09T17:02:21.256240"
+    },
+    {
+      "id": "test_user_d3ced6e6",
+      "created_at": "2026-02-09T17:10:45.379917"
+    },
+    {
+      "id": "test_user_f16a58a9",
+      "created_at": "2026-02-09T17:10:45.438589"
+    },
+    {
+      "id": "test_user_e4622295",
+      "created_at": "2026-02-09T17:10:45.489810"
+    },
+    {
+      "id": "test_user_29f83c2d",
+      "created_at": "2026-02-09T17:12:10.274348"
+    },
+    {
+      "id": "test_user_af895bab",
+      "created_at": "2026-02-09T17:12:10.324369"
+    },
+    {
+      "id": "test_user_e95b39dc",
+      "created_at": "2026-02-09T17:12:10.362906"
+    },
+    {
+      "id": "test_user_359b429d",
+      "created_at": "2026-02-09T17:37:52.170135"
+    },
+    {
+      "id": "test_user_69099f59",
+      "created_at": "2026-02-09T17:37:52.194012"
+    },
+    {
+      "id": "test_user_375f5ed1",
+      "created_at": "2026-02-09T17:37:52.230678"
+    },
+    {
+      "id": "test_user_6f0b3f30",
+      "created_at": "2026-02-09T17:44:08.957513"
+    },
+    {
+      "id": "test_user_f5f2dbe3",
+      "created_at": "2026-02-09T17:44:08.989282"
+    },
+    {
+      "id": "test_user_0813661f",
+      "created_at": "2026-02-09T17:44:09.035516"
+    },
+    {
+      "id": "dual_write_test_a9c9b2cd",
+      "created_at": "2026-02-09T18:11:18.811968"
+    },
+    {
+      "id": "dual_write_test_0b2a1167",
+      "created_at": "2026-02-09T18:11:18.925453"
+    },
+    {
+      "id": "test_user_056d7822",
+      "created_at": "2026-02-09T18:11:25.150652"
+    },
+    {
+      "id": "test_user_2be1e988",
+      "created_at": "2026-02-09T18:11:25.201973"
+    },
+    {
+      "id": "test_user_a06258c7",
+      "created_at": "2026-02-09T18:18:53.351605"
+    },
+    {
+      "id": "test_user_533a46fc",
+      "created_at": "2026-02-09T18:18:53.389862"
+    },
+    {
+      "id": "test_user_162129df",
+      "created_at": "2026-02-09T18:18:53.440255"
+    },
+    {
+      "id": "e2e_user_66da5e57",
+      "created_at": "2026-02-09T18:30:57.142967"
+    },
+    {
+      "id": "e2e_user_64b0f63f",
+      "created_at": "2026-02-09T18:30:57.341938"
+    },
+    {
+      "id": "e2e_user_5937e66b",
+      "created_at": "2026-02-09T18:30:57.596568"
+    },
+    {
+      "id": "e2e_user_d5651781",
+      "created_at": "2026-02-09T18:30:57.840022"
+    },
+    {
+      "id": "e2e_user_73f2eec9",
+      "created_at": "2026-02-09T18:30:58.029803"
+    },
+    {
+      "id": "persist_test_3aed009f",
+      "created_at": "2026-02-09T18:30:58.958942"
+    },
+    {
+      "id": "multi_episode_ef13d3f7",
+      "created_at": "2026-02-09T18:30:59.160699"
+    },
+    {
+      "id": "dual_write_test_bf11a184",
+      "created_at": "2026-02-09T18:35:38.009229"
+    },
+    {
+      "id": "dual_write_test_66e3cdeb",
+      "created_at": "2026-02-09T18:35:38.207709"
+    },
+    {
+      "id": "test_user_eb4f56f5",
+      "created_at": "2026-02-09T18:35:44.540541"
+    },
+    {
+      "id": "test_user_5e9b75eb",
+      "created_at": "2026-02-09T18:35:44.807788"
+    },
+    {
+      "id": "batch_user",
+      "created_at": "2026-02-09T18:35:50.353978"
+    },
+    {
+      "id": "test_user_83dff124",
+      "created_at": "2026-02-09T18:38:04.591429"
+    },
+    {
+      "id": "test_user_2b5ebd1c",
+      "created_at": "2026-02-09T18:38:04.773351"
+    },
+    {
+      "id": "test_user_48c30d0f",
+      "created_at": "2026-02-09T18:38:05.133202"
+    },
+    {
+      "id": "e2e_user_f78b3d7f",
+      "created_at": "2026-02-09T18:41:59.734041"
+    },
+    {
+      "id": "e2e_user_f435f240",
+      "created_at": "2026-02-09T18:41:59.856891"
+    },
+    {
+      "id": "e2e_user_4ad84173",
+      "created_at": "2026-02-09T18:42:00.038375"
+    },
+    {
+      "id": "e2e_user_eb8001ea",
+      "created_at": "2026-02-09T18:42:00.215448"
+    },
+    {
+      "id": "e2e_user_2ff401de",
+      "created_at": "2026-02-09T18:42:00.381336"
+    },
+    {
+      "id": "persist_test_290e7c5a",
+      "created_at": "2026-02-09T18:42:01.038422"
+    },
+    {
+      "id": "multi_episode_0fa262db",
+      "created_at": "2026-02-09T18:42:01.204925"
     }
   ],
   "concepts": [
@@ -351,7 +575,8 @@
     {
       "id": "concept-15",
       "name": "understanding",
-      "created_at": "2025-12-15T16:07:03.127712"
+      "created_at": "2025-12-15T16:07:03.127712",
+      "group_id": "test_canvas"
     },
     {
       "id": "concept-16",
@@ -421,7 +646,8 @@
     {
       "id": "concept-29",
       "name": "双写测试概念",
-      "created_at": "2026-02-05T23:53:55.707514"
+      "created_at": "2026-02-05T23:53:55.707514",
+      "group_id": "test"
     },
     {
       "id": "concept-30",
@@ -486,42 +712,50 @@
     {
       "id": "concept-42",
       "name": "概率论基础",
-      "created_at": "2026-02-05T23:54:43.853556"
+      "created_at": "2026-02-05T23:54:43.853556",
+      "group_id": "test"
     },
     {
       "id": "concept-43",
       "name": "完整测试概念",
-      "created_at": "2026-02-05T23:54:44.023548"
+      "created_at": "2026-02-05T23:54:44.023548",
+      "group_id": "test"
     },
     {
       "id": "concept-44",
       "name": "矩阵乘法",
-      "created_at": "2026-02-05T23:54:44.092338"
+      "created_at": "2026-02-05T23:54:44.092338",
+      "group_id": "数学"
     },
     {
       "id": "concept-45",
       "name": "分页测试概念_0",
-      "created_at": "2026-02-05T23:54:44.140951"
+      "created_at": "2026-02-05T23:54:44.140951",
+      "group_id": "test"
     },
     {
       "id": "concept-46",
       "name": "分页测试概念_1",
-      "created_at": "2026-02-05T23:54:44.166289"
+      "created_at": "2026-02-05T23:54:44.166289",
+      "group_id": "test"
     },
     {
       "id": "concept-47",
       "name": "分页测试概念_2",
-      "created_at": "2026-02-05T23:54:44.195986"
+      "created_at": "2026-02-05T23:54:44.195986",
+      "group_id": "test"
     },
     {
       "id": "concept-48",
       "name": "分页测试概念_3",
-      "created_at": "2026-02-05T23:54:44.217200"
+      "created_at": "2026-02-05T23:54:44.217200",
+      "group_id": "test"
     },
     {
       "id": "concept-49",
       "name": "分页测试概念_4",
-      "created_at": "2026-02-05T23:54:44.248582"
+      "created_at": "2026-02-05T23:54:44.248582",
+      "group_id": "test"
     },
     {
       "id": "concept-50",
@@ -752,6 +986,480 @@
       "id": "concept-95",
       "name": "量子力学-099f",
       "created_at": "2026-02-07T02:21:22.313915"
+    },
+    {
+      "id": "concept-96",
+      "name": "双写周期测试_e1db5745",
+      "created_at": "2026-02-09T16:02:06.503455",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-97",
+      "name": "并发测试概念_0_8d14",
+      "created_at": "2026-02-09T16:02:06.522835",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-98",
+      "name": "并发测试概念_1_6071",
+      "created_at": "2026-02-09T16:02:06.527622",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-99",
+      "name": "并发测试概念_2_54ff",
+      "created_at": "2026-02-09T16:02:06.534873",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-100",
+      "name": "并发测试概念_3_61f4",
+      "created_at": "2026-02-09T16:02:06.534873",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-101",
+      "name": "并发测试概念_4_a3fa",
+      "created_at": "2026-02-09T16:02:06.545706",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-102",
+      "name": "线性代数-矩阵乘法-c6ee10",
+      "created_at": "2026-02-09T16:11:51.736503",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-103",
+      "name": "微积分-0d00",
+      "created_at": "2026-02-09T16:11:51.772404",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-104",
+      "name": "概率论-3cd1",
+      "created_at": "2026-02-09T16:11:51.778764",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-105",
+      "name": "线性代数-2d02",
+      "created_at": "2026-02-09T16:11:51.778764",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-106",
+      "name": "微积分-0f46",
+      "created_at": "2026-02-09T16:11:51.804033",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-107",
+      "name": "量子力学-2e19",
+      "created_at": "2026-02-09T16:11:51.810189",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-108",
+      "name": "双写周期测试_27281ea6",
+      "created_at": "2026-02-09T17:00:52.812863",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-109",
+      "name": "并发测试概念_0_8ae0",
+      "created_at": "2026-02-09T17:00:52.847139",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-110",
+      "name": "并发测试概念_1_cc96",
+      "created_at": "2026-02-09T17:00:52.853642",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-111",
+      "name": "并发测试概念_2_7408",
+      "created_at": "2026-02-09T17:00:52.859437",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-112",
+      "name": "并发测试概念_3_96bb",
+      "created_at": "2026-02-09T17:00:52.867742",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-113",
+      "name": "并发测试概念_4_ace8",
+      "created_at": "2026-02-09T17:00:52.876977",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-114",
+      "name": "双写周期测试_abe58db4",
+      "created_at": "2026-02-09T17:02:21.231730",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-115",
+      "name": "并发测试概念_0_e338",
+      "created_at": "2026-02-09T17:02:21.256240",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-116",
+      "name": "并发测试概念_1_a70d",
+      "created_at": "2026-02-09T17:02:21.270174",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-117",
+      "name": "并发测试概念_2_bf7d",
+      "created_at": "2026-02-09T17:02:21.283449",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-118",
+      "name": "并发测试概念_3_9ed9",
+      "created_at": "2026-02-09T17:02:21.292384",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-119",
+      "name": "并发测试概念_4_5414",
+      "created_at": "2026-02-09T17:02:21.307016",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-120",
+      "name": "线性代数-矩阵乘法-982a2d",
+      "created_at": "2026-02-09T17:10:45.379917",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-121",
+      "name": "微积分-12d5",
+      "created_at": "2026-02-09T17:10:45.438589",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-122",
+      "name": "概率论-991f",
+      "created_at": "2026-02-09T17:10:45.449683",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-123",
+      "name": "线性代数-35e8",
+      "created_at": "2026-02-09T17:10:45.461251",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-124",
+      "name": "微积分-af57",
+      "created_at": "2026-02-09T17:10:45.489810",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-125",
+      "name": "量子力学-8d00",
+      "created_at": "2026-02-09T17:10:45.506352",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-126",
+      "name": "线性代数-矩阵乘法-5e54d5",
+      "created_at": "2026-02-09T17:12:10.274348",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-127",
+      "name": "微积分-1508",
+      "created_at": "2026-02-09T17:12:10.324369",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-128",
+      "name": "概率论-0610",
+      "created_at": "2026-02-09T17:12:10.333037",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-129",
+      "name": "线性代数-0c15",
+      "created_at": "2026-02-09T17:12:10.338971",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-130",
+      "name": "微积分-bda4",
+      "created_at": "2026-02-09T17:12:10.362906",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-131",
+      "name": "量子力学-0196",
+      "created_at": "2026-02-09T17:12:10.374147",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-132",
+      "name": "线性代数-矩阵乘法-c77393",
+      "created_at": "2026-02-09T17:37:52.170135",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-133",
+      "name": "微积分-db7e",
+      "created_at": "2026-02-09T17:37:52.194012",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-134",
+      "name": "概率论-30ef",
+      "created_at": "2026-02-09T17:37:52.201839",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-135",
+      "name": "线性代数-992d",
+      "created_at": "2026-02-09T17:37:52.208266",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-136",
+      "name": "微积分-c20c",
+      "created_at": "2026-02-09T17:37:52.230678",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-137",
+      "name": "量子力学-29b0",
+      "created_at": "2026-02-09T17:37:52.237653",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-138",
+      "name": "线性代数-矩阵乘法-59b943",
+      "created_at": "2026-02-09T17:44:08.957513",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-139",
+      "name": "微积分-2804",
+      "created_at": "2026-02-09T17:44:08.989282",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-140",
+      "name": "概率论-1e76",
+      "created_at": "2026-02-09T17:44:08.996886",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-141",
+      "name": "线性代数-d8f3",
+      "created_at": "2026-02-09T17:44:09.007054",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-142",
+      "name": "微积分-a923",
+      "created_at": "2026-02-09T17:44:09.036531",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-143",
+      "name": "量子力学-f516",
+      "created_at": "2026-02-09T17:44:09.045662",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-144",
+      "name": "双写周期测试_09190738",
+      "created_at": "2026-02-09T18:11:25.150652",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-145",
+      "name": "并发测试概念_0_6c2d",
+      "created_at": "2026-02-09T18:11:25.201973",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-146",
+      "name": "并发测试概念_1_4567",
+      "created_at": "2026-02-09T18:11:25.214356",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-147",
+      "name": "并发测试概念_2_dfbc",
+      "created_at": "2026-02-09T18:11:25.227718",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-148",
+      "name": "并发测试概念_3_f9a1",
+      "created_at": "2026-02-09T18:11:25.243675",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-149",
+      "name": "并发测试概念_4_6b6a",
+      "created_at": "2026-02-09T18:11:25.268709",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-150",
+      "name": "线性代数-矩阵乘法-a072a7",
+      "created_at": "2026-02-09T18:18:53.352123",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-151",
+      "name": "微积分-8aca",
+      "created_at": "2026-02-09T18:18:53.389862",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-152",
+      "name": "概率论-6d9e",
+      "created_at": "2026-02-09T18:18:53.399484",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-153",
+      "name": "线性代数-d415",
+      "created_at": "2026-02-09T18:18:53.410270",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-154",
+      "name": "微积分-9a0b",
+      "created_at": "2026-02-09T18:18:53.440255",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-155",
+      "name": "量子力学-191c",
+      "created_at": "2026-02-09T18:18:53.451307",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-156",
+      "name": "持久化测试_b540776a",
+      "created_at": "2026-02-09T18:30:58.958942",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-157",
+      "name": "概念A_1ec6",
+      "created_at": "2026-02-09T18:30:59.160699",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-158",
+      "name": "概念B_2524",
+      "created_at": "2026-02-09T18:30:59.334245",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-159",
+      "name": "双写周期测试_2380447d",
+      "created_at": "2026-02-09T18:35:44.540541",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-160",
+      "name": "并发测试概念_0_2887",
+      "created_at": "2026-02-09T18:35:44.807788",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-161",
+      "name": "并发测试概念_1_94af",
+      "created_at": "2026-02-09T18:35:44.946633",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-162",
+      "name": "并发测试概念_2_3442",
+      "created_at": "2026-02-09T18:35:45.122609",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-163",
+      "name": "并发测试概念_3_d451",
+      "created_at": "2026-02-09T18:35:45.244081",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-164",
+      "name": "并发测试概念_4_d99d",
+      "created_at": "2026-02-09T18:35:45.435731",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-165",
+      "name": "unknown",
+      "created_at": "2026-02-09T18:35:50.353978",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-166",
+      "name": "线性代数-矩阵乘法-7e799e",
+      "created_at": "2026-02-09T18:38:04.591429",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-167",
+      "name": "微积分-dc89",
+      "created_at": "2026-02-09T18:38:04.773351",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-168",
+      "name": "概率论-a048",
+      "created_at": "2026-02-09T18:38:04.870954",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-169",
+      "name": "线性代数-5a71",
+      "created_at": "2026-02-09T18:38:04.983193",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-170",
+      "name": "微积分-6a9d",
+      "created_at": "2026-02-09T18:38:05.133733",
+      "group_id": "数学"
+    },
+    {
+      "id": "concept-171",
+      "name": "量子力学-27a4",
+      "created_at": "2026-02-09T18:38:05.229014",
+      "group_id": "物理"
+    },
+    {
+      "id": "concept-172",
+      "name": "持久化测试_c0836c38",
+      "created_at": "2026-02-09T18:42:01.042870",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-173",
+      "name": "概念A_240e",
+      "created_at": "2026-02-09T18:42:01.204925",
+      "group_id": "test"
+    },
+    {
+      "id": "concept-174",
+      "name": "概念B_c2b4",
+      "created_at": "2026-02-09T18:42:01.308242",
+      "group_id": "test"
     }
   ],
   "relationships": [
@@ -901,10 +1609,11 @@
       "user_id": "default",
       "concept_id": "concept-15",
       "concept_name": "understanding",
-      "timestamp": "2025-12-25T14:34:08.131624",
+      "timestamp": "2026-02-09T18:38:41.768825",
       "last_score": 0,
-      "next_review": "2025-12-26T14:34:08.131624",
-      "review_count": 130
+      "next_review": "2026-02-10T18:38:41.768825",
+      "review_count": 135,
+      "group_id": "test_canvas"
     },
     {
       "id": "learned-16",
@@ -2022,6 +2731,1183 @@
       "next_review": "2026-02-08T02:21:22.313915",
       "review_count": 1,
       "group_id": "物理"
+    },
+    {
+      "id": "learned-121",
+      "user_id": "dual_write_test_d75f97e4",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T16:02:00.366288",
+      "last_score": 88,
+      "next_review": "2026-02-10T16:02:00.366288",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-122",
+      "user_id": "dual_write_test_2e6b9e9d",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T16:02:00.401243",
+      "last_score": 88,
+      "next_review": "2026-02-10T16:02:00.401243",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-123",
+      "user_id": "test_user_4017de05",
+      "concept_id": "concept-96",
+      "concept_name": "双写周期测试_e1db5745",
+      "timestamp": "2026-02-09T16:02:06.503455",
+      "last_score": 95,
+      "next_review": "2026-02-10T16:02:06.503455",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-124",
+      "user_id": "test_user_0a22dcc1",
+      "concept_id": "concept-97",
+      "concept_name": "并发测试概念_0_8d14",
+      "timestamp": "2026-02-09T16:02:06.522835",
+      "last_score": null,
+      "next_review": "2026-02-10T16:02:06.522835",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-125",
+      "user_id": "test_user_0a22dcc1",
+      "concept_id": "concept-98",
+      "concept_name": "并发测试概念_1_6071",
+      "timestamp": "2026-02-09T16:02:06.527622",
+      "last_score": null,
+      "next_review": "2026-02-10T16:02:06.527622",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-126",
+      "user_id": "test_user_0a22dcc1",
+      "concept_id": "concept-99",
+      "concept_name": "并发测试概念_2_54ff",
+      "timestamp": "2026-02-09T16:02:06.534873",
+      "last_score": null,
+      "next_review": "2026-02-10T16:02:06.534873",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-127",
+      "user_id": "test_user_0a22dcc1",
+      "concept_id": "concept-100",
+      "concept_name": "并发测试概念_3_61f4",
+      "timestamp": "2026-02-09T16:02:06.534873",
+      "last_score": null,
+      "next_review": "2026-02-10T16:02:06.534873",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-128",
+      "user_id": "test_user_0a22dcc1",
+      "concept_id": "concept-101",
+      "concept_name": "并发测试概念_4_a3fa",
+      "timestamp": "2026-02-09T16:02:06.545706",
+      "last_score": null,
+      "next_review": "2026-02-10T16:02:06.545706",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-129",
+      "user_id": "test_user_9ee848d9",
+      "concept_id": "concept-102",
+      "concept_name": "线性代数-矩阵乘法-c6ee10",
+      "timestamp": "2026-02-09T16:11:51.736503",
+      "last_score": 90,
+      "next_review": "2026-02-10T16:11:51.736503",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-130",
+      "user_id": "test_user_2abdd8b1",
+      "concept_id": "concept-103",
+      "concept_name": "微积分-0d00",
+      "timestamp": "2026-02-09T16:11:51.772404",
+      "last_score": 70,
+      "next_review": "2026-02-10T16:11:51.772404",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-131",
+      "user_id": "test_user_2abdd8b1",
+      "concept_id": "concept-104",
+      "concept_name": "概率论-3cd1",
+      "timestamp": "2026-02-09T16:11:51.778764",
+      "last_score": 80,
+      "next_review": "2026-02-10T16:11:51.778764",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-132",
+      "user_id": "test_user_2abdd8b1",
+      "concept_id": "concept-105",
+      "concept_name": "线性代数-2d02",
+      "timestamp": "2026-02-09T16:11:51.778764",
+      "last_score": 90,
+      "next_review": "2026-02-10T16:11:51.778764",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-133",
+      "user_id": "test_user_22a2a5f3",
+      "concept_id": "concept-106",
+      "concept_name": "微积分-0f46",
+      "timestamp": "2026-02-09T16:11:51.804033",
+      "last_score": 85,
+      "next_review": "2026-02-10T16:11:51.804033",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-134",
+      "user_id": "test_user_22a2a5f3",
+      "concept_id": "concept-107",
+      "concept_name": "量子力学-2e19",
+      "timestamp": "2026-02-09T16:11:51.810189",
+      "last_score": 78,
+      "next_review": "2026-02-10T16:11:51.810189",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-135",
+      "user_id": "dual_write_test_a322f41f",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T17:00:46.629519",
+      "last_score": 88,
+      "next_review": "2026-02-10T17:00:46.629519",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-136",
+      "user_id": "dual_write_test_21b70499",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T17:00:46.684683",
+      "last_score": 88,
+      "next_review": "2026-02-10T17:00:46.684683",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-137",
+      "user_id": "test_user_66e9f973",
+      "concept_id": "concept-108",
+      "concept_name": "双写周期测试_27281ea6",
+      "timestamp": "2026-02-09T17:00:52.812863",
+      "last_score": 95,
+      "next_review": "2026-02-10T17:00:52.812863",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-138",
+      "user_id": "test_user_606603d9",
+      "concept_id": "concept-109",
+      "concept_name": "并发测试概念_0_8ae0",
+      "timestamp": "2026-02-09T17:00:52.847139",
+      "last_score": null,
+      "next_review": "2026-02-10T17:00:52.847139",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-139",
+      "user_id": "test_user_606603d9",
+      "concept_id": "concept-110",
+      "concept_name": "并发测试概念_1_cc96",
+      "timestamp": "2026-02-09T17:00:52.853642",
+      "last_score": null,
+      "next_review": "2026-02-10T17:00:52.853642",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-140",
+      "user_id": "test_user_606603d9",
+      "concept_id": "concept-111",
+      "concept_name": "并发测试概念_2_7408",
+      "timestamp": "2026-02-09T17:00:52.859437",
+      "last_score": null,
+      "next_review": "2026-02-10T17:00:52.859437",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-141",
+      "user_id": "test_user_606603d9",
+      "concept_id": "concept-112",
+      "concept_name": "并发测试概念_3_96bb",
+      "timestamp": "2026-02-09T17:00:52.867742",
+      "last_score": null,
+      "next_review": "2026-02-10T17:00:52.867742",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-142",
+      "user_id": "test_user_606603d9",
+      "concept_id": "concept-113",
+      "concept_name": "并发测试概念_4_ace8",
+      "timestamp": "2026-02-09T17:00:52.876977",
+      "last_score": null,
+      "next_review": "2026-02-10T17:00:52.876977",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-143",
+      "user_id": "dual_write_test_82c3b831",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T17:02:15.082928",
+      "last_score": 88,
+      "next_review": "2026-02-10T17:02:15.082928",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-144",
+      "user_id": "dual_write_test_0878677f",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T17:02:15.116045",
+      "last_score": 88,
+      "next_review": "2026-02-10T17:02:15.116045",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-145",
+      "user_id": "test_user_a69ac671",
+      "concept_id": "concept-114",
+      "concept_name": "双写周期测试_abe58db4",
+      "timestamp": "2026-02-09T17:02:21.231730",
+      "last_score": 95,
+      "next_review": "2026-02-10T17:02:21.231730",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-146",
+      "user_id": "test_user_cd39a592",
+      "concept_id": "concept-115",
+      "concept_name": "并发测试概念_0_e338",
+      "timestamp": "2026-02-09T17:02:21.256240",
+      "last_score": null,
+      "next_review": "2026-02-10T17:02:21.256240",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-147",
+      "user_id": "test_user_cd39a592",
+      "concept_id": "concept-116",
+      "concept_name": "并发测试概念_1_a70d",
+      "timestamp": "2026-02-09T17:02:21.270174",
+      "last_score": null,
+      "next_review": "2026-02-10T17:02:21.270174",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-148",
+      "user_id": "test_user_cd39a592",
+      "concept_id": "concept-117",
+      "concept_name": "并发测试概念_2_bf7d",
+      "timestamp": "2026-02-09T17:02:21.283449",
+      "last_score": null,
+      "next_review": "2026-02-10T17:02:21.283449",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-149",
+      "user_id": "test_user_cd39a592",
+      "concept_id": "concept-118",
+      "concept_name": "并发测试概念_3_9ed9",
+      "timestamp": "2026-02-09T17:02:21.292384",
+      "last_score": null,
+      "next_review": "2026-02-10T17:02:21.292384",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-150",
+      "user_id": "test_user_cd39a592",
+      "concept_id": "concept-119",
+      "concept_name": "并发测试概念_4_5414",
+      "timestamp": "2026-02-09T17:02:21.307016",
+      "last_score": null,
+      "next_review": "2026-02-10T17:02:21.307016",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-151",
+      "user_id": "test_user_d3ced6e6",
+      "concept_id": "concept-120",
+      "concept_name": "线性代数-矩阵乘法-982a2d",
+      "timestamp": "2026-02-09T17:10:45.379917",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:10:45.379917",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-152",
+      "user_id": "test_user_f16a58a9",
+      "concept_id": "concept-121",
+      "concept_name": "微积分-12d5",
+      "timestamp": "2026-02-09T17:10:45.438589",
+      "last_score": 70,
+      "next_review": "2026-02-10T17:10:45.438589",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-153",
+      "user_id": "test_user_f16a58a9",
+      "concept_id": "concept-122",
+      "concept_name": "概率论-991f",
+      "timestamp": "2026-02-09T17:10:45.449683",
+      "last_score": 80,
+      "next_review": "2026-02-10T17:10:45.449683",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-154",
+      "user_id": "test_user_f16a58a9",
+      "concept_id": "concept-123",
+      "concept_name": "线性代数-35e8",
+      "timestamp": "2026-02-09T17:10:45.461251",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:10:45.461251",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-155",
+      "user_id": "test_user_e4622295",
+      "concept_id": "concept-124",
+      "concept_name": "微积分-af57",
+      "timestamp": "2026-02-09T17:10:45.489810",
+      "last_score": 85,
+      "next_review": "2026-02-10T17:10:45.489810",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-156",
+      "user_id": "test_user_e4622295",
+      "concept_id": "concept-125",
+      "concept_name": "量子力学-8d00",
+      "timestamp": "2026-02-09T17:10:45.506352",
+      "last_score": 78,
+      "next_review": "2026-02-10T17:10:45.506352",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-157",
+      "user_id": "test_user_29f83c2d",
+      "concept_id": "concept-126",
+      "concept_name": "线性代数-矩阵乘法-5e54d5",
+      "timestamp": "2026-02-09T17:12:10.274348",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:12:10.274348",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-158",
+      "user_id": "test_user_af895bab",
+      "concept_id": "concept-127",
+      "concept_name": "微积分-1508",
+      "timestamp": "2026-02-09T17:12:10.324369",
+      "last_score": 70,
+      "next_review": "2026-02-10T17:12:10.324369",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-159",
+      "user_id": "test_user_af895bab",
+      "concept_id": "concept-128",
+      "concept_name": "概率论-0610",
+      "timestamp": "2026-02-09T17:12:10.333037",
+      "last_score": 80,
+      "next_review": "2026-02-10T17:12:10.333037",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-160",
+      "user_id": "test_user_af895bab",
+      "concept_id": "concept-129",
+      "concept_name": "线性代数-0c15",
+      "timestamp": "2026-02-09T17:12:10.338971",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:12:10.338971",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-161",
+      "user_id": "test_user_e95b39dc",
+      "concept_id": "concept-130",
+      "concept_name": "微积分-bda4",
+      "timestamp": "2026-02-09T17:12:10.362906",
+      "last_score": 85,
+      "next_review": "2026-02-10T17:12:10.362906",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-162",
+      "user_id": "test_user_e95b39dc",
+      "concept_id": "concept-131",
+      "concept_name": "量子力学-0196",
+      "timestamp": "2026-02-09T17:12:10.374147",
+      "last_score": 78,
+      "next_review": "2026-02-10T17:12:10.374147",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-163",
+      "user_id": "test_user_359b429d",
+      "concept_id": "concept-132",
+      "concept_name": "线性代数-矩阵乘法-c77393",
+      "timestamp": "2026-02-09T17:37:52.170135",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:37:52.170135",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-164",
+      "user_id": "test_user_69099f59",
+      "concept_id": "concept-133",
+      "concept_name": "微积分-db7e",
+      "timestamp": "2026-02-09T17:37:52.194012",
+      "last_score": 70,
+      "next_review": "2026-02-10T17:37:52.194012",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-165",
+      "user_id": "test_user_69099f59",
+      "concept_id": "concept-134",
+      "concept_name": "概率论-30ef",
+      "timestamp": "2026-02-09T17:37:52.201839",
+      "last_score": 80,
+      "next_review": "2026-02-10T17:37:52.201839",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-166",
+      "user_id": "test_user_69099f59",
+      "concept_id": "concept-135",
+      "concept_name": "线性代数-992d",
+      "timestamp": "2026-02-09T17:37:52.208266",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:37:52.208266",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-167",
+      "user_id": "test_user_375f5ed1",
+      "concept_id": "concept-136",
+      "concept_name": "微积分-c20c",
+      "timestamp": "2026-02-09T17:37:52.230678",
+      "last_score": 85,
+      "next_review": "2026-02-10T17:37:52.230678",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-168",
+      "user_id": "test_user_375f5ed1",
+      "concept_id": "concept-137",
+      "concept_name": "量子力学-29b0",
+      "timestamp": "2026-02-09T17:37:52.237653",
+      "last_score": 78,
+      "next_review": "2026-02-10T17:37:52.237653",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-169",
+      "user_id": "test_user_6f0b3f30",
+      "concept_id": "concept-138",
+      "concept_name": "线性代数-矩阵乘法-59b943",
+      "timestamp": "2026-02-09T17:44:08.957513",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:44:08.957513",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-170",
+      "user_id": "test_user_f5f2dbe3",
+      "concept_id": "concept-139",
+      "concept_name": "微积分-2804",
+      "timestamp": "2026-02-09T17:44:08.989282",
+      "last_score": 70,
+      "next_review": "2026-02-10T17:44:08.989282",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-171",
+      "user_id": "test_user_f5f2dbe3",
+      "concept_id": "concept-140",
+      "concept_name": "概率论-1e76",
+      "timestamp": "2026-02-09T17:44:08.997443",
+      "last_score": 80,
+      "next_review": "2026-02-10T17:44:08.997443",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-172",
+      "user_id": "test_user_f5f2dbe3",
+      "concept_id": "concept-141",
+      "concept_name": "线性代数-d8f3",
+      "timestamp": "2026-02-09T17:44:09.007054",
+      "last_score": 90,
+      "next_review": "2026-02-10T17:44:09.007054",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-173",
+      "user_id": "test_user_0813661f",
+      "concept_id": "concept-142",
+      "concept_name": "微积分-a923",
+      "timestamp": "2026-02-09T17:44:09.036531",
+      "last_score": 85,
+      "next_review": "2026-02-10T17:44:09.036531",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-174",
+      "user_id": "test_user_0813661f",
+      "concept_id": "concept-143",
+      "concept_name": "量子力学-f516",
+      "timestamp": "2026-02-09T17:44:09.045662",
+      "last_score": 78,
+      "next_review": "2026-02-10T17:44:09.045662",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-175",
+      "user_id": "dual_write_test_a9c9b2cd",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T18:11:18.811968",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:11:18.811968",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-176",
+      "user_id": "dual_write_test_0b2a1167",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T18:11:18.925453",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:11:18.925453",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-177",
+      "user_id": "test_user_056d7822",
+      "concept_id": "concept-144",
+      "concept_name": "双写周期测试_09190738",
+      "timestamp": "2026-02-09T18:11:25.150652",
+      "last_score": 95,
+      "next_review": "2026-02-10T18:11:25.150652",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-178",
+      "user_id": "test_user_2be1e988",
+      "concept_id": "concept-145",
+      "concept_name": "并发测试概念_0_6c2d",
+      "timestamp": "2026-02-09T18:11:25.201973",
+      "last_score": null,
+      "next_review": "2026-02-10T18:11:25.201973",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-179",
+      "user_id": "test_user_2be1e988",
+      "concept_id": "concept-146",
+      "concept_name": "并发测试概念_1_4567",
+      "timestamp": "2026-02-09T18:11:25.214356",
+      "last_score": null,
+      "next_review": "2026-02-10T18:11:25.214356",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-180",
+      "user_id": "test_user_2be1e988",
+      "concept_id": "concept-147",
+      "concept_name": "并发测试概念_2_dfbc",
+      "timestamp": "2026-02-09T18:11:25.227718",
+      "last_score": null,
+      "next_review": "2026-02-10T18:11:25.227718",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-181",
+      "user_id": "test_user_2be1e988",
+      "concept_id": "concept-148",
+      "concept_name": "并发测试概念_3_f9a1",
+      "timestamp": "2026-02-09T18:11:25.243675",
+      "last_score": null,
+      "next_review": "2026-02-10T18:11:25.243675",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-182",
+      "user_id": "test_user_2be1e988",
+      "concept_id": "concept-149",
+      "concept_name": "并发测试概念_4_6b6a",
+      "timestamp": "2026-02-09T18:11:25.268709",
+      "last_score": null,
+      "next_review": "2026-02-10T18:11:25.268709",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-183",
+      "user_id": "test_user_a06258c7",
+      "concept_id": "concept-150",
+      "concept_name": "线性代数-矩阵乘法-a072a7",
+      "timestamp": "2026-02-09T18:18:53.352123",
+      "last_score": 90,
+      "next_review": "2026-02-10T18:18:53.352123",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-184",
+      "user_id": "test_user_533a46fc",
+      "concept_id": "concept-151",
+      "concept_name": "微积分-8aca",
+      "timestamp": "2026-02-09T18:18:53.389862",
+      "last_score": 70,
+      "next_review": "2026-02-10T18:18:53.389862",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-185",
+      "user_id": "test_user_533a46fc",
+      "concept_id": "concept-152",
+      "concept_name": "概率论-6d9e",
+      "timestamp": "2026-02-09T18:18:53.399484",
+      "last_score": 80,
+      "next_review": "2026-02-10T18:18:53.399484",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-186",
+      "user_id": "test_user_533a46fc",
+      "concept_id": "concept-153",
+      "concept_name": "线性代数-d415",
+      "timestamp": "2026-02-09T18:18:53.410270",
+      "last_score": 90,
+      "next_review": "2026-02-10T18:18:53.410270",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-187",
+      "user_id": "test_user_162129df",
+      "concept_id": "concept-154",
+      "concept_name": "微积分-9a0b",
+      "timestamp": "2026-02-09T18:18:53.440255",
+      "last_score": 85,
+      "next_review": "2026-02-10T18:18:53.440255",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-188",
+      "user_id": "test_user_162129df",
+      "concept_id": "concept-155",
+      "concept_name": "量子力学-191c",
+      "timestamp": "2026-02-09T18:18:53.451307",
+      "last_score": 78,
+      "next_review": "2026-02-10T18:18:53.451307",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-189",
+      "user_id": "e2e_user_66da5e57",
+      "concept_id": "concept-42",
+      "concept_name": "概率论基础",
+      "timestamp": "2026-02-09T18:30:57.143497",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:30:57.143497",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-190",
+      "user_id": "e2e_user_64b0f63f",
+      "concept_id": "concept-42",
+      "concept_name": "概率论基础",
+      "timestamp": "2026-02-09T18:30:57.341938",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:30:57.341938",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-191",
+      "user_id": "e2e_user_5937e66b",
+      "concept_id": "concept-43",
+      "concept_name": "完整测试概念",
+      "timestamp": "2026-02-09T18:30:57.596568",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:57.596568",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-192",
+      "user_id": "e2e_user_d5651781",
+      "concept_id": "concept-44",
+      "concept_name": "矩阵乘法",
+      "timestamp": "2026-02-09T18:30:57.840022",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:57.840022",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-193",
+      "user_id": "e2e_user_73f2eec9",
+      "concept_id": "concept-45",
+      "concept_name": "分页测试概念_0",
+      "timestamp": "2026-02-09T18:30:58.029803",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.029803",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-194",
+      "user_id": "e2e_user_73f2eec9",
+      "concept_id": "concept-46",
+      "concept_name": "分页测试概念_1",
+      "timestamp": "2026-02-09T18:30:58.187465",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.187465",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-195",
+      "user_id": "e2e_user_73f2eec9",
+      "concept_id": "concept-47",
+      "concept_name": "分页测试概念_2",
+      "timestamp": "2026-02-09T18:30:58.332099",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.332099",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-196",
+      "user_id": "e2e_user_73f2eec9",
+      "concept_id": "concept-48",
+      "concept_name": "分页测试概念_3",
+      "timestamp": "2026-02-09T18:30:58.500778",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.500778",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-197",
+      "user_id": "e2e_user_73f2eec9",
+      "concept_id": "concept-49",
+      "concept_name": "分页测试概念_4",
+      "timestamp": "2026-02-09T18:30:58.671705",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.671705",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-198",
+      "user_id": "persist_test_3aed009f",
+      "concept_id": "concept-156",
+      "concept_name": "持久化测试_b540776a",
+      "timestamp": "2026-02-09T18:30:58.958942",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:58.958942",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-199",
+      "user_id": "multi_episode_ef13d3f7",
+      "concept_id": "concept-157",
+      "concept_name": "概念A_1ec6",
+      "timestamp": "2026-02-09T18:30:59.160699",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:59.160699",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-200",
+      "user_id": "multi_episode_ef13d3f7",
+      "concept_id": "concept-158",
+      "concept_name": "概念B_2524",
+      "timestamp": "2026-02-09T18:30:59.334245",
+      "last_score": null,
+      "next_review": "2026-02-10T18:30:59.334245",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-201",
+      "user_id": "dual_write_test_bf11a184",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T18:35:38.009229",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:35:38.009229",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-202",
+      "user_id": "dual_write_test_66e3cdeb",
+      "concept_id": "concept-29",
+      "concept_name": "双写测试概念",
+      "timestamp": "2026-02-09T18:35:38.207709",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:35:38.207709",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-203",
+      "user_id": "test_user_eb4f56f5",
+      "concept_id": "concept-159",
+      "concept_name": "双写周期测试_2380447d",
+      "timestamp": "2026-02-09T18:35:44.540541",
+      "last_score": 95,
+      "next_review": "2026-02-10T18:35:44.540541",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-204",
+      "user_id": "test_user_5e9b75eb",
+      "concept_id": "concept-160",
+      "concept_name": "并发测试概念_0_2887",
+      "timestamp": "2026-02-09T18:35:44.807788",
+      "last_score": null,
+      "next_review": "2026-02-10T18:35:44.807788",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-205",
+      "user_id": "test_user_5e9b75eb",
+      "concept_id": "concept-161",
+      "concept_name": "并发测试概念_1_94af",
+      "timestamp": "2026-02-09T18:35:44.946633",
+      "last_score": null,
+      "next_review": "2026-02-10T18:35:44.946633",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-206",
+      "user_id": "test_user_5e9b75eb",
+      "concept_id": "concept-162",
+      "concept_name": "并发测试概念_2_3442",
+      "timestamp": "2026-02-09T18:35:45.122609",
+      "last_score": null,
+      "next_review": "2026-02-10T18:35:45.122609",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-207",
+      "user_id": "test_user_5e9b75eb",
+      "concept_id": "concept-163",
+      "concept_name": "并发测试概念_3_d451",
+      "timestamp": "2026-02-09T18:35:45.244081",
+      "last_score": null,
+      "next_review": "2026-02-10T18:35:45.244081",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-208",
+      "user_id": "test_user_5e9b75eb",
+      "concept_id": "concept-164",
+      "concept_name": "并发测试概念_4_d99d",
+      "timestamp": "2026-02-09T18:35:45.435731",
+      "last_score": null,
+      "next_review": "2026-02-10T18:35:45.435731",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-209",
+      "user_id": "batch_user",
+      "concept_id": "concept-165",
+      "concept_name": "unknown",
+      "timestamp": "2026-02-09T18:41:58.810899",
+      "last_score": null,
+      "next_review": "2026-02-10T18:41:58.810899",
+      "review_count": 106,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-210",
+      "user_id": "test_user_83dff124",
+      "concept_id": "concept-166",
+      "concept_name": "线性代数-矩阵乘法-7e799e",
+      "timestamp": "2026-02-09T18:38:04.591429",
+      "last_score": 90,
+      "next_review": "2026-02-10T18:38:04.591429",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-211",
+      "user_id": "test_user_2b5ebd1c",
+      "concept_id": "concept-167",
+      "concept_name": "微积分-dc89",
+      "timestamp": "2026-02-09T18:38:04.773351",
+      "last_score": 70,
+      "next_review": "2026-02-10T18:38:04.773351",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-212",
+      "user_id": "test_user_2b5ebd1c",
+      "concept_id": "concept-168",
+      "concept_name": "概率论-a048",
+      "timestamp": "2026-02-09T18:38:04.870954",
+      "last_score": 80,
+      "next_review": "2026-02-10T18:38:04.870954",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-213",
+      "user_id": "test_user_2b5ebd1c",
+      "concept_id": "concept-169",
+      "concept_name": "线性代数-5a71",
+      "timestamp": "2026-02-09T18:38:04.983193",
+      "last_score": 90,
+      "next_review": "2026-02-10T18:38:04.983193",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-214",
+      "user_id": "test_user_48c30d0f",
+      "concept_id": "concept-170",
+      "concept_name": "微积分-6a9d",
+      "timestamp": "2026-02-09T18:38:05.133733",
+      "last_score": 85,
+      "next_review": "2026-02-10T18:38:05.133733",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-215",
+      "user_id": "test_user_48c30d0f",
+      "concept_id": "concept-171",
+      "concept_name": "量子力学-27a4",
+      "timestamp": "2026-02-09T18:38:05.229014",
+      "last_score": 78,
+      "next_review": "2026-02-10T18:38:05.229014",
+      "review_count": 1,
+      "group_id": "物理"
+    },
+    {
+      "id": "learned-216",
+      "user_id": "e2e_user_f78b3d7f",
+      "concept_id": "concept-42",
+      "concept_name": "概率论基础",
+      "timestamp": "2026-02-09T18:41:59.734041",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:41:59.734041",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-217",
+      "user_id": "e2e_user_f435f240",
+      "concept_id": "concept-42",
+      "concept_name": "概率论基础",
+      "timestamp": "2026-02-09T18:41:59.856891",
+      "last_score": 88,
+      "next_review": "2026-02-10T18:41:59.856891",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-218",
+      "user_id": "e2e_user_4ad84173",
+      "concept_id": "concept-43",
+      "concept_name": "完整测试概念",
+      "timestamp": "2026-02-09T18:42:00.041040",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.041040",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-219",
+      "user_id": "e2e_user_eb8001ea",
+      "concept_id": "concept-44",
+      "concept_name": "矩阵乘法",
+      "timestamp": "2026-02-09T18:42:00.215448",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.215448",
+      "review_count": 1,
+      "group_id": "数学"
+    },
+    {
+      "id": "learned-220",
+      "user_id": "e2e_user_2ff401de",
+      "concept_id": "concept-45",
+      "concept_name": "分页测试概念_0",
+      "timestamp": "2026-02-09T18:42:00.381336",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.381336",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-221",
+      "user_id": "e2e_user_2ff401de",
+      "concept_id": "concept-46",
+      "concept_name": "分页测试概念_1",
+      "timestamp": "2026-02-09T18:42:00.516266",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.516266",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-222",
+      "user_id": "e2e_user_2ff401de",
+      "concept_id": "concept-47",
+      "concept_name": "分页测试概念_2",
+      "timestamp": "2026-02-09T18:42:00.625914",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.625914",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-223",
+      "user_id": "e2e_user_2ff401de",
+      "concept_id": "concept-48",
+      "concept_name": "分页测试概念_3",
+      "timestamp": "2026-02-09T18:42:00.733430",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.733430",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-224",
+      "user_id": "e2e_user_2ff401de",
+      "concept_id": "concept-49",
+      "concept_name": "分页测试概念_4",
+      "timestamp": "2026-02-09T18:42:00.835883",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:00.835883",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-225",
+      "user_id": "persist_test_290e7c5a",
+      "concept_id": "concept-172",
+      "concept_name": "持久化测试_c0836c38",
+      "timestamp": "2026-02-09T18:42:01.042870",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:01.042870",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-226",
+      "user_id": "multi_episode_0fa262db",
+      "concept_id": "concept-173",
+      "concept_name": "概念A_240e",
+      "timestamp": "2026-02-09T18:42:01.204925",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:01.204925",
+      "review_count": 1,
+      "group_id": "test"
+    },
+    {
+      "id": "learned-227",
+      "user_id": "multi_episode_0fa262db",
+      "concept_id": "concept-174",
+      "concept_name": "概念B_c2b4",
+      "timestamp": "2026-02-09T18:42:01.308242",
+      "last_score": null,
+      "next_review": "2026-02-10T18:42:01.308242",
+      "review_count": 1,
+      "group_id": "test"
     }
   ],
   "metadata": {

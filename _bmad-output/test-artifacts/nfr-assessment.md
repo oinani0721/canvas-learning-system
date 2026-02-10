@@ -1,7 +1,7 @@
-# NFR Assessment - EPIC-38 Infrastructure Reliability Fixes
+# NFR Assessment - EPIC-31 Verification Canvas Intelligent Guidance
 
-**Date:** 2026-02-07
-**Story:** EPIC-38 (Stories 38.1 - 38.7)
+**Date:** 2026-02-09
+**Story:** EPIC-31 (Stories 31.1-31.6)
 **Overall Status:** CONCERNS ⚠️
 
 ---
@@ -10,13 +10,13 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ## Executive Summary
 
-**Assessment:** 5 PASS, 3 CONCERNS, 0 FAIL
+**Assessment:** 20 PASS, 9 CONCERNS, 0 FAIL
 
-**Blockers:** 0 — 无发布阻塞问题
+**Blockers:** 0 — 无阻塞级问题
 
-**High Priority Issues:** 1 — `VERIFICATION_AI_TIMEOUT=0.5s` 杀死验证系统 AI 调用 (非 EPIC-38 范围，已标记 xfail)
+**High Priority Issues:** 3 — 测试确定性 (datetime.now / asyncio.sleep(10))、无 CI 管线、无安全扫描
 
-**Recommendation:** 有条件通过。EPIC-38 基础设施可靠性修复在核心维度（可靠性、容错、降级）表现优秀，175/175 测试全部通过。建议在后续 Sprint 中修复已知的 VERIFICATION_AI_TIMEOUT 问题和提升测试覆盖率。
+**Recommendation:** 有条件通过。EPIC-31 的核心功能（验证会话、问题生成、评分、难度自适应、推荐操作）已实现，具备完整的降级保护和可观测性。主要短板集中在测试基础设施（CI、确定性、数据工厂）和安全验证（无 SAST/DAST 扫描）。建议在下一个 Sprint 解决 P0/P1 项后重新评估。
 
 ---
 
@@ -25,40 +25,40 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Response Time (p95)
 
 - **Status:** CONCERNS ⚠️
-- **Threshold:** AI 操作 < 15s，LanceDB 索引 < 5s，内存写入 < 2s/次尝试
-- **Actual:** MEMORY_WRITE_TIMEOUT=15.0s ✅, GRAPHITI_JSON_WRITE_TIMEOUT=2.0s ✅, VERIFICATION_AI_TIMEOUT=0.5s 🔴
-- **Evidence:** `agent_service.py:L45`, `memory_service.py:L70`, 测试 `test_story_38_6_scoring_reliability.py`
-- **Findings:** Story 38.6 成功将超时从 0.5s 对齐到 15.0s (外层) 和 2.0s (内层)。但 `VERIFICATION_AI_TIMEOUT=0.5s` 未修复（非 EPIC-38 范围），导致验证系统 AI 调用全部超时。已在 `test_story_38_7_qa_supplement.py` 中标记为 xfail。
+- **Threshold:** AI 调用 < 15s (VERIFICATION_AI_TIMEOUT, Story 31.1 AC-31.1.5)
+- **Actual:** 无基准测试数据；代码中 `asyncio.wait_for(call, timeout=15.0)` 强制 15s 上限
+- **Evidence:** `backend/app/services/verification_service.py` — 10 处 timeout 保护 (L1054, L1251, L1487, L1685, L1791, L1845, L2188, L2286, L2399, L2818); `backend/app/config.py:399` — `VERIFICATION_AI_TIMEOUT: float = Field(default=15.0)`
+- **Findings:** 超时保护机制到位。但缺少实际 p95 测量数据。Mock 模式下测试通过 (test_review: `elapsed < 0.5s`)，但真实 Gemini API 延迟未测量。
 
 ### Throughput
 
 - **Status:** PASS ✅
-- **Threshold:** Canvas CRUD 操作不因索引/写入而阻塞
-- **Actual:** LanceDB 索引异步非阻塞，评分写入 fire-and-forget
-- **Evidence:** `lancedb_index_service.py:L86-89` (asyncio.create_task), `agent_service.py:L3142` (fire-and-forget)
-- **Findings:** 所有后台操作（LanceDB 索引、评分写入、内存事件）均为 async non-blocking 模式，不阻塞用户操作。
+- **Threshold:** 本地单用户应用，无并发吞吐量要求
+- **Actual:** 单用户串行请求，async/await 架构 (30 个 async 方法)
+- **Evidence:** `backend/app/services/verification_service.py` — 全部核心方法为 `async def`
+- **Findings:** 架构上支持异步，本地单用户场景无吞吐量瓶颈。
 
 ### Resource Usage
 
 - **CPU Usage**
   - **Status:** PASS ✅
-  - **Threshold:** 后台任务不引发 CPU 峰值
-  - **Actual:** 索引去抖 500ms，重试退避 1s/2s/4s 避免 busy-loop
-  - **Evidence:** `lancedb_index_service.py:L58` (debounce), `memory_service.py:L73` (GRAPHITI_RETRY_BACKOFF_BASE=1.0)
+  - **Threshold:** 本地应用，无 CPU 限制要求
+  - **Actual:** 无测量数据；AI 调用委托给外部 Gemini API，本地计算量小
+  - **Evidence:** 架构分析 — VerificationService 主要编排 API 调用，不执行重计算
 
 - **Memory Usage**
-  - **Status:** PASS ✅
-  - **Threshold:** 内存缓存有上限
-  - **Actual:** `_episodes` 缓存限制 2000 条，FSRS 卡片按需加载
-  - **Evidence:** `memory_service.py:L211-213` (max_episodes=2000), `review_service.py:L223` (lazy load)
+  - **Status:** CONCERNS ⚠️
+  - **Threshold:** 无明确阈值
+  - **Actual:** 无测量数据；`verification_service.py` 2880 行，内存中维护 session 状态和历史
+  - **Evidence:** `backend/app/services/verification_service.py` — `VerificationProgress` dataclass 存储 session 状态
 
 ### Scalability
 
 - **Status:** PASS ✅
-- **Threshold:** 单用户本地应用，无极端扩展需求
-- **Actual:** 数据限制合理 (2000 episodes, 1000 recovery limit)，所有超时/限制可通过环境变量配置
-- **Evidence:** `config.py:L409-431` (ENABLE_GRAPHITI_JSON_DUAL_WRITE, LANCEDB_INDEX_*)
-- **Findings:** 配置灵活性优秀，所有关键参数均可调。Fire-and-forget + retry + fallback 三层保障。
+- **Threshold:** 本地单用户 Obsidian 插件，无水平扩展要求
+- **Actual:** 设计为本地单用户，FastAPI + Uvicorn 单进程
+- **Evidence:** 项目架构 — Obsidian 插件 → 本地 FastAPI 后端
+- **Findings:** 当前架构满足目标用例，无需水平扩展。
 
 ---
 
@@ -66,43 +66,45 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ### Authentication Strength
 
-- **Status:** N/A
-- **Threshold:** N/A — 本地单用户 Obsidian 插件 + FastAPI 后端
-- **Actual:** 无认证机制（设计如此）
-- **Evidence:** 代码库中无 JWT/OAuth/session 实现
-- **Findings:** 本地应用场景不需要认证。如未来部署到公网需补充。
+- **Status:** PASS ✅
+- **Threshold:** 本地应用，无认证要求（设计决策）
+- **Actual:** 无认证机制（by design — localhost only）
+- **Evidence:** 项目设计文档 — 本地 Obsidian 插件通过 localhost 连接 FastAPI
+- **Findings:** 本地单用户应用，认证不在范围内。API 绑定 localhost。
 
 ### Authorization Controls
 
-- **Status:** N/A
-- **Threshold:** N/A
-- **Actual:** 无角色控制（单用户系统）
-- **Evidence:** 无权限中间件
-- **Findings:** 单用户场景适用。
+- **Status:** PASS ✅
+- **Threshold:** 本地应用，无授权要求
+- **Actual:** 无授权控制（单用户，全权限）
+- **Evidence:** 同上
+- **Findings:** 合理的设计决策。
 
 ### Data Protection
 
 - **Status:** PASS ✅
-- **Threshold:** API 密钥通过环境变量管理，不硬编码
-- **Actual:** `.env` + `.gitignore` 隔离，Pydantic 配置验证
-- **Evidence:** `config.py:L173-212` (model_validator), `.env.example`
-- **Findings:** API 密钥通过环境变量管理，`.gitignore` 正确排除 `.env`。学习数据存储在本地文件和 Neo4j，不传输到外部（AI API 调用除外）。
+- **Threshold:** 学习数据本地存储，无外部传输
+- **Actual:** 数据存储在 `.canvas-learning/` 目录、JSON 文件、本地 Neo4j
+- **Evidence:** `backend/app/config.py` — `canvas_base_path`, `data_dir`; 数据文件: `learning_memories.json`, `neo4j_memory.json`
+- **Findings:** 所有学习数据本地存储。唯一的外部通信是 Gemini API 调用（发送概念文本进行问题生成/评分），不发送个人敏感信息。
+- **Recommendation:** 确保 Gemini API 调用不包含个人身份信息。
 
 ### Vulnerability Management
 
 - **Status:** CONCERNS ⚠️
-- **Threshold:** 0 critical, < 3 high vulnerabilities
-- **Actual:** 未执行安全扫描（Bandit, pip-audit 等）
-- **Evidence:** 无 SAST/DAST 扫描结果
-- **Findings:** 缺少自动化安全扫描。建议在 CI 中集成 Bandit (Python SAST) 和 pip-audit (依赖审计)。
+- **Threshold:** 0 critical, <3 high vulnerabilities
+- **Actual:** 未执行安全扫描 (Bandit / pip-audit / Safety)
+- **Evidence:** 无扫描报告
+- **Findings:** 缺少 SAST (Static Application Security Testing) 扫描。未运行 `bandit` 或 `pip-audit`。依赖列表在 `backend/requirements.txt` 但未扫描已知漏洞。
+- **Recommendation:** 运行 `pip-audit` 和 `bandit -r backend/app/` 获取基线安全报告。
 
-### Compliance (if applicable)
+### Compliance
 
-- **Status:** N/A
-- **Threshold:** N/A — 本地学习工具，不处理 PII/金融/医疗数据
-- **Actual:** N/A
-- **Evidence:** N/A
-- **Findings:** 当前无合规性需求。
+- **Status:** PASS ✅
+- **Standards:** 不适用 — 本地学习辅助工具，不处理受管数据 (非 GDPR/HIPAA/PCI-DSS 范围)
+- **Actual:** 不适用
+- **Evidence:** 项目性质 — 个人学习辅助工具
+- **Findings:** 无合规要求。
 
 ---
 
@@ -111,56 +113,60 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Availability (Uptime)
 
 - **Status:** PASS ✅
-- **Threshold:** 本地应用，无 SLA 要求；系统启动后核心功能始终可用
-- **Actual:** Neo4j 宕机时自动降级到 JSON fallback，核心功能不中断
-- **Evidence:** `canvas_service.py:L241-249`, `memory_service.py:L217-219`, 测试 175/175 pass
-- **Findings:** EPIC-38 确保了即使 Neo4j 不可用，Canvas CRUD、学习历史、评分写入均可降级运行。
+- **Threshold:** 本地应用，随用随启，无 SLA 要求
+- **Actual:** 手动启动 Uvicorn，无需 24/7 运行
+- **Evidence:** 项目架构 — 本地开发服务器
+- **Findings:** 本地应用无可用性 SLA。
 
 ### Error Rate
 
 - **Status:** PASS ✅
-- **Threshold:** 静默失败率 = 0% (所有失败必须被追踪)
-- **Actual:** 所有失败路径均有 WARNING 日志 + fallback 记录
-- **Evidence:** Story 38.5 升级 DEBUG→WARNING, Story 38.6 `failed_writes.jsonl`, 测试 `test_canvas_crud_writes_json_fallback_when_no_memory_client`
-- **Findings:** EPIC-38 消除了静默失败。所有降级路径都有 WARNING 级别日志和 fallback 文件记录。
+- **Threshold:** 外部 API 错误不应导致服务崩溃
+- **Actual:** 23 个 try/except 块，100% 类型化异常，0 个 bare except
+- **Evidence:** `backend/app/services/verification_service.py` — 23 try blocks, typed exceptions (asyncio.TimeoutError, Exception, FileNotFoundError, json.JSONDecodeError)
+- **Findings:** ADR-009 优雅降级模式：所有外部调用（Gemini AI、Neo4j、Canvas 文件读取）都有 try/except 保护。超时返回 fallback 值，不会导致 500 错误。
 
 ### MTTR (Mean Time To Recovery)
 
-- **Status:** PASS ✅
-- **Threshold:** 应用重启后自动恢复，无需手动干预
-- **Actual:** 启动时自动恢复 episodes (Neo4j)、failed writes (JSONL)、pending indexes (LanceDB)
-- **Evidence:** `main.py:L125-149` (lifespan startup recovery), 测试 `test_recover_failed_writes_replays_entries`
-- **Findings:** 三路启动恢复：episodes 从 Neo4j, 失败写入从 JSONL, pending 索引从 LanceDB JSONL。MTTR ≈ 应用重启时间。
+- **Status:** CONCERNS ⚠️
+- **Threshold:** 无明确阈值
+- **Actual:** 无测量数据
+- **Evidence:** 无事件报告
+- **Findings:** 本地应用，恢复手段为重启 Uvicorn 进程。无自动重启机制。
 
 ### Fault Tolerance
 
 - **Status:** PASS ✅
-- **Threshold:** Neo4j 故障不影响核心功能
-- **Actual:** 双写 JSON 回退 (默认启用), JSON fallback for Canvas 事件, failed_writes.jsonl for 评分
-- **Evidence:** Story 38.4 (dual-write default=True), Story 38.5 (Canvas CRUD fallback), Story 38.6 (scoring fallback)
-- **Findings:** 容错设计优秀。三层保障：(1) 重试 3×指数退避, (2) JSON fallback 写入, (3) 启动时恢复。
+- **Threshold:** 外部依赖故障不应导致核心功能不可用
+- **Actual:** 全面的降级保护 — 29 个 logger.warning 降级警报
+- **Evidence:** `backend/app/services/verification_service.py`:
+  - AI 超时 → 返回 mock 问题/评分 (L1054-1062)
+  - Memory service 不可用 → 跳过历史记录 (L1449)
+  - Canvas 文件缺失 → 返回 fallback 概念 (L1169-1173)
+  - Graphiti 不可用 → 跳过知识图谱查询 (L1662)
+- **Findings:** 优秀的容错设计。`USE_MOCK_VERIFICATION` 配置项允许完全离线运行。
 
 ### CI Burn-In (Stability)
 
 - **Status:** CONCERNS ⚠️
-- **Threshold:** 连续 100 次 CI 运行成功
-- **Actual:** 无 CI burn-in 数据（项目无 CI 流水线）
-- **Evidence:** 无 CI 配置文件
-- **Findings:** 本地运行 175/175 测试通过，但缺少 CI 持续稳定性验证。
+- **Threshold:** 连续测试运行稳定性
+- **Actual:** 无 CI 管线
+- **Evidence:** 项目无 CI/CD 配置文件 (.github/workflows, .gitlab-ci.yml, Jenkinsfile 均不存在)
+- **Findings:** 所有测试仅本地运行。无连续稳定性数据。测试审查报告发现确定性问题 (`asyncio.sleep(10)`, `datetime.now()` 非确定性)，这些问题在 CI 环境中更容易暴露。
 
-### Disaster Recovery (if applicable)
+### Disaster Recovery
 
 - **RTO (Recovery Time Objective)**
   - **Status:** PASS ✅
-  - **Threshold:** < 应用重启时间
-  - **Actual:** 启动时自动恢复所有 fallback 数据
-  - **Evidence:** `main.py:L113-149`
+  - **Threshold:** 不适用（本地应用）
+  - **Actual:** 重启 Uvicorn < 5s
+  - **Evidence:** 本地进程，无需复杂恢复
 
 - **RPO (Recovery Point Objective)**
   - **Status:** PASS ✅
-  - **Threshold:** 0 数据丢失（所有失败写入均有 fallback）
-  - **Actual:** failed_writes.jsonl + canvas_events_fallback.json 确保零数据丢失
-  - **Evidence:** Story 38.5 + Story 38.6 fallback 机制
+  - **Threshold:** 学习数据不丢失
+  - **Actual:** JSON 文件持久化 + Git 版本控制
+  - **Evidence:** `backend/data/learning_memories.json`, `backend/data/neo4j_memory.json` — 文件级持久化
 
 ---
 
@@ -169,93 +175,87 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 ### Test Coverage
 
 - **Status:** CONCERNS ⚠️
-- **Threshold:** >= 85%
-- **Actual:** 28.30% (整体项目覆盖率)
-- **Evidence:** `pytest --cov` 输出: "total of 28 is less than fail-under=85"
-- **Findings:** 整体项目覆盖率远低于阈值，但这是项目全局数字。EPIC-38 自身的 175 个测试覆盖了所有核心路径（7 个 Story × 3-5 个 AC = 全部验收标准已验证）。低覆盖率主要因为项目其他模块缺少测试。
+- **Threshold:** >= 80% 行覆盖率
+- **Actual:** 无覆盖率报告 (未运行 `pytest --cov`)
+- **Evidence:** 233 个测试、527 个断言覆盖 6/6 Stories，但缺少行级覆盖率数据
+- **Findings:** Story 功能覆盖率 100% (31.1-31.6)，但行级覆盖率未测量。2880 行的 verification_service.py 中存在大量分支路径，需要覆盖率报告确认。
 
 ### Code Quality
 
 - **Status:** PASS ✅
-- **Threshold:** Code review 通过，所有 HIGH 级问题已修复
-- **Actual:** 每个 Story 均通过 Code Review，所有 HIGH/MEDIUM 问题已修复
-- **Evidence:** Story 38.2 (H1: unique episode_id, H2: None-value pattern), Story 38.3 (C1/C2: health.py fix, M1: FSRS persistence), Story 38.6 (H1: threading lock, H2: missing fields, H3: atomic write)
-- **Findings:** 代码审查发现并修复了 6 个 HIGH 级、6 个 MEDIUM 级问题。代码质量持续改善。
+- **Threshold:** 0 个死代码标记 (TODO/FIXME/HACK/STUB)
+- **Actual:** 0 个技术债务标记
+- **Evidence:** `backend/app/services/verification_service.py` — grep 结果: 0 TODO, 0 FIXME, 0 HACK, 0 STUB
+- **Findings:** 代码质量良好。零技术债务标记。但文件体量较大 (2880 行)，建议未来拆分。
 
 ### Technical Debt
 
-- **Status:** PASS ✅
-- **Threshold:** 无新增技术债务
-- **Actual:** EPIC-38 减少了技术债务（修复了 6 个基础设施盲区）
-- **Evidence:** EPIC-38 origin: "Deep Explore 审计发现 6 个系统性基础设施问题"
-- **Findings:** EPIC-38 本身就是债务清理 EPIC，解决了 BMad 模板盲区导致的 D1-D6 维度缺失。
+- **Status:** CONCERNS ⚠️
+- **Threshold:** < 5% 技术债务比率
+- **Actual:** 无量化数据 (未运行 SonarQube/CodeClimate)
+- **Evidence:** 定性分析 — 代码零死代码标记，但存在以下技术债务:
+  - 文件体量: 2880 行 (建议 < 500 行/文件)
+  - 测试确定性: datetime.now() 在 7+ 个测试文件中
+  - asyncio.sleep(10) 硬等待
+  - 无数据工厂 (13 个文件全部硬编码测试数据)
+- **Findings:** 功能代码技术债务低，测试代码技术债务中等。
 
 ### Documentation Completeness
 
 - **Status:** PASS ✅
-- **Threshold:** 每个 Story 有完整的实现记录
-- **Actual:** 所有 7 个 Story 均有 story.md 或 implementation-artifact.md
-- **Evidence:** `docs/stories/38.2.story.md`, `docs/implementation-artifacts/story-38.{3,4,6,7}.md`
-- **Findings:** 文档齐全，每个 Story 包含：AC、任务清单、代码引用、Debug 日志、Code Review 记录、File List、Change Log。
+- **Threshold:** EPIC 文档 + Story 定义 + API 文档
+- **Actual:** EPIC-31 文档完整 (16 Stories)，OpenAPI 自动生成
+- **Evidence:** `docs/epics/EPIC-31-VERIFICATION-CANVAS-INTELLIGENT-GUIDANCE.md` — 完整 EPIC 定义; `backend/openapi.json` — 自动生成 API 文档
+- **Findings:** 文档覆盖良好。
 
-### Test Quality (from test-review, if available)
+### Test Quality (from test-review)
 
-- **Status:** PASS ✅
-- **Threshold:** 测试确定性、隔离性、自清理
-- **Actual:** 175/175 tests pass, 0 flaky, 4 warnings (deprecation only)
-- **Evidence:** pytest 运行输出: "175 passed, 4 warnings in 21.51s"
-- **Findings:** 测试质量优秀：确定性 (无随机失败)、隔离性 (每个测试独立 mock)、运行时间 < 30s (21.51s)。QA 补充测试覆盖了边缘场景。
+- **Status:** CONCERNS ⚠️
+- **Threshold:** >= 80/100 测试质量分
+- **Actual:** 73/100 (B - Acceptable)
+- **Evidence:** `_bmad-output/test-artifacts/test-review-epic31.md` — 13 文件, 233 测试, 527 断言
+- **Findings:**
+  - **优势:** 100% Story 覆盖, ADR-009 降级测试, 全面边界值测试
+  - **问题:** asyncio.sleep(10) 硬等待 (-10 分), datetime.now() 非确定性 (-5 分), 无 Test ID (-5 分), 4 个文件 > 500 行 (-5 分)
 
 ---
 
 ## Custom NFR Assessments
 
-### D1: 持久化 (Persistence)
+### AI 服务降级保护 (ADR-009 合规)
 
 - **Status:** PASS ✅
-- **Threshold:** 数据重启后不丢失
-- **Actual:** Neo4j (primary) + JSON fallback (secondary)，启动恢复
-- **Evidence:** Story 38.1 (LanceDB 启动恢复), Story 38.2 (Episode 恢复), Story 38.6 (failed writes 恢复)
-- **Findings:** 三路持久化保障：Neo4j → JSON fallback → 启动恢复。
+- **Threshold:** 所有 AI 调用 (Gemini) 必须有超时保护和降级 fallback
+- **Actual:** 10 处 `asyncio.wait_for(call, timeout=15.0)` 保护，每处有 fallback 返回值
+- **Evidence:** `backend/app/services/verification_service.py` — L1054, L1251, L1487, L1685, L1791, L1845, L2188, L2286, L2399, L2818
+- **Findings:** 完全符合 ADR-009。每个 AI 调用都有: (1) 15s 超时, (2) TimeoutError catch, (3) logger.warning 记录, (4) fallback 返回值。
 
-### D2: 弹性 (Resilience)
-
-- **Status:** PASS ✅
-- **Threshold:** 失败后自动重试，不静默丢失
-- **Actual:** 3 次重试 + 指数退避 + fallback 文件 + 启动恢复
-- **Evidence:** Story 38.1 (LanceDB retry), Story 38.6 (scoring retry + fallback)
-- **Findings:** 超时/重试对齐已完成 (15s outer >= 9s inner worst case)。
-
-### D5: 降级 (Degradation)
+### 依赖注入完整性
 
 - **Status:** PASS ✅
-- **Threshold:** 依赖不可用时透明降级，WARNING 日志
-- **Actual:** Neo4j 宕机 → JSON fallback + WARNING 日志
-- **Evidence:** Story 38.2 (lazy recovery), Story 38.3 (FSRS degraded), Story 38.5 (Canvas CRUD fallback)
-- **Findings:** 消除了静默降级，所有 skip 路径升级为 WARNING 级别。
-
-### D6: 集成 (Integration)
-
-- **Status:** PASS ✅
-- **Threshold:** 所有 Story 端到端协同工作
-- **Actual:** Story 38.7 验证了 5 个 AC: 新环境启动、完整学习流程、重启恢复、降级模式、恢复
-- **Evidence:** `test_story_38_7_*.py` (5 个测试文件), 43 个集成测试
-- **Findings:** 端到端验证通过，跨服务数据流完整。
+- **Threshold:** Service.__init__ 的每个可选参数必须在 dependencies.py 中被传入
+- **Actual:** 8/8 依赖完整注入 (EPIC-36 修复后)
+- **Evidence:** `backend/app/dependencies.py:533-664` — get_verification_service 注入: rag_service, cross_canvas_service, textbook_context_service, graphiti_client, memory_service, agent_service, canvas_service, canvas_base_path
+- **Findings:** EPIC-36 对抗性审核已修复 P0 依赖断裂 (canvas_service, memory_service)。当前所有依赖完整注入，使用 lazy import 避免循环导入。
 
 ---
 
 ## Quick Wins
 
-2 quick wins identified for immediate implementation:
+3 quick wins identified for immediate implementation:
 
-1. **添加 `failed_writes.jsonl` 文件轮转** (Maintainability) - LOW - 0.5d
-   - 文件无大小限制，长期运行可能无限增长
-   - 在 `recover_failed_writes()` 中添加保留最近 100 条的清理逻辑
-   - No code changes needed for core functionality
+1. **移除 asyncio.sleep(10) 硬等待** (Maintainability) - CRITICAL - 15 分钟
+   - `backend/tests/unit/test_verification_service_injection.py` 中的 10s 硬等待
+   - 替换为 event-based 同步或直接移除
+   - 可立即减少测试套件运行时间 10s
 
-2. **文档安全部署指南** (Security) - LOW - 0.25d
-   - 在 README 中添加"安全部署清单"，明确标注"仅限本地使用"
-   - No code changes needed
+2. **运行 pip-audit 安全扫描** (Security) - HIGH - 10 分钟
+   - `pip-audit -r backend/requirements.txt`
+   - 获取依赖漏洞基线，无需代码修改
+
+3. **运行 pytest --cov 获取覆盖率** (Maintainability) - HIGH - 5 分钟
+   - `cd backend && pytest --cov=app --cov-report=html tests/`
+   - 获取行级覆盖率数据，确认 verification_service.py 覆盖率
 
 ---
 
@@ -263,26 +263,52 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ### Immediate (Before Release) - CRITICAL/HIGH Priority
 
-无阻塞性问题。系统可以发布。
+1. **移除 asyncio.sleep(10) 硬等待** - CRITICAL - 15 min - Dev
+   - 位置: `backend/tests/unit/test_verification_service_injection.py`
+   - 替换 `await asyncio.sleep(10)` 为 `asyncio.wait_for()` 或删除
+   - 验证: 测试套件运行时间减少 ≥ 10s
+
+2. **修复 datetime.now() 非确定性** - HIGH - 1 hour - Dev
+   - 位置: 7+ 个测试文件
+   - 使用 `freezegun` 或 `unittest.mock.patch` 固定时间
+   - 验证: 测试在不同时区/时间运行结果一致
+
+3. **运行安全扫描** - HIGH - 30 min - Dev
+   - 执行 `pip-audit` 和 `bandit -r backend/app/`
+   - 记录扫描结果到 `_bmad-output/test-artifacts/`
+   - 验证: 0 critical, < 3 high 漏洞
 
 ### Short-term (Next Sprint) - MEDIUM Priority
 
-1. **修复 VERIFICATION_AI_TIMEOUT** - MEDIUM - 0.5d - Dev Team
-   - 将 `VERIFICATION_AI_TIMEOUT` 从 0.5s 增加到 15s
-   - 与 MEMORY_WRITE_TIMEOUT 对齐
-   - 验证: xfail 测试改为 pass
+1. **生成测试覆盖率报告** - MEDIUM - 30 min - Dev
+   - 执行 `pytest --cov=app --cov-report=html`
+   - 目标: verification_service.py >= 80% 行覆盖率
 
-2. **提升测试覆盖率** - MEDIUM - 2-3d - Dev Team
-   - 目标: 从 28.30% 提升至 50%+（聚焦 EPIC-38 相关服务）
-   - 补充 `canvas_service.py` 和 `lancedb_index_service.py` 分支覆盖
+2. **添加 Test ID 标记** - MEDIUM - 2 hours - Dev
+   - 所有 13 个测试文件添加 `@pytest.mark.test_id("EPIC31-xxx")`
+   - 提升 CI 失败到 Story 的可追溯性
+
+3. **拆分超大测试文件** - MEDIUM - 3 hours - Dev
+   - 4 个 > 500 行文件需要拆分
+   - 目标: 每个文件 < 500 行
+
+4. **建立 CI 管线** - MEDIUM - 4 hours - DevOps
+   - 创建 GitHub Actions 或类似 CI 配置
+   - 包含: pytest, coverage, bandit, pip-audit
 
 ### Long-term (Backlog) - LOW Priority
 
-1. **集成安全扫描工具** - LOW - 1d - Dev Team
-   - 在 CI 中添加 Bandit (SAST) + pip-audit (依赖审计)
+1. **引入 structlog 结构化日志** - LOW - 4 hours - Dev
+   - 替换标准 logging 为 structlog
+   - 支持 JSON 格式日志输出
 
-2. **添加 Prometheus 自定义指标** - LOW - 1d - Dev Team
-   - `canvas_memory_write_failures_total`, `lancedb_index_retry_count`
+2. **拆分 verification_service.py** - LOW - 8 hours - Dev
+   - 2880 行 → 拆分为 question_generator, scorer, session_manager, difficulty_adapter 等模块
+   - 每个模块 < 500 行
+
+3. **创建测试数据工厂** - LOW - 2 hours - Dev
+   - 替换 13 个文件中的硬编码测试数据
+   - 使用 conftest.py factory fixtures
 
 ---
 
@@ -292,77 +318,91 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ### Performance Monitoring
 
-- [ ] **超时频率追踪** - 监控 `_write_with_timeout()` 超时次数
-  - **Owner:** Dev Team
+- [ ] **AI 调用延迟追踪** — 记录每次 Gemini API 调用的延迟，标记 > 10s 的慢调用
+  - **Owner:** Dev
   - **Deadline:** Next Sprint
 
-- [ ] **LanceDB 索引延迟** - 监控 `schedule_index()` 到完成的延迟
-  - **Owner:** Dev Team
+- [ ] **Session 处理时间** — 记录验证会话从开始到完成的总时间
+  - **Owner:** Dev
+  - **Deadline:** Next Sprint
+
+### Security Monitoring
+
+- [ ] **依赖漏洞扫描** — 定期运行 pip-audit，新增 critical/high 漏洞时告警
+  - **Owner:** Dev
   - **Deadline:** Next Sprint
 
 ### Reliability Monitoring
 
-- [ ] **failed_writes.jsonl 大小** - 文件增长速率异常预警
-  - **Owner:** Dev Team
-  - **Deadline:** Next Sprint
-
-- [ ] **/health 端点定期检查** - 监控 FSRS 和组件状态
-  - **Owner:** Dev Team
-  - **Deadline:** Current Sprint
+- [ ] **降级事件计数** — 统计 logger.warning 中的降级事件频率，异常增长时告警
+  - **Owner:** Dev
+  - **Deadline:** Backlog
 
 ### Alerting Thresholds
 
-- [ ] **failed_writes.jsonl > 100 条** - Notify when 未恢复的失败写入超过 100 条
-  - **Owner:** Dev Team
-  - **Deadline:** Next Sprint
+- [ ] **AI 超时率 > 20%** — 如果连续 5 次请求中 > 1 次超时，记录 ERROR 并切换 mock 模式
+  - **Owner:** Dev
+  - **Deadline:** Backlog
 
 ---
 
 ## Fail-Fast Mechanisms
 
-3 fail-fast mechanisms recommended to prevent failures:
+4 fail-fast mechanisms recommended to prevent failures:
 
 ### Circuit Breakers (Reliability)
 
-- [x] **LanceDB 客户端不可用标记** - `_client_unavailable` 永久标记避免重复失败
-  - **Owner:** Dev Team (已实现)
-  - **Estimated Effort:** 已完成 (Story 38.1 Review M2)
+- [ ] **Gemini API 熔断器** — 连续 3 次超时后自动切换 USE_MOCK_VERIFICATION=True，避免用户等待
+  - **Owner:** Dev
+  - **Estimated Effort:** 2 hours
 
 ### Rate Limiting (Performance)
 
-- [x] **LanceDB 索引去抖** - 500ms 窗口合并快速连续更新
-  - **Owner:** Dev Team (已实现)
-  - **Estimated Effort:** 已完成 (Story 38.1 AC-1)
+- [ ] **验证请求节流** — 同一 session 的请求间隔 < 1s 时拒绝，防止意外重复提交
+  - **Owner:** Dev
+  - **Estimated Effort:** 1 hour
 
 ### Validation Gates (Security)
 
-- [x] **FSRS 状态非空保障** - 自动创建默认 FSRS 卡片，防止 null 值传播
-  - **Owner:** Dev Team (已实现)
-  - **Estimated Effort:** 已完成 (Story 38.3 AC-4)
+- [ ] **输入长度限制** — 用户回答文本 > 10000 字符时拒绝，防止恶意长文本
+  - **Owner:** Dev
+  - **Estimated Effort:** 30 min
+
+### Smoke Tests (Maintainability)
+
+- [ ] **启动时健康检查** — 应用启动时验证 Gemini API 可达性，不可达时启动 mock 模式
+  - **Owner:** Dev
+  - **Estimated Effort:** 1 hour
 
 ---
 
 ## Evidence Gaps
 
-3 evidence gaps identified - action required:
+4 evidence gaps identified - action required:
+
+- [ ] **测试行覆盖率** (Maintainability)
+  - **Owner:** Dev
+  - **Deadline:** Next Sprint
+  - **Suggested Evidence:** `pytest --cov=app --cov-report=html tests/`
+  - **Impact:** 无法确认 verification_service.py 2880 行中实际覆盖率
 
 - [ ] **安全扫描结果** (Security)
-  - **Owner:** Dev Team
-  - **Deadline:** Next Sprint
-  - **Suggested Evidence:** Bandit SAST 扫描 + pip-audit 依赖审计
-  - **Impact:** 无法确认是否存在已知漏洞（当前评估基于代码审查）
+  - **Owner:** Dev
+  - **Deadline:** Immediate
+  - **Suggested Evidence:** `pip-audit -r requirements.txt` + `bandit -r backend/app/`
+  - **Impact:** 无法确认依赖库安全状态和静态代码安全性
 
-- [ ] **CI Burn-In 稳定性数据** (Reliability)
-  - **Owner:** Dev Team
-  - **Deadline:** Next Sprint
-  - **Suggested Evidence:** 配置 GitHub Actions CI 运行 pytest，连续 100 次成功
-  - **Impact:** 无法验证长期稳定性（当前仅本地单次运行 175/175 pass）
-
-- [ ] **性能基准测试数据** (Performance)
-  - **Owner:** Dev Team
+- [ ] **性能基准数据** (Performance)
+  - **Owner:** Dev
   - **Deadline:** Backlog
-  - **Suggested Evidence:** pytest-benchmark 自动化性能测试
-  - **Impact:** 响应时间阈值基于代码配置推导，非实际测量
+  - **Suggested Evidence:** 真实 Gemini API 调用的 p50/p95/p99 延迟测量
+  - **Impact:** 无法验证 15s 超时阈值是否合理
+
+- [ ] **CI 稳定性数据** (Reliability)
+  - **Owner:** DevOps
+  - **Deadline:** Next Sprint
+  - **Suggested Evidence:** CI 管线连续运行记录
+  - **Impact:** 无法验证测试套件在不同环境的稳定性
 
 ---
 
@@ -370,23 +410,96 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 **Based on ADR Quality Readiness Checklist (8 categories, 29 criteria)**
 
-| Category                                         | Criteria Met       | PASS             | CONCERNS             | FAIL             | Overall Status                      |
-| ------------------------------------------------ | ------------------ | ---------------- | -------------------- | ---------------- | ----------------------------------- |
-| 1. Testability & Automation                      | 3/4                | 3                | 1                    | 0                | CONCERNS ⚠️                        |
-| 2. Test Data Strategy                            | 2/3                | 2                | 1                    | 0                | CONCERNS ⚠️                        |
-| 3. Scalability & Availability                    | 4/4                | 4                | 0                    | 0                | PASS ✅                             |
-| 4. Disaster Recovery                             | 3/3                | 3                | 0                    | 0                | PASS ✅                             |
-| 5. Security                                      | 2/4                | 2                | 1                    | 0                | CONCERNS ⚠️                        |
-| 6. Monitorability, Debuggability & Manageability | 4/4                | 4                | 0                    | 0                | PASS ✅                             |
-| 7. QoS & QoE                                     | 3/4                | 3                | 1                    | 0                | CONCERNS ⚠️                        |
-| 8. Deployability                                 | 3/3                | 3                | 0                    | 0                | PASS ✅                             |
-| **Total**                                        | **24/29**          | **24**           | **4**                | **0**            | **CONCERNS ⚠️**                    |
+| Category | Criteria Met | PASS | CONCERNS | FAIL | Overall Status |
+|---|---|---|---|---|---|
+| 1. Testability & Automation | 2/4 | 2 | 2 | 0 | CONCERNS ⚠️ |
+| 2. Test Data Strategy | 0/3 | 0 | 3 | 0 | CONCERNS ⚠️ |
+| 3. Scalability & Availability | 3/4 | 3 | 1 | 0 | CONCERNS ⚠️ |
+| 4. Disaster Recovery | 3/3 | 3 | 0 | 0 | PASS ✅ |
+| 5. Security | 3/4 | 3 | 1 | 0 | CONCERNS ⚠️ |
+| 6. Monitorability, Debuggability & Manageability | 3/4 | 3 | 1 | 0 | CONCERNS ⚠️ |
+| 7. QoS & QoE | 4/4 | 4 | 0 | 0 | PASS ✅ |
+| 8. Deployability | 2/3 | 2 | 1 | 0 | CONCERNS ⚠️ |
+| **Total** | **20/29** | **20** | **9** | **0** | **CONCERNS ⚠️** |
 
 **Criteria Met Scoring:**
 
 - ≥26/29 (90%+) = Strong foundation
-- 20-25/29 (69-86%) = Room for improvement ← **24/29 (83%) — 接近优秀**
+- 20-25/29 (69-86%) = Room for improvement ← **EPIC-31 位于此区间 (69%)**
 - <20/29 (<69%) = Significant gaps
+
+---
+
+### Category Details
+
+#### 1. Testability & Automation (2/4 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 测试自动化框架 | ✅ PASS | pytest + pytest-asyncio, 233 个自动化测试 |
+| Story 覆盖率 | ✅ PASS | 6/6 Stories (31.1-31.6) = 100% |
+| 测试质量分 | ⚠️ CONCERNS | 73/100 (B)，低于 80 分门槛; datetime.now() 非确定性 |
+| CI/CD 集成 | ⚠️ CONCERNS | 无 CI 管线; 测试仅本地运行 |
+
+#### 2. Test Data Strategy (0/3 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 数据工厂 | ⚠️ CONCERNS | 13 个文件全部硬编码测试数据，无 factory fixtures |
+| 数据隔离 | ⚠️ CONCERNS | 模块级状态突变 (USE_MOCK_VERIFICATION)，DI override 泄漏风险 |
+| 数据确定性 | ⚠️ CONCERNS | datetime.now() 在 7+ 文件中; time.time() 性能断言 |
+
+#### 3. Scalability & Availability (3/4 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 异步架构 | ✅ PASS | 30 个 async 方法，全 async/await |
+| 资源管理 | ✅ PASS | 15s 超时保护，10 处 asyncio.wait_for |
+| 水平扩展 | ✅ PASS | 不适用 (本地单用户)，架构满足需求 |
+| 负载测试 | ⚠️ CONCERNS | 无负载测试数据 |
+
+#### 4. Disaster Recovery (3/3 PASS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 数据持久化 | ✅ PASS | JSON 文件 + Git 版本控制 |
+| 恢复流程 | ✅ PASS | 重启进程 < 5s (本地应用) |
+| 数据完整性 | ✅ PASS | 文件级持久化，session 状态可恢复 |
+
+#### 5. Security (3/4 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 认证/授权 | ✅ PASS | 不适用 (localhost only, by design) |
+| 输入验证 | ✅ PASS | Pydantic models 在 API 层验证 |
+| 密钥管理 | ✅ PASS | 0 硬编码凭证; Settings 配置管理 |
+| 漏洞扫描 | ⚠️ CONCERNS | 未运行 Bandit/pip-audit |
+
+#### 6. Monitorability, Debuggability & Manageability (3/4 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 日志覆盖率 | ✅ PASS | 79 个 logger 调用 (18 info, 29 warning, 7 error, 25 debug) |
+| 降级可见性 | ✅ PASS | 29 个降级 warning，透明 fallback |
+| 健康检查 | ✅ PASS | /health 端点存在 |
+| 结构化日志 | ⚠️ CONCERNS | 使用标准 logging，非 structlog |
+
+#### 7. QoS & QoE (4/4 PASS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 响应质量 | ✅ PASS | AI 问题生成 + fallback 静态问题 |
+| 优雅降级 | ✅ PASS | ADR-009 完全合规, 10 处降级路径 |
+| 用户体验 | ✅ PASS | Mock 模式保证离线可用 |
+| 配置灵活性 | ✅ PASS | USE_MOCK_VERIFICATION toggle |
+
+#### 8. Deployability (2/3 CONCERNS)
+
+| Criterion | Status | Evidence |
+|---|---|---|
+| 配置管理 | ✅ PASS | Pydantic Settings, 环境变量 |
+| 依赖管理 | ✅ PASS | requirements.txt 锁定 |
+| 部署文档 | ⚠️ CONCERNS | 启动说明不完整 |
 
 ---
 
@@ -394,60 +507,63 @@ Note: This assessment summarizes existing evidence; it does not run tests or CI 
 
 ```yaml
 nfr_assessment:
-  date: '2026-02-07'
-  story_id: 'EPIC-38'
-  feature_name: 'Infrastructure Reliability Fixes'
-  adr_checklist_score: '24/29'
+  date: '2026-02-09'
+  story_id: 'EPIC-31'
+  feature_name: 'Verification Canvas Intelligent Guidance'
+  adr_checklist_score: '20/29'
   categories:
     testability_automation: 'CONCERNS'
     test_data_strategy: 'CONCERNS'
-    scalability_availability: 'PASS'
+    scalability_availability: 'CONCERNS'
     disaster_recovery: 'PASS'
     security: 'CONCERNS'
-    monitorability: 'PASS'
-    qos_qoe: 'CONCERNS'
-    deployability: 'PASS'
+    monitorability: 'CONCERNS'
+    qos_qoe: 'PASS'
+    deployability: 'CONCERNS'
   overall_status: 'CONCERNS'
-  critical_issues: 0
-  high_priority_issues: 1
-  medium_priority_issues: 2
-  concerns: 4
+  critical_issues: 1
+  high_priority_issues: 3
+  medium_priority_issues: 4
+  concerns: 9
   blockers: false
-  quick_wins: 2
-  evidence_gaps: 3
+  quick_wins: 3
+  evidence_gaps: 4
   recommendations:
-    - '修复 VERIFICATION_AI_TIMEOUT 从 0.5s 到 15s'
-    - '提升测试覆盖率从 28% 到 50%+'
-    - '集成安全扫描工具 (Bandit + pip-audit)'
+    - '移除 asyncio.sleep(10) 硬等待 (15 min)'
+    - '修复 datetime.now() 非确定性 (1 hour)'
+    - '运行安全扫描 pip-audit + bandit (30 min)'
 ```
 
 ---
 
 ## Related Artifacts
 
-- **EPIC File:** `docs/stories/EPIC-38-infrastructure-reliability-fixes.md`
-- **Story Files:**
-  - `docs/stories/38.2.story.md`
-  - `docs/implementation-artifacts/story-38.3.md`
-  - `docs/implementation-artifacts/story-38.4.md`
-  - `docs/implementation-artifacts/story-38.6.md`
-  - `docs/implementation-artifacts/story-38.7.md`
+- **EPIC File:** `docs/epics/EPIC-31-VERIFICATION-CANVAS-INTELLIGENT-GUIDANCE.md`
+- **Test Review:** `_bmad-output/test-artifacts/test-review-epic31.md` (73/100, B grade)
+- **Core Implementation:** `backend/app/services/verification_service.py` (2880 lines)
+- **DI Configuration:** `backend/app/dependencies.py:533-664`
+- **Config:** `backend/app/config.py:399-402` (VERIFICATION_AI_TIMEOUT=15.0)
 - **Evidence Sources:**
-  - Test Results: `backend/tests/unit/test_story_38_*.py`, `backend/tests/integration/test_story_38_7_*.py`
-  - Metrics: 175/175 tests passed, 28.30% coverage
-  - Logs: pytest output (21.51s execution time, 4 warnings)
+  - Test Results: `backend/tests/` (233 tests, 527 asserts)
+  - Metrics: 无 (建议生成覆盖率报告)
+  - Logs: 79 个 logger 调用内置于代码
+  - CI Results: 无 (无 CI 管线)
 
 ---
 
 ## Recommendations Summary
 
-**Release Blocker:** 无。系统可以发布。
+**Release Blocker:** 无。0 个 FAIL 状态的 NFR 类别。
 
-**High Priority:** 修复 `VERIFICATION_AI_TIMEOUT=0.5s` (非 EPIC-38 范围，但影响验证系统可用性)
+**High Priority:** 3 项 — (1) asyncio.sleep(10) 硬等待影响测试稳定性, (2) datetime.now() 非确定性可能导致 CI 间歇性失败, (3) 未执行安全扫描无法确认依赖安全状态。
 
-**Medium Priority:** 提升测试覆盖率至 50%+, 集成安全扫描
+**Medium Priority:** 4 项 — 覆盖率报告、Test ID 标记、超大文件拆分、CI 管线建设。
 
-**Next Steps:** 1) 修复 VERIFICATION_AI_TIMEOUT, 2) 配置 CI 流水线, 3) 运行安全扫描
+**Next Steps:**
+1. 执行 3 个 Quick Win (30 分钟总工作量)
+2. 在下一个 Sprint 解决 P1 项 (约 4 小时)
+3. 生成覆盖率报告和安全扫描报告后重新评估
+4. 目标: 下次评估达到 25+/29 (Strong foundation)
 
 ---
 
@@ -456,12 +572,12 @@ nfr_assessment:
 **NFR Assessment:**
 
 - Overall Status: CONCERNS ⚠️
-- Critical Issues: 0
-- High Priority Issues: 1
-- Concerns: 4
-- Evidence Gaps: 3
+- Critical Issues: 1 (asyncio.sleep(10))
+- High Priority Issues: 3
+- Concerns: 9
+- Evidence Gaps: 4
 
-**Gate Status:** CONDITIONAL PASS ⚠️
+**Gate Status:** CONCERNS ⚠️
 
 **Next Actions:**
 
@@ -469,10 +585,9 @@ nfr_assessment:
 - If CONCERNS ⚠️: Address HIGH/CRITICAL issues, re-run `*nfr-assess` ← **当前状态**
 - If FAIL ❌: Resolve FAIL status NFRs, re-run `*nfr-assess`
 
-**建议:** 有条件通过。EPIC-38 核心可靠性修复完整且质量优秀 (175/175 tests, code review fixes applied)。4 个 CONCERNS 均为非阻塞性改进项 (覆盖率、安全扫描、CI burn-in、已知超时问题)。建议在后续 Sprint 中逐步解决。
-
-**Generated:** 2026-02-07
+**Generated:** 2026-02-09
 **Workflow:** testarch-nfr v4.0
+**Review ID:** nfr-assessment-epic31-20260209
 
 ---
 
