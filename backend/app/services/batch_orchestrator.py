@@ -167,6 +167,7 @@ class BatchOrchestrator:
         progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
         canvas_service: Optional[Any] = None,  # CanvasService - optional for node content
         vault_path: Optional[str] = None,  # Vault path for file node content extraction
+        routing_engine: Optional[Any] = None,  # AgentRoutingEngine for auto-routing
     ):
         """
         Initialize BatchOrchestrator.
@@ -178,9 +179,11 @@ class BatchOrchestrator:
             progress_callback: Optional callback for progress events
             canvas_service: Optional CanvasService for fetching real node content (QA-002)
             vault_path: Optional vault path for file node content extraction
+            routing_engine: Optional AgentRoutingEngine for auto-routing when agent_type unspecified
 
         [Source: Story 33.6 Task 1.2]
         [QA-002: Added canvas_service for production node content retrieval]
+        [EPIC-33 P0: Added routing_engine for content-based agent routing]
         """
         self.session_manager = session_manager
         self.agent_service = agent_service
@@ -188,6 +191,13 @@ class BatchOrchestrator:
         self.progress_callback = progress_callback
         self.canvas_service = canvas_service
         self.vault_path = vault_path
+        self.routing_engine = routing_engine
+
+        if self.routing_engine is None:
+            logger.warning(
+                "[Story 33.6] routing_engine not injected — "
+                "auto-routing disabled, will use agent_type as-is"
+            )
 
         # AC2: Semaphore for concurrency control
         # [Source: docs/architecture/decisions/0004-async-execution-engine.md#L56-L68]
@@ -285,6 +295,18 @@ class BatchOrchestrator:
             f"[Story 33.6] Starting batch session {session_id} "
             f"with {len(groups)} groups"
         )
+
+        # Story 30.12 AC-30.12.2: canvas-orchestrator memory write on session start
+        try:
+            await self._trigger_memory_write(
+                session_id=session_id,
+                agent_type="canvas-orchestrator",
+                canvas_path=canvas_path,
+                node_id="session-start",
+                result=None,
+            )
+        except Exception as mem_err:
+            logger.warning(f"canvas-orchestrator memory write failed (non-blocking): {mem_err}")
 
         # Broadcast session started
         await self._broadcast_progress(
@@ -627,9 +649,29 @@ class BatchOrchestrator:
                 # Fallback to simple prompt if content unavailable
                 prompt = f"Process node {node_id} from canvas {canvas_path}"
 
+            # EPIC-33 P0: Use routing engine if agent_type is unspecified/generic
+            effective_agent_type = agent_type
+            if self.routing_engine is not None and node_content:
+                try:
+                    from app.models.agent_routing_models import RoutingRequest
+                    routing_req = RoutingRequest(
+                        node_id=node_id,
+                        node_text=node_content,
+                        agent_override=agent_type if agent_type != "auto" else None,
+                    )
+                    routing_result = self.routing_engine.route_single_node(routing_req)
+                    if routing_result and routing_result.confidence >= 0.7:
+                        effective_agent_type = routing_result.recommended_agent
+                        logger.debug(
+                            f"[EPIC-33] Routing engine: {node_id} → "
+                            f"{effective_agent_type} (confidence={routing_result.confidence:.2f})"
+                        )
+                except Exception as e:
+                    logger.warning(f"[EPIC-33] Routing engine failed, using original agent_type: {e}")
+
             # Call agent through agent_service
             result = await self.agent_service.call_agent(
-                agent_type=agent_type,
+                agent_type=effective_agent_type,
                 prompt=prompt,
             )
 
