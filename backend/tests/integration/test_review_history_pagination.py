@@ -31,6 +31,19 @@ from app.models import (
     PaginationInfo,
 )
 
+# The correct patch target: review.py uses _get_or_create_review_service() singleton,
+# NOT app.dependencies.get_review_service (which is a FastAPI Depends async generator).
+REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_or_create_review_service"
+
+
+@pytest.fixture(autouse=True)
+def _reset_review_service_singleton():
+    """Reset the module-level ReviewService singleton between tests to prevent contamination."""
+    import app.api.v1.endpoints.review as review_module
+    original = review_module._review_service_instance
+    yield
+    review_module._review_service_instance = original
+
 
 class TestReviewHistoryPaginationEndpoint:
     """Integration tests for GET /api/v1/review/history pagination (AC5).
@@ -65,7 +78,7 @@ class TestReviewHistoryPaginationEndpoint:
 
         [Source: specs/api/review-api.openapi.yml#L189-L194]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -91,7 +104,7 @@ class TestReviewHistoryPaginationEndpoint:
 
         [Source: docs/stories/34.4.story.md#AC-34.4.1]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -119,7 +132,7 @@ class TestReviewHistoryPaginationEndpoint:
 
         [Source: specs/api/review-api.openapi.yml#L189-L194]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -145,7 +158,7 @@ class TestReviewHistoryPaginationEndpoint:
 
         [Source: specs/api/review-api.openapi.yml#L189-L194]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -171,7 +184,7 @@ class TestReviewHistoryPaginationEndpoint:
 
         [Source: backend/app/api/v1/endpoints/review.py#L277-L278]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -238,7 +251,7 @@ class TestReviewHistoryPaginationEndpoint:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
@@ -276,7 +289,7 @@ class TestReviewHistoryPaginationEndpoint:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
@@ -316,7 +329,7 @@ class TestReviewHistoryPaginationEndpoint:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
@@ -351,7 +364,7 @@ class TestReviewHistoryPaginationEndpoint:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
@@ -386,7 +399,7 @@ class TestReviewHistoryPaginationBehavior:
 
         [Source: backend/app/api/v1/endpoints/review.py#L333-L338]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -408,7 +421,7 @@ class TestReviewHistoryPaginationBehavior:
 
         [Source: backend/app/api/v1/endpoints/review.py#L333-L338]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -430,7 +443,7 @@ class TestReviewHistoryPaginationBehavior:
 
         [Source: docs/stories/34.4.story.md#AC-34.4.2]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -454,7 +467,7 @@ class TestReviewHistoryPaginationBehavior:
 
         [Source: docs/stories/34.4.story.md#AC-34.4.3]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -487,7 +500,7 @@ class TestReviewHistoryFilters:
 
         [Source: specs/api/review-api.openapi.yml#L196-L199]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -511,7 +524,7 @@ class TestReviewHistoryFilters:
 
         [Source: specs/api/review-api.openapi.yml#L200-L203]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -535,7 +548,7 @@ class TestReviewHistoryFilters:
 
         [Source: docs/stories/34.4.story.md#Testing]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -577,7 +590,7 @@ class TestReviewHistoryErrorHandling:
 
         [Source: backend/app/api/v1/endpoints/review.py#L351-L363]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(side_effect=Exception("Service error"))
             mock_get.return_value = mock_service
@@ -598,7 +611,7 @@ class TestReviewHistoryErrorHandling:
 
         [Source: specs/api/review-api.openapi.yml#L596-L663]
         """
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": [],
@@ -652,7 +665,7 @@ class TestReviewHistoryResponseSchema:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
@@ -697,7 +710,7 @@ class TestReviewHistoryResponseSchema:
             }
         ]
 
-        with patch("app.dependencies.get_review_service") as mock_get:
+        with patch(REVIEW_SERVICE_PATCH) as mock_get:
             mock_service = AsyncMock()
             mock_service.get_history = AsyncMock(return_value={
                 "records": mock_records,
