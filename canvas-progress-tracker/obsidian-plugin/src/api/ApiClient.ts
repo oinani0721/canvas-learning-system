@@ -86,6 +86,19 @@ import {
   CanvasIndexStatusResponse,
   CanvasIndexRequest,
   CanvasIndexResponse,
+  // Story 30.18: Memory API Query Types
+  MemoryLearningHistoryResponse,
+  LearningHistoryQuery,
+  MemoryConceptHistoryResponse,
+  ConceptHistoryQuery,
+  ReviewSuggestionsQuery,
+  MemoryReviewSuggestionItem,
+  MemoryHealthResponse,
+  MemoryBatchEpisodesRequest,
+  MemoryBatchEpisodesResponse,
+  // Story 36.4/36.10: Edge Sync & Storage Health
+  SyncEdgesSummaryResponse,
+  StorageHealthResponse,
 } from './types';
 
 /**
@@ -323,6 +336,16 @@ export class ApiClient {
     }
   }
 
+  /**
+   * Check storage health (Neo4j, MCP, JSON backends)
+   * @returns Storage health response with backend statuses
+   *
+   * @source Story 36.10 - GET /health/storage
+   */
+  async healthCheckStorage(): Promise<StorageHealthResponse> {
+    return this.request<StorageHealthResponse>('GET', '/health/storage');
+  }
+
   // ===========================================================================
   // Canvas API Methods (6 endpoints)
   // ===========================================================================
@@ -425,6 +448,20 @@ export class ApiClient {
     return this.request<void>(
       'DELETE',
       `/canvas/${encodeURIComponent(canvasName)}/edges/${encodeURIComponent(edgeId)}`
+    );
+  }
+
+  /**
+   * Sync all Canvas edges to Neo4j knowledge graph
+   * @param canvasName - Canvas file name (without .canvas extension)
+   * @returns Sync summary with counts and timing
+   *
+   * @source Story 36.4 - POST /canvas/{canvas_name}/sync-edges
+   */
+  async syncCanvasEdges(canvasName: string): Promise<SyncEdgesSummaryResponse> {
+    return this.request<SyncEdgesSummaryResponse>(
+      'POST',
+      `/canvas/${encodeURIComponent(canvasName)}/sync-edges`
     );
   }
 
@@ -1198,6 +1235,202 @@ export class ApiClient {
       });
     } catch (e) {
       console.warn('[Story 30.7] Learning event recording failed (non-blocking):', e);
+    }
+  }
+
+  // ===========================================================================
+  // Memory API Query Methods (5 endpoints) - Story 30.18
+  // Timeout: 10s for queries, 30s for batch. Graceful degradation on failure.
+  // ===========================================================================
+
+  /**
+   * Story 30.18 AC-30.18.1: Query learning history
+   * GET /memory/episodes with pagination and filters
+   * Timeout: 10s. On failure returns empty result + console.warn.
+   *
+   * @param query - Query parameters (userId required, others optional)
+   * @returns Paginated learning history (empty on failure)
+   *
+   * @source Story 30.18 - ApiClient Memory 查询方法补全
+   * @verified backend/app/api/v1/endpoints/memory.py#get_learning_history
+   */
+  async getLearningHistory(
+    query: LearningHistoryQuery
+  ): Promise<MemoryLearningHistoryResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      const params = new URLSearchParams({ user_id: query.userId });
+      if (query.startDate) params.set('start_date', query.startDate);
+      if (query.endDate) params.set('end_date', query.endDate);
+      if (query.concept) params.set('concept', query.concept);
+      if (query.subject) params.set('subject', query.subject);
+      if (query.page !== undefined) params.set('page', String(query.page));
+      if (query.pageSize !== undefined) params.set('page_size', String(query.pageSize));
+
+      return await this.request<MemoryLearningHistoryResponse>(
+        'GET',
+        `/memory/episodes?${params}`,
+        undefined,
+        { signal: controller.signal }
+      );
+    } catch (e) {
+      console.warn('[Story 30.18] getLearningHistory failed (graceful degradation):', e);
+      return { items: [], total: 0, page: 1, page_size: 50, pages: 0 };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Story 30.18 AC-30.18.2: Query concept learning history
+   * GET /memory/concepts/{id}/history
+   * Timeout: 10s. On failure returns empty history + console.warn.
+   *
+   * @param query - Query parameters (conceptId required)
+   * @returns Concept history with timeline and score trend (empty on failure)
+   *
+   * @source Story 30.18 - ApiClient Memory 查询方法补全
+   * @verified backend/app/api/v1/endpoints/memory.py#get_concept_history
+   */
+  async getConceptHistory(
+    query: ConceptHistoryQuery
+  ): Promise<MemoryConceptHistoryResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      const params = new URLSearchParams();
+      if (query.userId) params.set('user_id', query.userId);
+      if (query.limit !== undefined) params.set('limit', String(query.limit));
+
+      const qs = params.toString();
+      return await this.request<MemoryConceptHistoryResponse>(
+        'GET',
+        `/memory/concepts/${encodeURIComponent(query.conceptId)}/history${qs ? '?' + qs : ''}`,
+        undefined,
+        { signal: controller.signal }
+      );
+    } catch (e) {
+      console.warn('[Story 30.18] getConceptHistory failed (graceful degradation):', e);
+      return {
+        concept_id: query.conceptId,
+        timeline: [],
+        score_trend: { first: null, last: null, average: null, improvement: null },
+        total_reviews: 0,
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Story 30.18 AC-30.18.3: Get review suggestions
+   * GET /memory/review-suggestions
+   * Timeout: 10s. On failure returns empty array + console.warn.
+   *
+   * @param query - Query parameters (userId required, limit/subject optional)
+   * @returns Array of review suggestions sorted by priority (empty on failure)
+   *
+   * @source Story 30.18 - ApiClient Memory 查询方法补全
+   * @verified backend/app/api/v1/endpoints/memory.py#get_review_suggestions
+   */
+  async getReviewSuggestions(
+    query: ReviewSuggestionsQuery
+  ): Promise<MemoryReviewSuggestionItem[]> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      const params = new URLSearchParams({ user_id: query.userId });
+      if (query.limit !== undefined) params.set('limit', String(query.limit));
+      if (query.subject) params.set('subject', query.subject);
+
+      return await this.request<MemoryReviewSuggestionItem[]>(
+        'GET',
+        `/memory/review-suggestions?${params}`,
+        undefined,
+        { signal: controller.signal }
+      );
+    } catch (e) {
+      console.warn('[Story 30.18] getReviewSuggestions failed (graceful degradation):', e);
+      return [];
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Story 30.18 AC-30.18.4: Get memory system health status
+   * GET /memory/health
+   * Timeout: 10s. On failure returns unhealthy status + console.warn.
+   *
+   * @returns Health status of 3-layer memory system (unhealthy on failure)
+   *
+   * @source Story 30.18 - ApiClient Memory 查询方法补全
+   * @verified backend/app/api/v1/endpoints/memory.py#get_memory_health
+   */
+  async getMemoryHealth(): Promise<MemoryHealthResponse> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
+    try {
+      return await this.request<MemoryHealthResponse>(
+        'GET',
+        '/memory/health',
+        undefined,
+        { signal: controller.signal }
+      );
+    } catch (e) {
+      console.warn('[Story 30.18] getMemoryHealth failed (graceful degradation):', e);
+      const errorLayer = { status: 'error' as const, error: String(e) };
+      return {
+        status: 'unhealthy',
+        layers: { temporal: errorLayer, graphiti: errorLayer, semantic: errorLayer },
+        timestamp: new Date().toISOString(),
+      };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Story 30.18 AC-30.18.5: Batch record learning events
+   * POST /memory/episodes/batch (max 50 events per backend constraint)
+   * Timeout: 30s. Validates batch size client-side before sending.
+   *
+   * @param request - Batch events request (max 50 events)
+   * @returns Processing result with success/failure counts
+   * @throws Error if batch size exceeds 50 events
+   *
+   * @source Story 30.18 - ApiClient Memory 查询方法补全
+   * @verified backend/app/api/v1/endpoints/memory.py#create_batch_episodes
+   */
+  async recordBatchLearningEvents(
+    request: MemoryBatchEpisodesRequest
+  ): Promise<MemoryBatchEpisodesResponse> {
+    if (request.events.length > 50) {
+      throw new Error(
+        `Batch size ${request.events.length} exceeds maximum of 50 events. Split into smaller batches.`
+      );
+    }
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
+    try {
+      return await this.request<MemoryBatchEpisodesResponse>(
+        'POST',
+        '/memory/episodes/batch',
+        request,
+        { signal: controller.signal }
+      );
+    } catch (e) {
+      console.warn('[Story 30.18] recordBatchLearningEvents failed:', e);
+      return {
+        success: false,
+        processed: 0,
+        failed: request.events.length,
+        errors: [{ index: 0, error: String(e) }],
+        timestamp: new Date().toISOString(),
+      };
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

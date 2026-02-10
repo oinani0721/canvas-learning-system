@@ -813,6 +813,214 @@ export interface RAGStatusResponse {
 }
 
 // =============================================================================
+// Memory API Types (Story 30.18 - ApiClient Memory 查询方法补全)
+// @verified backend/app/models/memory_schemas.py
+// =============================================================================
+
+/**
+ * Single item in learning history
+ * @source GET /api/v1/memory/episodes response
+ * @verified backend/app/models/memory_schemas.py#LearningHistoryItem
+ */
+export interface MemoryLearningHistoryItem {
+  episode_id: string;
+  user_id: string;
+  canvas_path: string;
+  node_id: string;
+  concept: string;
+  agent_type: string;
+  score?: number | null;
+  duration_seconds?: number | null;
+  timestamp: string;
+}
+
+/**
+ * Paginated learning history response
+ * @source GET /api/v1/memory/episodes response
+ * @verified backend/app/models/memory_schemas.py#LearningHistoryResponse
+ */
+export interface MemoryLearningHistoryResponse {
+  items: MemoryLearningHistoryItem[];
+  total: number;
+  page: number;
+  page_size: number;
+  pages: number;
+}
+
+/**
+ * Query parameters for getLearningHistory
+ * @source GET /api/v1/memory/episodes query params
+ */
+export interface LearningHistoryQuery {
+  userId: string;
+  /** @format ISO 8601 datetime (e.g. "2026-01-15T00:00:00Z") */
+  startDate?: string;
+  /** @format ISO 8601 datetime (e.g. "2026-02-15T23:59:59Z") */
+  endDate?: string;
+  concept?: string;
+  subject?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+/**
+ * Single timeline entry for concept history
+ * @source GET /api/v1/memory/concepts/{id}/history response
+ * @verified backend/app/models/memory_schemas.py#ConceptHistoryTimeline
+ */
+export interface MemoryConceptHistoryTimeline {
+  timestamp?: string | null;
+  score?: number | null;
+  user_id?: string | null;
+  concept?: string | null;
+  review_count: number;
+}
+
+/**
+ * Score trend analysis for concept history
+ * @verified backend/app/models/memory_schemas.py#ScoreTrend
+ */
+export interface MemoryScoreTrend {
+  first?: number | null;
+  last?: number | null;
+  average?: number | null;
+  improvement?: number | null;
+}
+
+/**
+ * Concept history response
+ * @source GET /api/v1/memory/concepts/{id}/history response
+ * @verified backend/app/models/memory_schemas.py#ConceptHistoryResponse
+ */
+export interface MemoryConceptHistoryResponse {
+  concept_id: string;
+  timeline: MemoryConceptHistoryTimeline[];
+  score_trend: MemoryScoreTrend;
+  total_reviews: number;
+}
+
+/**
+ * Query parameters for getConceptHistory
+ * @source GET /api/v1/memory/concepts/{id}/history query params
+ */
+export interface ConceptHistoryQuery {
+  conceptId: string;
+  userId?: string;
+  limit?: number;
+}
+
+/**
+ * Query parameters for getReviewSuggestions
+ * @source GET /api/v1/memory/review-suggestions query params
+ */
+export interface ReviewSuggestionsQuery {
+  userId: string;
+  limit?: number;
+  subject?: string;
+}
+
+/**
+ * Review suggestion item
+ * @source GET /api/v1/memory/review-suggestions response
+ * @verified backend/app/models/memory_schemas.py#ReviewSuggestionResponse
+ */
+export interface MemoryReviewSuggestionItem {
+  concept: string;
+  concept_id: string;
+  last_score?: number | null;
+  review_count: number;
+  due_date: string;
+  priority: string;
+}
+
+/**
+ * Health status for a single memory layer
+ * @verified backend/app/models/memory_schemas.py#LayerHealthStatus
+ */
+export interface MemoryLayerHealthStatus {
+  status: 'ok' | 'error';
+  backend?: string | null;
+  node_count?: number | null;
+  vector_count?: number | null;
+  error?: string | null;
+}
+
+/**
+ * Status of all 3 memory layers
+ * @verified backend/app/models/memory_schemas.py#MemoryLayersStatus
+ */
+export interface MemoryLayersStatus {
+  temporal: MemoryLayerHealthStatus;
+  graphiti: MemoryLayerHealthStatus;
+  semantic: MemoryLayerHealthStatus;
+}
+
+/**
+ * Memory system health response
+ * @source GET /api/v1/memory/health response
+ * @verified backend/app/models/memory_schemas.py#MemoryHealthResponse
+ */
+export interface MemoryHealthResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  layers: MemoryLayersStatus;
+  timestamp: string;
+}
+
+/**
+ * Metadata for batch learning events
+ * @verified backend/app/models/memory_schemas.py#BatchEventMetadata
+ */
+export interface MemoryBatchEventMetadata {
+  old_color?: string | null;
+  new_color?: string | null;
+  old_level?: string | null;
+  new_level?: string | null;
+}
+
+/**
+ * Single event item in batch request
+ * @verified backend/app/models/memory_schemas.py#BatchEventItem
+ */
+export interface MemoryBatchEventItem {
+  event_type: string;
+  timestamp: string;
+  canvas_path: string;
+  node_id: string;
+  metadata?: MemoryBatchEventMetadata | null;
+}
+
+/**
+ * Batch episodes request
+ * @source POST /api/v1/memory/episodes/batch request
+ * @verified backend/app/models/memory_schemas.py#BatchEpisodesRequest
+ */
+export interface MemoryBatchEpisodesRequest {
+  events: MemoryBatchEventItem[];
+}
+
+/**
+ * Error detail for failed batch event
+ * @verified backend/app/models/memory_schemas.py#BatchErrorItem
+ */
+export interface MemoryBatchErrorItem {
+  index: number;
+  error: string;
+}
+
+/**
+ * Batch episodes response
+ * @source POST /api/v1/memory/episodes/batch response
+ * @verified backend/app/models/memory_schemas.py#BatchEpisodesResponse
+ */
+export interface MemoryBatchEpisodesResponse {
+  success: boolean;
+  processed: number;
+  failed: number;
+  errors: MemoryBatchErrorItem[];
+  timestamp: string;
+}
+
+// =============================================================================
 // Configuration Types
 // =============================================================================
 
@@ -1153,4 +1361,67 @@ export interface CanvasIndexResponse {
   subject?: string;
   /** Category used for indexing */
   category?: string;
+}
+
+// ===========================================================================
+// Story 36.3/36.4: Edge Sync Types
+// ===========================================================================
+
+/**
+ * Edge sync summary response.
+ *
+ * @source POST /api/v1/canvas/{canvas_name}/sync-edges response
+ * @source Story 36.4 - Canvas打开时全量Edge同步
+ */
+export interface SyncEdgesSummaryResponse {
+  /** Canvas file path */
+  canvas_path: string;
+  /** Total edges found in canvas */
+  total_edges: number;
+  /** Successfully synced to Neo4j */
+  synced_count: number;
+  /** Failed to sync */
+  failed_count: number;
+  /** Skipped (already synced or no Neo4j) */
+  skipped_count: number;
+  /** Total sync duration in milliseconds */
+  sync_time_ms: number;
+}
+
+// ===========================================================================
+// Story 36.10: Storage Health Check Types
+// ===========================================================================
+
+/**
+ * Storage backend status entry.
+ *
+ * @source GET /api/v1/health/storage response
+ * @source Story 36.10 - 存储健康检查端点
+ */
+export interface StorageBackendStatus {
+  /** Backend name (neo4j, mcp, json) */
+  name: string;
+  /** Status: ok, error, timeout */
+  status: string;
+  /** Response latency in ms */
+  latency_ms?: number;
+  /** Error message if status != ok */
+  error?: string;
+}
+
+/**
+ * Storage health check response.
+ *
+ * @source GET /api/v1/health/storage response
+ * @source Story 36.10 - 存储健康检查端点
+ */
+export interface StorageHealthResponse {
+  /** Overall status: healthy, degraded, unhealthy */
+  status: string;
+  /** Status of each storage backend */
+  storage_backends: StorageBackendStatus[];
+  /** Whether result is from cache */
+  cached: boolean;
+  /** ISO timestamp */
+  timestamp: string;
 }
