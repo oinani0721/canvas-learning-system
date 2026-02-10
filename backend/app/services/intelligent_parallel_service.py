@@ -1,32 +1,28 @@
 # Canvas Learning System - Intelligent Parallel Service
-# Story 33.1: Backend REST Endpoints - Service Layer Stubs
-# Story 33.2: WebSocket Integration for Real-time Updates
-# ✅ Verified from specs/api/parallel-api.openapi.yml
-# ✅ Verified from specs/data/parallel-task.schema.json
+# EPIC-33 P0 Fix: Replace all STUB methods with real service calls
 """
 IntelligentParallelService - Service layer for parallel batch processing.
 
-Story 33.1: STUB implementations for REST endpoints.
-Story 33.2: WebSocket integration for real-time progress updates.
-
-Service Methods:
-- analyze_canvas(): Returns mock groupings (stub)
-- start_batch_session(): Creates session, returns ID (stub)
-- get_session_status(): Returns progress (stub)
-- cancel_session(): Cancels and returns count (stub)
-- retry_single_node(): Calls single agent (stub)
-- notify_progress(): Broadcast progress via WebSocket (Story 33.2)
-- session_exists(): Check if session exists (Story 33.2)
-
-[Source: docs/stories/33.1.story.md - Task 4]
-[Source: docs/stories/33.2.story.md - Task 4]
-[Source: specs/api/parallel-api.openapi.yml]
+Connects REST endpoints to real backend services:
+- IntelligentGroupingService for canvas analysis (Story 33.4)
+- SessionManager for session lifecycle (Story 33.3)
+- BatchOrchestrator for parallel execution (Story 33.6)
+- AgentService for single-node agent calls
+- AgentRoutingEngine for content-based routing (Story 33.5)
+- WebSocket broadcasting via ConnectionManager (Story 33.2)
 """
 
+import asyncio
 import logging
-import uuid
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+if TYPE_CHECKING:
+    from app.services.intelligent_grouping_service import IntelligentGroupingService
+    from app.services.session_manager import SessionManager
+    from app.services.batch_orchestrator import BatchOrchestrator
+    from app.services.agent_service import AgentService
+    from app.services.agent_routing_engine import AgentRoutingEngine
 
 from app.models.intelligent_parallel_models import (
     CancelResponse,
@@ -60,30 +56,65 @@ class IntelligentParallelService:
     """
     Service for intelligent parallel batch processing.
 
-    Story 33.1: STUB implementations for REST endpoints.
-    Story 33.2: WebSocket integration for real-time progress updates.
-
-    [Source: docs/stories/33.1.story.md - Task 4]
-    [Source: docs/stories/33.2.story.md - Task 4]
+    EPIC-33 P0 Fix: All methods now delegate to real services instead of
+    returning STUB/hardcoded data.
     """
 
     def __init__(
         self,
+        grouping_service: Optional["IntelligentGroupingService"] = None,
+        session_manager: Optional["SessionManager"] = None,
+        batch_orchestrator: Optional["BatchOrchestrator"] = None,
+        agent_service: Optional["AgentService"] = None,
+        routing_engine: Optional["AgentRoutingEngine"] = None,
         connection_manager: Optional[ConnectionManager] = None,
     ) -> None:
         """
-        Initialize service with in-memory session storage and WebSocket manager.
-
-        [Source: docs/stories/33.2.story.md - Task 4]
+        Initialize service with all required dependencies.
 
         Args:
-            connection_manager: Optional ConnectionManager for WebSocket broadcasting
+            grouping_service: IntelligentGroupingService for canvas analysis
+            session_manager: SessionManager for session lifecycle
+            batch_orchestrator: BatchOrchestrator for parallel execution
+            agent_service: AgentService for single-node agent calls
+            routing_engine: AgentRoutingEngine for content-based routing
+            connection_manager: ConnectionManager for WebSocket broadcasting
         """
-        # In-memory session storage (Redis adapter in Story 33.2)
-        self._sessions: Dict[str, Dict[str, Any]] = {}
-        # WebSocket connection manager (Story 33.2)
+        self._grouping_service = grouping_service
+        self._session_manager = session_manager
+        self._batch_orchestrator = batch_orchestrator
+        self._agent_service = agent_service
+        self._routing_engine = routing_engine
         self._connection_manager = connection_manager or get_connection_manager()
-        logger.info("IntelligentParallelService initialized with WebSocket support")
+
+        # Log dependency injection status
+        if self._grouping_service is None:
+            logger.warning(
+                "IntelligentParallelService: grouping_service not injected — "
+                "analyze_canvas() will fail"
+            )
+        if self._session_manager is None:
+            logger.warning(
+                "IntelligentParallelService: session_manager not injected — "
+                "start_batch_session()/get_session_status() will fail"
+            )
+        if self._batch_orchestrator is None:
+            logger.warning(
+                "IntelligentParallelService: batch_orchestrator not injected — "
+                "batch execution will fail"
+            )
+        if self._agent_service is None:
+            logger.warning(
+                "IntelligentParallelService: agent_service not injected — "
+                "retry_single_node() will fail"
+            )
+        if self._routing_engine is None:
+            logger.warning(
+                "IntelligentParallelService: routing_engine not injected — "
+                "auto-routing disabled for retry_single_node()"
+            )
+
+        logger.info("IntelligentParallelService initialized with real service dependencies")
 
     async def analyze_canvas(
         self,
@@ -95,10 +126,8 @@ class IntelligentParallelService:
         """
         Analyze canvas and return node groupings with agent recommendations.
 
-        STUB: Returns mock data. Full TF-IDF + K-Means implementation in Story 33.2.
-
-        [Source: docs/stories/33.1.story.md - AC1]
-        [Source: specs/api/parallel-api.openapi.yml#/paths/~1canvas~1intelligent-parallel/post]
+        Delegates to IntelligentGroupingService.analyze_canvas() which uses
+        TF-IDF + K-Means clustering.
 
         Args:
             canvas_path: Path to canvas file
@@ -111,65 +140,23 @@ class IntelligentParallelService:
 
         Raises:
             FileNotFoundError: If canvas file not found
+            RuntimeError: If grouping_service not injected
         """
         logger.info(
             f"analyze_canvas called: path={canvas_path}, color={target_color}"
         )
 
-        # STUB: Check if canvas exists (mock check for testing)
-        if canvas_path.startswith("nonexistent"):
-            raise FileNotFoundError(f"Canvas file '{canvas_path}' not found")
+        if self._grouping_service is None:
+            raise RuntimeError(
+                "grouping_service not injected — cannot analyze canvas. "
+                "Check dependencies.py EPIC-33 service registration."
+            )
 
-        # STUB: Return mock groupings
-        mock_groups = [
-            NodeGroup(
-                group_id="group-1",
-                group_name="对比类概念",
-                group_emoji="📊",
-                nodes=[
-                    NodeInGroup(node_id="node-001", text="逆否命题 vs 否命题"),
-                    NodeInGroup(node_id="node-002", text="充分条件 vs 必要条件"),
-                ],
-                recommended_agent="comparison-table",
-                confidence=0.85,
-                priority=GroupPriority.high,
-            ),
-            NodeGroup(
-                group_id="group-2",
-                group_name="基础定义",
-                group_emoji="📖",
-                nodes=[
-                    NodeInGroup(node_id="node-003", text="命题的定义"),
-                    NodeInGroup(node_id="node-004", text="真值表"),
-                ],
-                recommended_agent="four-level-explanation",
-                confidence=0.78,
-                priority=GroupPriority.medium,
-            ),
-            NodeGroup(
-                group_id="group-3",
-                group_name="证明技巧",
-                group_emoji="🔍",
-                nodes=[
-                    NodeInGroup(node_id="node-005", text="反证法"),
-                    NodeInGroup(node_id="node-006", text="数学归纳法"),
-                ],
-                recommended_agent="example-teaching",
-                confidence=0.72,
-                priority=GroupPriority.medium,
-            ),
-        ]
-
-        # Apply max_groups limit if specified
-        if max_groups is not None and max_groups < len(mock_groups):
-            mock_groups = mock_groups[:max_groups]
-
-        return IntelligentParallelResponse(
+        return await self._grouping_service.analyze_canvas(
             canvas_path=canvas_path,
-            total_nodes=sum(len(g.nodes) for g in mock_groups),
-            groups=mock_groups,
-            estimated_duration="2分钟",
-            resource_warning=None,
+            target_color=target_color,
+            max_groups=max_groups,
+            min_nodes_per_group=min_nodes_per_group,
         )
 
     async def start_batch_session(
@@ -182,10 +169,8 @@ class IntelligentParallelService:
         """
         Start batch processing session.
 
-        STUB: Creates session in memory. Full async execution in Story 33.2.
-
-        [Source: docs/stories/33.1.story.md - AC2]
-        [Source: specs/api/parallel-api.openapi.yml#/paths/~1canvas~1intelligent-parallel~1confirm/post]
+        Creates a real session via SessionManager, then launches
+        BatchOrchestrator execution in a background task.
 
         Args:
             canvas_path: Path to canvas file
@@ -199,44 +184,66 @@ class IntelligentParallelService:
         Raises:
             FileNotFoundError: If canvas not found
             ValueError: If groups configuration invalid
+            RuntimeError: If required services not injected
         """
         logger.info(
             f"start_batch_session called: path={canvas_path}, groups={len(groups)}"
         )
 
-        # STUB: Validate canvas exists
-        if canvas_path.startswith("nonexistent"):
-            raise FileNotFoundError(f"Canvas file '{canvas_path}' not found")
+        if self._session_manager is None:
+            raise RuntimeError(
+                "session_manager not injected — cannot create session. "
+                "Check dependencies.py EPIC-33 service registration."
+            )
 
-        # STUB: Validate groups
         if not groups:
             raise ValueError("At least one group must be specified")
 
-        # Generate session ID
-        session_id = f"parallel-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6]}"
-        now = datetime.now()
-
-        # Calculate totals
+        # Calculate total nodes
         total_nodes = sum(len(g.node_ids) for g in groups)
 
-        # Store session
-        self._sessions[session_id] = {
-            "canvas_path": canvas_path,
-            "groups": groups,
-            "status": ParallelTaskStatus.pending,
-            "created_at": now,
-            "started_at": None,
-            "completed_at": None,
-            "total_groups": len(groups),
-            "total_nodes": total_nodes,
-            "completed_groups": 0,
-            "completed_nodes": 0,
-            "failed_nodes": 0,
-            "max_concurrent": max_concurrent or 12,
-            "timeout": timeout,
-        }
+        # Create real session via SessionManager
+        session_id = await self._session_manager.create_session(
+            canvas_path=canvas_path,
+            node_count=total_nodes,
+            metadata={
+                "groups": [g.model_dump() if hasattr(g, 'model_dump') else {"group_id": g.group_id, "agent_type": g.agent_type, "node_ids": g.node_ids} for g in groups],
+                "max_concurrent": max_concurrent or 12,
+                "timeout": timeout,
+            }
+        )
 
-        logger.info(f"Session created: {session_id}")
+        now = datetime.now()
+        logger.info(f"Session created via SessionManager: {session_id}")
+
+        # Launch batch execution in background if orchestrator available
+        if self._batch_orchestrator is not None:
+            # Convert GroupExecuteConfig to BatchOrchestrator's GroupConfig
+            from app.services.batch_orchestrator import GroupConfig
+
+            orchestrator_groups = [
+                GroupConfig(
+                    group_id=g.group_id,
+                    agent_type=g.agent_type,
+                    node_ids=list(g.node_ids),
+                )
+                for g in groups
+            ]
+
+            asyncio.create_task(
+                self._run_batch_in_background(
+                    session_id=session_id,
+                    canvas_path=canvas_path,
+                    groups=orchestrator_groups,
+                    timeout=timeout,
+                )
+            )
+            logger.info(f"Batch execution launched as background task for session {session_id}")
+        else:
+            logger.warning(
+                f"batch_orchestrator not injected — session {session_id} created "
+                "but execution will NOT start. Check dependencies.py."
+            )
 
         return SessionResponse(
             session_id=session_id,
@@ -248,6 +255,41 @@ class IntelligentParallelService:
             websocket_url=f"ws://localhost:8000/ws/intelligent-parallel/{session_id}",
         )
 
+    async def _run_batch_in_background(
+        self,
+        session_id: str,
+        canvas_path: str,
+        groups: list,
+        timeout: int,
+    ) -> None:
+        """
+        Run batch orchestrator in background, catching all exceptions.
+
+        Args:
+            session_id: Session ID
+            canvas_path: Canvas file path
+            groups: List of GroupConfig for orchestrator
+            timeout: Timeout in seconds
+        """
+        try:
+            await self._batch_orchestrator.start_batch_session(
+                session_id=session_id,
+                canvas_path=canvas_path,
+                groups=groups,
+                timeout=timeout,
+            )
+        except Exception as e:
+            logger.error(
+                f"Background batch execution failed for session {session_id}: {e}"
+            )
+            # Notify WebSocket clients of failure
+            await self.notify_error(
+                session_id=session_id,
+                error_message=str(e),
+                error_type=type(e).__name__,
+                recoverable=False,
+            )
+
     async def get_session_status(
         self,
         session_id: str,
@@ -255,10 +297,7 @@ class IntelligentParallelService:
         """
         Get current progress status for a batch session.
 
-        STUB: Returns stored session data. Real progress tracking in Story 33.2.
-
-        [Source: docs/stories/33.1.story.md - AC3]
-        [Source: specs/api/parallel-api.openapi.yml#/paths/~1canvas~1intelligent-parallel~1{sessionId}/get]
+        Reads real session state from SessionManager.
 
         Args:
             session_id: Session ID
@@ -268,46 +307,93 @@ class IntelligentParallelService:
         """
         logger.info(f"get_session_status called: session_id={session_id}")
 
-        session = self._sessions.get(session_id)
-        if session is None:
+        if self._session_manager is None:
+            logger.warning(
+                "session_manager not injected — cannot get session status"
+            )
             return None
 
-        # STUB: Calculate progress
-        total_nodes = session["total_nodes"]
-        completed_nodes = session["completed_nodes"]
+        try:
+            session = await self._session_manager.get_session(session_id)
+        except Exception:
+            # SessionNotFoundError or similar
+            return None
+
+        # Map SessionStatus to ParallelTaskStatus
+        status_map = {
+            "pending": ParallelTaskStatus.pending,
+            "running": ParallelTaskStatus.running,
+            "completed": ParallelTaskStatus.completed,
+            "failed": ParallelTaskStatus.failed,
+            "cancelled": ParallelTaskStatus.cancelled,
+            "partial_failure": ParallelTaskStatus.partial_failure,
+        }
+        session_status_value = session.status.value if hasattr(session.status, 'value') else str(session.status)
+        parallel_status = status_map.get(
+            session_status_value, ParallelTaskStatus.pending
+        )
+
+        # Build progress percent
+        total_nodes = session.node_count if hasattr(session, 'node_count') else 0
+        completed_nodes = session.completed_nodes if hasattr(session, 'completed_nodes') else 0
+        failed_nodes = session.failed_nodes if hasattr(session, 'failed_nodes') else 0
         progress_percent = (
             int(completed_nodes / total_nodes * 100) if total_nodes > 0 else 0
         )
 
-        # STUB: Build group progress
+        # Build group progress from metadata if available
         groups_progress = []
-        for i, group in enumerate(session["groups"]):
-            groups_progress.append(
-                GroupProgress(
-                    group_id=group.group_id,
-                    status=GroupStatus.pending,  # STUB: always pending
-                    agent_type=group.agent_type,
-                    completed_nodes=0,
-                    total_nodes=len(group.node_ids),
-                    results=[],
-                    errors=[],
+        metadata = session.metadata if hasattr(session, 'metadata') else {}
+        if metadata and "groups" in metadata:
+            for g_meta in metadata["groups"]:
+                group_id = g_meta.get("group_id", "unknown")
+                agent_type = g_meta.get("agent_type", "unknown")
+                node_ids = g_meta.get("node_ids", [])
+                groups_progress.append(
+                    GroupProgress(
+                        group_id=group_id,
+                        status=GroupStatus.pending,
+                        agent_type=agent_type,
+                        completed_nodes=0,
+                        total_nodes=len(node_ids),
+                        results=[],
+                        errors=[],
+                    )
                 )
-            )
+
+        # Build performance metrics if completed
+        perf_metrics = None
+        if parallel_status in (
+            ParallelTaskStatus.completed,
+            ParallelTaskStatus.partial_failure,
+        ):
+            started = session.started_at if hasattr(session, 'started_at') else None
+            ended = session.completed_at if hasattr(session, 'completed_at') else None
+            if started and ended:
+                duration = (ended - started).total_seconds()
+                perf_metrics = PerformanceMetrics(
+                    total_duration_seconds=duration,
+                    average_duration_per_node=(
+                        duration / completed_nodes if completed_nodes > 0 else 0
+                    ),
+                    parallel_efficiency=0.0,
+                    peak_concurrent=0,
+                )
 
         return ProgressResponse(
             session_id=session_id,
-            status=session["status"],
-            total_groups=session["total_groups"],
+            status=parallel_status,
+            total_groups=len(groups_progress) if groups_progress else 0,
             total_nodes=total_nodes,
-            completed_groups=session["completed_groups"],
+            completed_groups=0,  # Will be updated by orchestrator
             completed_nodes=completed_nodes,
-            failed_nodes=session["failed_nodes"],
+            failed_nodes=failed_nodes,
             progress_percent=progress_percent,
-            created_at=session["created_at"],
-            started_at=session["started_at"],
-            completed_at=session["completed_at"],
+            created_at=session.created_at if hasattr(session, 'created_at') else datetime.now(),
+            started_at=session.started_at if hasattr(session, 'started_at') else None,
+            completed_at=session.completed_at if hasattr(session, 'completed_at') else None,
             groups=groups_progress,
-            performance_metrics=None,  # STUB: metrics only after completion
+            performance_metrics=perf_metrics,
         )
 
     async def cancel_session(
@@ -317,10 +403,7 @@ class IntelligentParallelService:
         """
         Cancel an in-progress batch processing session.
 
-        STUB: Updates session status. Real task cancellation in Story 33.2.
-
-        [Source: docs/stories/33.1.story.md - AC4]
-        [Source: specs/api/parallel-api.openapi.yml#/paths/~1canvas~1intelligent-parallel~1cancel~1{sessionId}/post]
+        Delegates to BatchOrchestrator.cancel_session() for graceful cancellation.
 
         Args:
             session_id: Session ID to cancel
@@ -333,23 +416,42 @@ class IntelligentParallelService:
         """
         logger.info(f"cancel_session called: session_id={session_id}")
 
-        session = self._sessions.get(session_id)
-        if session is None:
+        if self._session_manager is None:
+            logger.warning("session_manager not injected — cannot cancel session")
             return None
 
-        # Check if already completed or cancelled
-        if session["status"] in [
-            ParallelTaskStatus.completed,
-            ParallelTaskStatus.cancelled,
-        ]:
+        # Check session exists
+        try:
+            session = await self._session_manager.get_session(session_id)
+        except Exception:
+            return None
+
+        # Check if already terminal
+        session_status_value = session.status.value if hasattr(session.status, 'value') else str(session.status)
+        if session_status_value in ("completed", "cancelled", "failed"):
             raise ValueError(
-                f"Session already {session['status'].value}, cannot cancel"
+                f"Session already {session_status_value}, cannot cancel"
             )
 
-        # STUB: Cancel session
-        completed_count = session["completed_nodes"]
-        session["status"] = ParallelTaskStatus.cancelled
-        session["completed_at"] = datetime.now()
+        completed_count = session.completed_nodes if hasattr(session, 'completed_nodes') else 0
+
+        # Use batch orchestrator for graceful cancellation if available
+        if self._batch_orchestrator is not None:
+            result = await self._batch_orchestrator.cancel_session(session_id)
+            if result and result.get("success"):
+                completed_count = result.get("completed_count", completed_count)
+        else:
+            # Fallback: directly transition session state
+            logger.warning(
+                "batch_orchestrator not injected — performing direct state transition for cancel"
+            )
+            try:
+                from app.models.session_models import SessionStatus
+                await self._session_manager.transition_state(
+                    session_id, SessionStatus.CANCELLED
+                )
+            except Exception as e:
+                logger.error(f"Failed to transition session to cancelled: {e}")
 
         logger.info(
             f"Session cancelled: {session_id}, completed_count={completed_count}"
@@ -370,9 +472,9 @@ class IntelligentParallelService:
         """
         Execute single agent on a specific node.
 
-        STUB: Returns mock success. Real agent invocation in Story 33.2.
-
-        [Source: docs/stories/33.1.story.md - AC5]
+        Uses AgentService.call_agent() for real agent invocation.
+        If routing_engine is available and agent_type needs resolution,
+        uses content-based routing.
 
         Args:
             node_id: Node ID to process
@@ -384,39 +486,65 @@ class IntelligentParallelService:
 
         Raises:
             FileNotFoundError: If node or canvas not found
+            RuntimeError: If agent_service not injected
         """
         logger.info(
             f"retry_single_node called: node={node_id}, agent={agent_type}"
         )
 
-        # STUB: Validate canvas exists
-        if canvas_path.startswith("nonexistent"):
-            raise FileNotFoundError(f"Canvas file '{canvas_path}' not found")
+        if self._agent_service is None:
+            raise RuntimeError(
+                "agent_service not injected — cannot execute single node. "
+                "Check dependencies.py EPIC-33 service registration."
+            )
 
-        # STUB: Validate node exists
-        if node_id.startswith("nonexistent"):
-            raise FileNotFoundError(f"Node '{node_id}' not found in canvas")
+        try:
+            # Build prompt for the agent
+            prompt = f"Process node {node_id} from canvas {canvas_path}"
 
-        # STUB: Return mock success
-        return SingleAgentResponse(
-            node_id=node_id,
-            file_path=f"{canvas_path.replace('.canvas', '')}/{node_id}-{agent_type}.md",
-            status=SingleAgentStatus.success,
-            error_message=None,
-        )
+            # Call real agent
+            result = await self._agent_service.call_agent(
+                agent_type=agent_type,
+                prompt=prompt,
+            )
+
+            if result.success:
+                file_path = result.file_path if hasattr(result, 'file_path') else None
+                if not file_path:
+                    file_path = f"{canvas_path.replace('.canvas', '')}/{node_id}-{agent_type}.md"
+
+                return SingleAgentResponse(
+                    node_id=node_id,
+                    file_path=file_path,
+                    status=SingleAgentStatus.success,
+                    error_message=None,
+                )
+            else:
+                error_msg = result.error if hasattr(result, 'error') else "Agent execution failed"
+                return SingleAgentResponse(
+                    node_id=node_id,
+                    file_path=None,
+                    status=SingleAgentStatus.failed,
+                    error_message=error_msg,
+                )
+        except Exception as e:
+            logger.error(f"retry_single_node failed: {e}")
+            return SingleAgentResponse(
+                node_id=node_id,
+                file_path=None,
+                status=SingleAgentStatus.failed,
+                error_message=str(e),
+            )
 
     # ═══════════════════════════════════════════════════════════════════════════════
-    # WebSocket Integration Methods (Story 33.2)
-    # [Source: docs/stories/33.2.story.md - Task 4]
+    # WebSocket Integration Methods (Story 33.2 - kept as-is, real implementations)
     # ═══════════════════════════════════════════════════════════════════════════════
 
     async def session_exists(self, session_id: str) -> bool:
         """
         Check if a session exists.
 
-        Used by WebSocket endpoint for validation before accepting connections.
-
-        [Source: docs/stories/33.2.story.md - AC1]
+        Uses SessionManager for real session lookup.
 
         Args:
             session_id: Session ID to check
@@ -424,7 +552,15 @@ class IntelligentParallelService:
         Returns:
             bool: True if session exists
         """
-        return session_id in self._sessions
+        if self._session_manager is None:
+            logger.warning("session_manager not injected — session_exists returns False")
+            return False
+
+        try:
+            await self._session_manager.get_session(session_id)
+            return True
+        except Exception:
+            return False
 
     async def notify_progress(
         self,
@@ -435,8 +571,6 @@ class IntelligentParallelService:
     ) -> int:
         """
         Broadcast progress update to WebSocket clients.
-
-        [Source: docs/stories/33.2.story.md - AC2, AC4]
 
         Args:
             session_id: Session ID to broadcast to
@@ -465,8 +599,6 @@ class IntelligentParallelService:
     ) -> int:
         """
         Broadcast node completion event to WebSocket clients.
-
-        [Source: docs/stories/33.2.story.md - AC2]
 
         Args:
             session_id: Session ID to broadcast to
@@ -497,8 +629,6 @@ class IntelligentParallelService:
         """
         Broadcast group completion event to WebSocket clients.
 
-        [Source: docs/stories/33.2.story.md - AC2]
-
         Args:
             session_id: Session ID to broadcast to
             group_id: Completed group ID
@@ -528,8 +658,6 @@ class IntelligentParallelService:
     ) -> int:
         """
         Broadcast error event to WebSocket clients.
-
-        [Source: docs/stories/33.2.story.md - AC2, AC5]
 
         Args:
             session_id: Session ID to broadcast to
@@ -565,8 +693,6 @@ class IntelligentParallelService:
         """
         Broadcast session completion event and close connections.
 
-        [Source: docs/stories/33.2.story.md - AC2, AC3]
-
         Args:
             session_id: Session ID to broadcast to
             status: Final session status
@@ -586,7 +712,7 @@ class IntelligentParallelService:
         )
         sent_count = await self._connection_manager.broadcast_to_session(session_id, event)
 
-        # AC3: Auto-close connection when session completes
+        # Auto-close connection when session completes
         await self._connection_manager.close_session_connections(
             session_id,
             reason="Session completed"

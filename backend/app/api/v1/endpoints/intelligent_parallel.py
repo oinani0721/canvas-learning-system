@@ -16,6 +16,7 @@ Provides 5 endpoints:
 [Source: docs/stories/33.1.story.md]
 """
 
+import asyncio
 import logging
 from typing import Optional
 
@@ -70,6 +71,7 @@ single_agent_router = APIRouter(
 _service: Optional["IntelligentParallelService"] = None  # type: ignore
 _validator_set: bool = False
 _deps_initialized: bool = False
+_deps_lock: asyncio.Lock = asyncio.Lock()  # EPIC-33 P0 Fix #3: prevent race condition
 
 
 def get_service():
@@ -127,80 +129,90 @@ async def _ensure_async_deps() -> None:
     Neo4jClient which are constructed from settings. This function is
     idempotent — it's a no-op after the first successful call.
 
+    EPIC-33 P0 Fix #3: Uses asyncio.Lock for double-check locking to prevent
+    race condition when concurrent first requests arrive simultaneously.
+
     Called by every endpoint before using the service.
     """
     global _deps_initialized
+    # Fast path: already initialized (no lock needed)
     if _deps_initialized:
         return
 
-    service = get_service()
+    # Slow path: acquire lock and double-check
+    async with _deps_lock:
+        if _deps_initialized:
+            return  # Another coroutine already initialized while we waited
 
-    from app.dependencies import (
-        get_settings,
-        get_neo4j_client_dep,
-        get_session_manager,
-        get_agent_routing_engine,
-    )
-    from app.clients.gemini_client import GeminiClient
-    from app.services.agent_service import AgentService
-    from app.services.batch_orchestrator import BatchOrchestrator
-    from app.services.canvas_service import CanvasService
+        service = get_service()
 
-    settings = get_settings()
+        from app.dependencies import (
+            get_settings,
+            get_neo4j_client_dep,
+            get_session_manager,
+            get_agent_routing_engine,
+        )
+        from app.clients.gemini_client import GeminiClient
+        from app.services.agent_service import AgentService
+        from app.services.batch_orchestrator import BatchOrchestrator
+        from app.services.canvas_service import CanvasService
 
-    # 1. GeminiClient (sync constructor)
-    gemini_client = None
-    if settings.AI_API_KEY:
-        try:
-            gemini_client = GeminiClient(
-                api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL_NAME,
-                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
-            )
-        except Exception as e:
-            logger.error(f"[Story 33.9] Failed to create GeminiClient: {e}")
+        settings = get_settings()
 
-    # 2. CanvasService (sync constructor)
-    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
-    canvas_service = CanvasService(canvas_base_path=canvas_base_path)
+        # 1. GeminiClient (sync constructor)
+        gemini_client = None
+        if settings.AI_API_KEY:
+            try:
+                gemini_client = GeminiClient(
+                    api_key=settings.AI_API_KEY,
+                    model=settings.AI_MODEL_NAME,
+                    base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+                )
+            except Exception as e:
+                logger.error(f"[Story 33.9] Failed to create GeminiClient: {e}")
 
-    # 3. AgentService (sync constructor)
-    neo4j_client = get_neo4j_client_dep()
-    agent_service = AgentService(
-        gemini_client=gemini_client,
-        canvas_service=canvas_service,
-        neo4j_client=neo4j_client,
-    )
+        # 2. CanvasService (sync constructor)
+        canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+        canvas_service = CanvasService(canvas_base_path=canvas_base_path)
 
-    # 4. BatchOrchestrator (sync constructor, singleton-shared)
-    session_manager = get_session_manager()
-    vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
-    routing_engine = get_agent_routing_engine()
+        # 3. AgentService (sync constructor)
+        neo4j_client = get_neo4j_client_dep()
+        agent_service = AgentService(
+            gemini_client=gemini_client,
+            canvas_service=canvas_service,
+            neo4j_client=neo4j_client,
+        )
 
-    batch_orchestrator = BatchOrchestrator(
-        session_manager=session_manager,
-        agent_service=agent_service,
-        canvas_service=canvas_service,
-        vault_path=vault_path,
-        routing_engine=routing_engine,
-    )
+        # 4. BatchOrchestrator (sync constructor, singleton-shared)
+        session_manager = get_session_manager()
+        vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+        routing_engine = get_agent_routing_engine()
 
-    # 5. Inject into the singleton service
-    service._batch_orchestrator = batch_orchestrator
-    service._agent_service = agent_service
+        batch_orchestrator = BatchOrchestrator(
+            session_manager=session_manager,
+            agent_service=agent_service,
+            canvas_service=canvas_service,
+            vault_path=vault_path,
+            routing_engine=routing_engine,
+        )
 
-    _deps_initialized = True
-    logger.info(
-        "[Story 33.9] P0 DI fix applied: batch_orchestrator and agent_service injected"
-    )
+        # 5. Inject into the singleton service
+        service._batch_orchestrator = batch_orchestrator
+        service._agent_service = agent_service
+
+        _deps_initialized = True
+        logger.info(
+            "[Story 33.9] P0 DI fix applied: batch_orchestrator and agent_service injected"
+        )
 
 
 def reset_service():
     """Reset the service singleton (for testing)."""
-    global _service, _validator_set, _deps_initialized
+    global _service, _validator_set, _deps_initialized, _deps_lock
     _service = None
     _validator_set = False
     _deps_initialized = False
+    _deps_lock = asyncio.Lock()  # Fresh lock to avoid stale state
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

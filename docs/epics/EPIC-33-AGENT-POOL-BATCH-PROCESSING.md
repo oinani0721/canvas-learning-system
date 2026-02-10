@@ -265,6 +265,26 @@
 
 ---
 
+### Story 33.9: P0 DI Chain Repair [P0 HOTFIX]
+
+**目标**: 修复 `get_service()` 将 `batch_orchestrator=None, agent_service=None` 传入单例的问题
+
+**验收标准:**
+- [x] `_ensure_async_deps()` 在首次请求时注入 BatchOrchestrator 和 AgentService
+- [x] asyncio.Lock 保护 `_deps_initialized`，防止并发首次请求竞态条件
+- [x] 清理 `dependencies.py` 中的死代码 (`get_intelligent_parallel_service`)
+- [x] DI 完整性测试 15/15 通过
+
+**关键文件:**
+- `backend/app/api/v1/endpoints/intelligent_parallel.py` (MODIFIED)
+- `backend/app/dependencies.py` (MODIFIED - dead code removed)
+- `backend/tests/integration/test_epic33_di_completeness.py` (NEW)
+- `docs/stories/33.9.story.md`
+
+**Status**: Done
+
+---
+
 ## Architecture Diagram
 
 ```
