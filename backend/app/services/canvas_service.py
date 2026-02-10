@@ -37,6 +37,11 @@ from app.core.exceptions import (
     NodeNotFoundException,
     ValidationError,
 )
+from app.core.failure_counters import (
+    EDGE_SYNC_DEAD_LETTER_PATH,
+    increment_edge_sync_failures,
+    write_dead_letter,
+)
 from app.models.canvas_events import CanvasEventContext, CanvasEventType
 
 if TYPE_CHECKING:
@@ -494,9 +499,21 @@ class CanvasService:
             return result
         except Exception as e:
             # AC-4: Silent degradation after all retries exhausted
+            # Story 36.12 AC-36.12.4: Counter + dead-letter + enhanced WARNING
+            count = increment_edge_sync_failures()
             logger.warning(
-                f"Edge sync to Neo4j failed after retries: {edge_id}, "
-                f"error: {type(e).__name__}: {e}"
+                f"Edge sync to Neo4j failed after 3 retries: "
+                f"edge_id={edge_id}, canvas={canvas_path}, "
+                f"error={type(e).__name__}: {e}, "
+                f"total_failures={count}"
+            )
+            write_dead_letter(
+                EDGE_SYNC_DEAD_LETTER_PATH,
+                "edge_sync",
+                f"{type(e).__name__}: {e}",
+                edge_id=edge_id,
+                canvas_name=canvas_path,
+                retry_count=3,
             )
             return None  # Fire-and-forget: don't raise
 
@@ -920,6 +937,9 @@ class CanvasService:
         """
         Delete an edge from a Canvas.
 
+        Story 36.3 P0 Fix: Also syncs deletion to Neo4j (fire-and-forget),
+        symmetric with add_edge() which syncs creation.
+
         Args:
             canvas_name: Target canvas name
             edge_id: ID of edge to delete
@@ -941,7 +961,63 @@ class CanvasService:
             return False
 
         await self.write_canvas(canvas_name, canvas_data)
+
+        # Story 36.3 P0 Fix: Fire-and-forget Neo4j edge deletion sync
+        # Symmetric with add_edge() which syncs creation via _sync_edge_to_neo4j()
+        try:
+            asyncio.create_task(
+                self._delete_edge_from_neo4j(edge_id)
+            )
+            logger.debug(f"Scheduled edge deletion sync to Neo4j: {edge_id}")
+        except Exception as e:
+            logger.warning(f"Failed to schedule edge deletion sync to Neo4j: {e}")
+
         return True
+
+    async def _delete_edge_from_neo4j(self, edge_id: str) -> Optional[bool]:
+        """
+        Delete edge from Neo4j (fire-and-forget).
+
+        Story 36.3 P0 Fix: Symmetric with _sync_edge_to_neo4j().
+        Removes CONNECTS_TO relationship by edge_id.
+
+        Args:
+            edge_id: Edge ID to delete from Neo4j
+
+        Returns:
+            True if deleted, False if skipped, None if failed
+        """
+        if self._memory_client is None:
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(
+                    "edge_delete", "", edge_id=edge_id
+                )
+                logger.warning("Memory client unavailable, writing edge deletion to JSON fallback")
+            else:
+                logger.warning("Memory client not configured, skipping edge deletion sync")
+            return False
+
+        neo4j = self._memory_client.neo4j
+        if neo4j is None:
+            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
+                self._write_canvas_event_fallback(
+                    "edge_delete", "", edge_id=edge_id
+                )
+                logger.warning("Neo4j unreachable, edge deletion written to JSON fallback")
+            else:
+                logger.warning("Neo4j client not available, skipping edge deletion sync")
+            return False
+
+        try:
+            result = await neo4j.delete_edge_relationship(edge_id)
+            if result:
+                logger.info(f"Edge {edge_id} deleted from Neo4j")
+            else:
+                logger.debug(f"Edge {edge_id} not found in Neo4j (may not have been synced)")
+            return result
+        except Exception as e:
+            logger.error(f"Failed to delete edge {edge_id} from Neo4j: {e}")
+            return None
 
     async def cleanup(self) -> None:
         """

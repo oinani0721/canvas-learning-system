@@ -1074,6 +1074,30 @@ class Neo4jClient:
         )
         return len(results) > 0
 
+    async def delete_edge_relationship(self, edge_id: str) -> bool:
+        """
+        Delete edge relationship from Neo4j graph by edge_id.
+
+        Story 36.3 P0 Fix: Symmetric with create_edge_relationship.
+        Removes the CONNECTS_TO relationship identified by edge_id property.
+
+        Args:
+            edge_id: Edge ID to delete
+
+        Returns:
+            True if a relationship was deleted, False if not found
+        """
+        query = """
+        MATCH ()-[r:CONNECTS_TO {edge_id: $edgeId}]->()
+        DELETE r
+        RETURN count(r) AS deleted
+        """
+        results = await self.run_query(query, edgeId=edge_id)
+        deleted = results[0].get("deleted", 0) if results else 0
+        if deleted > 0:
+            logger.info(f"Deleted CONNECTS_TO relationship: edge_id={edge_id}")
+        return deleted > 0
+
     async def get_concept_score_history(
         self,
         concept_id: str,
