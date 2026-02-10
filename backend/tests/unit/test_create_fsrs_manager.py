@@ -14,13 +14,8 @@ Covers:
 import pytest
 from unittest.mock import MagicMock, patch
 
-
-@pytest.fixture(autouse=True)
-def _isolate_card_states_file(tmp_path):
-    """Prevent test data pollution of production fsrs_card_states.json."""
-    tmp_file = tmp_path / "fsrs_card_states.json"
-    with patch("app.services.review_service._CARD_STATES_FILE", tmp_file):
-        yield tmp_file
+# Use shared isolate_card_states_file fixture from conftest.py
+pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
 
 
 def _make_settings(use_fsrs=True, desired_retention=0.9):

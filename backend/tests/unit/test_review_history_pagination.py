@@ -119,7 +119,7 @@ class TestHistoryAPIEndpoint:
 
         # Should succeed (endpoint works)
         # The default limit=5 is enforced internally
-        assert response.status_code in [200, 500], "Endpoint should work with default limit"
+        assert response.status_code == 200, f"Endpoint should return 200 with default limit, got {response.status_code}"
 
     @pytest.mark.asyncio
     async def test_endpoint_combined_parameters(self):
@@ -254,7 +254,7 @@ class TestSortingRequirement:
         from datetime import datetime, timedelta
 
         # Create records with different dates
-        base_date = datetime.now()
+        base_date = datetime(2025, 1, 15, 10, 0, 0)
         records = [
             {"review_time": (base_date - timedelta(days=i)).isoformat()}
             for i in [2, 0, 3, 1, 4]  # Unsorted order
@@ -275,7 +275,7 @@ class TestSortingRequirement:
         """Limit should apply after sorting (get newest N records)."""
         from datetime import datetime, timedelta
 
-        base_date = datetime.now()
+        base_date = datetime(2025, 1, 15, 10, 0, 0)
         records = [
             {"id": i, "review_time": (base_date - timedelta(days=i)).isoformat()}
             for i in [4, 2, 0, 3, 1]  # Unsorted

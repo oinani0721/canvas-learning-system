@@ -51,6 +51,9 @@ const mockApp = {
     },
 } as any;
 
+// Fixed dates for deterministic tests (avoid new Date() flakiness)
+const FIXED_DATE_ISO = '2025-01-15T10:00:00.000Z';
+
 // Mock ReviewRecord for testing
 const createMockReviewRecord = (overrides: Partial<any> = {}) => ({
     id: 1,
@@ -59,8 +62,8 @@ const createMockReviewRecord = (overrides: Partial<any> = {}) => ({
     status: 'pending',
     memoryStrength: 0.5,
     retentionRate: 0.7,
-    reviewDate: new Date().toISOString(),
-    nextReviewDate: new Date().toISOString(),
+    reviewDate: FIXED_DATE_ISO,
+    nextReviewDate: FIXED_DATE_ISO,
     ...overrides,
 });
 
@@ -737,6 +740,44 @@ describe('TodayReviewListService - Story 32.4 Integration', () => {
                 expect(typeof item.reviewCount).toBe('number');
                 expect(item.reviewCount).toBeGreaterThanOrEqual(0);
             });
+        });
+    });
+
+    describe('P0-5: stability=0 lastReview calculation', () => {
+        it('should handle new cards with stability=0 without date anomaly', () => {
+            // Access private method via prototype for testing
+            const service = createTodayReviewListService(mockApp);
+            const convertMethod = (service as any).convertFSRSStateToCardState.bind(service);
+
+            const fsrsState = {
+                stability: 0,
+                difficulty: 5,
+                due: new Date().toISOString(),
+                reps: 0,
+                lapses: 0,
+                state: 0, // new
+            };
+
+            const result = convertMethod('test-concept', fsrsState);
+            // lastReview should be at least 1 day before nextReview (not equal)
+            expect(result.lastReview.getTime()).toBeLessThan(result.nextReview.getTime());
+        });
+
+        it('should handle negative stability gracefully', () => {
+            const service = createTodayReviewListService(mockApp);
+            const convertMethod = (service as any).convertFSRSStateToCardState.bind(service);
+
+            const fsrsState = {
+                stability: -1,
+                difficulty: 5,
+                due: new Date().toISOString(),
+                reps: 0,
+                lapses: 0,
+                state: 0,
+            };
+
+            const result = convertMethod('test-concept', fsrsState);
+            expect(result.lastReview.getTime()).toBeLessThan(result.nextReview.getTime());
         });
     });
 });

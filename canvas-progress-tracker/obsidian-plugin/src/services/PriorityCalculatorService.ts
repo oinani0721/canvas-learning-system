@@ -305,7 +305,7 @@ export class PriorityCalculatorService {
         if (daysUntilDue < 0) {
             // Overdue - exponential increase in urgency
             const daysOverdue = Math.abs(daysUntilDue);
-            const overdueMultiplier = Math.min(2, 1 + daysOverdue / state.stability);
+            const overdueMultiplier = Math.min(2, 1 + daysOverdue / Math.max(0.1, state.stability));
             urgencyScore = Math.min(100, 70 + daysOverdue * 3 * overdueMultiplier);
             explanation = `Overdue by ${Math.round(daysOverdue)} days`;
         } else if (daysUntilDue < 1) {

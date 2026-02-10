@@ -30,17 +30,18 @@ import {
 const mockApp = {} as any;
 
 // Helper functions to create test data
-function createFSRSCardState(overrides: Partial<FSRSCardState> = {}): FSRSCardState {
-    const now = new Date();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+// Fixed dates for deterministic tests (avoid new Date() flakiness)
+// Use jest.useFakeTimers so Date.now() returns FIXED_NOW inside service code
+const FIXED_NOW = new Date('2025-01-15T10:00:00Z');
+const FIXED_TOMORROW = new Date('2025-01-16T10:00:00Z');
 
+function createFSRSCardState(overrides: Partial<FSRSCardState> = {}): FSRSCardState {
     return {
         conceptId: 'test-concept',
         stability: 5,
         difficulty: 5,
-        lastReview: now,
-        nextReview: tomorrow,
+        lastReview: FIXED_NOW,
+        nextReview: FIXED_TOMORROW,
         reps: 3,
         lapses: 0,
         state: 'review' as const,
@@ -53,7 +54,7 @@ function createTemporalEvent(overrides: Partial<TemporalEvent> = {}): TemporalEv
         id: 'event-1',
         sessionId: 'session-1',
         eventType: 'review' as const,
-        timestamp: new Date(),
+        timestamp: FIXED_NOW,
         canvasName: 'test.canvas',
         conceptName: 'Test Concept',
         ...overrides,
@@ -101,7 +102,14 @@ describe('PriorityCalculatorService', () => {
     let service: PriorityCalculatorService;
 
     beforeEach(() => {
+        jest.clearAllMocks();
+        jest.useFakeTimers();
+        jest.setSystemTime(FIXED_NOW);
         service = new PriorityCalculatorService(mockApp);
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
     });
 
     describe('Constructor and Settings', () => {
@@ -240,6 +248,33 @@ describe('PriorityCalculatorService', () => {
 
             expect(result2.dimensions.fsrs.score).toBeGreaterThan(result1.dimensions.fsrs.score);
             expect(result2.dimensions.fsrs.explanation).toContain('lapses');
+        });
+
+        it('should not produce Infinity when stability is 0 (P0-4)', () => {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const twoDaysAgo = new Date();
+            twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+            const fsrsState = createFSRSCardState({
+                stability: 0,
+                lastReview: twoDaysAgo,
+                nextReview: yesterday,
+            });
+
+            const result = service.calculatePriority('test', fsrsState, null);
+            expect(Number.isFinite(result.dimensions.fsrs.score)).toBe(true);
+            expect(result.dimensions.fsrs.score).toBeGreaterThan(0);
+            expect(result.dimensions.fsrs.score).toBeLessThanOrEqual(100);
+        });
+
+        it('should handle stability=0 for non-overdue cards (P0-4)', () => {
+            const fsrsState = createFSRSCardState({
+                stability: 0,
+            });
+
+            const result = service.calculatePriority('test', fsrsState, null);
+            expect(Number.isFinite(result.dimensions.fsrs.score)).toBe(true);
         });
 
         it('should modify score based on difficulty', () => {

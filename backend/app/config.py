@@ -402,6 +402,16 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Batch Processing Settings (Story 30.11)
+    # [Source: docs/stories/30.11.batch-true-parallel.story.md - AC-30.11.3]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    BATCH_NEO4J_CONCURRENCY: int = Field(
+        default=10,
+        description="Max concurrent Neo4j writes during batch processing. Story 30.11 AC-30.11.3"
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Graphiti JSON Dual-Write Settings (Story 36.9)
     # [Source: docs/stories/36.9.story.md - AC-36.9.5]
     # ═══════════════════════════════════════════════════════════════════════════
@@ -433,6 +443,20 @@ class Settings(BaseSettings):
     LANCEDB_INDEX_TABLE_NAME: str = Field(
         default="canvas_nodes",
         description="LanceDB table name for canvas node index. Story 38.1."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # FSRS Spaced Repetition Settings (Story 32.2)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    USE_FSRS: bool = Field(
+        default=True,
+        description="Enable FSRS algorithm. Set False to disable FSRS and use fallback scheduling. Story 32.8."
+    )
+
+    FSRS_DESIRED_RETENTION: float = Field(
+        default=0.9,
+        description="FSRS target retention rate (0.0 to 1.0). Higher = more frequent reviews. Story 32.2."
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -608,6 +632,11 @@ class Settings(BaseSettings):
     def enable_graphiti_json_dual_write(self) -> bool:
         """Alias for ENABLE_GRAPHITI_JSON_DUAL_WRITE (lowercase). Story 36.9."""
         return self.ENABLE_GRAPHITI_JSON_DUAL_WRITE
+
+    @property
+    def fsrs_desired_retention(self) -> float:
+        """Alias for FSRS_DESIRED_RETENTION (lowercase). Story 32.2."""
+        return self.FSRS_DESIRED_RETENTION
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Configuration

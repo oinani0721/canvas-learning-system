@@ -59,8 +59,10 @@ def mock_review_singleton():
     old_instance = review_mod._review_service_instance
     mock_service = MagicMock()
     review_mod._review_service_instance = mock_service
-    yield mock_service
-    review_mod._review_service_instance = old_instance
+    try:
+        yield mock_service
+    finally:
+        review_mod._review_service_instance = old_instance
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

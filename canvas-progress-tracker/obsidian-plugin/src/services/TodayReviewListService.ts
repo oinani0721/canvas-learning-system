@@ -760,8 +760,9 @@ export class TodayReviewListService {
         // Calculate last review based on stability and due date
         // Approximation: lastReview = due - (stability * (1 - ln(0.9) / -1))
         // Simplified: assume last review was stability days before due
+        // Guard: stability <= 0 (new cards) → default to 1 day before due
         const lastReview = new Date(nextReview);
-        lastReview.setDate(lastReview.getDate() - Math.round(state.stability));
+        lastReview.setDate(lastReview.getDate() - Math.max(1, Math.round(state.stability)));
 
         return {
             conceptId,

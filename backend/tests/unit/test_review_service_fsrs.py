@@ -32,6 +32,10 @@ def mock_task_manager():
     return mock
 
 
+# Use shared isolate_card_states_file fixture from conftest.py
+pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
+
+
 @pytest.fixture
 def review_service_factory(mock_canvas_service, mock_task_manager):
     """Factory to create ReviewService with mocked dependencies."""
