@@ -38,6 +38,11 @@ from app.models.review_models import (
     # Story 31.6: Session Progress Models
     SessionPauseResumeResponse,
     SessionProgressResponse,
+    # EPIC-31: Interactive Verification Session Models
+    StartSessionRequest,
+    StartSessionResponse,
+    SubmitAnswerRequest,
+    SubmitAnswerResponse,
     TrendAnalysis,
     TrendDirection,
     VerificationHistoryItem,
@@ -260,6 +265,11 @@ __all__ = [
     "VerificationStatusEnum",
     "SessionProgressResponse",
     "SessionPauseResumeResponse",
+    # EPIC-31: Interactive Verification Session
+    "StartSessionRequest",
+    "StartSessionResponse",
+    "SubmitAnswerRequest",
+    "SubmitAnswerResponse",
     # Review History (Story 34.4)
     "HistoryPeriod",
     "HistoryReviewRecord",

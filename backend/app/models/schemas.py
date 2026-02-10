@@ -676,6 +676,11 @@ class GenerateReviewRequest(BaseModel):
         le=1,
         description="Weight for mastered concepts in targeted mode"
     )
+    # Story 31.2+31.5: Difficulty adaptation for one-click generation
+    skip_mastered: bool = Field(
+        default=False,
+        description="跳过已掌握概念 (连续3次>=80)"
+    )
 
 
 class WeakConceptData(BaseModel):
@@ -721,6 +726,15 @@ class GenerateReviewResponse(BaseModel):
     weight_config: Optional["WeightConfig"] = Field(
         None,
         description="Weight configuration used in targeted mode"
+    )
+    # Story 31.2+31.5: Difficulty adaptation metadata
+    skipped_mastered_count: int = Field(
+        default=0,
+        description="跳过的已掌握概念数量"
+    )
+    difficulty_adapted: bool = Field(
+        default=False,
+        description="是否应用了难度自适应"
     )
 
 
