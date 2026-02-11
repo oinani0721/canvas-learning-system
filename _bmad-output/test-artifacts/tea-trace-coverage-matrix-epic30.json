@@ -1,0 +1,61 @@
+{
+  "phase": "PHASE_1_COMPLETE",
+  "generated_at": "2026-02-10T18:00:00Z",
+  "epic_id": "EPIC-30",
+  "coverage_statistics": {
+    "total_requirements": 100,
+    "fully_covered": 89,
+    "partially_covered": 6,
+    "uncovered": 5,
+    "overall_coverage_percentage": 89,
+    "priority_breakdown": {
+      "P0": { "total": 49, "covered": 45, "partial": 3, "none": 1, "percentage": 92 },
+      "P1": { "total": 41, "covered": 35, "partial": 2, "none": 4, "percentage": 85 },
+      "P2": { "total": 10, "covered": 9, "partial": 1, "none": 0, "percentage": 90 },
+      "P3": { "total": 0, "covered": 0, "partial": 0, "none": 0, "percentage": 100 }
+    }
+  },
+  "gap_analysis": {
+    "critical_gaps": [
+      { "id": "AC-30.7.3", "story": "30.7", "priority": "P0", "description": "PriorityCalculatorService real memoryResult", "coverage": "NONE" }
+    ],
+    "high_gaps": [
+      { "id": "AC-30.3.7", "story": "30.3", "priority": "P1", "description": "GET /api/v1/health/graphiti endpoint", "coverage": "NONE" },
+      { "id": "AC-30.3.8", "story": "30.3", "priority": "P1", "description": "GET /api/v1/health/lancedb endpoint", "coverage": "NONE" },
+      { "id": "AC-30.3.9", "story": "30.3", "priority": "P1", "description": "Plugin indicator real API call", "coverage": "NONE" },
+      { "id": "AC-30.16.4", "story": "30.16", "priority": "P1", "description": "Frontend plugin health check (Optional)", "coverage": "NONE" }
+    ],
+    "partial_coverage_items": [
+      { "id": "AC-30.1.5", "priority": "P0", "reason": "Requires live Docker restart" },
+      { "id": "AC-30.2.4", "priority": "P0", "reason": "Measured but no threshold assertion" },
+      { "id": "AC-30.21.4", "priority": "P0", "reason": "Test fails on Windows encoding" },
+      { "id": "AC-30.5.4", "priority": "P1", "reason": "E2E relationship chain not verified in Neo4j" },
+      { "id": "AC-30.6.4", "priority": "P1", "reason": "Debounce is frontend-scope" },
+      { "id": "AC-30.24.6", "priority": "P2", "reason": "Test fails on script rename" }
+    ]
+  },
+  "recommendations": [
+    { "priority": "URGENT", "action": "Add test for AC-30.7.3 PriorityCalculatorService", "requirements": ["AC-30.7.3"] },
+    { "priority": "HIGH", "action": "Add E2E tests for AC-30.3.7 graphiti and AC-30.3.8 lancedb health endpoints", "requirements": ["AC-30.3.7", "AC-30.3.8"] },
+    { "priority": "HIGH", "action": "Fix AC-30.21.4 test_integration_marker_configured Windows encoding issue", "requirements": ["AC-30.21.4"] },
+    { "priority": "MEDIUM", "action": "Fix AC-30.24.6 test script name verify-vault.mjs → verify.mjs", "requirements": ["AC-30.24.6"] },
+    { "priority": "LOW", "action": "Enable Docker CI for AC-30.1.5 persistence test", "requirements": ["AC-30.1.5"] }
+  ],
+  "test_execution": {
+    "new_tests_run": 143,
+    "passed": 141,
+    "failed": 2,
+    "failures": [
+      "test_integration_marker_configured — UnicodeDecodeError reading pytest.ini on Windows",
+      "test_package_json_verify_command_correct — script renamed from verify-vault.mjs to verify.mjs"
+    ]
+  },
+  "delta_from_previous": {
+    "previous_date": "2026-02-09",
+    "p0_coverage_change": "+12% (80% → 92%)",
+    "p1_coverage_change": "+11% (74% → 85%)",
+    "new_test_files": 6,
+    "new_tests_added": 143,
+    "story_30_7_improvement": "0/6 NONE → 5/6 FULL (P0 blocker largely resolved)"
+  }
+}

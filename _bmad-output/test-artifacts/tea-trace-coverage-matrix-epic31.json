@@ -1,0 +1,218 @@
+{
+  "phase": "PHASE_1_COMPLETE",
+  "generated_at": "2026-02-11T12:00:00Z",
+  "epic_id": "EPIC-31",
+  "epic_title": "检验白板智能引导系统完整激活",
+
+  "requirements": [
+    {
+      "story_id": "31.1", "title": "VerificationService核心逻辑激活", "priority": "P0",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_verification_service_activation.py(15)", "test_verification_service_e2e.py(6)"],
+      "ac_count": 5, "ac_covered": 5
+    },
+    {
+      "story_id": "31.2", "title": "检验白板生成端到端对接", "priority": "P0",
+      "coverage": "PARTIAL", "test_pass_rate": 100,
+      "tests": ["test_verification_history_api.py(16)"],
+      "ac_count": 5, "ac_covered": 2,
+      "gaps": ["AC-31.2.1/2/4/5 前端TypeScript功能不在pytest范围", "POST /review/generate E2E测试缺失"]
+    },
+    {
+      "story_id": "31.3", "title": "Agent决策推荐端点", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_recommend_action.py(63)", "test_recommend_action_api.py(30)"],
+      "ac_count": 5, "ac_covered": 5
+    },
+    {
+      "story_id": "31.4", "title": "检验问题去重与历史查询", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_verification_dedup.py(23)", "test_verification_history_api.py(16)"],
+      "ac_count": 4, "ac_covered": 4
+    },
+    {
+      "story_id": "31.5", "title": "难度自适应算法", "priority": "P2",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_difficulty_adaptive.py(47)", "test_difficulty_canvas_integration.py(19)", "test_verification_difficulty.py(17)"],
+      "ac_count": 5, "ac_covered": 5
+    },
+    {
+      "story_id": "31.6", "title": "实时检验进度追踪", "priority": "P2",
+      "coverage": "PARTIAL", "test_pass_rate": 100,
+      "tests": ["test_session_progress.py(10)"],
+      "ac_count": 5, "ac_covered": 2,
+      "gaps": ["AC-31.6.1/2/5 前端进度UI测试缺失"]
+    },
+    {
+      "story_id": "31.7", "title": "检验历史视图UI", "priority": "P2",
+      "coverage": "UNIT-ONLY", "test_pass_rate": 100,
+      "tests": ["test_verification_history_api.py(部分)"],
+      "ac_count": 5, "ac_covered": 1,
+      "gaps": ["AC-31.7.1-5 前端UI功能全部在TypeScript中，无pytest覆盖"]
+    },
+    {
+      "story_id": "31.9", "title": "检验评分历史完整追踪", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_recommend_action.py(history)", "test_verification_history_api.py"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.10", "title": "推荐降级模式UI指示器", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_session_persistence.py(20)", "test_degraded_flag_propagation.py(5)", "test_recommend_action_degradation.py(4)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.1", "title": "MemoryService管道修复", "priority": "P0",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_verification_service_injection.py(13)", "test_verification_service_di_completeness.py(6)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.2", "title": "Agent模板恢复与hint-generation端点", "priority": "P0",
+      "coverage": "PARTIAL", "test_pass_rate": 53,
+      "tests": ["test_story_31a2_ac1(7)", "test_story_31a2_ac2(10)", "test_story_31a2_ac3(3)", "test_story_31a2_ac4(15)", "test_story_31a2_ac5(8)"],
+      "ac_count": 5, "ac_covered": 2,
+      "gaps": ["20/43 tests FAILED", "Story状态: Draft (实现未完成)", "AC1 Neo4j查询合并: 4 failures", "AC4 分页过滤: 11 failures", "AC5 边界场景: 5 failures"]
+    },
+    {
+      "story_id": "31.A.3", "title": "检验超时值修复", "priority": "P0",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_verification_service_activation.py(timeout)", "test_difficulty_canvas_integration.py(timeout)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.4", "title": "dependencies.py依赖注入完整性修复", "priority": "P0",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_verification_service_injection.py(13)", "test_verification_service_di_completeness.py(6)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.5", "title": "scoring-agent参数名不匹配修复", "priority": "P1",
+      "coverage": "PARTIAL", "test_pass_rate": 100,
+      "tests": ["test_verification_service_activation.py(间接)"],
+      "ac_count": 1, "ac_covered": 0,
+      "gaps": ["缺少专门验证参数签名匹配的单元测试"]
+    },
+    {
+      "story_id": "31.A.6", "title": "分制统一0-40→0-100", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_recommend_action.py(score_boundary)", "test_difficulty_adaptive.py(score_range)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.7", "title": "TTLCache会话存储降级透明化", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_ttlcache_transparency.py(11)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.8", "title": "Mock降级路径日志透明化", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_degraded_flag_propagation.py(5)", "test_recommend_action_degradation.py(4)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.9", "title": "推荐降级后端集成测试", "priority": "P1",
+      "coverage": "FULL", "test_pass_rate": 100,
+      "tests": ["test_degraded_flag_propagation.py(5)", "test_recommend_action_degradation.py(4)"],
+      "ac_count": 1, "ac_covered": 1
+    },
+    {
+      "story_id": "31.A.10", "title": "测试基础设施改进", "priority": "P1",
+      "coverage": "NONE", "test_pass_rate": 0,
+      "tests": [],
+      "ac_count": 1, "ac_covered": 0,
+      "gaps": ["Story状态: Ready (尚未实现)", "Fixture去重+E2E覆盖+覆盖率提升全部缺失"]
+    }
+  ],
+
+  "coverage_statistics": {
+    "total_stories": 19,
+    "fully_covered": 13,
+    "partially_covered": 4,
+    "unit_only": 1,
+    "uncovered": 1,
+    "overall_coverage_percentage": 81,
+
+    "priority_breakdown": {
+      "P0": { "total": 6, "fully_covered": 4, "percentage": 83 },
+      "P1": { "total": 10, "fully_covered": 8, "percentage": 85 },
+      "P2": { "total": 3, "fully_covered": 1, "percentage": 60 }
+    }
+  },
+
+  "test_execution": {
+    "total_tests": 373,
+    "passed": 353,
+    "failed": 20,
+    "skipped": 0,
+    "pass_rate": 94.6,
+    "duration_seconds": 934.42,
+    "source": "local pytest run"
+  },
+
+  "gap_analysis": {
+    "critical_gaps": [
+      {
+        "story_id": "31.A.2", "priority": "P0",
+        "description": "20/43 tests FAILED — Draft status, implementation incomplete",
+        "impact": "P0 test pass rate < 100%"
+      }
+    ],
+    "high_gaps": [
+      {
+        "story_id": "31.A.10", "priority": "P1",
+        "description": "NONE coverage — Ready status, not implemented",
+        "impact": "Fixture dedup, E2E coverage, coverage % improvement blocked"
+      },
+      {
+        "story_id": "31.2", "priority": "P0",
+        "description": "POST /review/generate E2E test missing",
+        "impact": "白板生成端到端链路未验证"
+      }
+    ],
+    "medium_gaps": [
+      {
+        "story_id": "31.A.5", "priority": "P1",
+        "description": "No dedicated parameter signature test",
+        "impact": "参数不匹配回归风险"
+      },
+      {
+        "story_id": "31.6", "priority": "P2",
+        "description": "Frontend progress UI tests missing",
+        "impact": "进度追踪UI行为未验证"
+      }
+    ],
+    "low_gaps": [
+      {
+        "story_id": "31.7", "priority": "P2",
+        "description": "Frontend history UI — TypeScript only, no pytest coverage",
+        "impact": "低风险, 后端数据层已覆盖"
+      }
+    ]
+  },
+
+  "recommendations": [
+    {
+      "priority": "URGENT",
+      "action": "完成 Story 31.A.2 实现，修复 20 个测试失败",
+      "stories": ["31.A.2"]
+    },
+    {
+      "priority": "HIGH",
+      "action": "实现 Story 31.A.10 (fixture 去重 + E2E 覆盖 + 覆盖率提升至 85%+)",
+      "stories": ["31.A.10"]
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "为 Story 31.2 补全 POST /review/generate E2E API 测试",
+      "stories": ["31.2"]
+    },
+    {
+      "priority": "LOW",
+      "action": "运行 /bmad:tea:test-review 评估测试质量和前端覆盖策略",
+      "stories": []
+    }
+  ]
+}

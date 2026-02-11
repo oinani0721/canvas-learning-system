@@ -1,0 +1,108 @@
+{
+  "epic": "EPIC-32",
+  "title": "Ebbinghaus Review System Enhancement",
+  "generated_at": "2026-02-11",
+  "gate_decision": "CONCERNS",
+  "summary": {
+    "total_ac": 38,
+    "testable_ac": 33,
+    "excluded_ac": 5,
+    "covered_full": 26,
+    "covered_partial": 0,
+    "not_covered": 7,
+    "overall_coverage_pct": 78.8
+  },
+  "priority_breakdown": {
+    "P0": { "total": 9, "covered": 9, "pct": 100.0 },
+    "P1": { "total": 14, "covered": 13, "pct": 92.9 },
+    "P2": { "total": 10, "covered": 4, "pct": 40.0 }
+  },
+  "test_execution": {
+    "total": 173,
+    "passed": 167,
+    "failed": 6,
+    "pass_rate_pct": 96.5
+  },
+  "failures": [
+    {
+      "test": "test_dependencies_injects_fsrs_manager",
+      "file": "tests/unit/test_epic32_p0_fixes.py",
+      "category": "TEST_BUG",
+      "reason": "Story 38.9 refactored get_review_service to delegate to singleton; test checks wrong function source"
+    },
+    {
+      "test": "test_health_fsrs_degraded",
+      "file": "tests/e2e/test_health_endpoint.py",
+      "category": "ENV_ISSUE",
+      "reason": "Health endpoint returns 500 in test env"
+    },
+    {
+      "test": "test_health_returns_fsrs_status",
+      "file": "tests/api/v1/endpoints/test_fsrs_state_api.py",
+      "category": "ENV_ISSUE",
+      "reason": "Health endpoint returns 500 in test env"
+    },
+    {
+      "test": "test_health_fsrs_degraded_when_unavailable",
+      "file": "tests/api/v1/endpoints/test_fsrs_state_api.py",
+      "category": "ENV_ISSUE",
+      "reason": "Health endpoint returns 500 in test env"
+    },
+    {
+      "test": "test_health_includes_review_service_status",
+      "file": "tests/api/v1/endpoints/test_fsrs_state_api.py",
+      "category": "ENV_ISSUE",
+      "reason": "Health endpoint returns 500 in test env"
+    },
+    {
+      "test": "test_health_fsrs_ok_when_available",
+      "file": "tests/api/v1/endpoints/test_fsrs_state_api.py",
+      "category": "ENV_ISSUE",
+      "reason": "Health endpoint returns 500 in test env"
+    }
+  ],
+  "coverage_gaps": [
+    {
+      "story": "32.4",
+      "ac": "AC3",
+      "priority": "P2",
+      "description": "Dashboard statistics aggregation endpoint test missing"
+    },
+    {
+      "story": "32.6",
+      "ac": "AC1",
+      "priority": "P2",
+      "description": "Plugin UI settings entry point test requires DOM environment"
+    },
+    {
+      "story": "32.6",
+      "ac": "AC2",
+      "priority": "P2",
+      "description": "Plugin UI CRUD interaction test missing"
+    },
+    {
+      "story": "32.6",
+      "ac": "AC3",
+      "priority": "P1",
+      "description": "Integration test for auto-applying mapping rules on Canvas open"
+    },
+    {
+      "story": "32.10",
+      "ac": "AC3",
+      "priority": "P2",
+      "description": "Systematic audit of asyncio.sleep dependencies not done"
+    },
+    {
+      "story": "32.11",
+      "ac": "AC2",
+      "priority": "P2",
+      "description": "E2E degradation path test missing"
+    },
+    {
+      "story": "32.11",
+      "ac": "AC3",
+      "priority": "P2",
+      "description": "Health endpoint returns 500 in test env, degradation status untestable"
+    }
+  ]
+}

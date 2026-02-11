@@ -1,0 +1,10 @@
+{
+  "env": "Real Neo4j",
+  "story": "30.21",
+  "test": "test_real_batch_50_benchmark",
+  "events": 50,
+  "elapsed_ms": 385.62,
+  "avg_ms": 7.71,
+  "timestamp": "2026-02-10T19:39:29.431062",
+  "neo4j_uri": "bolt://localhost:7689"
+}

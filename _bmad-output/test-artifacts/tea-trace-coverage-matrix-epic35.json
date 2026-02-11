@@ -1,0 +1,117 @@
+{
+  "phase": "PHASE_1_COMPLETE",
+  "generated_at": "2026-02-11T12:00:00Z",
+  "epic_id": "EPIC-35",
+  "version": "v3",
+
+  "coverage_statistics": {
+    "total_requirements": 55,
+    "fully_covered": 40,
+    "partially_covered": 12,
+    "uncovered": 3,
+    "overall_coverage_percentage": 73,
+
+    "priority_breakdown": {
+      "P0": { "total": 8, "covered": 8, "percentage": 100 },
+      "P1": { "total": 33, "covered": 23, "percentage": 70 },
+      "P2": { "total": 13, "covered": 9, "percentage": 69 },
+      "P3": { "total": 1, "covered": 0, "percentage": 0 }
+    }
+  },
+
+  "test_execution": {
+    "date": "2026-02-11",
+    "backend_e2e": { "total": 30, "passed": 30, "failed": 0 },
+    "backend_unit": { "total": 83, "passed": 83, "failed": 0 },
+    "backend_api_contract": { "total": 38, "passed": 38, "failed": 0 },
+    "backend_integration": { "total": 25, "passed": 25, "failed": 0 },
+    "frontend": { "total": 110, "passed": 107, "failed": 3 },
+    "processors": { "total": "~40", "passed": "N/A", "failed": "N/A", "note": "ImportError: ModuleNotFoundError: No module named 'src.agentic_rag'" },
+    "total_runnable": 286,
+    "total_passed": 283,
+    "total_failed": 3,
+    "pass_rate": 98.95
+  },
+
+  "gap_analysis": {
+    "critical_gaps": [],
+    "high_gaps": [
+      { "id": "AC 35.9.2", "description": "Neo4j HAS_MEDIA Relationship", "priority": "P1", "coverage": "NONE", "impact": "HIGH" },
+      { "id": "AC 35.1.2", "description": "POST /upload-url E2E missing", "priority": "P1", "coverage": "PARTIAL", "impact": "MEDIUM" },
+      { "id": "AC 35.1.5", "description": "GET /multimodal/{id} E2E missing", "priority": "P1", "coverage": "PARTIAL", "impact": "MEDIUM" },
+      { "id": "AC 35.3.4", "description": "deleteMultimodal failure path broken (2/6 tests failing)", "priority": "P1", "coverage": "PARTIAL", "impact": "MEDIUM" }
+    ],
+    "medium_gaps": [
+      { "id": "AC 35.1.4", "description": "PUT endpoint no E2E", "priority": "P1", "coverage": "PARTIAL" },
+      { "id": "AC 35.2.3", "description": "Paginated list no E2E", "priority": "P1", "coverage": "PARTIAL" },
+      { "id": "AC 35.5.1", "description": "Right-click menu integration", "priority": "P2", "coverage": "PARTIAL" },
+      { "id": "AC 35.5.4", "description": "Upload notice UI", "priority": "P2", "coverage": "PARTIAL" },
+      { "id": "AC 35.5.5", "description": "Node metadata NONE", "priority": "P2", "coverage": "NONE" },
+      { "id": "AC 35.6.1", "description": "Audio metadata gaps", "priority": "P1", "coverage": "PARTIAL" },
+      { "id": "AC 35.6.2", "description": "Audio webm format", "priority": "P1", "coverage": "PARTIAL" },
+      { "id": "AC 35.6.3", "description": "Waveform JSON structure", "priority": "P1", "coverage": "PARTIAL" }
+    ],
+    "low_gaps": [
+      { "id": "AC 35.7.4", "description": "Gemini video placeholder", "priority": "P1", "coverage": "PARTIAL" },
+      { "id": "AC 35.11.2", "description": "Degradation UI DOM", "priority": "P2", "coverage": "NONE" },
+      { "id": "AC 35.11.4", "description": "Structured log fields", "priority": "P3", "coverage": "PARTIAL" }
+    ]
+  },
+
+  "failing_tests": [
+    {
+      "test": "ApiClient.multimodal.test.ts: should default searchMode to vector when backend omits search_mode",
+      "ac": "AC 35.3.3 / AC 35.11.1",
+      "expected": "result.searchMode === 'vector'",
+      "actual": "result.searchMode === undefined",
+      "severity": "LOW"
+    },
+    {
+      "test": "ApiClient.multimodal.test.ts: should return false when deletion fails",
+      "ac": "AC 35.3.4",
+      "expected": "deleteMultimodal('nonexistent') returns false",
+      "actual": "returns true",
+      "severity": "MEDIUM"
+    },
+    {
+      "test": "ApiClient.multimodal.test.ts: should NOT invalidate cache when deletion fails",
+      "ac": "AC 35.3.4",
+      "expected": "cache NOT invalidated on failed delete",
+      "actual": "cache invalidated despite failure",
+      "severity": "MEDIUM"
+    }
+  ],
+
+  "recommendations": [
+    {
+      "priority": "URGENT",
+      "action": "Fix 3 failing frontend tests in ApiClient.multimodal.test.ts (deletion failure path + search_mode default)",
+      "requirements": ["AC 35.3.3", "AC 35.3.4"]
+    },
+    {
+      "priority": "HIGH",
+      "action": "Add AC 35.9.2 Neo4j HAS_MEDIA integration test",
+      "requirements": ["AC 35.9.2"]
+    },
+    {
+      "priority": "HIGH",
+      "action": "Restore E2E tests for upload-url, GET-by-ID (lost in test file split)",
+      "requirements": ["AC 35.1.2", "AC 35.1.5"]
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Restore PUT update and paginated list E2E tests",
+      "requirements": ["AC 35.1.4", "AC 35.2.3"]
+    },
+    {
+      "priority": "MEDIUM",
+      "action": "Extend audio metadata tests and fix processor import path",
+      "requirements": ["AC 35.6.1", "AC 35.6.2", "AC 35.6.3"]
+    },
+    {
+      "priority": "LOW",
+      "action": "Install jsdom/happy-dom for DOM testing (AC 35.11.2)",
+      "requirements": ["AC 35.11.2"]
+    }
+  ]
+}
