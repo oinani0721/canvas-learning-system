@@ -93,5 +93,16 @@ pytest-cov>=4.0.0
 httpx>=0.25.0
 # Story 35.12: Pact Provider Verification (optional — tests skip if missing)
 pact-python>=2.0.0
+
+# ==========================================================
+# Multimodal Processing - Optional Dependencies (EPIC-35)
+# ✅ Audio/Video processors use graceful degradation:
+#    PYDUB_AVAILABLE / MOVIEPY_AVAILABLE flags
+#    Missing deps → process() raises informative error, not crash
+# ==========================================================
+# Story 35.6: Audio processing (mp3/wav/ogg/m4a/flac)
+pydub>=0.25.1
+# Story 35.7: Video processing (mp4/webm/mkv/avi/mov)
+moviepy>=1.0.3
 # ✅ NFR Quick Win #1: Dependency vulnerability scanning
 pip-audit>=2.7.0

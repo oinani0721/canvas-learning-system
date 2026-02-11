@@ -1519,6 +1519,196 @@
       "score": 0.0,
       "agent_feedback": null,
       "timestamp": "2026-02-10T05:06:02.295465"
+    },
+    {
+      "key": "test:session-start:2026-02-10T05:10:24.658896",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:10:24.658896"
+    },
+    {
+      "key": "test:session-start:2026-02-10T05:10:24.694292",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:10:24.694292"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T05:10:27.467551",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:10:27.467551"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T05:10:27.477866",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:10:27.477866"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T05:10:27.488793",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:10:27.488793"
+    },
+    {
+      "key": "test:session-start:2026-02-10T05:37:18.359532",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:37:18.360055"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T20:49:42.551171",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:49:42.551171"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T20:49:42.855783",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:49:42.855783"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T20:49:43.136994",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:49:43.136994"
+    },
+    {
+      "key": "test:session-start:2026-02-10T20:55:33.408691",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:55:33.408691"
+    },
+    {
+      "key": "test:session-start:2026-02-10T20:55:33.491463",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:55:33.491463"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T20:55:34.812425",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:55:34.812425"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T20:55:34.854675",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:55:34.854675"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T20:55:34.886188",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:55:34.886188"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T20:59:17.410112",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:59:17.410112"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T20:59:17.642288",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:59:17.642288"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T20:59:17.861134",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T20:59:17.861134"
+    },
+    {
+      "key": "test-canvas:node1:2026-02-10T21:34:06.999109",
+      "canvas_name": "test-canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T21:34:06.999109"
+    },
+    {
+      "key": "test-canvas:node2:2026-02-10T21:34:07.511545",
+      "canvas_name": "test-canvas",
+      "node_id": "node2",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T21:34:07.511545"
     }
   ],
   "metadata": {

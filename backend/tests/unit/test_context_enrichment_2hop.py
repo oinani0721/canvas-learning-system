@@ -20,6 +20,12 @@ from app.services.context_enrichment_service import (
     ContextEnrichmentService,
 )
 
+# Performance test constants
+PERF_TIMEOUT_MS = 100  # Maximum allowed traversal time in milliseconds
+PERF_LARGE_GRAPH_NODES = 100  # Node count for large graph test
+PERF_DENSE_GRAPH_NODES = 20  # Node count for dense graph test
+PERF_DENSE_MAX_CONNECTIONS = 5  # Max connections per node in dense graph
+
 # ============================================================================
 # AC 3.1: AdjacentNode hop_distance Field Tests
 # ============================================================================
@@ -358,19 +364,20 @@ class TestPerformance:
         """Create ContextEnrichmentService instance."""
         return ContextEnrichmentService(canvas_service=mock_canvas_service)
 
+    @pytest.mark.performance
     def test_2hop_performance_100_nodes(self, service: ContextEnrichmentService):
         """
         Test that 2-hop traversal on 100-node Canvas completes within 100ms.
 
         Large Canvas performance test.
         """
-        # Arrange - Generate 100-node canvas with complex edges
-        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(100)}
+        # Arrange - Generate large canvas with complex edges
+        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_LARGE_GRAPH_NODES)}
         edges = []
-        for i in range(99):
+        for i in range(PERF_LARGE_GRAPH_NODES - 1):
             edges.append({"fromNode": f"n{i}", "toNode": f"n{i+1}"})
             # Add some cross-links for complexity
-            if i % 3 == 0 and i + 2 < 100:
+            if i % 3 == 0 and i + 2 < PERF_LARGE_GRAPH_NODES:
                 edges.append({"fromNode": f"n{i}", "toNode": f"n{i+2}"})
 
         # Act
@@ -379,17 +386,18 @@ class TestPerformance:
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert
-        assert elapsed_ms < 100, f"Too slow: {elapsed_ms:.2f}ms (should be < 100ms)"
+        assert elapsed_ms < PERF_TIMEOUT_MS, f"Too slow: {elapsed_ms:.2f}ms (should be < {PERF_TIMEOUT_MS}ms)"
         assert len(result) > 0  # Should find some adjacent nodes
 
+    @pytest.mark.performance
     def test_2hop_performance_dense_graph(self, service: ContextEnrichmentService):
         """Test performance on a dense graph (many edges per node)."""
-        # Arrange - 20 nodes with many interconnections
-        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(20)}
+        # Arrange - Dense graph with many interconnections
+        nodes = {f"n{i}": {"id": f"n{i}", "type": "text", "text": f"Node {i}"} for i in range(PERF_DENSE_GRAPH_NODES)}
         edges = []
         # Create dense connections
-        for i in range(20):
-            for j in range(i + 1, min(i + 5, 20)):  # Each node connects to next 4
+        for i in range(PERF_DENSE_GRAPH_NODES):
+            for j in range(i + 1, min(i + PERF_DENSE_MAX_CONNECTIONS, PERF_DENSE_GRAPH_NODES)):
                 edges.append({"fromNode": f"n{i}", "toNode": f"n{j}"})
 
         # Act
@@ -398,7 +406,7 @@ class TestPerformance:
         elapsed_ms = (time.time() - start) * 1000
 
         # Assert
-        assert elapsed_ms < 100, f"Too slow: {elapsed_ms:.2f}ms"
+        assert elapsed_ms < PERF_TIMEOUT_MS, f"Too slow: {elapsed_ms:.2f}ms"
 
 
 # ============================================================================

@@ -38,17 +38,8 @@ def session_manager_clean():
     SessionManager.reset_instance()
 
 
-@pytest.fixture
-def mock_agent_service():
-    """Create mock AgentService for testing."""
-    service = MagicMock()
-    service.call_agent = AsyncMock(return_value={
-        "success": True,
-        "file_path": "generated/test.md",
-        "content": "Test content",
-        "file_size": 512,
-    })
-    return service
+## mock_agent_service: use shared fixture from conftest.py
+## [Source: Story 31.A.10 AC-2 — Fixture deduplication]
 
 
 @pytest.fixture

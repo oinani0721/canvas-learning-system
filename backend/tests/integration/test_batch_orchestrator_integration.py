@@ -58,13 +58,8 @@ def real_session_manager():
     SessionManager.reset_instance()
 
 
-@pytest.fixture
-def mock_agent_service():
-    """Create a mock AgentService with configurable behavior."""
-    service = MagicMock()
-    service.call_agent = AsyncMock(return_value=MockAgentResult())
-    service._trigger_memory_write = AsyncMock()
-    return service
+## mock_agent_service: use shared fixture from conftest.py
+## [Source: Story 31.A.10 AC-2 — Fixture deduplication]
 
 
 @pytest.fixture

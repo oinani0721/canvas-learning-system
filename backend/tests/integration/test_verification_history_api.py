@@ -70,11 +70,11 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/新概念")
 
-            if response.status_code == 200:
-                data = response.json()
-                assert data["concept"] == "新概念"
-                assert data["total_count"] == 0
-                assert data["items"] == []
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            assert data["concept"] == "新概念"
+            assert data["total_count"] == 0
+            assert data["items"] == []
 
     def test_returns_history_items(self, client):
         """
@@ -110,18 +110,18 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            if response.status_code == 200:
-                data = response.json()
-                assert data["concept"] == "逆否命题"
-                assert data["total_count"] == 2
-                assert len(data["items"]) == 2
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            assert data["concept"] == "逆否命题"
+            assert data["total_count"] == 2
+            assert len(data["items"]) == 2
 
-                # Verify first item has all required fields
-                item = data["items"][0]
-                assert "question_id" in item
-                assert "question_text" in item
-                assert "question_type" in item
-                assert "asked_at" in item
+            # Verify first item has all required fields
+            item = data["items"][0]
+            assert "question_id" in item
+            assert "question_text" in item
+            assert "question_type" in item
+            assert "asked_at" in item
 
     def test_filters_by_canvas_name(self, client):
         """
@@ -139,11 +139,11 @@ class TestVerificationHistoryEndpoint:
                 params={"canvas_name": "离散数学"}
             )
 
-            if response.status_code == 200:
-                # Verify the client was called with canvas_name filter
-                mock_client.search_verification_questions.assert_called()
-                call_kwargs = mock_client.search_verification_questions.call_args.kwargs
-                assert call_kwargs.get("canvas_name") == "离散数学"
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            # Verify the client was called with canvas_name filter
+            mock_client.search_verification_questions.assert_called()
+            call_kwargs = mock_client.search_verification_questions.call_args.kwargs
+            assert call_kwargs.get("canvas_name") == "离散数学"
 
     def test_handles_graphiti_unavailable(self, client):
         """
@@ -184,12 +184,12 @@ class TestVerificationHistoryPagination:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            if response.status_code == 200:
-                data = response.json()
-                # Check pagination info if present
-                if data.get("pagination"):
-                    assert data["pagination"]["limit"] == 20
-                    assert data["pagination"]["offset"] == 0
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            # Check pagination info if present
+            if data.get("pagination"):
+                assert data["pagination"]["limit"] == 20
+                assert data["pagination"]["offset"] == 0
 
     def test_custom_limit(self, client):
         """
@@ -209,11 +209,11 @@ class TestVerificationHistoryPagination:
                 params={"limit": 5}
             )
 
-            if response.status_code == 200:
-                mock_client.search_verification_questions.assert_called()
-                call_kwargs = mock_client.search_verification_questions.call_args.kwargs
-                # Endpoint fetches limit+1 to detect has_more
-                assert call_kwargs.get("limit") == 6
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            mock_client.search_verification_questions.assert_called()
+            call_kwargs = mock_client.search_verification_questions.call_args.kwargs
+            # Endpoint fetches limit+1 to detect has_more
+            assert call_kwargs.get("limit") == 6
 
     def test_custom_offset(self, client):
         """
@@ -234,11 +234,11 @@ class TestVerificationHistoryPagination:
                 params={"offset": 10}
             )
 
-            if response.status_code == 200:
-                data = response.json()
-                # Verify offset is reflected in pagination info
-                if data.get("pagination"):
-                    assert data["pagination"]["offset"] == 10
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            # Verify offset is reflected in pagination info
+            if data.get("pagination"):
+                assert data["pagination"]["offset"] == 10
 
     def test_has_more_indicator(self, client):
         """
@@ -274,11 +274,11 @@ class TestVerificationHistoryPagination:
                 params={"limit": 20}
             )
 
-            if response.status_code == 200:
-                data = response.json()
-                # If pagination is included and total_count > items returned
-                if data.get("pagination") and data["total_count"] > len(data["items"]):
-                    assert data["pagination"]["has_more"] is True
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            # If pagination is included and total_count > items returned
+            if data.get("pagination") and data["total_count"] > len(data["items"]):
+                assert data["pagination"]["has_more"] is True
 
     def test_limit_validation(self, client):
         """
@@ -354,22 +354,22 @@ class TestVerificationHistoryResponseFormat:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            if response.status_code == 200:
-                data = response.json()
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
 
-                # Verify top-level fields
-                assert "concept" in data
-                assert "total_count" in data
-                assert "items" in data
+            # Verify top-level fields
+            assert "concept" in data
+            assert "total_count" in data
+            assert "items" in data
 
-                # Verify item fields match schema
-                if data["items"]:
-                    item = data["items"][0]
-                    assert "question_id" in item
-                    assert "question_text" in item
-                    assert "question_type" in item
-                    assert "canvas_name" in item
-                    assert "asked_at" in item
+            # Verify item fields match schema
+            if data["items"]:
+                item = data["items"][0]
+                assert "question_id" in item
+                assert "question_text" in item
+                assert "question_type" in item
+                assert "canvas_name" in item
+                assert "asked_at" in item
 
     def test_question_type_enum_values(self, client):
         """
@@ -399,10 +399,10 @@ class TestVerificationHistoryResponseFormat:
 
                 response = client.get("/api/v1/review/verification/history/测试概念")
 
-                if response.status_code == 200:
-                    data = response.json()
-                    if data["items"]:
-                        assert data["items"][0]["question_type"] == q_type
+                assert response.status_code == 200, f"Expected 200 for type {q_type}, got {response.status_code}: {response.text}"
+                data = response.json()
+                if data["items"]:
+                    assert data["items"][0]["question_type"] == q_type
 
     def test_score_range_validation(self, client):
         """
@@ -429,11 +429,11 @@ class TestVerificationHistoryResponseFormat:
 
             response = client.get("/api/v1/review/verification/history/测试概念")
 
-            if response.status_code == 200:
-                data = response.json()
-                if data["items"] and data["items"][0].get("score") is not None:
-                    score = data["items"][0]["score"]
-                    assert 0 <= score <= 100
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            data = response.json()
+            if data["items"] and data["items"][0].get("score") is not None:
+                score = data["items"][0]["score"]
+                assert 0 <= score <= 100
 
 
 class TestMultiSubjectIsolation:
@@ -460,10 +460,10 @@ class TestMultiSubjectIsolation:
                 params={"group_id": "math_subject"}
             )
 
-            if response.status_code == 200:
-                mock_client.search_verification_questions.assert_called()
-                call_kwargs = mock_client.search_verification_questions.call_args.kwargs
-                assert call_kwargs.get("group_id") == "math_subject"
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+            mock_client.search_verification_questions.assert_called()
+            call_kwargs = mock_client.search_verification_questions.call_args.kwargs
+            assert call_kwargs.get("group_id") == "math_subject"
 
     def test_different_groups_isolated(self, client):
         """
@@ -521,10 +521,11 @@ class TestMultiSubjectIsolation:
                 params={"group_id": "physics_subject"}
             )
 
-            if response_math.status_code == 200 and response_physics.status_code == 200:
-                math_data = response_math.json()
-                physics_data = response_physics.json()
+            assert response_math.status_code == 200, f"Math query: expected 200, got {response_math.status_code}"
+            assert response_physics.status_code == 200, f"Physics query: expected 200, got {response_physics.status_code}"
+            math_data = response_math.json()
+            physics_data = response_physics.json()
 
-                # Results should be different based on group_id
-                if math_data["items"] and physics_data["items"]:
-                    assert math_data["items"][0]["question_id"] != physics_data["items"][0]["question_id"]
+            # Results should be different based on group_id
+            if math_data["items"] and physics_data["items"]:
+                assert math_data["items"][0]["question_id"] != physics_data["items"][0]["question_id"]

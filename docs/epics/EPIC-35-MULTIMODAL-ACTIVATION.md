@@ -1,6 +1,6 @@
 # Epic 35: 多模态功能完整激活 - Brownfield Enhancement
 
-**Status**: Ready for Story Development
+**Status**: Implementation Complete (Adversarial Review 2026-02-10)
 **Created**: 2026-01-17
 **Priority**: P1 High
 **Estimated Duration**: ~23天 (3 Sprints)
@@ -212,11 +212,11 @@ Story 35.7 (视频处理) ──────────────────
 
 ## Definition of Done
 
-- [ ] 所有9个Stories完成并通过验收标准
-- [ ] 现有功能通过回归测试
-- [ ] 集成点正常工作 (API<->插件<->存储)
-- [ ] 文档更新 (API文档、用户指南)
-- [ ] 无现有功能退化
+- [x] 所有12个Stories完成并通过验收标准 (35.1-35.9 原始 + 35.10-35.12 对抗性审查补充)
+- [x] 现有功能通过回归测试 (3341 passed in CI)
+- [x] 集成点正常工作 (API<->插件<->存储) — MultimodalService DI 完整, MediaPanel 后端集成
+- [ ] 文档更新 (API文档、用户指南) — OpenAPI 已生成, 用户指南待补充
+- [x] 无现有功能退化 — 新端点不修改现有 API
 
 ---
 
@@ -272,7 +272,7 @@ Story 35.7 (视频处理) ──────────────────
 | Sprint 1 (P0) | 35.1, 35.2, 35.3, 35.9 | ~10天 |
 | Sprint 2 (P1) | 35.4, 35.5, 35.6, 35.7 | ~10天 |
 | Sprint 3 (P2) | 35.8 + 收尾 | ~3天 |
-| **Total** | 9 Stories | **~23天** |
+| **Total** | 12 Stories (9 原始 + 3 补充) | **~23天** |
 
 ---
 
@@ -331,3 +331,4 @@ interface MediaItem {
 | Date | Version | Changes |
 |------|---------|---------|
 | 2026-01-17 | 1.0 | Initial Epic creation |
+| 2026-02-10 | 1.1 | Adversarial review: Status→Implementation Complete, DoD更新(4/5), Story数量9→12, pydub/moviepy加入requirements.txt |

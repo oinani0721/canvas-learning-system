@@ -1143,6 +1143,68 @@ class CrossCanvasService:
 
         return result
 
+    async def on_canvas_open(
+        self,
+        canvas_path: str,
+        min_common_concepts: int = 3
+    ) -> AutoDiscoveryResult:
+        """
+        Auto-discover associations for a single canvas when it is opened.
+
+        Story 36.6 Fix: Provides automatic trigger on Canvas open instead of
+        requiring manual API call. Delegates to auto_discover_associations()
+        with a filtered canvas set (from associations cache) and returns only
+        suggestions involving the opened canvas.
+
+        Args:
+            canvas_path: Path of the canvas that was just opened
+            min_common_concepts: Minimum common concepts for suggestion (default: 3)
+
+        Returns:
+            AutoDiscoveryResult with suggestions relevant to the opened canvas
+
+        [Source: Story 36.6 adversarial review F1 fix]
+        """
+        # Collect known canvas paths from associations cache
+        known_paths: set = set()
+        for assoc in self._associations_cache.values():
+            known_paths.add(assoc.source_canvas_path)
+            known_paths.add(assoc.target_canvas_path)
+
+        # Add opened canvas
+        known_paths.add(canvas_path)
+
+        if len(known_paths) < 2:
+            logger.debug(f"on_canvas_open: only 1 known canvas, skipping discovery")
+            return AutoDiscoveryResult(total_scanned=1, discovered_count=0)
+
+        logger.info(
+            f"on_canvas_open: auto-discovering for '{canvas_path}' "
+            f"against {len(known_paths) - 1} known canvases"
+        )
+
+        # Delegate to full algorithm with limited canvas set
+        result = await self.auto_discover_associations(
+            canvas_paths=list(known_paths),
+            min_common_concepts=min_common_concepts,
+            include_existing=False
+        )
+
+        # Filter: only suggestions involving the opened canvas
+        result.suggestions = [
+            s for s in result.suggestions
+            if s.source_canvas == canvas_path or s.target_canvas == canvas_path
+        ]
+        result.discovered_count = len(result.suggestions)
+
+        if result.discovered_count > 0:
+            logger.info(
+                f"on_canvas_open: found {result.discovered_count} suggestions "
+                f"for '{canvas_path}'"
+            )
+
+        return result
+
     # ═══════════════════════════════════════════════════════════════════════════
     # Knowledge Path Operations
     # ═══════════════════════════════════════════════════════════════════════════

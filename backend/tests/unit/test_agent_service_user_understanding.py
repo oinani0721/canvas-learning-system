@@ -21,20 +21,19 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-# Set environment variable BEFORE importing agent_service
-# This enables context enrichment for testing dual-channel delivery
-os.environ["DISABLE_CONTEXT_ENRICHMENT"] = "false"
-
-# Reload the module to pick up the new environment variable
-import importlib
-
 import app.services.agent_service as agent_service_module
-
-importlib.reload(agent_service_module)
 
 
 class TestUserUnderstandingDualChannel:
     """Story 12.E.2 - user_understanding Dual-Channel Delivery Tests."""
+
+    @pytest.fixture(autouse=True)
+    def enable_context_enrichment(self):
+        """Enable context enrichment without importlib.reload (fixes class identity issues)."""
+        original = agent_service_module.DISABLE_CONTEXT_ENRICHMENT
+        agent_service_module.DISABLE_CONTEXT_ENRICHMENT = False
+        yield
+        agent_service_module.DISABLE_CONTEXT_ENRICHMENT = original
 
     @pytest.fixture
     def temp_canvas_dir(self):

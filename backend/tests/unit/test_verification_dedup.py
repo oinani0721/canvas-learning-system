@@ -28,21 +28,6 @@ class TestVerificationDedup:
     """Test verification question deduplication logic (AC-31.4.1, AC-31.4.2)"""
 
     @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient"""
-        client = AsyncMock()
-        client.search_verification_questions = AsyncMock(return_value=[])
-        client.add_verification_question = AsyncMock(return_value="vq_test123")
-        return client
-
-    @pytest.fixture
-    def mock_agent_service(self):
-        """Create mock AgentService"""
-        service = AsyncMock()
-        service._call_gemini_api = AsyncMock(return_value="Test generated question")
-        return service
-
-    @pytest.fixture
     def service_with_graphiti(self, mock_graphiti_client, mock_agent_service):
         """Create VerificationService with mock Graphiti client"""
         return VerificationService(
@@ -165,14 +150,6 @@ class TestVerificationDedup:
 
 class TestAlternativeQuestionGeneration:
     """Test new angle question generation (AC-31.4.2)"""
-
-    @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient"""
-        client = AsyncMock()
-        client.search_verification_questions = AsyncMock(return_value=[])
-        client.add_verification_question = AsyncMock(return_value="vq_test123")
-        return client
 
     @pytest.fixture
     def service(self, mock_graphiti_client):
@@ -422,12 +399,6 @@ class TestQuestionStorage:
 
 class TestGraphitiHistoryQuery:
     """Test Graphiti history query functionality (AC-31.4.1)"""
-
-    @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient"""
-        client = AsyncMock()
-        return client
 
     @pytest.fixture
     def service(self, mock_graphiti_client):

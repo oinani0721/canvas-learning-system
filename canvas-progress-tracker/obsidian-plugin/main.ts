@@ -557,6 +557,52 @@ export default class CanvasReviewPlugin extends Plugin {
                 console.error('Canvas Review System: Failed to initialize CrossCanvasService:', error);
             }
 
+            // Story 36.6 Fix: Auto-discover associations when Canvas is opened
+            // Listens to active-leaf-change, debounced to avoid rapid-fire calls
+            {
+                let lastAutoDiscoveryTime = 0;
+                const AUTO_DISCOVERY_DEBOUNCE_MS = 10000; // 10 seconds between triggers
+                this.registerEvent(
+                    this.app.workspace.on('active-leaf-change', async (leaf) => {
+                        if (!leaf || !this.apiClient) return;
+                        if (leaf.view?.getViewType() !== 'canvas') return;
+
+                        const canvasFile = (leaf.view as any)?.file;
+                        if (!canvasFile || canvasFile.extension !== 'canvas') return;
+
+                        // Debounce: skip if triggered too recently
+                        const now = Date.now();
+                        if (now - lastAutoDiscoveryTime < AUTO_DISCOVERY_DEBOUNCE_MS) return;
+                        lastAutoDiscoveryTime = now;
+
+                        // Fire-and-forget: don't block Canvas opening
+                        try {
+                            const result = await this.apiClient.autoDiscoverOnOpen(canvasFile.path);
+                            if (result.discovered_count > 0) {
+                                new Notice(
+                                    `发现 ${result.discovered_count} 个关联建议`,
+                                    4000
+                                );
+                                if (this.settings.debugMode) {
+                                    console.log(
+                                        `[Story 36.6] Auto-discovery found ${result.discovered_count} suggestions for ${canvasFile.path}`,
+                                        result.suggestions
+                                    );
+                                }
+                            }
+                        } catch (error) {
+                            // Silent failure: auto-discovery is best-effort
+                            if (this.settings.debugMode) {
+                                console.warn('[Story 36.6] Auto-discovery on canvas open failed:', error);
+                            }
+                        }
+                    })
+                );
+                if (this.settings.debugMode) {
+                    console.log('Canvas Review System: Auto-discovery on canvas open registered');
+                }
+            }
+
             // Story 30.7: Initialize Memory Query Service (3-layer memory integration)
             try {
                 this.memoryQueryService = new MemoryQueryService(this.app, {

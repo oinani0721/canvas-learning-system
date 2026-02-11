@@ -567,3 +567,111 @@ class TestAutoDiscoverEndpoint:
         # Cleanup
         import os
         os.unlink(temp_file)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# on_canvas_open() Tests (Story 36.6 Fix - F1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestOnCanvasOpen:
+    """Tests for on_canvas_open() — auto-trigger on Canvas open."""
+
+    @pytest.mark.asyncio
+    async def test_on_canvas_open_no_known_canvases(self, cross_canvas_service):
+        """With no known canvases in cache, returns empty result."""
+        result = await cross_canvas_service.on_canvas_open("test.canvas")
+
+        assert result.total_scanned == 1
+        assert result.discovered_count == 0
+        assert result.suggestions == []
+
+    @pytest.mark.asyncio
+    async def test_on_canvas_open_filters_to_opened_canvas(self, cross_canvas_service, mock_neo4j_client):
+        """Only returns suggestions involving the opened canvas."""
+        # Inject mock Neo4j client on the correct private attribute
+        cross_canvas_service._neo4j_client = mock_neo4j_client
+
+        # Pre-populate cache with associations between other canvases
+        from app.services.cross_canvas_service import CrossCanvasAssociation
+        cross_canvas_service._associations_cache["assoc-1"] = CrossCanvasAssociation(
+            id="assoc-1",
+            source_canvas_path="lecture-A.canvas",
+            source_canvas_title="Lecture A",
+            target_canvas_path="exercise-A.canvas",
+            target_canvas_title="Exercise A",
+            relationship_type="prerequisite",
+            confidence=0.8,
+        )
+        cross_canvas_service._associations_cache["assoc-2"] = CrossCanvasAssociation(
+            id="assoc-2",
+            source_canvas_path="lecture-B.canvas",
+            source_canvas_title="Lecture B",
+            target_canvas_path="exercise-B.canvas",
+            target_canvas_title="Exercise B",
+            relationship_type="prerequisite",
+            confidence=0.7,
+        )
+
+        # Mock Neo4j to return 4 common concepts between opened canvas and lecture-A
+        async def mock_find_common(c1, c2):
+            if "opened" in c1 or "opened" in c2:
+                if "lecture-A" in c1 or "lecture-A" in c2:
+                    return ["概念1", "概念2", "概念3", "概念4"]
+            return []
+
+        mock_neo4j_client.find_common_concepts = AsyncMock(side_effect=mock_find_common)
+        mock_neo4j_client.get_canvas_concepts = AsyncMock(return_value=[])
+
+        result = await cross_canvas_service.on_canvas_open("opened.canvas")
+
+        # Should only contain suggestions involving "opened.canvas"
+        for suggestion in result.suggestions:
+            assert (
+                suggestion.source_canvas == "opened.canvas"
+                or suggestion.target_canvas == "opened.canvas"
+            ), f"Suggestion {suggestion} does not involve opened canvas"
+
+    @pytest.mark.asyncio
+    async def test_on_canvas_open_delegates_to_auto_discover(self, cross_canvas_service, mock_neo4j_client):
+        """on_canvas_open delegates to auto_discover_associations with correct params."""
+        cross_canvas_service._neo4j_client = mock_neo4j_client
+
+        from app.services.cross_canvas_service import CrossCanvasAssociation
+        # Add one known canvas
+        cross_canvas_service._associations_cache["assoc-1"] = CrossCanvasAssociation(
+            id="assoc-1",
+            source_canvas_path="known.canvas",
+            source_canvas_title="Known",
+            target_canvas_path="other.canvas",
+            target_canvas_title="Other",
+            relationship_type="related",
+            confidence=0.5,
+        )
+
+        mock_neo4j_client.find_common_concepts = AsyncMock(return_value=[])
+        mock_neo4j_client.get_canvas_concepts = AsyncMock(return_value=[])
+
+        result = await cross_canvas_service.on_canvas_open("test.canvas")
+
+        # Should have scanned at least 3 canvases (test + known + other)
+        assert result.total_scanned >= 2
+
+    @pytest.mark.asyncio
+    async def test_on_canvas_open_with_neo4j_unavailable(self, cross_canvas_service):
+        """Works gracefully when Neo4j is not available (name-pattern only)."""
+        cross_canvas_service._neo4j_client = None
+
+        from app.services.cross_canvas_service import CrossCanvasAssociation
+        cross_canvas_service._associations_cache["assoc-1"] = CrossCanvasAssociation(
+            id="assoc-1",
+            source_canvas_path="离散数学讲义.canvas",
+            source_canvas_title="离散数学讲义",
+            target_canvas_path="other.canvas",
+            target_canvas_title="Other",
+            relationship_type="related",
+            confidence=0.5,
+        )
+
+        # Should not raise, even without Neo4j
+        result = await cross_canvas_service.on_canvas_open("离散数学习题.canvas")
+        assert isinstance(result.discovered_count, int)

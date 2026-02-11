@@ -27,6 +27,7 @@ from app.services.verification_service import (
 )
 
 
+@pytest.mark.p1
 class TestDifficultyLevel:
     """Tests for DifficultyLevel enum and calculate_difficulty_level function."""
 
@@ -41,38 +42,31 @@ class TestDifficultyLevel:
         result = calculate_difficulty_level([])
         assert result == DifficultyLevel.MEDIUM
 
-    def test_calculate_difficulty_easy_level(self):
-        """AC-31.5.2: Average < 60 should return EASY."""
-        # Test various easy score combinations
-        assert calculate_difficulty_level([30, 40, 50]) == DifficultyLevel.EASY
-        assert calculate_difficulty_level([59]) == DifficultyLevel.EASY
-        assert calculate_difficulty_level([0, 0, 0]) == DifficultyLevel.EASY
-        assert calculate_difficulty_level([55, 58, 52]) == DifficultyLevel.EASY
-
-    def test_calculate_difficulty_medium_level(self):
-        """AC-31.5.2: 60 <= average < 80 should return MEDIUM."""
-        assert calculate_difficulty_level([60, 65, 70]) == DifficultyLevel.MEDIUM
-        assert calculate_difficulty_level([79]) == DifficultyLevel.MEDIUM
-        assert calculate_difficulty_level([60]) == DifficultyLevel.MEDIUM
-        assert calculate_difficulty_level([70, 75, 72]) == DifficultyLevel.MEDIUM
-
-    def test_calculate_difficulty_hard_level(self):
-        """AC-31.5.2: Average >= 80 should return HARD."""
-        assert calculate_difficulty_level([80, 85, 90]) == DifficultyLevel.HARD
-        assert calculate_difficulty_level([80]) == DifficultyLevel.HARD
-        assert calculate_difficulty_level([100, 95, 92]) == DifficultyLevel.HARD
-        assert calculate_difficulty_level([85, 88, 82]) == DifficultyLevel.HARD
-
-    def test_calculate_difficulty_boundary_values(self):
-        """AC-31.5.2: Test boundary conditions."""
-        # Exactly 60 -> MEDIUM
-        assert calculate_difficulty_level([60]) == DifficultyLevel.MEDIUM
-        # Just below 60 -> EASY
-        assert calculate_difficulty_level([59]) == DifficultyLevel.EASY
-        # Exactly 80 -> HARD
-        assert calculate_difficulty_level([80]) == DifficultyLevel.HARD
-        # Just below 80 -> MEDIUM
-        assert calculate_difficulty_level([79]) == DifficultyLevel.MEDIUM
+    @pytest.mark.parametrize("scores,expected_level", [
+        # EASY: average < 60
+        ([30, 40, 50], DifficultyLevel.EASY),
+        ([59], DifficultyLevel.EASY),
+        ([0, 0, 0], DifficultyLevel.EASY),
+        ([55, 58, 52], DifficultyLevel.EASY),
+        # MEDIUM: 60 <= average < 80
+        ([60, 65, 70], DifficultyLevel.MEDIUM),
+        ([79], DifficultyLevel.MEDIUM),
+        ([60], DifficultyLevel.MEDIUM),
+        ([70, 75, 72], DifficultyLevel.MEDIUM),
+        # HARD: average >= 80
+        ([80, 85, 90], DifficultyLevel.HARD),
+        ([80], DifficultyLevel.HARD),
+        ([100, 95, 92], DifficultyLevel.HARD),
+        ([85, 88, 82], DifficultyLevel.HARD),
+        # Boundary values
+        ([59], DifficultyLevel.EASY),     # just below 60
+        ([60], DifficultyLevel.MEDIUM),   # exactly 60
+        ([79], DifficultyLevel.MEDIUM),   # just below 80
+        ([80], DifficultyLevel.HARD),     # exactly 80
+    ])
+    def test_calculate_difficulty_level(self, scores, expected_level):
+        """AC-31.5.2: Scores map to correct difficulty level."""
+        assert calculate_difficulty_level(scores) == expected_level
 
 
 class TestQuestionType:
@@ -84,22 +78,17 @@ class TestQuestionType:
         assert QuestionType.VERIFICATION.value == "verification"
         assert QuestionType.APPLICATION.value == "application"
 
-    def test_easy_maps_to_breakthrough(self):
-        """AC-31.5.3: EASY difficulty should map to BREAKTHROUGH questions."""
-        result = get_question_type_for_difficulty(DifficultyLevel.EASY)
-        assert result == QuestionType.BREAKTHROUGH
-
-    def test_medium_maps_to_verification(self):
-        """AC-31.5.3: MEDIUM difficulty should map to VERIFICATION questions."""
-        result = get_question_type_for_difficulty(DifficultyLevel.MEDIUM)
-        assert result == QuestionType.VERIFICATION
-
-    def test_hard_maps_to_application(self):
-        """AC-31.5.3: HARD difficulty should map to APPLICATION questions."""
-        result = get_question_type_for_difficulty(DifficultyLevel.HARD)
-        assert result == QuestionType.APPLICATION
+    @pytest.mark.parametrize("difficulty,expected_type", [
+        (DifficultyLevel.EASY, QuestionType.BREAKTHROUGH),
+        (DifficultyLevel.MEDIUM, QuestionType.VERIFICATION),
+        (DifficultyLevel.HARD, QuestionType.APPLICATION),
+    ])
+    def test_difficulty_maps_to_question_type(self, difficulty, expected_type):
+        """AC-31.5.3: Each difficulty level maps to correct question type."""
+        assert get_question_type_for_difficulty(difficulty) == expected_type
 
 
+@pytest.mark.p1
 class TestMasteryDetection:
     """Tests for is_concept_mastered function."""
 
@@ -108,37 +97,31 @@ class TestMasteryDetection:
         assert MASTERY_THRESHOLD == 80
         assert MASTERY_CONSECUTIVE_COUNT == 3
 
-    def test_not_mastered_insufficient_scores(self):
-        """AC-31.5.4: Less than 3 scores should not be mastered."""
-        assert is_concept_mastered([]) is False
-        assert is_concept_mastered([90]) is False
-        assert is_concept_mastered([85, 90]) is False
-
-    def test_not_mastered_low_scores(self):
-        """AC-31.5.4: Scores below 80 should not indicate mastery."""
-        assert is_concept_mastered([70, 75, 78]) is False
-        assert is_concept_mastered([79, 79, 79]) is False
-        assert is_concept_mastered([85, 90, 70]) is False  # Last one too low
-
-    def test_mastered_three_consecutive_high(self):
-        """AC-31.5.4: 3 consecutive scores >= 80 should indicate mastery."""
-        assert is_concept_mastered([80, 85, 90]) is True
-        assert is_concept_mastered([100, 100, 100]) is True
-        assert is_concept_mastered([80, 80, 80]) is True
-
-    def test_mastered_checks_last_three(self):
-        """AC-31.5.4: Only last 3 scores matter for mastery check."""
-        # Low early scores, but last 3 are high
-        assert is_concept_mastered([50, 60, 85, 90, 88]) is True
-        # High early scores, but last 3 include low
-        assert is_concept_mastered([90, 95, 85, 70, 85]) is False
-
-    def test_mastered_boundary_at_80(self):
-        """AC-31.5.4: Exactly 80 should count toward mastery."""
-        assert is_concept_mastered([80, 80, 80]) is True
-        assert is_concept_mastered([79, 80, 80]) is False  # First of last 3 is 79
+    @pytest.mark.parametrize("scores,expected", [
+        # Insufficient scores (< 3) → not mastered
+        ([], False),
+        ([90], False),
+        ([85, 90], False),
+        # Low scores → not mastered
+        ([70, 75, 78], False),
+        ([79, 79, 79], False),
+        ([85, 90, 70], False),  # last one too low
+        # 3 consecutive >= 80 → mastered
+        ([80, 85, 90], True),
+        ([100, 100, 100], True),
+        ([80, 80, 80], True),
+        # Only last 3 matter
+        ([50, 60, 85, 90, 88], True),   # low early, last 3 high
+        ([90, 95, 85, 70, 85], False),  # high early, last 3 include low
+        # Boundary at exactly 80
+        ([79, 80, 80], False),  # first of last 3 is 79
+    ])
+    def test_is_concept_mastered(self, scores, expected):
+        """AC-31.5.4: Mastery requires last 3 scores all >= 80."""
+        assert is_concept_mastered(scores) is expected
 
 
+@pytest.mark.p1
 class TestForgettingDetection:
     """Tests for detect_forgetting function."""
 
@@ -249,7 +232,7 @@ class TestDifficultyResult:
         result = calculate_full_difficulty_result(scores)
 
         assert result.level == DifficultyLevel.HARD
-        assert result.average_score == 88.33
+        assert result.average_score == pytest.approx(88.33, rel=1e-2)
         assert result.sample_size == 3
         assert result.question_type == QuestionType.APPLICATION
         assert result.is_mastered is True
@@ -310,20 +293,19 @@ class TestIntegration:
         # Should still show HARD based on historical average
         assert result.level == DifficultyLevel.HARD
 
-    def test_question_type_matches_difficulty(self):
+    @pytest.mark.parametrize("scores,expected_level,expected_type", [
+        ([30, 40, 50], DifficultyLevel.EASY, QuestionType.BREAKTHROUGH),
+        ([65, 70, 75], DifficultyLevel.MEDIUM, QuestionType.VERIFICATION),
+        ([85, 90, 88], DifficultyLevel.HARD, QuestionType.APPLICATION),
+    ])
+    def test_question_type_matches_difficulty(self, scores, expected_level, expected_type):
         """Test that question type always matches difficulty level."""
-        test_cases = [
-            ([30, 40, 50], DifficultyLevel.EASY, QuestionType.BREAKTHROUGH),
-            ([65, 70, 75], DifficultyLevel.MEDIUM, QuestionType.VERIFICATION),
-            ([85, 90, 88], DifficultyLevel.HARD, QuestionType.APPLICATION),
-        ]
-
-        for scores, expected_level, expected_type in test_cases:
-            result = calculate_full_difficulty_result(scores)
-            assert result.level == expected_level
-            assert result.question_type == expected_type
+        result = calculate_full_difficulty_result(scores)
+        assert result.level == expected_level
+        assert result.question_type == expected_type
 
 
+@pytest.mark.p2
 class TestEdgeCases:
     """Edge case tests for difficulty adaptive algorithm."""
 

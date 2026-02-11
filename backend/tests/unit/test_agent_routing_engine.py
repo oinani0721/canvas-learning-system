@@ -60,188 +60,56 @@ def singleton_engine():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.p0
 class TestPatternRouting:
-    """Test all 6 pattern categories route correctly."""
+    """Test all 6 pattern categories route correctly (AC1)."""
 
-    def test_what_is_pattern_routes_to_oral_explanation(self, routing_engine):
-        """Test '什么是X' routes to oral-explanation (AC1)."""
-        request = RoutingRequest(node_id="node-001", node_text="什么是逆否命题")
+    @pytest.mark.parametrize("node_text,expected_agent", [
+        # oral-explanation patterns
+        ("什么是逆否命题", "oral-explanation"),
+        ("逆否命题是什么意思", "oral-explanation"),
+        ("定义充分条件", "oral-explanation"),
+        # comparison-table patterns
+        ("逆否命题和否命题的区别", "comparison-table"),
+        ("充分条件 vs 必要条件", "comparison-table"),
+        ("对比逆命题和逆否命题", "comparison-table"),
+        # clarification-path patterns
+        ("如何理解命题的逻辑等价", "clarification-path"),
+        ("怎么理解充分必要条件", "clarification-path"),
+        # example-teaching patterns
+        ("举例说明逆否命题的应用", "example-teaching"),
+        ("举个例子说明推理过程", "example-teaching"),
+        # memory-anchor patterns
+        ("记忆逆否命题的定义", "memory-anchor"),
+        ("记住充分必要条件的判断方法", "memory-anchor"),
+        ("背诵这个公式", "memory-anchor"),
+        # deep-decomposition patterns
+        ("深度剖析命题逻辑", "deep-decomposition"),
+        ("深入分析这个概念", "deep-decomposition"),
+    ])
+    def test_chinese_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
+        """Test Chinese pattern text routes to the correct agent."""
+        request = RoutingRequest(node_id="pattern-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
 
-        assert result.recommended_agent == "oral-explanation"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_is_what_pattern_routes_to_oral_explanation(self, routing_engine):
-        """Test 'X是什么' routes to oral-explanation (AC1)."""
-        request = RoutingRequest(node_id="node-002", node_text="逆否命题是什么意思")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "oral-explanation"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_define_pattern_routes_to_oral_explanation(self, routing_engine):
-        """Test '定义X' routes to oral-explanation."""
-        request = RoutingRequest(node_id="node-003", node_text="定义充分条件")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "oral-explanation"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_comparison_pattern_routes_to_comparison_table(self, routing_engine):
-        """Test 'A和B区别' routes to comparison-table (AC1)."""
-        request = RoutingRequest(
-            node_id="node-004",
-            node_text="逆否命题和否命题的区别"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "comparison-table"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_vs_pattern_routes_to_comparison_table(self, routing_engine):
-        """Test 'A vs B' routes to comparison-table (AC1)."""
-        request = RoutingRequest(
-            node_id="node-005",
-            node_text="充分条件 vs 必要条件"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "comparison-table"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_contrast_pattern_routes_to_comparison_table(self, routing_engine):
-        """Test '对比' routes to comparison-table."""
-        request = RoutingRequest(
-            node_id="node-006",
-            node_text="对比逆命题和逆否命题"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "comparison-table"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_how_to_understand_routes_to_clarification_path(self, routing_engine):
-        """Test '如何理解X' routes to clarification-path (AC1)."""
-        request = RoutingRequest(
-            node_id="node-007",
-            node_text="如何理解命题的逻辑等价"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "clarification-path"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_zen_me_li_jie_routes_to_clarification_path(self, routing_engine):
-        """Test '怎么理解' routes to clarification-path."""
-        request = RoutingRequest(
-            node_id="node-008",
-            node_text="怎么理解充分必要条件"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "clarification-path"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_example_pattern_routes_to_example_teaching(self, routing_engine):
-        """Test '举例说明X' routes to example-teaching (AC1)."""
-        request = RoutingRequest(
-            node_id="node-009",
-            node_text="举例说明逆否命题的应用"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "example-teaching"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_give_example_routes_to_example_teaching(self, routing_engine):
-        """Test '举个例子' routes to example-teaching."""
-        request = RoutingRequest(
-            node_id="node-010",
-            node_text="举个例子说明推理过程"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "example-teaching"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_memory_pattern_routes_to_memory_anchor(self, routing_engine):
-        """Test '记忆X' routes to memory-anchor (AC1)."""
-        request = RoutingRequest(node_id="node-011", node_text="记忆逆否命题的定义")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "memory-anchor"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_remember_pattern_routes_to_memory_anchor(self, routing_engine):
-        """Test '记住X' routes to memory-anchor (AC1)."""
-        request = RoutingRequest(
-            node_id="node-012",
-            node_text="记住充分必要条件的判断方法"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "memory-anchor"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_recite_pattern_routes_to_memory_anchor(self, routing_engine):
-        """Test '背诵' routes to memory-anchor."""
-        request = RoutingRequest(node_id="node-013", node_text="背诵这个公式")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "memory-anchor"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_deep_analysis_routes_to_deep_decomposition(self, routing_engine):
-        """Test '深度剖析X' routes to deep-decomposition (AC1)."""
-        request = RoutingRequest(node_id="node-014", node_text="深度剖析命题逻辑")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "deep-decomposition"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_in_depth_analysis_routes_to_deep_decomposition(self, routing_engine):
-        """Test '深入分析' routes to deep-decomposition."""
-        request = RoutingRequest(node_id="node-015", node_text="深入分析这个概念")
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "deep-decomposition"
+        assert result.recommended_agent == expected_agent
         assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
 
 
 class TestEnglishPatterns:
     """Test English pattern matching."""
 
-    def test_what_is_english(self, routing_engine):
-        """Test 'what is X' routes to oral-explanation."""
-        request = RoutingRequest(
-            node_id="en-001",
-            node_text="What is the contrapositive proposition?"
-        )
+    @pytest.mark.parametrize("node_text,expected_agent", [
+        ("What is the contrapositive proposition?", "oral-explanation"),
+        ("What is the difference between sufficient and necessary conditions?", "comparison-table"),
+        ("How to understand logical equivalence?", "clarification-path"),
+    ])
+    def test_english_pattern_routes_correctly(self, routing_engine, node_text, expected_agent):
+        """Test English pattern text routes to the correct agent."""
+        request = RoutingRequest(node_id="en-test", node_text=node_text)
         result = routing_engine.route_single_node(request)
 
-        assert result.recommended_agent == "oral-explanation"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_difference_between_english(self, routing_engine):
-        """Test 'difference between A and B' routes to comparison-table."""
-        request = RoutingRequest(
-            node_id="en-002",
-            node_text="What is the difference between sufficient and necessary conditions?"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "comparison-table"
-        assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
-
-    def test_how_to_understand_english(self, routing_engine):
-        """Test 'how to understand X' routes to clarification-path."""
-        request = RoutingRequest(
-            node_id="en-003",
-            node_text="How to understand logical equivalence?"
-        )
-        result = routing_engine.route_single_node(request)
-
-        assert result.recommended_agent == "clarification-path"
+        assert result.recommended_agent == expected_agent
         assert result.confidence >= CONFIDENCE_LOW_THRESHOLD
 
 
@@ -250,6 +118,7 @@ class TestEnglishPatterns:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.p1
 class TestConfidenceScoring:
     """Test confidence scoring algorithm."""
 
@@ -348,6 +217,7 @@ class TestConfidenceScoring:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.p0
 class TestManualOverride:
     """Test manual agent override functionality."""
 
@@ -448,6 +318,7 @@ class TestAgentMappingIntegration:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+@pytest.mark.p1
 class TestBatchRouting:
     """Test batch routing functionality."""
 

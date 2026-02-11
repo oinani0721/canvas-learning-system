@@ -1389,6 +1389,39 @@ export interface SyncEdgesSummaryResponse {
 }
 
 // ===========================================================================
+// Story 36.6 Fix: Auto-Discovery on Canvas Open Types
+// ===========================================================================
+
+/**
+ * Suggestion from auto-discovery.
+ *
+ * @source POST /api/v1/cross-canvas/on-open response
+ * @source Story 36.6 Fix - F1 auto-trigger
+ */
+export interface AutoDiscoverSuggestion {
+  source_canvas: string;
+  target_canvas: string;
+  association_type: string;
+  confidence: number;
+  reason: string;
+  shared_concepts: string[];
+  auto_generated: boolean;
+}
+
+/**
+ * Response from auto-discovery endpoints (on-open and batch).
+ *
+ * @source POST /api/v1/cross-canvas/on-open response
+ * @source POST /api/v1/cross-canvas/associations/auto-discover response
+ * @source Story 36.6
+ */
+export interface AutoDiscoverResponse {
+  suggestions: AutoDiscoverSuggestion[];
+  total_scanned: number;
+  discovered_count: number;
+}
+
+// ===========================================================================
 // Story 36.10: Storage Health Check Types
 // ===========================================================================
 

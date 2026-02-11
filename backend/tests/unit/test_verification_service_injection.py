@@ -29,14 +29,6 @@ class TestVerificationServiceInjection:
     """
 
     @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient."""
-        client = AsyncMock()
-        client.search_verification_questions = AsyncMock(return_value=[])
-        client.add_verification_question = AsyncMock(return_value="vq_test123")
-        return client
-
-    @pytest.fixture
     def mock_rag_service(self):
         """Create mock RAGService."""
         service = MagicMock()
@@ -195,13 +187,6 @@ class TestSearchVerificationQuestionsArgs:
     Verifies that _get_question_history_from_graphiti passes correct kwargs
     to graphiti_client.search_verification_questions.
     """
-
-    @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient."""
-        client = AsyncMock()
-        client.search_verification_questions = AsyncMock(return_value=[])
-        return client
 
     @pytest.mark.asyncio
     async def test_search_receives_correct_arguments(self, mock_graphiti_client):

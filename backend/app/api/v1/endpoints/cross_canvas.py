@@ -192,8 +192,17 @@ class CanvasAssociationSuggestionResponse(BaseModel):
 # Auto-Discovery Models (Story 36.6)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+class OnCanvasOpenRequest(BaseModel):
+    """Request for auto-discovery triggered when a canvas is opened.
+
+    [Source: Story 36.6 Fix - F1 auto-trigger on canvas open]
+    """
+    canvas_path: str = Field(..., description="刚打开的Canvas文件路径")
+    min_common_concepts: int = Field(default=3, ge=1, le=10, description="最小共同概念数阈值")
+
+
 class AutoDiscoverRequest(BaseModel):
-    """Request to auto-discover canvas associations
+    """Request to auto-discover canvas associations (batch/manual)
 
     [Source: Story 36.6 - Cross-Canvas Auto-Discovery]
     """
@@ -701,3 +710,58 @@ async def auto_discover_associations(
     except Exception as e:
         logger.error(f"Auto-discovery failed: {e}")
         raise HTTPException(status_code=500, detail=f"Auto-discovery failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Auto-Discovery on Canvas Open (Story 36.6 Fix - F1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@cross_canvas_router.post(
+    "/on-open",
+    response_model=AutoDiscoverResponse,
+    summary="Canvas打开时自动发现关联",
+    description="Canvas打开时自动触发轻量级关联发现，仅检查已知Canvas集合 [Story 36.6 Fix]",
+    operation_id="on_canvas_open"
+)
+async def on_canvas_open(
+    cross_canvas_service: CrossCanvasServiceDep,
+    request: OnCanvasOpenRequest
+) -> AutoDiscoverResponse:
+    """Auto-discover associations when a canvas is opened.
+
+    Lightweight version of auto-discover: instead of scanning the entire vault,
+    only checks the opened canvas against previously known canvases from the
+    associations cache. Designed to be called automatically by the Obsidian plugin.
+
+    [Source: Story 36.6 Fix - F1 adversarial review: auto-discovery must be auto-triggered]
+    """
+    logger.info(f"on_canvas_open: canvas_path={request.canvas_path}")
+
+    try:
+        result = await cross_canvas_service.on_canvas_open(
+            canvas_path=request.canvas_path,
+            min_common_concepts=request.min_common_concepts
+        )
+
+        suggestion_responses = [
+            AutoDiscoverSuggestionResponse(
+                source_canvas=s.source_canvas,
+                target_canvas=s.target_canvas,
+                association_type=s.association_type,
+                confidence=s.confidence,
+                reason=s.reason,
+                shared_concepts=s.shared_concepts,
+                auto_generated=s.auto_generated
+            )
+            for s in result.suggestions
+        ]
+
+        return AutoDiscoverResponse(
+            suggestions=suggestion_responses,
+            total_scanned=result.total_scanned,
+            discovered_count=result.discovered_count
+        )
+
+    except Exception as e:
+        logger.error(f"on_canvas_open failed: {e}")
+        raise HTTPException(status_code=500, detail=f"on_canvas_open failed: {str(e)}")

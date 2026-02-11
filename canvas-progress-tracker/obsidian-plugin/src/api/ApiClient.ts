@@ -99,6 +99,8 @@ import {
   // Story 36.4/36.10: Edge Sync & Storage Health
   SyncEdgesSummaryResponse,
   StorageHealthResponse,
+  // Story 36.6 Fix: Auto-Discovery on Canvas Open
+  AutoDiscoverResponse,
 } from './types';
 
 /**
@@ -462,6 +464,30 @@ export class ApiClient {
     return this.request<SyncEdgesSummaryResponse>(
       'POST',
       `/canvas/${encodeURIComponent(canvasName)}/sync-edges`
+    );
+  }
+
+  // ===========================================================================
+  // Cross-Canvas Auto-Discovery (Story 36.6 Fix)
+  // ===========================================================================
+
+  /**
+   * Auto-discover associations when a canvas is opened.
+   *
+   * Lightweight discovery: compares the opened canvas against known canvases
+   * from the associations cache, without scanning the entire vault.
+   *
+   * @param canvasPath - Path of the canvas that was just opened
+   * @returns Discovery results with suggestions relevant to this canvas
+   *
+   * @source Story 36.6 Fix - F1 auto-trigger on canvas open
+   * @source POST /api/v1/cross-canvas/on-open
+   */
+  async autoDiscoverOnOpen(canvasPath: string): Promise<AutoDiscoverResponse> {
+    return this.request<AutoDiscoverResponse>(
+      'POST',
+      '/cross-canvas/on-open',
+      { canvas_path: canvasPath }
     );
   }
 

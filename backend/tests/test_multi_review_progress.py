@@ -37,13 +37,6 @@ def mock_task_manager():
 
 
 @pytest.fixture
-def mock_graphiti_client():
-    """Mock GraphitiEdgeClient for testing."""
-    client = MagicMock()
-    return client
-
-
-@pytest.fixture
 def review_service(mock_canvas_service, mock_task_manager, mock_graphiti_client):
     """ReviewService instance with mocked dependencies."""
     return ReviewService(

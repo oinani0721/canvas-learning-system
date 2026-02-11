@@ -365,7 +365,6 @@ class ReviewService:
 
         # Create background task
         async def _generate():
-            await asyncio.sleep(0.2)  # Simulate work
             timestamp = datetime.now(timezone.utc).strftime("%Y%m%d")
             return {
                 "name": f"{canvas_name}-检验白板-{timestamp}",

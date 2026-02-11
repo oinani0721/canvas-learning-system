@@ -18,24 +18,24 @@ on:
     paths:
       - 'backend/**'
 
-env:
-  PYTHON_VERSION: '3.12'
-
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════════
   # All Tests (excluding @pytest.mark.integration — no Docker in CI)
   # ═══════════════════════════════════════════════════════════════════════════════
   tests:
-    name: Tests (non-integration)
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12']
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
+          python-version: ${{ matrix.python-version }}
           cache: 'pip'
           cache-dependency-path: backend/requirements.txt
 
@@ -62,7 +62,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results
+          name: test-results-py${{ matrix.python-version }}
           path: backend/reports/test-results.xml
           retention-days: 14
 

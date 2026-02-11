@@ -90,12 +90,10 @@ export class VerificationHistoryService {
             const verificationFile = this.app.vault.getAbstractFileByPath(
                 relation.verificationCanvasPath
             );
-            if (verificationFile instanceof this.app.vault.adapter.constructor) {
-                validRelations.push(relation);
-            } else {
-                // File still exists
+            if (verificationFile) {
                 validRelations.push(relation);
             }
+            // else: file no longer exists in vault, skip it
         }
 
         // Sort by generation date (most recent first)

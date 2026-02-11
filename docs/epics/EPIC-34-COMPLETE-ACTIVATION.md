@@ -10,10 +10,10 @@
 | **Epic 名称** | 跨Canvas与教材挂载检验白板完整激活 |
 | **类型** | Brownfield Enhancement |
 | **优先级** | P0 (Blocker 修复 + P1 功能完善) |
-| **预估 Stories** | **5 个** (原7个，删除4个重复，追加2个对抗性修复) |
+| **预估 Stories** | **6 个** (原7个，删除4个重复，追加3个对抗性修复) + **3 个补救 Story** (34.11-34.13) |
 | **依赖 Epic** | Epic 14 (复习系统), Epic 16 (跨Canvas关联) |
 | **创建日期** | 2026-01-19 |
-| **状态** | **Done** (Goal 2,4 已交付; Goal 1,3 Deferred) |
+| **状态** | **Done (Scoped)** — Goal 2,4 已交付; Goal 1,3 Deferred to EPIC-31/36 |
 
 ---
 
@@ -310,13 +310,63 @@ Story 34.4 (历史分页) ──┘                                             
 - [x] Story 34.7 E2E测试通过 ✅ Done (2026-01-20)
 - [x] Story 34.8 对抗性审查修正 Round 1 ✅ Code Review Passed (2026-02-09)
 - [x] Story 34.9 对抗性审查 P0 Hotfix Round 2 ✅ Done (2026-02-09)
+- [x] Story 34.10 集成测试回归修复 + 分页文档化 + DI 路径整理 ✅ Done (2026-02-10)
 - [x] 现有功能无回归 ✅ 验证通过 (165 tests passed)
 - [x] 教材挂载后Agent分析包含教材上下文 ✅ 验证通过
 - [x] 文档更新完成 ✅ 本次更新
 
-> **精简说明**: 原7个Stories精简为3个+2个对抗性修复，工时从~42h降至~18h
+> **精简说明**: 原7个Stories精简为3个+3个对抗性修复(34.8-34.10)+3个补救Story(34.11-34.13)
 > **被删除功能的实现方**: EPIC-31 (检验白板), EPIC-36 (跨Canvas)
-> **初始完成日期**: 2026-01-20 | **对抗性修复完成**: 2026-02-09
+> **初始完成日期**: 2026-01-20 | **对抗性修复完成**: 2026-02-10
+
+---
+
+## Deferred 功能跟踪表
+
+> **目的**: 跟踪被 Deferred 到其他 EPIC 的功能交付状态，每次目标 EPIC 审核时更新。
+
+| 原 Story | 功能 | 转移至 | 目标 EPIC 状态 | 最后检查 | 风险 |
+|----------|------|--------|---------------|---------|------|
+| 34.1 | 跨Canvas API路由注册 | EPIC-36 Story 36.5 | ⏳ EPIC-36 待审核 | 2026-02-10 | 🟡 中 |
+| 34.2 | 检验白板难度自适应 | EPIC-31 Story 31.5 | ⚠️ 31.A.7 FAIL(0/11) | 2026-02-10 | 🔴 高 |
+| 34.5 | 检验白板生成服务激活 | EPIC-31 Story 31.1-31.2 | ⚠️ 31.A.8 FAIL(0/16) | 2026-02-10 | 🔴 高 |
+| 34.6 | 跨Canvas关联智能建议 | EPIC-36 Story 36.6 | ⏳ EPIC-36 待审核 | 2026-02-10 | 🟡 中 |
+
+> **🔴 警告**: EPIC-31 的实测状态显示 31.A.7/31.A.8 测试失败率 100%。Deferred 到 EPIC-31 的功能可能长期未交付。
+
+---
+
+## 补救 Stories (R4 对抗性审查驱动)
+
+### Story 34.11: 测试质量提升至 TEA ≥70 [P1]
+
+**目标**: 拆分 1226 行测试文件、提取共享 fixture、消除封装破坏
+
+**验收标准**:
+- AC1: 拆分 test_review_history_pagination.py 为 ≤300 行/文件的 3-4 个模块
+- AC2: 提取 ≥10 个重复 mock fixture 为共享 conftest
+- AC3: 消除直接修改 service._card_states — 改用公开 API 或 test helper
+- AC4: TEA 重新评分 ≥70/100
+
+### Story 34.12: 静默降级修复 + 死代码清理 [P1]
+
+**目标**: 特化 24 个 except Exception、添加降级日志、清理 retention_rate 死代码
+
+**验收标准**:
+- AC1: 24 个 except Exception 特化为具体异常类型（至少 Top 10 高频路径）
+- AC2: 所有降级路径添加 logger.warning 日志
+- AC3: retention_rate 字段实现真实计算或从响应模型中删除
+- AC4: grep -c "except Exception" review_service.py ≤ 5
+
+### Story 34.13: 教材挂载真实 E2E 验证 [P2]
+
+**目标**: 创建真实 E2E 测试验证前后端教材挂载同步路径
+
+**验收标准**:
+- AC1: 创建 tests/e2e/test_textbook_mount_e2e.py（HTTP 请求而非 TestClient）
+- AC2: 测试覆盖完整同步路径：请求→处理→.canvas-links.json 写入→读回验证
+- AC3: PDF/Markdown/Canvas 三种格式各一个 E2E case
+- AC4: 现有 tests/integration/ 中的教材测试保留不动
 
 ---
 
@@ -345,3 +395,4 @@ Story 34.4 (历史分页) ──┘                                             
 | 2026-02-09 | 1.2 | **对抗性审查 Round 2**: 创建Story 34.9; 修复limit/show_all Query()验证、CanvasService memory_client注入、测试500容忍、条件断言、date.today()不确定性 | Adversarial Review |
 | 2026-02-10 | 1.3 | **EPIC 文档同步**: Goal 1/3标注Deferred; Story 34.7 AC1/AC3标注已删除; 追加34.8/34.9摘要段落; Change Log补全; 34.9状态→Done | Adversarial Audit |
 | 2026-02-10 | 1.4 | **对抗性审查 Wave 1 修复**: (1) Story 34.8 状态→Done; (2) Risk Mitigation表更新为实际交付功能的风险; (3) Story 34.4 Dev Agent Record 追溯补填; (4) 恢复被误删的集成测试文件(48个ERROR待34.10修复); (5) 发现集成测试回归根因=Story 38.9 DI重构未同步更新测试 | Adversarial Review Wave 1 |
+| 2026-02-10 | 1.5 | **R4 对抗性审查**: (1) Status "Done"→"Done (Scoped)"; (2) 34.10 补入 DoD; (3) Deferred 功能跟踪表 — 标记 EPIC-31 接收方 FAIL 风险; (4) 创建 3 个补救 Story: 34.11(测试质量≥70), 34.12(静默降级修复), 34.13(教材挂载真实E2E); (5) ATDD 执行强制化模板 | R4 Adversarial Review |

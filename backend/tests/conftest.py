@@ -674,3 +674,71 @@ def test_node_id():
     """Generate unique test node ID."""
     import uuid
     return f"test_node_{uuid.uuid4().hex[:8]}"
+
+
+# ============================================================================
+# Story 31.A.10 Fixtures - Shared Mock Fixtures (Deduplication)
+# [Source: docs/stories/31.A.10.story.md#AC-31.A.10.1]
+# ============================================================================
+
+@pytest.fixture
+def mock_graphiti_client():
+    """Shared mock GraphitiClient for unit/integration tests.
+
+    Returns a MagicMock with common async methods pre-configured.
+    Tests needing specific behavior (e.g., custom side_effect or
+    different return values) should override locally at class level.
+
+    Pre-configured methods:
+    - search_verification_questions → []
+    - add_verification_question → "vq_test123"
+    - search → []
+    - add_episode → None
+    - get_entity → None
+    - create_relationship → None (AsyncMock)
+
+    [Source: Story 31.A.10 AC-1 — Fixture deduplication]
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock = MagicMock()
+    mock.search = AsyncMock(return_value=[])
+    mock.add_episode = AsyncMock(return_value=None)
+    mock.get_entity = AsyncMock(return_value=None)
+    mock.search_verification_questions = AsyncMock(return_value=[])
+    mock.add_verification_question = AsyncMock(return_value="vq_test123")
+    mock.create_relationship = AsyncMock()
+    return mock
+
+
+@pytest.fixture
+def mock_agent_service():
+    """Shared mock AgentService for unit/integration tests.
+
+    Returns a MagicMock with common async methods pre-configured.
+    Tests needing specific behavior (e.g., custom return values,
+    side_effects) should override locally at class level.
+
+    Pre-configured methods:
+    - call_agent → MagicMock(success=True, content="mock content", data={}, file_path=None)
+    - call_scoring → ("good", 75, False)
+    - _trigger_memory_write → None (AsyncMock)
+    - _call_gemini_api → "mock gemini response" (AsyncMock)
+
+    [Source: Story 31.A.10 AC-2 — Fixture deduplication]
+    """
+    from unittest.mock import AsyncMock, MagicMock
+
+    mock = MagicMock()
+    # Default agent result with common attributes
+    default_result = MagicMock()
+    default_result.success = True
+    default_result.content = "mock content"
+    default_result.data = {}
+    default_result.file_path = None
+    default_result.error = None
+    mock.call_agent = AsyncMock(return_value=default_result)
+    mock.call_scoring = AsyncMock(return_value=("good", 75, False))
+    mock._trigger_memory_write = AsyncMock()
+    mock._call_gemini_api = AsyncMock(return_value="mock gemini response")
+    return mock

@@ -1,14 +1,14 @@
 {
   "name": "canvas-learning-system-plugin",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Canvas Learning System - Obsidian Plugin for AI-assisted learning with Ebbinghaus-based review",
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
-    "deploy": "npm run build && npm run deploy:sync && npm run verify",
-    "deploy:sync": "node scripts/sync-vault.mjs",
-    "verify": "node scripts/verify-vault.mjs",
+    "deploy": "node scripts/deploy.mjs",
+    "deploy:sync": "node -e \"const fs=require('fs'),p=require('path');const d=p.join(__dirname,'..','..','笔记库','.obsidian','plugins','canvas-review-system');['manifest.json','styles.css'].forEach(f=>{const s=p.join(__dirname,f);if(fs.existsSync(s)){fs.copyFileSync(s,p.join(d,f));console.log('✅ '+f)}})\"",
+    "verify": "node scripts/verify.mjs",
     "version": "node version-bump.mjs && git add manifest.json versions.json",
     "test": "jest",
     "test:coverage": "jest --coverage",

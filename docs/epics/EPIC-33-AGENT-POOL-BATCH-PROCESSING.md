@@ -2,7 +2,7 @@
 
 > **类型**: Brownfield Enhancement Epic
 > **创建日期**: 2026-01-17
-> **状态**: Implemented - 全部13个Stories完成
+> **状态**: Implemented - 12个Stories完成, 1个已废弃(33.7)
 > **优先级**: P0 (Critical)
 
 ---
@@ -89,7 +89,7 @@
 **要添加的内容:**
 - 6个Backend API端点（POST/GET/WS）
 - 4个核心Service（Session/Grouping/Routing/Orchestrator）
-- 2个高级功能（ResultMerger + WebSocket）
+- 1个高级功能（WebSocket实时进度推送）
 
 **成功标准:**
 - 100节点批处理 < 60秒
@@ -108,7 +108,7 @@
 | **33.4** | Intelligent Grouping Service | P1 | TF-IDF + K-Means集成 | ✅ 完成 |
 | **33.5** | Agent Routing Engine | P1 | 智能Agent选择 | ✅ 完成 |
 | **33.6** | Batch Processing Orchestrator | P0 | 并行执行编排 | ✅ 完成 |
-| **33.7** | Result Merging Strategies | P2 | 多Agent结果融合 | ⚠️ 代码完成，未集成 |
+| **33.7** | Result Merging Strategies | P2 | 多Agent结果融合 | ❌ 已废弃 (代码由 33.11 删除) |
 | **33.8** | E2E Integration Testing | P2 | 端到端测试 | ✅ 完成 |
 | **33.9** | P0 DI Chain Repair | P0 | 修复 batch_orchestrator/agent_service 未注入 | ✅ 完成 (对抗性审核) |
 | **33.10** | P0 Runtime Defect Fixes | P0 | URL不匹配 + 假prompt + GroupProgress硬编码 | ✅ 完成 (对抗性审核) |
@@ -309,14 +309,14 @@
           │                   │                      │
           ▼                   ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│                     Service Layer (Stories 33.3-33.7)                │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐ │
-│  │Session      │  │Intelligent  │  │Agent        │  │Result       │ │
-│  │Manager      │  │Grouping     │  │Routing      │  │Merger       │ │
-│  │(33.3)       │  │(33.4)       │  │(33.5)       │  │(33.7)       │ │
-│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘ │
-│         │                │                │                │        │
-│         └────────────────┴────────┬───────┴────────────────┘        │
+│                     Service Layer (Stories 33.3-33.6)                │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐                 │
+│  │Session      │  │Intelligent  │  │Agent        │                 │
+│  │Manager      │  │Grouping     │  │Routing      │                 │
+│  │(33.3)       │  │(33.4)       │  │(33.5)       │                 │
+│  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘                 │
+│         │                │                │                        │
+│         └────────────────┴────────┬───────┘                        │
 │                                   ▼                                  │
 │                    ┌──────────────────────────┐                      │
 │                    │  Batch Orchestrator      │                      │
@@ -358,7 +358,7 @@
 | MODIFY | `backend/app/api/v1/router.py` | 33.1 |
 | MODIFY | `backend/app/main.py` | 33.2 |
 
-**统计**: 13个新文件 + 2个修改文件
+**统计**: 11个新文件 (含2个已删除) + 2个修改文件 → 实际存活 9个新文件
 
 ---
 
@@ -375,14 +375,14 @@
                      │           │
 33.2 (WebSocket) ────┘           │
                                  │
-33.7 (Merger) ───────────────────┘
+~~33.7 (Merger)~~ [已废弃/删除] ──┘
 ```
 
 **建议实施顺序 (Waves):**
 1. **Wave 1**: 33.1 + 33.3 (基础设施)
 2. **Wave 2**: 33.2 + 33.4 (通信 + 分组)
 3. **Wave 3**: 33.5 + 33.6 (路由 + 编排)
-4. **Wave 4**: 33.7 + 33.8 (合并 + 测试)
+4. **Wave 4**: ~~33.7 (已废弃)~~ + 33.8 (测试)
 
 ---
 
@@ -407,7 +407,7 @@
 
 ## Definition of Done
 
-- [x] 13个Stories全部完成 (33.1-33.13)
+- [x] 12个Stories完成 (33.1-33.6, 33.8-33.13), 33.7已废弃
 - [x] Obsidian UI成功连接所有端点
 - [x] 100节点批处理 < 60秒
 - [x] 智能路由准确率 > 80%

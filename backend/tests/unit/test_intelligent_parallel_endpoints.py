@@ -126,16 +126,8 @@ def mock_session_manager():
     return manager
 
 
-@pytest.fixture
-def mock_agent_service():
-    """Mock AgentService."""
-    service = AsyncMock()
-    result = MagicMock()
-    result.success = True
-    result.file_path = "test/node-001-oral-explanation.md"
-    result.content = "test content"
-    service.call_agent = AsyncMock(return_value=result)
-    return service
+## mock_agent_service: use shared fixture from conftest.py
+## [Source: Story 31.A.10 AC-2 — Fixture deduplication]
 
 
 @pytest.fixture

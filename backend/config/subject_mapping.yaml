@@ -16,13 +16,13 @@ defaults:
   category: general
   subject: general
 skip_directories:
-- templates
-- Canvas
-- .obsidian
-- attachments
-- 笔记库
-- .canvas-links
-- .git
-- vault
 - notes
+- templates
+- .canvas-links
 - .trash
+- .obsidian
+- .git
+- 笔记库
+- vault
+- Canvas
+- attachments

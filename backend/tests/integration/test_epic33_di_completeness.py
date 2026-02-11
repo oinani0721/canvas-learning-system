@@ -374,8 +374,8 @@ class TestNoWarningLogs:
                 get_service()
                 await _ensure_async_deps()
 
-        # Check that the P0 fix info log appears
+        # Check that the DI consolidated info log appears (Story 33.11 refactored message)
         info_messages = [r.message for r in caplog.records if r.levelno == logging.INFO]
-        assert any("P0 DI fix applied" in msg for msg in info_messages), (
-            "Expected '[Story 33.9] P0 DI fix applied' info log"
+        assert any("DI consolidated" in msg for msg in info_messages), (
+            "Expected '[Story 33.11] DI consolidated: batch deps built via dependencies.py' info log"
         )
