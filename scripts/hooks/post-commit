@@ -1,0 +1,25 @@
+#!/bin/bash
+# Canvas Learning System - Post-commit Hook (Informational)
+#
+# 功能: commit 后检查 vault 同步状态，给出提示（不阻塞）
+
+CYAN='\033[0;36m'
+YELLOW='\033[1;33m'
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PLUGIN_DIR="$REPO_ROOT/canvas-progress-tracker/obsidian-plugin"
+
+# 只在有 node_modules 时执行
+if [ -d "$PLUGIN_DIR/node_modules" ]; then
+    cd "$PLUGIN_DIR"
+    if npm run verify 2>&1 | grep -q "STALE"; then
+        echo ""
+        echo -e "${RED}  ⚠️  [Post-commit] Vault main.js is STALE!${NC}"
+        echo -e "${YELLOW}  运行: cd canvas-progress-tracker/obsidian-plugin && npm run deploy${NC}"
+        echo ""
+    fi
+    cd "$REPO_ROOT"
+fi

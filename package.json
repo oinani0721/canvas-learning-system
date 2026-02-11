@@ -1,0 +1,20 @@
+{
+  "name": "canvas-learning-system",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Canvas Learning System - Monorepo root (tooling only)",
+  "scripts": {
+    "prepare": "lefthook install",
+    "lint:backend": "cd backend && python -m pytest tests/ -m \"not integration\" --co -q",
+    "lint:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run typecheck",
+    "build:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run build",
+    "deploy:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run deploy",
+    "verify:plugin": "cd canvas-progress-tracker/obsidian-plugin && npm run verify",
+    "verify:spec": "python scripts/spec-tools/verify-sync.py"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "lefthook": "^1.6.0"
+  }
+}

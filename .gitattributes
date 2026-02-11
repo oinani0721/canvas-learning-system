@@ -1,0 +1,39 @@
+# Canvas Learning System - Git Attributes
+# Prevent Windows CRLF issues in shell scripts and config files
+
+# Auto-detect text files and normalize line endings
+* text=auto
+
+# Force LF for shell scripts (hooks, CI)
+*.sh text eol=lf
+*.bash text eol=lf
+
+# Force LF for CI/CD
+*.yml text eol=lf
+*.yaml text eol=lf
+
+# Force LF for Python
+*.py text eol=lf
+
+# Force LF for TypeScript/JavaScript
+*.ts text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.cjs text eol=lf
+*.json text eol=lf
+
+# Force LF for config files
+*.css text eol=lf
+*.md text eol=lf
+lefthook.yml text eol=lf
+commitlint.config.js text eol=lf
+
+# Binary files - don't touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.gz binary
+*.zip binary

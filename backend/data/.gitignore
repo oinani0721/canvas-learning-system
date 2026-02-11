@@ -1,0 +1,16 @@
+# Runtime data files — generated during operation, NEVER commit
+# Only seed schemas and .gitkeep should be tracked
+
+# All runtime data patterns
+*.jsonl
+*_memory.json
+*.db
+fsrs_card_states.json
+
+# Synced backup files
+*.synced.*
+
+# Except this file and documentation
+!.gitignore
+!.gitkeep
+!README.md

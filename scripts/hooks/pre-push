@@ -1,0 +1,35 @@
+#!/bin/bash
+# Canvas Learning System - Pre-push Hook
+#
+# 功能: push 前检查 vault 同步状态，如果 STALE 则阻塞 push
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+REPO_ROOT=$(git rev-parse --show-toplevel)
+PLUGIN_DIR="$REPO_ROOT/canvas-progress-tracker/obsidian-plugin"
+
+echo -e "${YELLOW}[Pre-push]${NC} Checking vault deployment status..."
+
+# 检查 vault 同步状态
+if [ -d "$PLUGIN_DIR/node_modules" ]; then
+    cd "$PLUGIN_DIR"
+    if ! npm run verify 2>&1 | tail -1 | grep -q "FRESH"; then
+        echo ""
+        echo -e "${RED}======================================================${NC}"
+        echo -e "${RED}  🚫 PUSH BLOCKED: Vault main.js is STALE!${NC}"
+        echo -e "${RED}======================================================${NC}"
+        echo ""
+        echo -e "  ${YELLOW}修复方法:${NC}"
+        echo -e "  cd canvas-progress-tracker/obsidian-plugin && npm run deploy"
+        echo -e "  git add -A && git commit --amend --no-edit"
+        echo ""
+        exit 1
+    fi
+    cd "$REPO_ROOT"
+fi
+
+echo -e "${GREEN}[Pre-push]${NC} Vault sync OK."
+exit 0

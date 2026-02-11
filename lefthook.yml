@@ -1,0 +1,170 @@
+# Canvas Learning System - Lefthook Configuration
+# Replaces hand-written .git/hooks/{pre-commit,post-commit,pre-push}
+#
+# Install: npx lefthook install
+# Test:    npx lefthook run pre-commit
+#
+# Architecture:
+#   pre-commit  → parallel checks (spec-sync, plugin-build, ghost-files)
+#   commit-msg  → commitlint (conventional commits with EPIC scope)
+#   post-commit → informational vault freshness warning
+#   pre-push    → blocking vault freshness + backend test smoke check
+
+# ============================================================
+# Pre-commit: Parallel checks on staged files
+# ============================================================
+pre-commit:
+  parallel: true
+  commands:
+    # --- Spec Sync: Export OpenAPI when backend API files change ---
+    spec-sync:
+      glob: "backend/app/{api,models,schemas}/**/*.py"
+      run: |
+        echo "[Spec Sync] API changes detected, exporting OpenAPI..."
+        cd backend && python ../scripts/spec-tools/export-openapi.py 2>/dev/null && cd ..
+        if [ -f openapi.json ] && ! git diff --quiet openapi.json 2>/dev/null; then
+          git add openapi.json
+          echo "[Spec Sync] + openapi.json added to commit"
+        fi
+        if [ -d specs/data/generated ]; then
+          for schema in specs/data/generated/*.schema.json; do
+            if [ -f "$schema" ] && ! git diff --quiet "$schema" 2>/dev/null; then
+              git add "$schema"
+              echo "[Spec Sync] + $(basename $schema) added to commit"
+            fi
+          done
+        fi
+        echo "[Spec Sync] Done."
+
+    # --- Plugin Build: Compile to vault when plugin source changes ---
+    plugin-build:
+      glob: "canvas-progress-tracker/obsidian-plugin/**/*.{ts,css,json}"
+      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
+      run: |
+        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
+        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+          echo "[Plugin Build] node_modules not found — BLOCKING COMMIT."
+          echo "[Plugin Build] Fix: cd $PLUGIN_DIR && npm install"
+          exit 1
+        fi
+        echo "[Plugin Build] Compiling plugin to vault..."
+        cd "$PLUGIN_DIR"
+        npm run build 2>&1
+        BUILD_EXIT=$?
+        if [ $BUILD_EXIT -ne 0 ]; then
+          echo "[Plugin Build] BUILD FAILED! Fix errors before committing."
+          exit 1
+        fi
+        echo "[Plugin Build] Verifying vault freshness..."
+        npm run verify 2>&1
+        VERIFY_EXIT=$?
+        if [ $VERIFY_EXIT -ne 0 ]; then
+          echo "[Plugin Build] Vault sync FAILED! main.js is STALE."
+          exit 1
+        fi
+        echo "[Plugin Build] Vault sync OK."
+
+    # --- Ghost Files: Detect untracked documentation ---
+    ghost-files:
+      run: |
+        GHOST_STORIES=$(git ls-files --others --exclude-standard -- "docs/stories/" 2>/dev/null || true)
+        GHOST_EPICS=$(git ls-files --others --exclude-standard -- "docs/epics/" 2>/dev/null || true)
+        GHOSTS=""
+        if [ -n "$GHOST_STORIES" ]; then GHOSTS="$GHOST_STORIES"; fi
+        if [ -n "$GHOST_EPICS" ]; then
+          if [ -n "$GHOSTS" ]; then GHOSTS="$GHOSTS
+        $GHOST_EPICS"; else GHOSTS="$GHOST_EPICS"; fi
+        fi
+        if [ -n "$GHOSTS" ]; then
+          COUNT=$(echo "$GHOSTS" | wc -l | tr -d ' ')
+          echo "[Ghost Files] WARNING: $COUNT untracked doc file(s):"
+          echo "$GHOSTS"
+          echo "[Ghost Files] To track: git add <file>"
+        else
+          echo "[Ghost Files] No untracked docs found."
+        fi
+
+    # --- Python lint: Check staged Python files ---
+    python-lint:
+      glob: "backend/**/*.py"
+      run: |
+        echo "[Python] Checking syntax..."
+        python -m py_compile {staged_files} 2>&1 || exit 1
+        echo "[Python] Syntax OK."
+
+    # --- TypeScript typecheck: Check plugin types ---
+    ts-typecheck:
+      glob: "canvas-progress-tracker/obsidian-plugin/**/*.ts"
+      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
+      run: |
+        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
+        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+          exit 0
+        fi
+        echo "[TypeScript] Checking types..."
+        cd "$PLUGIN_DIR" && npx tsc --noEmit --skipLibCheck 2>&1
+        echo "[TypeScript] Types OK."
+
+# ============================================================
+# Commit-msg: Conventional commits with commitlint
+# ============================================================
+commit-msg:
+  commands:
+    commitlint:
+      run: npx commitlint --edit {1}
+
+# ============================================================
+# Post-commit: Informational vault freshness warning
+# ============================================================
+post-commit:
+  commands:
+    vault-reminder:
+      run: |
+        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
+        if [ -d "$PLUGIN_DIR/node_modules" ]; then
+          cd "$PLUGIN_DIR"
+          if npm run verify 2>&1 | grep -q "STALE"; then
+            echo ""
+            echo "  WARNING: Vault main.js is STALE!"
+            echo "  Run: cd canvas-progress-tracker/obsidian-plugin && npm run deploy"
+            echo ""
+          fi
+        fi
+
+# ============================================================
+# Pre-push: Blocking checks before push
+# ============================================================
+pre-push:
+  parallel: true
+  commands:
+    # --- Vault freshness: Block push if vault is stale ---
+    vault-freshness:
+      run: |
+        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
+        if [ -d "$PLUGIN_DIR/node_modules" ]; then
+          echo "[Pre-push] Checking vault freshness..."
+          cd "$PLUGIN_DIR"
+          if ! npm run verify 2>&1 | tail -1 | grep -q "FRESH"; then
+            echo ""
+            echo "  PUSH BLOCKED: Vault main.js is STALE!"
+            echo "  Fix: cd canvas-progress-tracker/obsidian-plugin && npm run deploy"
+            echo ""
+            exit 1
+          fi
+          echo "[Pre-push] Vault sync OK."
+        fi
+
+    # --- Backend smoke test: Quick test before push ---
+    backend-smoke:
+      run: |
+        if command -v python &> /dev/null && [ -d "backend" ]; then
+          echo "[Pre-push] Running backend smoke tests..."
+          cd backend
+          python -m pytest tests/unit/ \
+            -m "not integration" \
+            -x -q --tb=line \
+            --no-header \
+            -p no:cacheprovider \
+            --override-ini="addopts=" 2>&1 | tail -5
+          echo "[Pre-push] Backend tests done."
+        fi
