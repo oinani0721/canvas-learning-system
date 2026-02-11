@@ -19,7 +19,7 @@ Architecture References:
 """
 
 import asyncio
-import logging
+import structlog
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -37,7 +37,7 @@ from .session_manager import (
     InvalidStateTransitionError,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -195,8 +195,8 @@ class BatchOrchestrator:
 
         if self.routing_engine is None:
             logger.warning(
-                "[Story 33.6] routing_engine not injected — "
-                "auto-routing disabled, will use agent_type as-is"
+                "routing_engine_not_injected",
+                detail="auto-routing disabled, will use agent_type as-is",
             )
 
         # AC2: Semaphore for concurrency control
@@ -211,9 +211,7 @@ class BatchOrchestrator:
         self._peak_concurrent = 0
         self._concurrent_lock = asyncio.Lock()
 
-        logger.info(
-            f"[Story 33.6] BatchOrchestrator initialized with max_concurrent={max_concurrent}"
-        )
+        logger.info("batch_orchestrator_initialized", max_concurrent=max_concurrent)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Task 1: Session Validation and Startup
@@ -291,10 +289,7 @@ class BatchOrchestrator:
             logger.error(f"[Story 33.6] Failed to transition session: {e}")
             raise
 
-        logger.info(
-            f"[Story 33.6] Starting batch session {session_id} "
-            f"with {len(groups)} groups"
-        )
+        logger.info("batch_session_starting", session_id=session_id, group_count=len(groups))
 
         # Story 30.12 AC-30.12.2: canvas-orchestrator memory write on session start
         try:
@@ -356,10 +351,20 @@ class BatchOrchestrator:
             )
 
             # Update session with final status
-            await self.session_manager.transition_state(
-                session_id,
-                final_status
-            )
+            # Guard against race with external cancel_session() which may
+            # have already transitioned the session to a terminal state.
+            try:
+                await self.session_manager.transition_state(
+                    session_id,
+                    final_status
+                )
+            except InvalidStateTransitionError:
+                logger.warning(
+                    "batch_session_transition_skipped",
+                    session_id=session_id,
+                    target_status=final_status.value,
+                    reason="session already in terminal state (likely cancelled externally)",
+                )
 
             # Broadcast completion
             await self._broadcast_progress(
@@ -374,19 +379,29 @@ class BatchOrchestrator:
             )
 
             logger.info(
-                f"[Story 33.6] Session {session_id} completed with status "
-                f"{final_status.value}: {total_completed} success, {total_failed} failed"
+                "batch_session_completed",
+                session_id=session_id,
+                status=final_status.value,
+                success_count=total_completed,
+                failure_count=total_failed,
             )
 
             return final_result
 
         except asyncio.TimeoutError:
             logger.error(f"[Story 33.6] Session {session_id} timed out after {timeout}s")
-            await self.session_manager.transition_state(
-                session_id,
-                SessionStatus.FAILED,
-                error_message=f"Timeout after {timeout} seconds"
-            )
+            try:
+                await self.session_manager.transition_state(
+                    session_id,
+                    SessionStatus.FAILED,
+                    error_message=f"Timeout after {timeout} seconds"
+                )
+            except InvalidStateTransitionError:
+                logger.warning(
+                    "batch_session_timeout_transition_skipped",
+                    session_id=session_id,
+                    reason="session already in terminal state (likely cancelled externally)",
+                )
             await self._broadcast_progress(
                 ProgressEventType.ERROR,
                 session_id,
@@ -399,11 +414,18 @@ class BatchOrchestrator:
             raise
         except Exception as e:
             logger.exception(f"[Story 33.6] Session {session_id} failed: {e}")
-            await self.session_manager.transition_state(
-                session_id,
-                SessionStatus.FAILED,
-                error_message=str(e)
-            )
+            try:
+                await self.session_manager.transition_state(
+                    session_id,
+                    SessionStatus.FAILED,
+                    error_message=str(e)
+                )
+            except InvalidStateTransitionError:
+                logger.warning(
+                    "batch_session_error_transition_skipped",
+                    session_id=session_id,
+                    reason="session already in terminal state (likely cancelled externally)",
+                )
             await self._broadcast_progress(
                 ProgressEventType.ERROR,
                 session_id,
@@ -552,8 +574,12 @@ class BatchOrchestrator:
         )
 
         logger.info(
-            f"[Story 33.6] Group {group.group_id} {status}: "
-            f"{completed_count} completed, {failed_count} failed"
+            "group_completed",
+            session_id=session_id,
+            group_id=group.group_id,
+            status=status,
+            completed=completed_count,
+            failed=failed_count,
         )
 
         return GroupExecutionResult(
@@ -1130,7 +1156,7 @@ class BatchOrchestrator:
             }
         )
 
-        logger.info(f"[Story 33.6] Cancellation requested for session {session_id}")
+        logger.info("cancellation_requested", session_id=session_id)
 
         return {
             "success": True,

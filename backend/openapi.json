@@ -4,7 +4,7 @@
     "title": "Canvas Learning System API",
     "description": "Multi-agent learning system backend using Feynman method",
     "version": "1.0.0",
-    "x-generated-at": "2026-02-11T09:53:55.648482+00:00",
+    "x-generated-at": "2026-02-11T23:11:29.704814+00:00",
     "x-generator": "Canvas Learning System OpenAPI Exporter"
   },
   "paths": {
@@ -5592,7 +5592,7 @@
         ],
         "summary": "Analyze canvas and group nodes for parallel processing",
         "description": "Analyzes the specified canvas file and groups nodes of the target color\nusing TF-IDF + K-Means clustering algorithm.\n\nReturns grouped nodes with recommended agents and confidence scores.\nResponse time target: < 3 seconds.",
-        "operationId": "analyze_canvas_api_v1_canvas_intelligent_parallel__post",
+        "operationId": "analyze_parallel_groups",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5674,7 +5674,7 @@
         ],
         "summary": "Confirm and start batch processing",
         "description": "Starts batch processing for the confirmed node groups.\nReturns immediately with session ID for tracking progress.\n\nClient can override recommended agents in the request.",
-        "operationId": "confirm_batch_api_v1_canvas_intelligent_parallel_confirm_post",
+        "operationId": "confirm_parallel_processing",
         "requestBody": {
           "content": {
             "application/json": {
@@ -5756,7 +5756,7 @@
         ],
         "summary": "Get batch processing progress",
         "description": "Returns current progress status for a batch processing session.\nIncludes completed/failed node counts, per-group details, and performance metrics.",
-        "operationId": "get_progress_api_v1_canvas_intelligent_parallel__session_id__get",
+        "operationId": "get_processing_progress",
         "parameters": [
           {
             "name": "session_id",
@@ -5844,7 +5844,7 @@
         ],
         "summary": "Cancel batch processing session",
         "description": "Cancels an in-progress batch processing session.\nReturns the count of nodes completed before cancellation.\n\nReturns 409 Conflict if session is already completed or cancelled.",
-        "operationId": "cancel_session_api_v1_canvas_intelligent_parallel_cancel__session_id__post",
+        "operationId": "cancel_processing_session",
         "parameters": [
           {
             "name": "session_id",
@@ -5932,7 +5932,7 @@
         ],
         "summary": "Retry single node with specified agent",
         "description": "Executes a single agent on a specific node.\nUseful for retrying failed nodes from batch processing.\n\nThis endpoint is independent of any batch session.",
-        "operationId": "retry_single_node_api_v1_canvas_single_agent_post",
+        "operationId": "retry_single_agent",
         "requestBody": {
           "content": {
             "application/json": {
@@ -7159,6 +7159,7 @@
         "properties": {
           "canvas_path": {
             "type": "string",
+            "maxLength": 500,
             "title": "Canvas Path",
             "description": "Canvas file path",
             "examples": [
@@ -8046,9 +8047,7 @@
           "components": {
             "anyOf": [
               {
-                "additionalProperties": {
-                  "type": "string"
-                },
+                "additionalProperties": true,
                 "type": "object"
               },
               {
@@ -8056,7 +8055,7 @@
               }
             ],
             "title": "Components",
-            "description": "Optional component health status (e.g., fsrs, neo4j)"
+            "description": "Optional component health status (e.g., fsrs, neo4j, batch_sessions)"
           }
         },
         "type": "object",
@@ -8331,6 +8330,7 @@
         "properties": {
           "canvas_path": {
             "type": "string",
+            "maxLength": 500,
             "title": "Canvas Path",
             "description": "Canvas file path",
             "examples": [
@@ -12957,6 +12957,7 @@
           },
           "canvas_path": {
             "type": "string",
+            "maxLength": 500,
             "title": "Canvas Path",
             "description": "Canvas file path",
             "examples": [

@@ -34,9 +34,9 @@ class HealthCheckResponse(BaseModel):
     app_name: str = Field(..., description="Application name")
     version: str = Field(..., description="Application version")
     timestamp: datetime = Field(..., description="Check timestamp")
-    components: Optional[Dict[str, str]] = Field(
+    components: Optional[Dict[str, Any]] = Field(
         None,
-        description="Optional component health status (e.g., fsrs, neo4j)"
+        description="Optional component health status (e.g., fsrs, neo4j, batch_sessions)"
     )
 
 

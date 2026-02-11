@@ -432,6 +432,7 @@ class TestPerformance:
     """
 
     @pytest.mark.asyncio
+    @pytest.mark.performance
     @pytest.mark.timeout(5)
     async def test_100_canvas_scan_under_5_seconds(self, cross_canvas_service, mock_neo4j_client):
         """Scanning 100 canvases should complete in < 5 seconds (AC7)."""
@@ -455,6 +456,7 @@ class TestPerformance:
         assert result.total_scanned == 100
         assert elapsed_time < 5.0, f"Scan took {elapsed_time:.2f}s, expected < 5s"
 
+    @pytest.mark.performance
     @pytest.mark.asyncio
     async def test_large_canvas_scan_reasonable_time(self, cross_canvas_service, mock_neo4j_client):
         """Large scan should scale reasonably."""

@@ -14,7 +14,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -84,9 +84,22 @@ class IntelligentParallelRequest(BaseModel):
     """
     canvas_path: str = Field(
         ...,
+        max_length=500,
         description="Canvas file path",
         examples=["离散数学.canvas"]
     )
+
+    @field_validator("canvas_path")
+    @classmethod
+    def validate_canvas_path(cls, v: str) -> str:
+        if "\x00" in v:
+            raise ValueError("canvas_path must not contain null bytes")
+        if ".." in v:
+            raise ValueError("canvas_path must not contain '..'")
+        if not v.endswith(".canvas"):
+            raise ValueError("canvas_path must end with '.canvas'")
+        return v
+
     target_color: str = Field(
         default="3",
         description="Target node color (default purple). 1=gray, 2=green, 3=purple, 4=red, 5=blue, 6=yellow",
@@ -161,7 +174,19 @@ class ConfirmRequest(BaseModel):
 
     [Source: specs/api/parallel-api.openapi.yml#/components/schemas/ParallelExecuteRequest]
     """
-    canvas_path: str = Field(..., description="Canvas file path", examples=["离散数学.canvas"])
+    canvas_path: str = Field(..., max_length=500, description="Canvas file path", examples=["离散数学.canvas"])
+
+    @field_validator("canvas_path")
+    @classmethod
+    def validate_canvas_path(cls, v: str) -> str:
+        if "\x00" in v:
+            raise ValueError("canvas_path must not contain null bytes")
+        if ".." in v:
+            raise ValueError("canvas_path must not contain '..'")
+        if not v.endswith(".canvas"):
+            raise ValueError("canvas_path must end with '.canvas'")
+        return v
+
     groups: List[GroupExecuteConfig] = Field(
         ...,
         description="Group configurations with agent assignments (can override recommendations)"
@@ -188,7 +213,18 @@ class SingleAgentRequest(BaseModel):
     """
     node_id: str = Field(..., description="Node ID to process", examples=["node-005"])
     agent_type: str = Field(..., description="Agent type", examples=["oral-explanation"])
-    canvas_path: str = Field(..., description="Canvas file path", examples=["离散数学.canvas"])
+    canvas_path: str = Field(..., max_length=500, description="Canvas file path", examples=["离散数学.canvas"])
+
+    @field_validator("canvas_path")
+    @classmethod
+    def validate_canvas_path(cls, v: str) -> str:
+        if "\x00" in v:
+            raise ValueError("canvas_path must not contain null bytes")
+        if ".." in v:
+            raise ValueError("canvas_path must not contain '..'")
+        if not v.endswith(".canvas"):
+            raise ValueError("canvas_path must end with '.canvas'")
+        return v
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

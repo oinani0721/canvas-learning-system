@@ -479,11 +479,10 @@ class IntelligentParallelService:
         except Exception:
             return None
 
-        # Check if already terminal
-        session_status_value = session.status.value
-        if session_status_value in ("completed", "cancelled", "failed"):
+        # Check if already terminal (completed, partial_failure, failed, cancelled)
+        if session.status.is_terminal:
             raise ValueError(
-                f"Session already {session_status_value}, cannot cancel"
+                f"Session already {session.status.value}, cannot cancel"
             )
 
         completed_count = session.completed_nodes

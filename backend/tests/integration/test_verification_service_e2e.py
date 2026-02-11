@@ -422,6 +422,7 @@ class TestEndToEndVerificationFlow:
 class TestPerformanceRequirements:
     """Test performance requirements from Story 31.1."""
 
+    @pytest.mark.performance
     @pytest.mark.asyncio
     async def test_response_time_under_500ms_mock_mode(
         self,

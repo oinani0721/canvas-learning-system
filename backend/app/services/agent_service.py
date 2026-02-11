@@ -998,7 +998,9 @@ class AgentService:
         canvas_service: Optional[Any] = None,  # ✅ FIX: Canvas写入支持
         neo4j_client: Optional[Any] = None,  # Story 36.7: Neo4j学习记忆注入
         max_concurrent: int = 10,
-        ai_config: Optional[Any] = None  # AIConfig from dependencies.py
+        ai_config: Optional[Any] = None,  # AIConfig from dependencies.py
+        memory_cache_maxsize: int = 1000,  # Story 36.13 AC-3
+        memory_cache_ttl: int = 30,  # Story 36.13 AC-3
     ):
         """
         Initialize AgentService with optional GeminiClient and LearningMemoryClient.
@@ -1018,6 +1020,10 @@ class AgentService:
             max_concurrent: Maximum concurrent agent calls (default: 10)
             ai_config: AIConfig dataclass with provider, model, base_url, api_key.
                       Used for future multi-provider support.
+            memory_cache_maxsize: Max entries in memory TTLCache (default: 1000).
+                                Story 36.13 AC-3. Configurable via AGENT_MEMORY_CACHE_MAXSIZE.
+            memory_cache_ttl: TTL in seconds for memory cache entries (default: 30).
+                             Story 36.13 AC-3. Configurable via AGENT_MEMORY_CACHE_TTL.
 
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
         [Source: docs/prd/sprint-change-proposal-20251208.md - Story 20.4]
@@ -1040,7 +1046,8 @@ class AgentService:
         # Story 12.A.4: Memory cache for AC6 (30s TTL)
         # [Source: docs/stories/story-12.A.4-memory-injection.md#Task-6]
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
-        self._memory_cache: TTLCache = TTLCache(maxsize=1000, ttl=30)
+        # Story 36.13 AC-3: maxsize and ttl configurable via Settings
+        self._memory_cache: TTLCache = TTLCache(maxsize=memory_cache_maxsize, ttl=memory_cache_ttl)
         # NFR-P0: Lock for cache stampede protection
         self._memory_cache_lock = asyncio.Lock()
 

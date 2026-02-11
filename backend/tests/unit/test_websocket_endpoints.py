@@ -46,7 +46,7 @@ from app.services.websocket_manager import (
 def connection_manager():
     """Create fresh ConnectionManager for each test."""
     reset_connection_manager()
-    return ConnectionManager()
+    return get_connection_manager()
 
 
 @pytest.fixture

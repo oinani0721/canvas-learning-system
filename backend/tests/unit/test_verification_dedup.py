@@ -77,7 +77,7 @@ class TestVerificationDedup:
                 "question_id": "vq_001",
                 "question_text": "请解释什么是逆否命题？",
                 "question_type": "standard",
-                "asked_at": datetime.now().isoformat()
+                "asked_at": datetime(2025, 1, 15, 10, 30, 0).isoformat()
             }
         ]
 

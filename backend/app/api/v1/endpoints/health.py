@@ -121,6 +121,15 @@ async def health_check(
     except Exception:
         components["batch_orchestrator"] = "unavailable"
 
+    # EPIC-33 NFR: Include batch session statistics
+    try:
+        from app.dependencies import get_session_manager
+        sm = get_session_manager()
+        stats = await sm.get_stats()
+        components["batch_sessions"] = stats
+    except Exception:
+        components["batch_sessions"] = "unavailable"
+
     return HealthCheckResponse(
         status="healthy",
         app_name=settings.PROJECT_NAME,

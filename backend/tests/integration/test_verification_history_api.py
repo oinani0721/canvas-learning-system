@@ -26,20 +26,14 @@ from app.models import (
 )
 
 
+@pytest.fixture
+def client():
+    """Create test client for verification history API tests"""
+    return TestClient(app)
+
+
 class TestVerificationHistoryEndpoint:
     """Test GET /verification/history/{concept} endpoint (AC-31.4.3, Task 7.4)"""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
-
-    @pytest.fixture
-    def mock_graphiti_client(self):
-        """Create mock GraphitiTemporalClient"""
-        client = AsyncMock()
-        client.search_verification_questions = AsyncMock(return_value=[])
-        return client
 
     def test_endpoint_exists(self, client):
         """
@@ -54,8 +48,7 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            # Should return 200 or valid response structure
-            assert response.status_code in [200, 404, 503]
+            assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
 
     def test_returns_empty_list_when_no_history(self, client):
         """
@@ -156,20 +149,14 @@ class TestVerificationHistoryEndpoint:
 
             response = client.get("/api/v1/review/verification/history/逆否命题")
 
-            # Should return graceful response (empty list or service unavailable)
-            assert response.status_code in [200, 503]
-            if response.status_code == 200:
-                data = response.json()
-                assert data["total_count"] == 0
+            # Graceful degradation: should return 200 with empty list
+            assert response.status_code == 200, f"Graceful degradation should return 200, got {response.status_code}"
+            data = response.json()
+            assert data["total_count"] == 0
 
 
 class TestVerificationHistoryPagination:
     """Test pagination functionality (Task 7.5)"""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
 
     def test_default_pagination(self, client):
         """
@@ -186,10 +173,9 @@ class TestVerificationHistoryPagination:
 
             assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
-            # Check pagination info if present
-            if data.get("pagination"):
-                assert data["pagination"]["limit"] == 20
-                assert data["pagination"]["offset"] == 0
+            assert "pagination" in data, "Response should include pagination info"
+            assert data["pagination"]["limit"] == 20
+            assert data["pagination"]["offset"] == 0
 
     def test_custom_limit(self, client):
         """
@@ -236,9 +222,8 @@ class TestVerificationHistoryPagination:
 
             assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
-            # Verify offset is reflected in pagination info
-            if data.get("pagination"):
-                assert data["pagination"]["offset"] == 10
+            assert "pagination" in data, "Response should include pagination info"
+            assert data["pagination"]["offset"] == 10
 
     def test_has_more_indicator(self, client):
         """
@@ -262,11 +247,10 @@ class TestVerificationHistoryPagination:
 
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
-            # Return total count and limited items
+            # Endpoint fetches limit+1 to detect has_more, so return 21 items
             mock_client.search_verification_questions = AsyncMock(
-                return_value=mock_history[:20]
+                return_value=mock_history[:21]
             )
-            mock_client.count_verification_questions = AsyncMock(return_value=25)
             mock_get.return_value = mock_client
 
             response = client.get(
@@ -276,58 +260,36 @@ class TestVerificationHistoryPagination:
 
             assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
-            # If pagination is included and total_count > items returned
-            if data.get("pagination") and data["total_count"] > len(data["items"]):
-                assert data["pagination"]["has_more"] is True
+            assert "pagination" in data, "Response should include pagination info"
+            assert data["pagination"]["has_more"] is True
 
-    def test_limit_validation(self, client):
+    @pytest.mark.parametrize("params,description", [
+        ({"limit": 200}, "invalid limit (too high, max 100)"),
+        ({"offset": -1}, "invalid offset (negative)"),
+    ])
+    def test_invalid_pagination_params(self, client, params, description):
         """
-        Test limit parameter validation (1-100).
+        Test pagination parameter validation rejects invalid values.
 
-        [Source: specs/data/verification-history-response.schema.json#L30-35]
-        """
-        with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
-            mock_client = AsyncMock()
-            mock_client.search_verification_questions = AsyncMock(return_value=[])
-            mock_get.return_value = mock_client
-
-            # Test invalid limit (too high)
-            response = client.get(
-                "/api/v1/review/verification/history/逆否命题",
-                params={"limit": 200}
-            )
-
-            # Should reject invalid limit (400 Bad Request or 422 Unprocessable Entity)
-            assert response.status_code in [400, 422]
-
-    def test_offset_validation(self, client):
-        """
-        Test offset parameter validation (>= 0).
-
-        [Source: specs/data/verification-history-response.schema.json#L36-40]
+        [Source: specs/data/verification-history-response.schema.json#L30-40]
         """
         with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
             mock_client = AsyncMock()
             mock_client.search_verification_questions = AsyncMock(return_value=[])
             mock_get.return_value = mock_client
 
-            # Test invalid offset (negative)
             response = client.get(
                 "/api/v1/review/verification/history/逆否命题",
-                params={"offset": -1}
+                params=params
             )
 
-            # Should reject negative offset (400 Bad Request or 422 Unprocessable Entity)
-            assert response.status_code in [400, 422]
+            assert response.status_code in [400, 422], (
+                f"Expected 400/422 for {description}, got {response.status_code}"
+            )
 
 
 class TestVerificationHistoryResponseFormat:
     """Test response format validation (AC-31.4.4)"""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
 
     def test_response_matches_schema(self, client):
         """
@@ -363,46 +325,46 @@ class TestVerificationHistoryResponseFormat:
             assert "items" in data
 
             # Verify item fields match schema
-            if data["items"]:
-                item = data["items"][0]
-                assert "question_id" in item
-                assert "question_text" in item
-                assert "question_type" in item
-                assert "canvas_name" in item
-                assert "asked_at" in item
+            assert len(data["items"]) > 0, "Expected non-empty items list"
+            item = data["items"][0]
+            assert "question_id" in item
+            assert "question_text" in item
+            assert "question_type" in item
+            assert "canvas_name" in item
+            assert "asked_at" in item
 
-    def test_question_type_enum_values(self, client):
+    @pytest.mark.parametrize("q_type", [
+        "standard", "application", "comparison", "counterexample", "synthesis"
+    ])
+    def test_question_type_enum_values(self, client, q_type):
         """
         Test question_type field uses valid enum values.
 
         [Source: specs/data/verification-history-response.schema.json#L61-64]
         """
-        valid_types = ["standard", "application", "comparison", "counterexample", "synthesis"]
+        mock_history = [
+            {
+                "question_id": "vq_test",
+                "question_text": "Test question",
+                "question_type": q_type,
+                "user_answer": None,
+                "score": None,
+                "canvas_name": "测试",
+                "asked_at": datetime.now().isoformat()
+            }
+        ]
 
-        for q_type in valid_types:
-            mock_history = [
-                {
-                    "question_id": "vq_test",
-                    "question_text": "Test question",
-                    "question_type": q_type,
-                    "user_answer": None,
-                    "score": None,
-                    "canvas_name": "测试",
-                    "asked_at": datetime.now().isoformat()
-                }
-            ]
+        with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
+            mock_client = AsyncMock()
+            mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
+            mock_get.return_value = mock_client
 
-            with patch("app.dependencies.get_graphiti_temporal_client") as mock_get:
-                mock_client = AsyncMock()
-                mock_client.search_verification_questions = AsyncMock(return_value=mock_history)
-                mock_get.return_value = mock_client
+            response = client.get("/api/v1/review/verification/history/测试概念")
 
-                response = client.get("/api/v1/review/verification/history/测试概念")
-
-                assert response.status_code == 200, f"Expected 200 for type {q_type}, got {response.status_code}: {response.text}"
-                data = response.json()
-                if data["items"]:
-                    assert data["items"][0]["question_type"] == q_type
+            assert response.status_code == 200, f"Expected 200 for type {q_type}, got {response.status_code}: {response.text}"
+            data = response.json()
+            assert len(data["items"]) > 0, f"Expected non-empty items for type {q_type}"
+            assert data["items"][0]["question_type"] == q_type
 
     def test_score_range_validation(self, client):
         """
@@ -431,18 +393,14 @@ class TestVerificationHistoryResponseFormat:
 
             assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
             data = response.json()
-            if data["items"] and data["items"][0].get("score") is not None:
-                score = data["items"][0]["score"]
-                assert 0 <= score <= 100
+            assert len(data["items"]) > 0, "Expected non-empty items list"
+            assert data["items"][0].get("score") is not None, "Expected score to be present"
+            score = data["items"][0]["score"]
+            assert 0 <= score <= 100
 
 
 class TestMultiSubjectIsolation:
     """Test multi-subject isolation via group_id (ADR-0003)"""
-
-    @pytest.fixture
-    def client(self):
-        """Create test client"""
-        return TestClient(app)
 
     def test_group_id_filter(self, client):
         """
@@ -527,5 +485,6 @@ class TestMultiSubjectIsolation:
             physics_data = response_physics.json()
 
             # Results should be different based on group_id
-            if math_data["items"] and physics_data["items"]:
-                assert math_data["items"][0]["question_id"] != physics_data["items"][0]["question_id"]
+            assert len(math_data["items"]) > 0, "Expected non-empty math items"
+            assert len(physics_data["items"]) > 0, "Expected non-empty physics items"
+            assert math_data["items"][0]["question_id"] != physics_data["items"][0]["question_id"]

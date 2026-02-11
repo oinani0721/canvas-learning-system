@@ -190,7 +190,7 @@ def create_fsrs_manager(settings=None) -> Optional[Any]:
         try:
             from app.config import get_settings
             settings = get_settings()
-        except Exception as e:
+        except (ImportError, RuntimeError) as e:
             logger.warning(f"Cannot load settings for FSRSManager: {e}")
             return None
 
@@ -207,7 +207,7 @@ def create_fsrs_manager(settings=None) -> Optional[Any]:
         mgr = FSRSManager(desired_retention=retention)
         logger.info(f"FSRSManager created (desired_retention={retention})")
         return mgr
-    except Exception as e:
+    except (TypeError, ValueError, RuntimeError) as e:
         logger.warning(f"FSRSManager creation failed: {e}")
         return None
 
@@ -291,7 +291,7 @@ class ReviewService:
                 if isinstance(loaded, dict):
                     logger.info(f"Loaded {len(loaded)} FSRS card states from {_CARD_STATES_FILE}")
                     return loaded
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to load FSRS card states: {e}")
         return {}
 
@@ -310,7 +310,7 @@ class ReviewService:
                 await asyncio.to_thread(tmp_file.write_text, data, "utf-8")
                 await asyncio.to_thread(tmp_file.replace, _CARD_STATES_FILE)
                 logger.debug(f"Saved {len(self._card_states)} FSRS card states to {_CARD_STATES_FILE}")
-            except Exception as e:
+            except (OSError, TypeError) as e:
                 logger.warning(f"Failed to save FSRS card states: {e}")
 
     def _extract_question_from_node(self, node: Dict[str, Any]) -> str:
@@ -740,6 +740,7 @@ class ReviewService:
                     "algorithm": "fsrs-4.5"
                 }
 
+            # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to Ebbinghaus
             except Exception as e:
                 logger.error(f"FSRS scheduling failed, using fallback: {e}")
                 # Fall through to fallback
@@ -904,6 +905,7 @@ class ReviewService:
                     "algorithm": "fsrs-4.5"
                 }
 
+            # INTENTIONAL: Third-party py-fsrs library may raise unpredictable errors; fallback to legacy
             except Exception as e:
                 logger.error(f"FSRS recording failed, using fallback: {e}")
                 # Fall through to fallback
@@ -1042,13 +1044,23 @@ class ReviewService:
 
                 logger.info(f"Found {len(all_records)} history records from Graphiti")
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
                 logger.error(f"Error querying history from Graphiti: {e}")
 
         # If no records from Graphiti, try FSRS card states
         if not all_records and self._card_states:
             for key, card_data in self._card_states.items():
                 try:
+                    # Handle both dict and serialized JSON string formats
+                    # (FSRS serialize_card() stores strings, _load_card_states restores as-is)
+                    if isinstance(card_data, str):
+                        try:
+                            card_data = json.loads(card_data)
+                        except (json.JSONDecodeError, ValueError):
+                            continue
+                    if not isinstance(card_data, dict):
+                        continue
+
                     last_review = card_data.get("last_review")
                     if not last_review:
                         continue
@@ -1127,12 +1139,21 @@ class ReviewService:
                 "reviews": records_by_date[date_key]
             })
 
+        # Story 34.12 AC3: Calculate retention_rate from rating data
+        # retention_rate = count(rating >= 3) / count(total records with rating)
+        rated_records = [r for r in all_records if r.get("rating") is not None]
+        if rated_records:
+            good_count = sum(1 for r in rated_records if r.get("rating", 0) >= 3)
+            retention_rate = round(good_count / len(rated_records), 4)
+        else:
+            retention_rate = None
+
         return {
             "records": daily_records,
             "total_count": total_count,
             "has_more": has_more,
             "streak_days": streak_days,
-            "retention_rate": None  # Would require more analysis
+            "retention_rate": retention_rate
         }
 
     async def _query_weak_concepts_from_graphiti(
@@ -1151,7 +1172,10 @@ class ReviewService:
             List of weak concept dicts with scores and review counts
         """
         if not self.graphiti_client:
-            logger.warning("Graphiti client not available, returning empty weak concepts")
+            logger.warning(
+                "功能 %s 降级运行: %s 为 None，返回默认值 %s",
+                "query_weak_concepts", "graphiti_client", "[]"
+            )
             return []
 
         try:
@@ -1193,7 +1217,7 @@ class ReviewService:
             )
             return weak_concepts
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.error(f"Error querying weak concepts: {e}")
             return []
 
@@ -1214,7 +1238,10 @@ class ReviewService:
             mode: Mode used (fresh/targeted)
         """
         if not self.graphiti_client:
-            logger.debug("Graphiti client not available, skipping relationship storage")
+            logger.warning(
+                "功能 %s 降级运行: %s 为 None，返回默认值 %s",
+                "store_review_relationship", "graphiti_client", "skip"
+            )
             return
 
         try:
@@ -1244,7 +1271,7 @@ class ReviewService:
                 f"Stored review relationship: {review_canvas} --[{mode}]--> {original_canvas}"
             )
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.warning(f"Failed to store review relationship: {e}")
 
     async def _apply_weighted_selection(
@@ -1401,7 +1428,7 @@ class ReviewService:
             logger.info(f"Retrieved {len(history)} review records for {canvas_name}")
             return history
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.warning(f"Graphiti query failed, using empty history: {e}")
             return []
 
@@ -1468,7 +1495,10 @@ class ReviewService:
             List of review session dicts
         """
         if not self.graphiti_client:
-            logger.warning("Graphiti client not available, returning empty review sessions")
+            logger.warning(
+                "功能 %s 降级运行: %s 为 None，返回默认值 %s",
+                "get_review_sessions", "graphiti_client", "[]"
+            )
             return []
 
         try:
@@ -1539,7 +1569,7 @@ class ReviewService:
             )
             return reviews
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.error(f"Error querying review history: {e}")
             return []
 
@@ -1619,6 +1649,10 @@ class ReviewService:
             List of WeakConceptImprovement dicts
         """
         if not self.graphiti_client:
+            logger.warning(
+                "功能 %s 降级运行: %s 为 None，返回默认值 %s",
+                "get_weak_concept_improvement", "graphiti_client", "[]"
+            )
             return []
 
         try:
@@ -1685,7 +1719,7 @@ class ReviewService:
 
             return improvements
 
-        except Exception as e:
+        except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
             logger.error(f"Error querying weak concept improvement: {e}")
             return []
 
@@ -1740,7 +1774,7 @@ class ReviewService:
                             logger.debug(f"Loaded card state from Graphiti: {concept_id}")
                             return card_data
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
                 logger.warning(f"Failed to load card state from Graphiti: {e}")
 
         return None
@@ -1795,7 +1829,7 @@ class ReviewService:
                 logger.info(f"Saved card state to Graphiti: {concept_id}")
                 return True
 
-            except Exception as e:
+            except (ConnectionError, TimeoutError, ValueError, KeyError, TypeError, AttributeError) as e:
                 logger.warning(f"Failed to save card state to Graphiti: {e}")
                 # In-memory cache still valid
                 return True
@@ -1835,7 +1869,10 @@ class ReviewService:
 
         # Story 32.3: Try to get card from cache or persistence
         if self._fsrs_manager is None:
-            logger.warning("FSRS not available, returning None for state query")
+            logger.warning(
+                "功能 %s 降级运行: %s 为 None，返回默认值 %s",
+                "get_fsrs_state", "fsrs_manager", "found=False"
+            )
             return {"found": False, "reason": "fsrs_not_initialized"}
 
         try:
@@ -1877,6 +1914,7 @@ class ReviewService:
                         }
                         await memory_client.add_learning_memory(memory_data)
                         logger.info(f"Persisted auto-created card to Graphiti: {cid}")
+                    # INTENTIONAL: Fire-and-forget background task must not crash; any error type possible
                     except Exception as e:
                         # Story 32.10 AC-3: Track failure count for observability
                         _self_ref._auto_persist_failures += 1
@@ -1925,6 +1963,7 @@ class ReviewService:
 
             return result
 
+        # INTENTIONAL: API-facing endpoint; third-party FSRS library may raise unpredictable errors
         except Exception as e:
             logger.error(f"Error getting FSRS state for {concept_id}: {e}")
             return {"found": False, "reason": f"error: {e}"}
@@ -1987,7 +2026,7 @@ async def get_review_service() -> "ReviewService":
         try:
             from app.services.memory_service import get_memory_service as _get_mem
             memory_client = await _get_mem()
-        except Exception as e:
+        except (ImportError, RuntimeError, AttributeError) as e:
             logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
 
         canvas_service = CanvasService(
@@ -2006,7 +2045,7 @@ async def get_review_service() -> "ReviewService":
         try:
             from app.dependencies import get_graphiti_temporal_client
             graphiti_client = get_graphiti_temporal_client()
-        except Exception as e:
+        except (ImportError, RuntimeError, AttributeError) as e:
             logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
 
         if not graphiti_client:

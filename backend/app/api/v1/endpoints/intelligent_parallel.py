@@ -178,6 +178,7 @@ def reset_service():
 @intelligent_parallel_router.post(
     "/",
     response_model=IntelligentParallelResponse,
+    operation_id="analyze_parallel_groups",
     summary="Analyze canvas and group nodes for parallel processing",
     description="""
 Analyzes the specified canvas file and groups nodes of the target color
@@ -254,6 +255,7 @@ async def analyze_canvas(
     "/confirm",
     response_model=SessionResponse,
     status_code=status.HTTP_202_ACCEPTED,
+    operation_id="confirm_parallel_processing",
     summary="Confirm and start batch processing",
     description="""
 Starts batch processing for the confirmed node groups.
@@ -341,6 +343,7 @@ async def confirm_batch(
 @intelligent_parallel_router.get(
     "/{session_id}",
     response_model=ProgressResponse,
+    operation_id="get_processing_progress",
     summary="Get batch processing progress",
     description="""
 Returns current progress status for a batch processing session.
@@ -414,6 +417,7 @@ async def get_progress(
 @intelligent_parallel_router.post(
     "/cancel/{session_id}",
     response_model=CancelResponse,
+    operation_id="cancel_processing_session",
     summary="Cancel batch processing session",
     description="""
 Cancels an in-progress batch processing session.
@@ -504,6 +508,7 @@ async def cancel_session(
 @single_agent_router.post(
     "/single-agent",
     response_model=SingleAgentResponse,
+    operation_id="retry_single_agent",
     summary="Retry single node with specified agent",
     description="""
 Executes a single agent on a specific node.

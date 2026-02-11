@@ -46,13 +46,6 @@ class TestReviewModeSupport:
         return mock
 
     @pytest.fixture
-    def mock_graphiti_client(self):
-        """Mock Graphiti client for testing"""
-        mock = MagicMock()
-        mock.create_relationship = AsyncMock()
-        return mock
-
-    @pytest.fixture
     def review_service(self, mock_canvas_service, mock_task_manager, mock_graphiti_client):
         """Create ReviewService with mocked dependencies"""
         service = ReviewService(

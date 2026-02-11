@@ -17,7 +17,7 @@ Features:
 """
 
 import asyncio
-import logging
+import structlog
 import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
@@ -31,7 +31,7 @@ from ..models.session_models import (
     is_valid_transition,
 )
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 # Constants
 SESSION_TIMEOUT_MINUTES = 30
@@ -152,7 +152,7 @@ class SessionManager:
         self._cleanup_task: Optional[asyncio.Task] = None
         self._initialized = True
 
-        logger.info("SessionManager initialized")
+        logger.info("session_manager_initialized")
 
     @classmethod
     def get_instance(cls) -> "SessionManager":
@@ -211,7 +211,7 @@ class SessionManager:
         async with self._session_lock:
             await self._storage.save_session(session)
 
-        logger.info(f"Created session {session_id} for {canvas_path} with {node_count} nodes")
+        logger.info("session_created", session_id=session_id, canvas_path=canvas_path, node_count=node_count)
         return session_id
 
     async def get_session(self, session_id: str) -> SessionInfo:
@@ -299,7 +299,7 @@ class SessionManager:
 
             await self._storage.save_session(session)
 
-        logger.info(f"Session {session_id} transitioned to {new_status.value}")
+        logger.info("session_state_transitioned", session_id=session_id, new_status=new_status.value)
         return session
 
     async def update_progress(
@@ -330,9 +330,7 @@ class SessionManager:
 
             # Only update progress if session is in running state
             if not session.status.allows_progress_update:
-                logger.warning(
-                    f"Cannot update progress for session {session_id} in status {session.status.value}"
-                )
+                logger.warning("progress_update_rejected", session_id=session_id, status=session.status.value)
                 return session
 
             # Clamp progress to 0-100
@@ -341,7 +339,7 @@ class SessionManager:
 
             await self._storage.save_session(session)
 
-        logger.debug(f"Session {session_id} progress: {progress_percent:.1f}%")
+        logger.debug("session_progress_updated", session_id=session_id, progress_percent=progress_percent)
         return session
 
     async def add_node_result(
@@ -417,7 +415,7 @@ class SessionManager:
 
             await self._storage.save_session(session)
 
-        logger.debug(f"Added node result for {node_id} in session {session_id}: {status}")
+        logger.debug("node_result_added", session_id=session_id, node_id=node_id, status=status)
         return session
 
     async def cancel_session(self, session_id: str) -> SessionInfo:
@@ -472,10 +470,10 @@ class SessionManager:
                 if self.is_session_expired(session):
                     await self._storage.delete_session(session.session_id)
                     cleaned += 1
-                    logger.debug(f"Cleaned up expired session {session.session_id}")
+                    logger.debug("expired_session_cleaned", session_id=session.session_id)
 
         if cleaned > 0:
-            logger.info(f"Cleaned up {cleaned} expired sessions")
+            logger.info("expired_sessions_cleanup_complete", cleaned_count=cleaned)
 
         return cleaned
 
@@ -493,10 +491,10 @@ class SessionManager:
                 except asyncio.CancelledError:
                     break
                 except Exception as e:
-                    logger.error(f"Session cleanup error: {e}")
+                    logger.error("session_cleanup_error", error=str(e))
 
         self._cleanup_task = asyncio.create_task(cleanup_loop())
-        logger.info("Started session cleanup scheduler")
+        logger.info("cleanup_scheduler_started")
 
     async def stop_cleanup_scheduler(self) -> None:
         """
@@ -510,7 +508,7 @@ class SessionManager:
             except asyncio.CancelledError:
                 pass
             self._cleanup_task = None
-            logger.info("Stopped session cleanup scheduler")
+            logger.info("cleanup_scheduler_stopped")
 
     async def list_sessions(
         self,
@@ -533,6 +531,21 @@ class SessionManager:
 
         return sessions
 
+    async def get_stats(self) -> dict:
+        """
+        Get session statistics for health monitoring.
+
+        Returns:
+            Dict with active_sessions and total_sessions counts.
+        """
+        async with self._session_lock:
+            sessions = await self._storage.list_sessions()
+        active = sum(
+            1 for s in sessions
+            if s.status in (SessionStatus.PENDING, SessionStatus.RUNNING)
+        )
+        return {"active_sessions": active, "total_sessions": len(sessions)}
+
     async def cleanup(self) -> None:
         """
         Clean up resources.
@@ -545,4 +558,4 @@ class SessionManager:
                 self._storage.clear()
 
         self._initialized = False
-        logger.info("SessionManager cleanup completed")
+        logger.info("session_manager_cleanup_completed")
