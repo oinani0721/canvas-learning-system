@@ -1,0 +1,223 @@
+{
+  "epic": "EPIC-34",
+  "title": "Canvas学习系统 - 跨Canvas与教材挂载检验白板完整激活",
+  "assessment_type": "Security NFR Assessment",
+  "system_context": "Local single-user Obsidian plugin + FastAPI backend (localhost only)",
+  "assessment_date": "2026-02-09",
+  "risk_level": "LOW",
+
+  "findings": [
+    {
+      "category": "Input Validation",
+      "status": "PASS",
+      "description": "FastAPI parameter validation with pydantic enforces constraints on API inputs",
+      "evidence": [
+        "days parameter: Query(ge=1, le=365) — auto-validated by FastAPI",
+        "7 tests in TestDaysParameterValidation verify rejection of invalid inputs (0, -1, 400, 'abc')",
+        "Invalid inputs return HTTP 422 Unprocessable Entity with validation errors"
+      ],
+      "recommendations": [
+        "✅ Current implementation sufficient for local single-user context",
+        "Consider adding explicit validation for canvas_file_name parameter format (optional enhancement)"
+      ]
+    },
+    {
+      "category": "Authentication & Authorization",
+      "status": "N/A",
+      "description": "Not applicable for single-user local application",
+      "evidence": [
+        "System runs on localhost only",
+        "Single user has full access to all features",
+        "No multi-tenancy or role-based access control needed"
+      ],
+      "recommendations": [
+        "N/A — No auth required for local single-user tool"
+      ]
+    },
+    {
+      "category": "Error Handling & Information Disclosure",
+      "status": "CONCERN",
+      "description": "Mixed error handling patterns — some exceptions logged, others silently caught",
+      "evidence": [
+        "✅ Removed `except Exception: pass` that was swallowing graphiti errors (Story 34.8 H4)",
+        "✅ graphiti_client failures trigger WARNING log for observability",
+        "⚠️ Multiple `except Exception as e:` blocks in review_service.py still present",
+        "✅ Service errors return HTTP 200 with empty data (graceful degradation, not 500 errors)"
+      ],
+      "recommendations": [
+        "Audit all `except Exception` blocks — ensure they log sufficient context for debugging",
+        "Consider structured error response format with error_type field",
+        "For local use: stack traces in logs are acceptable (no sensitive data risk)"
+      ]
+    },
+    {
+      "category": "Dependency Injection Completeness",
+      "status": "PASS",
+      "description": "Optional dependencies explicitly handled with logging",
+      "evidence": [
+        "graphiti_client injected via dependencies.py (Story 34.8 AC2)",
+        "WARNING log when graphiti unavailable: 'Failed to get graphiti_client for ReviewService'",
+        "2 DI completeness tests verify injection (source-code inspection approach)",
+        "Service degrades gracefully when optional deps are None"
+      ],
+      "recommendations": [
+        "✅ Current implementation sufficient",
+        "Consider refactoring DI completeness tests to runtime checks (less fragile than source inspection)"
+      ]
+    },
+    {
+      "category": "Denial of Service (DoS) Protection",
+      "status": "PASS",
+      "description": "Safety bounds prevent unbounded resource consumption",
+      "evidence": [
+        "MAX_HISTORY_RECORDS = 1000 hard cap on query results (Story 34.8 AC3)",
+        "show_all parameter uses hard cap, not None (prevents unlimited fetches)"
+      ],
+      "recommendations": [
+        "✅ Adequate for single-user local context",
+        "If Neo4j grows to 100K+ records, consider pagination instead of hard cap"
+      ]
+    },
+    {
+      "category": "Data Integrity",
+      "status": "PASS",
+      "description": "JSON storage with schema validation, Neo4j with transaction safety",
+      "evidence": [
+        ".canvas-links.json structure validated by pydantic models",
+        "Graphiti handles Neo4j transactions internally",
+        "No evidence of race conditions (single-user, single-process)"
+      ],
+      "recommendations": [
+        "✅ Current implementation sufficient",
+        "File locking not needed (single-process, no concurrent writes)"
+      ]
+    },
+    {
+      "category": "Secrets Management",
+      "status": "N/A",
+      "description": "No secrets used in EPIC-34 functionality",
+      "evidence": [
+        "No API keys in review endpoints",
+        "Neo4j credentials managed at config level (out of scope for EPIC-34)",
+        "No third-party service integrations in this EPIC"
+      ],
+      "recommendations": [
+        "N/A — No secrets to manage in EPIC-34"
+      ]
+    },
+    {
+      "category": "Code Security (Vulnerabilities)",
+      "status": "CONCERN",
+      "description": "No automated vulnerability scanning or SAST configured",
+      "evidence": [
+        "⚠️ No Snyk, Dependabot, or GitHub security scans mentioned",
+        "⚠️ No security-specific tests (XSS, CSRF, SQL injection)",
+        "✅ FastAPI framework provides some built-in protections (param validation, JSON encoding)"
+      ],
+      "recommendations": [
+        "LOW priority: Add `safety check` to CI pipeline (scans Python deps for known CVEs)",
+        "OPTIONAL: Add `bandit` SAST tool for Python code security analysis",
+        "RATIONALE: Local-only app has limited attack surface, but dependency vulns can still cause issues"
+      ]
+    },
+    {
+      "category": "Injection Attacks",
+      "status": "PASS",
+      "description": "Framework protections + limited attack surface",
+      "evidence": [
+        "FastAPI auto-escapes JSON responses (XSS protection)",
+        "No raw SQL queries (Graphiti abstracts Neo4j Cypher)",
+        "No user-controllable file paths (canvas_file_name validated by schema)",
+        "No eval() or exec() calls in codebase"
+      ],
+      "recommendations": [
+        "✅ Current implementation sufficient for local use",
+        "If adding file operations: sanitize file paths with pathlib.resolve()"
+      ]
+    },
+    {
+      "category": "Network Security",
+      "status": "N/A",
+      "description": "Localhost-only deployment, no public exposure",
+      "evidence": [
+        "FastAPI runs on localhost (uvicorn default)",
+        "No CORS configuration needed (same-origin)",
+        "No HTTPS needed (not crossing network boundaries)"
+      ],
+      "recommendations": [
+        "N/A — Network security not applicable for localhost-only tool"
+      ]
+    },
+    {
+      "category": "Logging & Monitoring",
+      "status": "PASS",
+      "description": "Adequate logging for local debugging",
+      "evidence": [
+        "WARNING logs for DI failures (graphiti_client unavailable)",
+        "Exception logging in error handlers",
+        "No PII logging concerns (single-user, local data)"
+      ],
+      "recommendations": [
+        "✅ Current logging sufficient for local use",
+        "OPTIONAL: Add structured logging (JSON format) for easier parsing if needed"
+      ]
+    }
+  ],
+
+  "compliance": {
+    "applicable_standards": [
+      "None — single-user local application exempt from GDPR, SOC2, PCI-DSS, etc."
+    ],
+    "notes": "As a local-only personal learning tool, this system does not fall under data protection regulations or enterprise security compliance frameworks."
+  },
+
+  "priority_actions": [
+    {
+      "priority": "P2 (Optional Enhancement)",
+      "action": "Add `safety check` to CI pipeline",
+      "rationale": "Scan Python dependencies for known CVEs. Low priority because local-only deployment has limited exposure.",
+      "effort": "Low (1-2 hours)"
+    },
+    {
+      "priority": "P3 (Code Quality)",
+      "action": "Audit all `except Exception as e:` blocks in review_service.py",
+      "rationale": "Ensure all exception handlers log sufficient context for debugging. Not a security risk for local use, but aids maintainability.",
+      "effort": "Low (1 hour)"
+    },
+    {
+      "priority": "P3 (Future-Proofing)",
+      "action": "Add explicit validation for canvas_file_name parameter",
+      "rationale": "Currently relies on schema validation. Explicit path sanitization adds defense-in-depth if file operations are added later.",
+      "effort": "Low (1 hour)"
+    }
+  ],
+
+  "summary": {
+    "overall_risk": "LOW",
+    "rationale": "EPIC-34 demonstrates adequate security practices for a local single-user application. FastAPI's built-in protections (input validation, JSON encoding) handle common web vulnerabilities. The lack of authentication, public network exposure, and multi-tenancy eliminates entire categories of security risks. Primary concerns are code quality (error handling consistency) and dependency vulnerabilities, both of which are low-impact in a localhost-only context.",
+    "key_strengths": [
+      "FastAPI pydantic validation prevents invalid inputs (Query constraints)",
+      "Safety bounds (MAX_HISTORY_RECORDS) prevent resource exhaustion",
+      "Graceful degradation when optional dependencies unavailable",
+      "No attack surface from network exposure (localhost only)"
+    ],
+    "key_weaknesses": [
+      "No automated dependency vulnerability scanning (Snyk/Dependabot)",
+      "Mixed error handling patterns (some exceptions well-logged, others generic)"
+    ],
+    "recommendation": "✅ EPIC-34 meets security NFRs for a local single-user learning tool. Optional enhancements (dependency scanning, error handling audit) can improve robustness but are not blocking issues."
+  },
+
+  "test_coverage": {
+    "security_specific_tests": [
+      "TestDaysParameterValidation (7 tests) — input validation",
+      "test_di_completeness_review_service — dependency injection safety",
+      "test_di_completeness_verification_service — dependency injection safety"
+    ],
+    "gaps": [
+      "No penetration testing (N/A for local app)",
+      "No fuzzing tests (low priority for single-user tool)",
+      "No security regression tests (acceptable given low attack surface)"
+    ]
+  }
+}

@@ -1,0 +1,381 @@
+{
+  "phase": "PHASE_1_COMPLETE",
+  "generated_at": "2026-02-10T12:00:00Z",
+  "epic_id": "EPIC-34",
+  "epic_name": "Complete Activation — 跨Canvas与教材挂载检验白板完整激活",
+  "trace_version": "Fresh Trace v3 (independent re-verification)",
+
+  "requirements": [
+    {
+      "id": "34.3-AC1",
+      "story": "34.3",
+      "description": "打开Canvas时自动关联教材",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["E2E"],
+      "tests": [
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_pdf_textbook",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_markdown_textbook",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_canvas_textbook",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountAPIEndpoints::test_sync_mount_endpoint"
+      ],
+      "test_count": 4
+    },
+    {
+      "id": "34.3-AC2",
+      "story": "34.3",
+      "description": ".canvas-links.json 持久化写入教材关联",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["E2E"],
+      "tests": [
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_canvas_links_json_persistence",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_list_mounted_textbooks"
+      ],
+      "test_count": 2
+    },
+    {
+      "id": "34.3-AC3",
+      "story": "34.3",
+      "description": "Agent调用时获取教材上下文",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["E2E"],
+      "tests": [
+        "e2e/test_textbook_mount_flow.py::TestAgentTextbookContextIntegration::test_textbook_context_in_agent_prompt",
+        "e2e/test_textbook_mount_flow.py::TestAgentTextbookContextIntegration::test_empty_textbook_context",
+        "e2e/test_textbook_mount_flow.py::TestAgentTextbookContextIntegration::test_multiple_textbook_contexts"
+      ],
+      "test_count": 3
+    },
+    {
+      "id": "34.3-AC4",
+      "story": "34.3",
+      "description": "PDF/Markdown/Canvas 三种格式均可挂载",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["E2E"],
+      "tests": [
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_pdf_textbook",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_markdown_textbook",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow::test_mount_canvas_textbook"
+      ],
+      "test_count": 3
+    },
+    {
+      "id": "34.4-AC1",
+      "story": "34.4",
+      "description": "历史记录默认显示最近5条",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["Unit", "Integration"],
+      "tests": [
+        "unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_default_limit",
+        "unit/test_review_history_pagination.py::TestPaginationLogic::test_limit_slicing",
+        "unit/test_review_history_pagination.py::TestPaginationLogic::test_limit_exact_match",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_default_limit"
+      ],
+      "test_count": 4
+    },
+    {
+      "id": "34.4-AC2",
+      "story": "34.4",
+      "description": "show_all=True 返回全部历史记录",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["Unit", "Integration"],
+      "tests": [
+        "unit/test_review_history_pagination.py::TestPaginationLogic::test_show_all_returns_all",
+        "integration/test_review_history_pagination.py::TestReviewHistoryPaginationBehavior::test_show_all_behavior",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_show_all"
+      ],
+      "test_count": 3
+    },
+    {
+      "id": "34.4-AC3",
+      "story": "34.4",
+      "description": "API endpoint 支持 limit 和 show_all 参数",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["Unit", "Integration"],
+      "tests": [
+        "unit/test_review_history_pagination.py::TestHistoryPaginationContract::test_response_schema",
+        "unit/test_review_history_pagination.py::TestHistoryPaginationContract::test_pagination_model",
+        "unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_limit_parameter",
+        "unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_show_all_parameter",
+        "integration/test_review_history_pagination.py::TestReviewHistoryResponseSchema::test_response_schema_complete",
+        "integration/test_review_history_pagination.py::TestReviewHistoryResponseSchema::test_record_structure",
+        "integration/test_review_history_pagination.py::TestReviewHistoryPaginationBehavior::test_custom_limit"
+      ],
+      "test_count": 7
+    },
+    {
+      "id": "34.7-AC2",
+      "story": "34.7",
+      "description": "教材挂载E2E测试完整套件",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["E2E"],
+      "tests": [
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountFlow (6 tests)",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountAPIEndpoints (3 tests)",
+        "e2e/test_textbook_mount_flow.py::TestAgentTextbookContextIntegration (3 tests)",
+        "e2e/test_textbook_mount_flow.py::TestTextbookMountCacheInvalidation (2 tests)"
+      ],
+      "test_count": 14
+    },
+    {
+      "id": "34.7-AC4",
+      "story": "34.7",
+      "description": "文档更新完成 (EPIC/Story状态标注)",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": [],
+      "tests": [],
+      "test_count": 0,
+      "note": "非代码需求，通过文档审查验证: EPIC-34 status=Done, 所有Story status=Done"
+    },
+    {
+      "id": "34.7-AC5",
+      "story": "34.7",
+      "description": "复习历史分页集成测试完整套件",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory (7 tests)",
+        "integration/test_review_history_pagination.py::TestReviewHistoryPaginationEndpoint (8 tests)",
+        "integration/test_review_history_pagination.py::TestReviewHistoryPaginationBehavior (4 tests)",
+        "integration/test_review_history_pagination.py::TestReviewHistoryFilters (3 tests)",
+        "integration/test_review_history_pagination.py::TestReviewHistoryErrorHandling (2 tests)",
+        "integration/test_review_history_pagination.py::TestReviewHistoryResponseSchema (2 tests)"
+      ],
+      "test_count": 26
+    },
+    {
+      "id": "34.8-AC1",
+      "story": "34.8",
+      "description": "集成测试去mock化 — 使用真实ReviewService实例",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_default_limit",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_show_all",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_limit_slicing",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_sorting_newest_first",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_canvas_filter",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_concept_filter",
+        "integration/test_review_history_pagination.py::TestRealReviewServiceHistory::test_real_streak_calculation"
+      ],
+      "test_count": 7,
+      "adversarial_origin": "对抗性审查 R1 #P0-1: 所有12个测试mock了ReviewService"
+    },
+    {
+      "id": "34.8-AC2",
+      "story": "34.8",
+      "description": "ReviewService.graphiti_client 依赖注入修复",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestReviewServiceDICompleteness::test_dependencies_get_review_service_passes_graphiti_client",
+        "integration/test_review_history_pagination.py::TestReviewServiceDICompleteness::test_review_module_singleton_passes_graphiti_client"
+      ],
+      "test_count": 2,
+      "adversarial_origin": "对抗性审查 R1 #P0-2: get_review_service()未传入graphiti_client"
+    },
+    {
+      "id": "34.8-AC3",
+      "story": "34.8",
+      "description": "show_all=True 硬上限保护 MAX_HISTORY_RECORDS=1000",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestShowAllHardCap::test_max_history_records_constant_exists",
+        "integration/test_review_history_pagination.py::TestShowAllHardCap::test_show_all_uses_hard_cap_in_endpoint",
+        "integration/test_review_history_pagination.py::TestShowAllHardCap::test_show_all_truncation_above_cap",
+        "integration/test_review_history_pagination.py::TestShowAllHardCap::test_show_all_below_cap_returns_all"
+      ],
+      "test_count": 4,
+      "adversarial_origin": "对抗性审查 R1 #P0-3: effective_limit=None无上限"
+    },
+    {
+      "id": "34.8-AC4",
+      "story": "34.8",
+      "description": "days参数验证改进 [1, 365]",
+      "priority": "P1",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_1_valid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_14_valid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_365_valid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_0_invalid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_minus1_invalid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_400_invalid",
+        "integration/test_review_history_pagination.py::TestDaysParameterValidation::test_days_non_integer"
+      ],
+      "test_count": 7,
+      "adversarial_origin": "对抗性审查 R1 #P1-1: 非法days静默回退到7"
+    },
+    {
+      "id": "34.9-AC1",
+      "story": "34.9",
+      "description": "limit参数添加 Query(5, ge=1, le=100) 验证",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_1_valid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_50_valid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_100_valid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_0_invalid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_minus1_invalid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_101_invalid",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_non_integer",
+        "integration/test_review_history_pagination.py::TestLimitParameterValidation::test_limit_very_large"
+      ],
+      "test_count": 8,
+      "adversarial_origin": "对抗性审查 R2 #3: limit裸参数无Query()约束"
+    },
+    {
+      "id": "34.9-AC2",
+      "story": "34.9",
+      "description": "show_all 参数添加 Query(False) 包装",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Unit", "Integration"],
+      "tests": [
+        "unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_show_all_combined",
+        "integration/test_review_history_pagination.py::TestReviewHistoryPaginationBehavior::test_show_all_behavior"
+      ],
+      "test_count": 2,
+      "note": "布尔参数风险低，Query()包装主要为一致性",
+      "adversarial_origin": "对抗性审查 R2 #4: show_all缺少Query()包装"
+    },
+    {
+      "id": "34.9-AC3",
+      "story": "34.9",
+      "description": "review.py单例注入memory_client到CanvasService",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_singleton_di.py::TestReviewSingletonDICompleteness::test_canvas_service_receives_memory_client"
+      ],
+      "test_count": 1,
+      "note": "跨Story覆盖: Story 38.9测试文件中的专用DI测试验证CanvasService接收memory_client",
+      "adversarial_origin": "对抗性审查 R2 #5: CanvasService未注入memory_client导致edge sync跳过"
+    },
+    {
+      "id": "34.9-AC4",
+      "story": "34.9",
+      "description": "移除测试中接受HTTP 500的断言",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Unit"],
+      "tests": [
+        "unit/test_review_history_pagination.py::TestHistoryAPIEndpoint::test_endpoint_default_limit (L121: assert status==200)"
+      ],
+      "test_count": 1,
+      "verification_method": "代码审查: L121仅断言200，不再包含500",
+      "adversarial_origin": "对抗性审查 R2 #10: assert status in [200, 500]将崩溃视为合法"
+    },
+    {
+      "id": "34.9-AC5",
+      "story": "34.9",
+      "description": "移除条件断言(消除假阴性)",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py L354 (unconditional + Story 34.9 AC5 comment)",
+        "integration/test_review_history_pagination.py L395 (unconditional + Story 34.9 AC5 comment)"
+      ],
+      "test_count": 2,
+      "verification_method": "代码审查: 断言不再被if/skip包裹，有AC5注释标记",
+      "adversarial_origin": "对抗性审查 R2 #12: if data.get(...)包裹断言导致条件为False时跳过"
+    },
+    {
+      "id": "34.9-AC6",
+      "story": "34.9",
+      "description": "date.today()替换为固定常量",
+      "priority": "P0",
+      "coverage": "FULL",
+      "test_level": ["Integration"],
+      "tests": [
+        "integration/test_review_history_pagination.py::_build_card_states_for_history (L811: base_date=date(2025,6,15))",
+        "integration/test_review_history_pagination.py::_fixed_now (L840: datetime(2025,6,15,23,59,0))"
+      ],
+      "test_count": 2,
+      "verification_method": "代码审查: 6处使用date(2025,6,15)固定日期，无非mock的date.today()",
+      "adversarial_origin": "对抗性审查 R2 #6: date.today()导致午夜边界测试不稳定"
+    }
+  ],
+
+  "deferred_requirements": [
+    {"id": "34.7-AC1", "description": "跨Canvas完整流程测试通过", "deferred_to": "EPIC-36 Story 36.5"},
+    {"id": "34.7-AC3", "description": "验证画板E2E测试通过", "deferred_to": "EPIC-31 Story 31.5"}
+  ],
+
+  "coverage_statistics": {
+    "total_requirements": 22,
+    "active_requirements": 20,
+    "deferred_requirements": 2,
+    "fully_covered": 20,
+    "partially_covered": 0,
+    "uncovered": 0,
+    "overall_coverage_percentage": 100,
+
+    "priority_breakdown": {
+      "P0": {"total": 9, "covered": 9, "percentage": 100},
+      "P1": {"total": 11, "covered": 11, "percentage": 100},
+      "P2": {"total": 0, "covered": 0, "percentage": null},
+      "P3": {"total": 0, "covered": 0, "percentage": null}
+    }
+  },
+
+  "gap_analysis": {
+    "critical_gaps": [],
+    "high_gaps": [],
+    "medium_gaps": [],
+    "low_gaps": [],
+    "partial_coverage_items": [],
+    "unit_only_items": []
+  },
+
+  "test_inventory": {
+    "total_core": 80,
+    "by_level": {
+      "e2e": {"file": "tests/e2e/test_textbook_mount_flow.py", "count": 15, "classes": 4},
+      "unit": {"file": "tests/unit/test_review_history_pagination.py", "count": 17, "classes": 4},
+      "integration": {
+        "files": [
+          {"path": "tests/integration/test_review_history_pagination.py", "count": 47, "classes": 10},
+          {"path": "tests/integration/test_review_singleton_di.py", "count": 1, "note": "1 test relevant to EPIC-34 (34.9 AC3)"}
+        ],
+        "total": 48
+      }
+    },
+    "regression_suites": [
+      "test_review_service_fsrs.py (20 tests)",
+      "test_story_38_3_fsrs_init_guarantee.py (21 tests)",
+      "test_story_38_3_edge_cases.py (11 tests)",
+      "test_verification_service_injection.py (13 tests)",
+      "test_verification_service_activation.py (16 tests)",
+      "test_multi_review_progress.py (14 tests)"
+    ],
+    "total_with_regression": 175
+  },
+
+  "recommendations": [
+    {
+      "priority": "LOW",
+      "action": "Run /bmad:tea:test-review to assess integration test file maintainability",
+      "requirements": [],
+      "note": "integration/test_review_history_pagination.py has 10 classes, ~1200 lines — consider splitting"
+    }
+  ]
+}
