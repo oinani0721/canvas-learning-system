@@ -1709,6 +1709,86 @@
       "score": 0.0,
       "agent_feedback": null,
       "timestamp": "2026-02-10T21:34:07.511545"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-11T05:15:37.533429",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:15:37.533429"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-11T05:15:37.723994",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:15:37.723994"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-11T05:15:37.931693",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:15:37.931693"
+    },
+    {
+      "key": "test:session-start:2026-02-11T05:19:41.481835",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:19:41.481835"
+    },
+    {
+      "key": "test:session-start:2026-02-11T05:19:41.515245",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:19:41.515245"
+    },
+    {
+      "key": "test0:session-start:2026-02-11T05:19:44.244650",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:19:44.244650"
+    },
+    {
+      "key": "test1:session-start:2026-02-11T05:19:44.252295",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:19:44.252295"
+    },
+    {
+      "key": "test2:session-start:2026-02-11T05:19:44.262583",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-11T05:19:44.262583"
     }
   ],
   "metadata": {

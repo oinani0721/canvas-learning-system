@@ -31,7 +31,6 @@ temp_*
 # BMad 开发工具 (不属于产品，应在单独仓库)
 .bmad-core/
 .bmad-prompt.txt
-.pre-commit-config.yaml
 README-BMAD-WORKFLOW.md
 bmad_orchestrator.db*
 src/bmad_orchestrator/
@@ -116,6 +115,9 @@ backend/data/failed_dual_writes.jsonl
 backend/data/failed_edge_syncs.jsonl
 backend/data/failed_writes.jsonl
 backend/data/fsrs_card_states.json
+backend/data/bug_log.jsonl
+backend/data/learning_memories.json
+backend/data/neo4j_memory.json
 backend/regression_results.txt
 backend/app/data/canvas_events_fallback.synced.*
 

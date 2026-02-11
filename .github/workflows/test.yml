@@ -17,6 +17,7 @@ on:
       - clean-release
     paths:
       - 'backend/**'
+      - 'canvas-progress-tracker/**'
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════════
@@ -67,6 +68,55 @@ jobs:
           retention-days: 14
 
   # ═══════════════════════════════════════════════════════════════════════════════
+  # Obsidian Plugin Build Check
+  # Verifies TypeScript compilation and esbuild bundling succeed
+  # ═══════════════════════════════════════════════════════════════════════════════
+  plugin-build:
+    name: Plugin Build Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: canvas-progress-tracker/obsidian-plugin/package-lock.json
+
+      - name: Install dependencies
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: npm ci
+
+      - name: TypeScript type check
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: npx tsc --noEmit --skipLibCheck
+
+      - name: Build plugin (CI mode - outputs to local directory)
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        env:
+          CI: 'true'
+        run: npm run build
+
+      - name: Verify build output
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: |
+          if [ ! -f "main.js" ]; then
+            echo "::error::main.js not found after build!"
+            exit 1
+          fi
+          SIZE=$(stat -c%s "main.js" 2>/dev/null || stat -f%z "main.js" 2>/dev/null)
+          echo "main.js size: ${SIZE} bytes"
+          if [ "$SIZE" -lt 1000 ]; then
+            echo "::error::main.js is suspiciously small (${SIZE} bytes). Build may have failed."
+            exit 1
+          fi
+          echo "Plugin build verified: main.js is ${SIZE} bytes"
+          echo "## Plugin Build" >> $GITHUB_STEP_SUMMARY
+          echo "- main.js: ${SIZE} bytes" >> $GITHUB_STEP_SUMMARY
+
+  # ═══════════════════════════════════════════════════════════════════════════════
   # Dependency Audit (EPIC-33 NFR Security)
   # ═══════════════════════════════════════════════════════════════════════════════
   security:
@@ -91,7 +141,7 @@ jobs:
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [tests, security]
+    needs: [tests, plugin-build, security]
     if: always()
     steps:
       - name: Generate summary
@@ -105,6 +155,12 @@ jobs:
             echo "| Tests (non-integration) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
           else
             echo "| Tests (non-integration) | :x: |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.plugin-build.result }}" == "success" ]; then
+            echo "| Plugin Build (TypeScript + esbuild) | :white_check_mark: |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| Plugin Build (TypeScript + esbuild) | :x: |" >> $GITHUB_STEP_SUMMARY
           fi
 
           if [ "${{ needs.security.result }}" == "success" ]; then

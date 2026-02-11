@@ -36,7 +36,7 @@ def _make_service(card_states: dict = None) -> ReviewService:
         graphiti_client=None,
         fsrs_manager=None,
     )
-    if card_states:
+    if card_states is not None:
         svc._card_states = card_states
     return svc
 

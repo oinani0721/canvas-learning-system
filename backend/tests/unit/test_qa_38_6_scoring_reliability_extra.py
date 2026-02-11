@@ -403,17 +403,16 @@ class TestFullCycleIntegration:
 
 
 class TestStartupIntegration:
-    """Verify main.py lifespan calls recover_failed_writes."""
+    """Verify main.py lifespan calls fallback sync (formerly recover_failed_writes)."""
 
-    def test_main_imports_recovery_function(self):
-        """[P0] main.py references recover_failed_writes."""
+    def test_main_imports_fallback_sync(self):
+        """[P0] main.py references fallback sync service."""
         import app.main as main_module
         source = Path(main_module.__file__).read_text(encoding="utf-8")
-        assert "recover_failed_writes" in source
+        assert "get_fallback_sync_service" in source
 
-    def test_recovery_called_in_lifespan(self):
-        """[P0] Recovery call exists in lifespan context manager."""
+    def test_fallback_sync_called_in_lifespan(self):
+        """[P0] Fallback sync call exists in lifespan context manager."""
         import app.main as main_module
         source = Path(main_module.__file__).read_text(encoding="utf-8")
-        # Verify the recovery is in the startup section (before yield)
-        assert "ms.recover_failed_writes()" in source
+        assert "sync_all_fallbacks" in source

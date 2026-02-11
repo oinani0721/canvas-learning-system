@@ -16,7 +16,11 @@
     "test:pact:publish": "pact-broker publish ./pacts --auto-detect-version-properties",
     "mock:init": "npx msw init public/",
     "lint": "eslint src/**/*.ts main.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "watch:start": "pm2 start ecosystem.config.cjs",
+    "watch:stop": "pm2 stop canvas-plugin-watch",
+    "watch:status": "pm2 status canvas-plugin-watch",
+    "watch:logs": "pm2 logs canvas-plugin-watch --lines 20"
   },
   "keywords": [
     "obsidian",

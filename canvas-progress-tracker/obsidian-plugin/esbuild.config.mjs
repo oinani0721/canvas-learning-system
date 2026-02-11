@@ -5,6 +5,7 @@ import process from "process";
 import path from "path";
 import { fileURLToPath } from "url";
 import builtins from "builtin-modules";
+import fs from "fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -20,8 +21,23 @@ const prod = (process.argv[2] === 'production');
 // 🔴 P0: outfile 必须指向 vault 插件目录
 // 源码编译 → vault 部署 是一步完成的，不需要手动复制
 // 血泪教训: outfile: 'main.js' 导致 vault 和源码长期不同步
-const vaultPluginDir = path.join(__dirname, '..', '..', '笔记库', '.obsidian', 'plugins', 'canvas-review-system');
-const outfile = path.join(vaultPluginDir, 'main.js');
+//
+// CI-safe: 在 GitHub Actions 中 vault 路径不存在，
+// 通过 VAULT_PLUGIN_DIR 环境变量或 CI 检测自动回退到本地输出
+const defaultVaultDir = path.join(__dirname, '..', '..', '笔记库', '.obsidian', 'plugins', 'canvas-review-system');
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const vaultPluginDir = process.env.VAULT_PLUGIN_DIR || defaultVaultDir;
+
+const vaultExists = fs.existsSync(vaultPluginDir);
+const outfile = vaultExists
+  ? path.join(vaultPluginDir, 'main.js')
+  : path.join(__dirname, 'main.js');
+
+if (!vaultExists && !isCI) {
+  console.warn(`\n⚠️  Vault path not found: ${vaultPluginDir}`);
+  console.warn(`    Output will go to: ${outfile}`);
+  console.warn(`    Run 'npm run deploy:sync' after vault is available.\n`);
+}
 
 const context = await esbuild.context({
 	banner: {
