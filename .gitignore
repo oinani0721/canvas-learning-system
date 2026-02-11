@@ -96,5 +96,49 @@ backend/logs/
 # LanceDB local data
 backend/data/lancedb/
 
+# Hypothesis test cache (auto-generated, machine-specific)
+.hypothesis/
+backend/.hypothesis/
+
+# Canvas learning multimodal binary data (images, PDFs, snapshots)
+.canvas-learning/
+backend/.canvas-learning/
+
+# Backup directories (manual snapshots, not project code)
+.bmad-core-backup-*/
+.claude-commands-backup-*/
+.custom-content-backup-*/
+_bmad-backup-*/
+
+# Runtime data files (generated during operation)
+backend/data/failed_writes.synced.*
+backend/data/failed_dual_writes.jsonl
+backend/data/failed_edge_syncs.jsonl
+backend/data/failed_writes.jsonl
+backend/data/fsrs_card_states.json
+backend/regression_results.txt
+backend/app/data/canvas_events_fallback.synced.*
+
+# Test runtime data
+backend/tests/data/*.db
+
+# Personal research files (not project code)
+.research/
+
+# Encoding artifacts / garbage files
+W
+
+# Temporary test/debug scripts
+telegram_check_auth*.py
+check_session.session
+backend/test_316_progress.py
+
+# Jest output (Windows path encoding artifacts - C:\Users paths)
+canvas-progress-tracker/obsidian-plugin/C*
+!canvas-progress-tracker/obsidian-plugin/CHANGELOG.md
+
+# Root node_modules (lefthook, commitlint)
+node_modules/
+
 # 敏感文件（绝不推送）
 CLAUDE.md
