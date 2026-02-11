@@ -16,36 +16,11 @@ from datetime import date, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
-@pytest.fixture
-def mock_canvas_service():
-    """Create mock CanvasService for testing."""
-    mock = MagicMock()
-    mock.get_canvas = AsyncMock(return_value={"nodes": [], "edges": []})
-    return mock
-
-
-@pytest.fixture
-def mock_task_manager():
-    """Create mock BackgroundTaskManager for testing."""
-    mock = MagicMock()
-    mock.submit_task = MagicMock(return_value="task_123")
-    return mock
-
-
 # Use shared isolate_card_states_file fixture from conftest.py
 pytestmark = pytest.mark.usefixtures("isolate_card_states_file")
 
-
-@pytest.fixture
-def review_service_factory(mock_canvas_service, mock_task_manager):
-    """Factory to create ReviewService with mocked dependencies."""
-    def _create():
-        from app.services.review_service import ReviewService
-        return ReviewService(
-            canvas_service=mock_canvas_service,
-            task_manager=mock_task_manager
-        )
-    return _create
+# Shared fixtures (mock_canvas_service, mock_task_manager, review_service_factory,
+# review_service, fallback_service) are provided by unit/conftest.py
 
 
 class TestFSRSImport:
@@ -81,11 +56,6 @@ class TestFSRSImport:
 
 class TestFSRSRatings:
     """AC-32.2.2: Test FSRS rating parameter (1-4) acceptance."""
-
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
 
     @pytest.mark.asyncio
     async def test_rating_1_again(self, review_service):
@@ -139,11 +109,6 @@ class TestFSRSRatings:
 class TestScoreToRatingConversion:
     """AC-32.2.4: Test backward compatibility with score-to-rating conversion."""
 
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
-
     @pytest.mark.asyncio
     async def test_score_under_40_converts_to_again(self, review_service):
         """Score < 40 should convert to rating 1 (Again)."""
@@ -193,11 +158,6 @@ class TestScoreToRatingConversion:
 
 class TestDynamicIntervalCalculation:
     """AC-32.2.3: Test FSRS dynamic interval calculation."""
-
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
 
     @pytest.mark.asyncio
     async def test_schedule_review_returns_fsrs_data(self, review_service):
@@ -266,11 +226,6 @@ class TestDynamicIntervalCalculation:
 class TestCardStatePersistence:
     """Test FSRS card state persistence functionality."""
 
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
-
     @pytest.mark.asyncio
     async def test_card_data_returned_in_response(self, review_service):
         """Response should include card_data for client-side caching."""
@@ -308,11 +263,6 @@ class TestCardStatePersistence:
 
 class TestFSRSStateResponse:
     """Test FSRS state information in responses."""
-
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
 
     @pytest.mark.asyncio
     async def test_fsrs_state_fields(self, review_service):
@@ -361,11 +311,6 @@ class TestMigrationDocumentation:
 class TestAlgorithmField:
     """Test algorithm field in responses."""
 
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        """Create ReviewService instance for testing."""
-        return review_service_factory()
-
     @pytest.mark.asyncio
     async def test_algorithm_field_present(self, review_service):
         """Response should include algorithm field."""
@@ -388,16 +333,6 @@ class TestAlgorithmField:
 class TestEbbinghausFallbackNextReview:
     """P1: When FSRS is unavailable, Ebbinghaus fallback must return
     next_review as a future date (now + interval), not 'now'."""
-
-    @pytest.fixture
-    def fallback_service(self, mock_canvas_service, mock_task_manager):
-        from app.services.review_service import ReviewService
-        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
-            return ReviewService(
-                canvas_service=mock_canvas_service,
-                task_manager=mock_task_manager,
-                fsrs_manager=None
-            )
 
     @pytest.mark.asyncio
     async def test_fallback_score_low_interval_1_day(self, fallback_service):
@@ -486,16 +421,6 @@ class TestEbbinghausFallbackNextReview:
 class TestScheduleReviewFallback:
     """P1: schedule_review Ebbinghaus fallback must return future scheduled_date."""
 
-    @pytest.fixture
-    def fallback_service(self, mock_canvas_service, mock_task_manager):
-        from app.services.review_service import ReviewService
-        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
-            return ReviewService(
-                canvas_service=mock_canvas_service,
-                task_manager=mock_task_manager,
-                fsrs_manager=None
-            )
-
     @pytest.mark.asyncio
     async def test_schedule_fallback_returns_future_date(self, fallback_service):
         """Ebbinghaus scheduled_date must be in the future."""
@@ -529,10 +454,6 @@ class TestScheduleReviewFallback:
 
 class TestRecordReviewBoundaryConditions:
     """P1: Edge cases for score/rating inputs."""
-
-    @pytest.fixture
-    def review_service(self, review_service_factory):
-        return review_service_factory()
 
     @pytest.mark.asyncio
     async def test_score_zero_maps_to_again(self, review_service):
@@ -601,17 +522,6 @@ class TestAlgorithmSelectionPath:
     def fsrs_service(self, review_service_factory):
         """Service with FSRS enabled."""
         return review_service_factory()
-
-    @pytest.fixture
-    def fallback_service(self, mock_canvas_service, mock_task_manager):
-        """Service with FSRS disabled."""
-        from app.services.review_service import ReviewService
-        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
-            return ReviewService(
-                canvas_service=mock_canvas_service,
-                task_manager=mock_task_manager,
-                fsrs_manager=None
-            )
 
     @pytest.mark.asyncio
     async def test_fsrs_enabled_uses_fsrs_algorithm(self, fsrs_service):

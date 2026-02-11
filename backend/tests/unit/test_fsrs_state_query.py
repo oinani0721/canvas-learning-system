@@ -45,32 +45,8 @@ def override_settings():
         app.dependency_overrides.pop(get_settings, None)
 
 
-@pytest.fixture
-def mock_canvas_service():
-    """Create mock CanvasService for testing."""
-    mock = MagicMock()
-    mock.get_canvas = AsyncMock(return_value={"nodes": [], "edges": []})
-    return mock
-
-
-@pytest.fixture
-def mock_task_manager():
-    """Create mock BackgroundTaskManager for testing."""
-    mock = MagicMock()
-    mock.submit_task = MagicMock(return_value="task_123")
-    return mock
-
-
-@pytest.fixture
-def review_service_factory(mock_canvas_service, mock_task_manager):
-    """Factory to create ReviewService with mocked dependencies."""
-    def _create():
-        from app.services.review_service import ReviewService
-        return ReviewService(
-            canvas_service=mock_canvas_service,
-            task_manager=mock_task_manager
-        )
-    return _create
+# Shared fixtures (mock_canvas_service, mock_task_manager, review_service_factory)
+# are provided by unit/conftest.py
 
 
 class TestFSRSStateQueryEndpoint:
