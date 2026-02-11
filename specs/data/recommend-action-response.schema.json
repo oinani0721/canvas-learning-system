@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recommend-action-response.schema.json",
+  "title": "RecommendActionResponse",
+  "description": "Story 31.3 AC-31.3.3, AC-31.3.4: Response model for intelligent action recommendation",
+  "type": "object",
+  "required": ["action", "reason"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": ["decompose", "explain", "next"],
+      "description": "Recommended action type based on score thresholds (0-100 scale): decompose (<60), explain (60-79), next (>=80)"
+    },
+    "agent": {
+      "type": ["string", "null"],
+      "description": "Recommended agent endpoint path, null for 'next' action"
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable explanation for the recommendation"
+    },
+    "priority": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5,
+      "default": 3,
+      "description": "Recommendation priority (1=highest, 5=lowest)"
+    },
+    "review_suggested": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether additional review is suggested based on declining trend"
+    },
+    "history_context": {
+      "type": ["object", "null"],
+      "description": "Historical score context (when include_history=true)",
+      "properties": {
+        "recent_scores": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "maxItems": 5,
+          "description": "Recent score history (most recent first, up to 5)"
+        },
+        "average_score": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Average of recent scores"
+        },
+        "trend": {
+          "type": ["string", "null"],
+          "enum": ["improving", "stable", "declining", null],
+          "description": "Score trend direction"
+        },
+        "consecutive_low_count": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0,
+          "description": "Number of consecutive scores below 60 (from most recent)"
+        }
+      }
+    },
+    "alternative_agents": {
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": ["agent", "reason"],
+        "properties": {
+          "agent": {
+            "type": "string",
+            "description": "Agent endpoint path"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Reason for this alternative"
+          }
+        }
+      },
+      "description": "Alternative agent recommendations"
+    }
+  },
+  "additionalProperties": false
+}

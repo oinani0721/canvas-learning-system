@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "VerificationStatusEnum": {
+      "description": "Verification session status.\n\nStory 31.6 AC-31.6.4: Support pause/resume session.\n\n[Source: backend/app/services/verification_service.py:VerificationStatus]",
+      "enum": [
+        "pending",
+        "in_progress",
+        "paused",
+        "completed",
+        "cancelled"
+      ],
+      "title": "VerificationStatusEnum",
+      "type": "string"
+    }
+  },
+  "description": "Response for session pause/resume operations.\n\nStory 31.6 AC-31.6.4: Support pause/resume session.\n\n[Source: docs/stories/31.6.story.md#Task-3]",
+  "properties": {
+    "session_id": {
+      "description": "Session identifier",
+      "example": "sess_abc123",
+      "title": "Session Id",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/VerificationStatusEnum",
+      "description": "New session status after operation"
+    },
+    "message": {
+      "description": "Operation result message",
+      "example": "Session paused successfully",
+      "title": "Message",
+      "type": "string"
+    }
+  },
+  "required": [
+    "session_id",
+    "status",
+    "message"
+  ],
+  "title": "SessionPauseResumeResponse",
+  "type": "object"
+}

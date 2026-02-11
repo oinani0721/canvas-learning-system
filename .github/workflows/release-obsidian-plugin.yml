@@ -1,0 +1,64 @@
+# Obsidian Plugin Release Workflow
+# Automatically builds and creates a draft GitHub release when a plugin version tag is pushed.
+#
+# Usage:
+#   git tag -a plugin-v1.0.1 -m "Plugin v1.0.1"
+#   git push origin plugin-v1.0.1
+
+name: Release Obsidian Plugin
+
+on:
+  push:
+    tags:
+      - "plugin-v*"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18.x"
+
+      - name: Install dependencies
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: npm install
+
+      - name: Build plugin (CI mode - outputs to local directory)
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        env:
+          CI: 'true'
+        run: npm run build
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/plugin-v}" >> $GITHUB_OUTPUT
+
+      - name: Verify manifest version matches tag
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: |
+          manifest_version=$(node -e "console.log(require('./manifest.json').version)")
+          tag_version="${{ steps.version.outputs.version }}"
+          if [ "$manifest_version" != "$tag_version" ]; then
+            echo "Version mismatch: manifest=$manifest_version tag=$tag_version"
+            exit 1
+          fi
+          echo "Version match: $manifest_version"
+
+      - name: Create release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: canvas-progress-tracker/obsidian-plugin
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" \
+            --title="Obsidian Plugin ${{ steps.version.outputs.version }}" \
+            --draft \
+            --generate-notes \
+            main.js manifest.json styles.css

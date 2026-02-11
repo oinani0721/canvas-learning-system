@@ -1,0 +1,36 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "recommend-action-request.schema.json",
+  "title": "RecommendActionRequest",
+  "description": "Story 31.3 AC-31.3.1, AC-31.3.2: Request model for intelligent action recommendation",
+  "type": "object",
+  "required": ["score", "node_id", "canvas_name"],
+  "properties": {
+    "score": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Current total score (0-100 scale)"
+    },
+    "node_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canvas node ID being evaluated"
+    },
+    "canvas_name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Canvas file name"
+    },
+    "include_history": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether to include historical score analysis"
+    },
+    "concept": {
+      "type": ["string", "null"],
+      "description": "Concept name (optional, used for history lookup)"
+    }
+  },
+  "additionalProperties": false
+}
