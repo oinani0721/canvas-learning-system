@@ -221,11 +221,14 @@ async def get_agent_service(
     # ✅ FIX-Canvas-Write: Pass canvas_service to AgentService for direct Canvas writes
     # Story 36.7: Pass neo4j_client to AgentService for learning memory queries
     # Story 36.11: Pass memory_client for fallback when Neo4j unavailable
+    # Story 36.13 AC-3: Pass TTLCache config from Settings
     service = AgentService(
         gemini_client=gemini_client,
         memory_client=memory_client,  # Story 36.11: 注入 LearningMemoryClient
         canvas_service=canvas_service,  # ✅ FIX: 注入 canvas_service
-        neo4j_client=neo4j_client  # Story 36.7: 注入 Neo4jClient
+        neo4j_client=neo4j_client,  # Story 36.7: 注入 Neo4jClient
+        memory_cache_maxsize=settings.AGENT_MEMORY_CACHE_MAXSIZE,
+        memory_cache_ttl=settings.AGENT_MEMORY_CACHE_TTL,
     )
     logger.debug("AgentService created with CanvasService, Neo4jClient, and LearningMemoryClient")
 
@@ -374,11 +377,13 @@ async def get_context_enrichment_service(
     except Exception as e:
         logger.warning(f"LearningMemoryClient not available for context enrichment: {e}")
 
+    # Story 36.13 AC-5: Pass TTLCache maxsize from Settings
     service = ContextEnrichmentService(
         canvas_service=canvas_service,
         textbook_service=textbook_service,
         cross_canvas_service=cross_canvas_service,
-        graphiti_service=graphiti_service  # P1 Fix: Enable Graphiti learning memory context
+        graphiti_service=graphiti_service,  # P1 Fix: Enable Graphiti learning memory context
+        association_cache_maxsize=settings.ENRICHMENT_CACHE_MAXSIZE,
     )
 
     try:

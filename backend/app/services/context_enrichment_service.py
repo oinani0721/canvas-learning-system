@@ -220,7 +220,8 @@ class ContextEnrichmentService:
         canvas_service,
         textbook_service=None,
         cross_canvas_service=None,
-        graphiti_service=None
+        graphiti_service=None,
+        association_cache_maxsize: int = 1000,  # Story 36.13 AC-5
     ):
         """
         Initialize ContextEnrichmentService.
@@ -230,9 +231,11 @@ class ContextEnrichmentService:
             textbook_service: Optional TextbookContextService for textbook references
             cross_canvas_service: Optional CrossCanvasService for cross-Canvas associations
             graphiti_service: Optional LearningMemoryClient for Graphiti relations
+            association_cache_maxsize: Max entries in association cache (Story 36.13 AC-5)
 
         [Story 25.3: Added cross_canvas_service parameter]
         [Story 12.A.3: Added graphiti_service parameter]
+        [Story 36.13: Added association_cache_maxsize parameter]
         """
         self._canvas_service = canvas_service
         self._textbook_service = textbook_service
@@ -241,8 +244,9 @@ class ContextEnrichmentService:
 
         # Story 36.8: Cache for association lookups (30s TTL)
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
+        # Story 36.13 AC-5: maxsize configurable via Settings
         self._association_cache_ttl = 30.0  # seconds
-        self._association_cache: TTLCache = TTLCache(maxsize=1000, ttl=self._association_cache_ttl)
+        self._association_cache: TTLCache = TTLCache(maxsize=association_cache_maxsize, ttl=self._association_cache_ttl)
         # NFR-P0: Lock for cache stampede protection
         self._association_cache_lock = asyncio.Lock()
 

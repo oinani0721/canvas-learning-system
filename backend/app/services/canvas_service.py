@@ -513,7 +513,7 @@ class CanvasService:
                 f"{type(e).__name__}: {e}",
                 edge_id=edge_id,
                 canvas_name=canvas_path,
-                retry_count=3,
+                retry_count=3,  # total attempts: 1 initial + 2 retries (stop_after_attempt=3)
             )
             return None  # Fire-and-forget: don't raise
 

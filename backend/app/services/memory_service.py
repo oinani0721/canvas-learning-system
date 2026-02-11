@@ -79,8 +79,10 @@ SCORE_HISTORY_CACHE_TTL = 30
 # Story 38.6 AC-1: Increased per-attempt timeout for reliable writes (was 0.5s)
 GRAPHITI_JSON_WRITE_TIMEOUT = 2.0
 
-# Story 38.6 AC-1: Retry backoff base (seconds). Backoff = base * 2^attempt → 1s, 2s, 4s
+# Story 38.6 AC-1: Retry backoff base — now configurable via Settings (Story 36.13 AC-2)
+# These module-level constants are kept as fallback defaults only.
 GRAPHITI_RETRY_BACKOFF_BASE = 1.0
+GRAPHITI_RETRY_MAX_DELAY = 10.0
 
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
@@ -200,9 +202,24 @@ class MemoryService:
         self._recovery_lock = asyncio.Lock()
         # Fix C5: Lock to prevent concurrent _episodes mutations
         self._episodes_lock = asyncio.Lock()
+
+        # Story 36.13 AC-2,4: Read configurable values from Settings
+        try:
+            from app.config import get_settings
+            _settings = get_settings()
+            self._retry_base_delay = _settings.MEMORY_RETRY_BASE_DELAY
+            self._retry_max_delay = _settings.MEMORY_RETRY_MAX_DELAY
+            _score_cache_maxsize = _settings.SCORE_HISTORY_CACHE_MAXSIZE
+        except (ImportError, RuntimeError, AttributeError) as e:
+            logger.warning(f"Settings unavailable, using default retry/cache config: {e}")
+            self._retry_base_delay = GRAPHITI_RETRY_BACKOFF_BASE
+            self._retry_max_delay = GRAPHITI_RETRY_MAX_DELAY
+            _score_cache_maxsize = 1000
+
         # Story 31.5: Cache for score history queries (30s TTL)
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
-        self._score_history_cache: TTLCache = TTLCache(maxsize=1000, ttl=SCORE_HISTORY_CACHE_TTL)
+        # Story 36.13 AC-4: maxsize configurable via Settings
+        self._score_history_cache: TTLCache = TTLCache(maxsize=_score_cache_maxsize, ttl=SCORE_HISTORY_CACHE_TTL)
         # NFR-P0: Lock for cache stampede protection (double-check locking)
         self._score_cache_lock = asyncio.Lock()
         # Story 30.24 AC-30.24.4: Track batch write failures for shutdown safety
@@ -442,7 +459,8 @@ class MemoryService:
                 return True
             except asyncio.TimeoutError:
                 if attempt < max_retries:
-                    delay = GRAPHITI_RETRY_BACKOFF_BASE * (2 ** attempt)  # Story 38.6: 1s, 2s, 4s
+                    # Story 36.13 AC-2: configurable retry delay
+                    delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
                     logger.warning(f"Graphiti write timeout, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
                     await asyncio.sleep(delay)
                     continue
@@ -463,7 +481,8 @@ class MemoryService:
                 return False
             except Exception as e:
                 if attempt < max_retries:
-                    delay = GRAPHITI_RETRY_BACKOFF_BASE * (2 ** attempt)  # Story 38.6: 1s, 2s, 4s
+                    # Story 36.13 AC-2: configurable retry delay
+                    delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
                     logger.warning(f"Graphiti write error: {e}, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
                     await asyncio.sleep(delay)
                     continue
