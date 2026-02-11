@@ -279,12 +279,16 @@ def get_settings_override() -> Settings:
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     """
     Create a test client with overridden settings.
 
     ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: testing TestClient)
+
+    Function-scoped (default) for proper test isolation.
+    Previously module-scoped, which caused cross-test state leaks
+    (NFR assessment: Isolation score 24/100 F).
 
     Yields:
         TestClient: FastAPI test client.
@@ -709,6 +713,39 @@ def mock_graphiti_client():
     mock.add_verification_question = AsyncMock(return_value="vq_test123")
     mock.create_relationship = AsyncMock()
     return mock
+
+
+# ============================================================================
+# EPIC-33 NFR Test Data Factories
+# ============================================================================
+
+
+def make_parallel_request(**overrides) -> dict:
+    """Factory for IntelligentParallelRequest test data.
+
+    Returns a dict with sensible defaults that can be overridden.
+    """
+    defaults = {
+        "canvas_path": "test.canvas",
+        "target_color": "3",
+        "min_nodes_per_group": 2,
+    }
+    defaults.update(overrides)
+    return defaults
+
+
+def make_node_data(**overrides) -> dict:
+    """Factory for node test data used in parallel processing tests.
+
+    Returns a dict with sensible defaults that can be overridden.
+    """
+    defaults = {
+        "id": "node-001",
+        "text": "Test node content",
+        "color": "3",
+    }
+    defaults.update(overrides)
+    return defaults
 
 
 @pytest.fixture
