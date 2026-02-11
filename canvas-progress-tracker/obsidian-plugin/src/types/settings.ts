@@ -9,6 +9,17 @@
  */
 
 /**
+ * Subject mapping rule (AC-30.19.1)
+ * Maps a glob pattern (e.g. "数学/**") to a subject identifier
+ */
+export interface SubjectMappingRule {
+    /** Glob pattern to match Canvas file paths (supports ** and *) */
+    pattern: string;
+    /** Subject identifier (max 50 chars) */
+    subject: string;
+}
+
+/**
  * Plugin settings interface
  *
  * Defines all configurable options for the Canvas Review System plugin.
@@ -318,6 +329,14 @@ export interface PluginSettings {
      */
     defaultSubject: string;
 
+    /**
+     * Custom subject mapping rules (AC-30.19.1)
+     * Each rule maps a glob pattern to a subject identifier
+     * Priority: user mappings > backend auto-inference
+     * @default []
+     */
+    subjectMappings: SubjectMappingRule[];
+
     // ========== Memory System Settings (P1 Task #8) ==========
     /**
      * Neo4j database URI
@@ -476,6 +495,7 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     // Subject Isolation Settings (EPIC 30 Part 3)
     enableSubjectIsolation: false,
     defaultSubject: 'general',
+    subjectMappings: [],
 
     // ========== Memory System Settings (P1 Task #8) ==========
     // Neo4j Configuration

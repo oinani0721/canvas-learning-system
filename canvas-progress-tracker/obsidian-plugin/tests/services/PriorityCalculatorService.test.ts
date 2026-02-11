@@ -804,3 +804,219 @@ describe('createPriorityCalculatorService', () => {
         expect(settings.weights.fsrsWeight).toBe(0.5);
     });
 });
+
+// =============================================================================
+// Story 30.17: Degradation Transparency Tests
+// =============================================================================
+
+describe('Story 30.17: Degradation Transparency', () => {
+    let service: PriorityCalculatorService;
+    let warnSpy: jest.SpyInstance;
+
+    beforeEach(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(FIXED_NOW);
+        service = new PriorityCalculatorService(mockApp);
+        warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        warnSpy.mockRestore();
+        jest.useRealTimers();
+    });
+
+    describe('degradedDimensions field', () => {
+        it('should include "fsrs" when fsrsState is null', () => {
+            const result = service.calculatePriority(
+                'concept-1',
+                null,
+                createMemoryQueryResult({
+                    temporalResults: [createTemporalEvent()],
+                    graphitiResults: [createConceptRelationship()],
+                    semanticResults: [createSemanticResult()],
+                })
+            );
+
+            expect(result.degradedDimensions).toContain('fsrs');
+            expect(result.degradedDimensions).not.toContain('behavior');
+            expect(result.degradedDimensions).not.toContain('network');
+            expect(result.degradedDimensions).not.toContain('interaction');
+        });
+
+        it('should include behavior, network, interaction when memoryResult is null', () => {
+            const fsrs = createFSRSCardState();
+            const result = service.calculatePriority('concept-2', fsrs, null);
+
+            expect(result.degradedDimensions).not.toContain('fsrs');
+            expect(result.degradedDimensions).toContain('behavior');
+            expect(result.degradedDimensions).toContain('network');
+            expect(result.degradedDimensions).toContain('interaction');
+        });
+
+        it('should include all 4 dimensions when both fsrsState and memoryResult are null', () => {
+            const result = service.calculatePriority('concept-3', null, null);
+
+            expect(result.degradedDimensions).toHaveLength(4);
+            expect(result.degradedDimensions).toContain('fsrs');
+            expect(result.degradedDimensions).toContain('behavior');
+            expect(result.degradedDimensions).toContain('network');
+            expect(result.degradedDimensions).toContain('interaction');
+        });
+
+        it('should be empty when all data is available', () => {
+            const result = service.calculatePriority(
+                'concept-4',
+                createFSRSCardState(),
+                createMemoryQueryResult({
+                    temporalResults: [createTemporalEvent()],
+                    graphitiResults: [createConceptRelationship()],
+                    semanticResults: [createSemanticResult()],
+                })
+            );
+
+            expect(result.degradedDimensions).toHaveLength(0);
+        });
+
+        it('should include only dimensions with empty arrays in memoryResult', () => {
+            const result = service.calculatePriority(
+                'concept-5',
+                createFSRSCardState(),
+                createMemoryQueryResult({
+                    temporalResults: [createTemporalEvent()],
+                    graphitiResults: [],  // empty
+                    semanticResults: [createSemanticResult()],
+                })
+            );
+
+            expect(result.degradedDimensions).toEqual(['network']);
+        });
+    });
+
+    describe('console.warn on degradation', () => {
+        it('should warn when fsrsState is null', () => {
+            service.calculatePriority('concept-1', null, createMemoryQueryResult({
+                temporalResults: [createTemporalEvent()],
+                graphitiResults: [createConceptRelationship()],
+                semanticResults: [createSemanticResult()],
+            }));
+
+            const fsrsWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('FSRS data unavailable')
+            );
+            expect(fsrsWarn).toBeDefined();
+        });
+
+        it('should warn with summary when any dimension is degraded', () => {
+            service.calculatePriority('test-concept', null, null);
+
+            const summaryWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('4/4 dimensions degraded')
+            );
+            expect(summaryWarn).toBeDefined();
+            expect(summaryWarn![0]).toContain('test-concept');
+        });
+
+        it('should not warn summary when no dimensions are degraded', () => {
+            service.calculatePriority(
+                'healthy-concept',
+                createFSRSCardState(),
+                createMemoryQueryResult({
+                    temporalResults: [createTemporalEvent()],
+                    graphitiResults: [createConceptRelationship()],
+                    semanticResults: [createSemanticResult()],
+                })
+            );
+
+            const summaryWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('dimensions degraded')
+            );
+            expect(summaryWarn).toBeUndefined();
+        });
+
+        it('should warn for behavior when temporal events are empty', () => {
+            service.calculatePriority(
+                'concept-x',
+                createFSRSCardState(),
+                createMemoryQueryResult({ temporalResults: [] })
+            );
+
+            const behaviorWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('Behavior data unavailable')
+            );
+            expect(behaviorWarn).toBeDefined();
+        });
+
+        it('should warn for network when graphiti results are empty', () => {
+            service.calculatePriority(
+                'concept-y',
+                createFSRSCardState(),
+                createMemoryQueryResult({ graphitiResults: [] })
+            );
+
+            const networkWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('Network data unavailable')
+            );
+            expect(networkWarn).toBeDefined();
+        });
+
+        it('should warn for interaction when semantic results are empty', () => {
+            service.calculatePriority(
+                'concept-z',
+                createFSRSCardState(),
+                createMemoryQueryResult({ semanticResults: [] })
+            );
+
+            const interactionWarn = warnSpy.mock.calls.find(
+                (call: any[]) => typeof call[0] === 'string' && call[0].includes('Interaction data unavailable')
+            );
+            expect(interactionWarn).toBeDefined();
+        });
+    });
+
+    describe('mixed degradation scenarios', () => {
+        it('should handle fsrs+behavior degraded but network+interaction available', () => {
+            const result = service.calculatePriority(
+                'mixed-1',
+                null,
+                createMemoryQueryResult({
+                    temporalResults: [],
+                    graphitiResults: [createConceptRelationship()],
+                    semanticResults: [createSemanticResult()],
+                })
+            );
+
+            expect(result.degradedDimensions).toEqual(['fsrs', 'behavior']);
+            expect(result.fsrsUnavailable).toBe(true);
+        });
+
+        it('should correctly set fsrsUnavailable alongside degradedDimensions', () => {
+            const result = service.calculatePriority('test', null, null);
+            expect(result.fsrsUnavailable).toBe(true);
+            expect(result.degradedDimensions).toContain('fsrs');
+        });
+
+        it('should have fsrsUnavailable=false when fsrs is available', () => {
+            const result = service.calculatePriority(
+                'test',
+                createFSRSCardState(),
+                null
+            );
+            expect(result.fsrsUnavailable).toBe(false);
+            expect(result.degradedDimensions).not.toContain('fsrs');
+        });
+
+        it('should include degradedDimensions in batch results', () => {
+            const results = service.calculateBatchPriorities([
+                { conceptId: 'a', fsrsState: null, memoryResult: null },
+                { conceptId: 'b', fsrsState: createFSRSCardState(), memoryResult: createMemoryQueryResult({
+                    temporalResults: [createTemporalEvent()],
+                    graphitiResults: [createConceptRelationship()],
+                    semanticResults: [createSemanticResult()],
+                })},
+            ]);
+
+            expect(results[0].degradedDimensions).toHaveLength(4);
+            expect(results[1].degradedDimensions).toHaveLength(0);
+        });
+    });
+});

@@ -16,6 +16,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.services.verification_service import VerificationService
 
 
@@ -144,7 +146,7 @@ class TestVerificationServiceInjection:
         """
         # Arrange: Make graphiti call hang indefinitely
         async def slow_query(*args, **kwargs):
-            await asyncio.sleep(10)  # Longer than timeout
+            await simulate_async_delay(10)  # Longer than timeout
             return []
 
         mock_graphiti_client.search_verification_questions = slow_query

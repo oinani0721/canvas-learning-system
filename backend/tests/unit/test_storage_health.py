@@ -13,8 +13,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import simulate_async_delay
-
 from app.api.v1.endpoints.health import (
     LatencyTracker,
     StorageBackendStatus,
@@ -144,16 +142,13 @@ class TestLatencyTracker:
     @pytest.mark.asyncio
     async def test_old_samples_are_pruned(self):
         """✅ AC-36.10.3: Old samples outside window are pruned."""
-        # Use 1 second window for quick test
         tracker = LatencyTracker(window_seconds=1)
 
-        # Record a sample
-        await tracker.record(100.0)
+        # Directly insert a sample with old timestamp (2 seconds in the past)
+        old_timestamp = time.time() - 2.0
+        tracker._samples.append((old_timestamp, 100.0))
 
-        # Wait for sample to expire
-        await simulate_async_delay(1.1)
-
-        # Should be 0 after expiration
+        # get_p95 calls _prune_old which removes expired samples
         p95 = await tracker.get_p95()
         assert p95 == 0.0
 

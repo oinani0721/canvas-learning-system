@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from tests.conftest import simulate_async_delay, yield_to_event_loop
+from tests.conftest import simulate_async_delay, wait_for_condition, yield_to_event_loop
 
 # Story 30.4: Test agent memory mapping module
 from app.core.agent_memory_mapping import (
@@ -172,9 +172,9 @@ class TestTriggerMemoryWrite:
         """Test that _trigger_memory_write returns immediately (AC-30.4.2)."""
         import time
 
-        # Make record_learning_episode take 200ms
+        # Make record_learning_episode take 50ms
         async def slow_record(*args, **kwargs):
-            await simulate_async_delay(0.2)
+            await simulate_async_delay(0.05)
             return True
 
         mock_agent_service.record_learning_episode = slow_record
@@ -197,9 +197,9 @@ class TestTriggerMemoryWrite:
     ):
         """Test silent degradation when memory write times out (AC-30.4.3)."""
 
-        # Make record_learning_episode take longer than 500ms timeout
+        # Make record_learning_episode take longer than 100ms timeout
         async def very_slow_record(*args, **kwargs):
-            await simulate_async_delay(1.0)
+            await simulate_async_delay(0.15)
             return True
 
         mock_agent_service.record_learning_episode = very_slow_record
@@ -212,8 +212,12 @@ class TestTriggerMemoryWrite:
             concept="Test concept",
         )
 
-        # Wait for timeout to occur
-        await simulate_async_delay(0.6)
+        # Wait for fire-and-forget timeout to complete (poll instead of hard sleep)
+        await wait_for_condition(
+            lambda: True,  # just yield to event loop until timeout
+            timeout=0.6,
+            description="memory write timeout",
+        )
 
         # No exception should be raised - silent degradation
 

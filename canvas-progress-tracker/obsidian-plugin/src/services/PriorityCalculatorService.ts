@@ -100,6 +100,8 @@ export interface PriorityResult {
     priorityTier: 'critical' | 'high' | 'medium' | 'low';
     /** Story 38.3 AC-2: Whether FSRS data was unavailable for this calculation */
     fsrsUnavailable?: boolean;
+    /** Story 30.17: Dimensions that used degraded/fallback values */
+    degradedDimensions: string[];
 }
 
 /**
@@ -217,6 +219,27 @@ export class PriorityCalculatorService {
             memoryResult?.semanticResults || []
         );
 
+        // Story 30.17: Collect degraded dimensions
+        const degradedDimensions: string[] = [];
+        if (fsrsState === null) {
+            degradedDimensions.push('fsrs');
+        }
+        if (!memoryResult || memoryResult.temporalResults.length === 0) {
+            degradedDimensions.push('behavior');
+        }
+        if (!memoryResult || memoryResult.graphitiResults.length === 0) {
+            degradedDimensions.push('network');
+        }
+        if (!memoryResult || memoryResult.semanticResults.length === 0) {
+            degradedDimensions.push('interaction');
+        }
+
+        if (degradedDimensions.length > 0) {
+            console.warn(
+                `[PriorityCalculator] Concept "${conceptId}": ${degradedDimensions.length}/4 dimensions degraded [${degradedDimensions.join(', ')}]. Priority score is an estimate.`
+            );
+        }
+
         // Calculate weighted final score
         const priorityScore = Math.round(
             fsrsScore.score * weights.fsrsWeight +
@@ -250,6 +273,8 @@ export class PriorityCalculatorService {
             priorityTier,
             // Story 38.3 AC-2: Flag when FSRS data was unavailable
             fsrsUnavailable: fsrsState === null,
+            // Story 30.17: Track which dimensions used fallback values
+            degradedDimensions,
         };
     }
 
@@ -284,9 +309,10 @@ export class PriorityCalculatorService {
      */
     private calculateFSRSUrgency(state: FSRSCardState | null): DimensionScore {
         if (!state) {
+            console.warn('[PriorityCalculator] FSRS data unavailable — using degraded neutral score (50). Priority accuracy reduced.');
             return {
                 score: 50, // Neutral when no FSRS data
-                explanation: 'No FSRS data available, using neutral score',
+                explanation: 'No FSRS data available, using neutral score (degraded)',
                 factors: {},
             };
         }
@@ -369,9 +395,10 @@ export class PriorityCalculatorService {
      */
     private calculateBehaviorWeight(events: TemporalEvent[]): DimensionScore {
         if (events.length === 0) {
+            console.warn('[PriorityCalculator] Behavior data unavailable — no temporal events. Using degraded neutral score (50).');
             return {
                 score: 50,
-                explanation: 'No learning events recorded',
+                explanation: 'No learning events recorded (degraded)',
                 factors: {},
             };
         }
@@ -448,9 +475,10 @@ export class PriorityCalculatorService {
      */
     private calculateNetworkCentrality(relationships: ConceptRelationship[]): DimensionScore {
         if (relationships.length === 0) {
+            console.warn('[PriorityCalculator] Network data unavailable — no concept relationships. Using degraded neutral score (50).');
             return {
                 score: 50,
-                explanation: 'No concept relationships found',
+                explanation: 'No concept relationships found (degraded)',
                 factors: {},
             };
         }
@@ -503,9 +531,10 @@ export class PriorityCalculatorService {
      */
     private calculateInteractionWeight(results: SemanticResult[]): DimensionScore {
         if (results.length === 0) {
+            console.warn('[PriorityCalculator] Interaction data unavailable — no semantic results. Using degraded neutral score (50).');
             return {
                 score: 50,
-                explanation: 'No document interactions found',
+                explanation: 'No document interactions found (degraded)',
                 factors: {},
             };
         }

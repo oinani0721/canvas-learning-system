@@ -14,7 +14,7 @@ Test Coverage:
 
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -115,16 +115,19 @@ class TestCardCreation:
 
     def test_create_card_is_due_immediately(self, fsrs_manager):
         """Test new card is due immediately upon creation."""
-        # Act
+        # Act — bracket with before/after to avoid datetime.now() clock drift at midnight
+        before = datetime.now(timezone.utc)
         card = fsrs_manager.create_card()
         due = fsrs_manager.get_due_date(card)
+        after = datetime.now(timezone.utc)
 
-        # Assert
+        # Assert — due should be within the time window (with margin)
         assert due is not None
-        now = datetime.now(timezone.utc)
-        # Card should be due within a few seconds of now
-        delta = abs((due - now).total_seconds())
-        assert delta < 5, f"Card should be due immediately, delta={delta}s"
+        margin = timedelta(seconds=5)
+        assert before - margin <= due <= after + margin, (
+            f"Card should be due immediately. due={due}, "
+            f"window=[{before - margin}, {after + margin}]"
+        )
 
 
 # ==========================================================
@@ -230,15 +233,18 @@ class TestDueDate:
 
     def test_get_due_date_is_in_future_after_review(self, fsrs_manager, new_card):
         """Test due date is in future after review with Good rating."""
-        # Arrange
-        now = datetime.now(timezone.utc)
+        # Arrange — capture time before review to avoid midnight boundary flake
+        before = datetime.now(timezone.utc)
 
         # Act
         updated_card, _ = fsrs_manager.review_card(new_card, Rating.Good)
         due_date = fsrs_manager.get_due_date(updated_card)
 
-        # Assert
-        assert due_date > now, "Due date should be in the future after review"
+        # Assert — due date must be strictly after the pre-review timestamp
+        assert due_date > before, (
+            f"Due date should be in the future after review. "
+            f"due={due_date}, before={before}"
+        )
 
 
 # ==========================================================

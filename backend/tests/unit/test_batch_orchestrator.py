@@ -22,6 +22,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.models.session_models import (
     NodeResult,
     SessionInfo,
@@ -228,7 +230,7 @@ class TestSemaphoreConcurrency:
                     max_concurrent_seen = current_concurrent
 
             # Simulate some work
-            await asyncio.sleep(0.1)
+            await simulate_async_delay(0.1)
 
             async with lock:
                 current_concurrent -= 1
@@ -271,7 +273,7 @@ class TestSemaphoreConcurrency:
         orchestrator._peak_concurrent = 0
 
         async def slow_call(*args, **kwargs):
-            await asyncio.sleep(0.05)
+            await simulate_async_delay(0.05)
             return MockAgentResult()
 
         mock_agent_service.call_agent = AsyncMock(side_effect=slow_call)
@@ -765,7 +767,7 @@ class TestFullSessionExecution:
     ):
         """Test batch session timeout handling."""
         async def slow_agent(*args, **kwargs):
-            await asyncio.sleep(10)
+            await simulate_async_delay(10)
             return MockAgentResult()
 
         mock_agent_service.call_agent = AsyncMock(side_effect=slow_agent)

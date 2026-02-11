@@ -109,9 +109,9 @@ class TestGraphitiJsonDualWrite:
         # Arrange
         await memory_service.initialize()
 
-        # Make JSON write slow (1 second)
+        # Make JSON write slow (150ms)
         async def slow_write(*args, **kwargs):
-            await simulate_async_delay(1.0)
+            await simulate_async_delay(0.15)
             return True
 
         mock_learning_memory_client.add_learning_episode = slow_write
@@ -181,9 +181,9 @@ class TestGraphitiJsonDualWrite:
         # Arrange
         await memory_service.initialize()
 
-        # Make JSON write slow (2 seconds, way beyond 500ms timeout)
+        # Make JSON write slow (150ms, way beyond timeout for fire-and-forget)
         async def very_slow_write(*args, **kwargs):
-            await simulate_async_delay(2.0)
+            await simulate_async_delay(0.15)
             return True
 
         mock_learning_memory_client.add_learning_episode = very_slow_write
@@ -202,8 +202,12 @@ class TestGraphitiJsonDualWrite:
                 agent_type="scoring-agent",
             )
 
-            # Wait for fire-and-forget task to timeout
-            await simulate_async_delay(GRAPHITI_JSON_WRITE_TIMEOUT + 0.5)
+            # Wait for fire-and-forget timeout task to complete (poll instead of hard sleep)
+            await wait_for_condition(
+                lambda: time.time() - start_time >= GRAPHITI_JSON_WRITE_TIMEOUT + 0.3,
+                timeout=GRAPHITI_JSON_WRITE_TIMEOUT + 1.0,
+                description="fire-and-forget timeout",
+            )
             total_elapsed = time.time() - start_time
 
         # Assert
@@ -322,7 +326,7 @@ class TestGraphitiJsonDualWrite:
         await memory_service.initialize()
 
         async def very_slow_write(*args, **kwargs):
-            await simulate_async_delay(2.0)
+            await simulate_async_delay(2.5)  # Must exceed GRAPHITI_JSON_WRITE_TIMEOUT (2.0s)
             return True
 
         mock_learning_memory_client.add_learning_episode = very_slow_write

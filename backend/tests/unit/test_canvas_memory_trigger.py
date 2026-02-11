@@ -26,7 +26,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from tests.conftest import simulate_async_delay
-
 from app.models.canvas_events import CanvasEvent, CanvasEventContext, CanvasEventType
 from app.services.canvas_service import CanvasService
 
@@ -296,11 +295,11 @@ class TestAsyncNonBlocking:
         self, temp_canvas_dir
     ):
         """Test CRUD returns immediately even if memory write is slow."""
-        # Create a slow memory client (1 second delay)
+        # Create a slow memory client (150ms delay)
         slow_memory_client = AsyncMock()
 
         async def slow_record(*args, **kwargs):
-            await simulate_async_delay(1.0)  # 1 second delay
+            await simulate_async_delay(0.15)  # 150ms delay
             return "event-slow"
 
         slow_memory_client.record_temporal_event = slow_record
@@ -364,7 +363,7 @@ class TestSilentDegradation:
         timeout_memory_client = AsyncMock()
 
         async def timeout_record(*args, **kwargs):
-            await simulate_async_delay(2.0)  # 2 second delay (will timeout at 500ms)
+            await simulate_async_delay(0.15)  # 150ms delay (will timeout at 100ms)
             return "event-timeout"
 
         timeout_memory_client.record_temporal_event = timeout_record

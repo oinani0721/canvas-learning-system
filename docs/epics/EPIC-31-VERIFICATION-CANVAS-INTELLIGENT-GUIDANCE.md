@@ -8,7 +8,7 @@
 | **标题** | 检验白板智能引导系统完整激活 |
 | **类型** | Brownfield Enhancement |
 | **优先级** | P0 (Critical) |
-| **状态** | In Progress |
+| **状态** | ⚠️ Adversarial Review Complete — CONCERNS (2026-02-10) |
 | **创建日期** | 2026-01-17 |
 | **预计工时** | 13-16天 |
 | **关联Bug** | Bug 4 (检验白板质量差) |
@@ -251,17 +251,21 @@
 
 ---
 
-### Story 31.10: 跨进程会话持久化与恢复 [P1]
+### Story 31.10: 推荐降级模式 UI 指示器 [P1]
 
-**描述**: 解决检验会话在进程重启后丢失的问题，实现 Neo4j 直接持久化
+**描述**: 当 Agent 推荐 API 失败时，在前端 ScoringResultPanel 显示明确的降级模式提示（"离线推荐"标签 + 重试按钮）
 
-**状态**: Ready for Review
+> ⚠️ **对抗性审核修正 (2026-02-10)**: 原描述 "跨进程会话持久化/Neo4j 直接" 为幻觉。
+> 实际 Story 内容见 `docs/stories/31.10.story.md`。会话存储使用 TTLCache（内存），非 Neo4j。
+
+**状态**: Ready for Review (前端 13 个测试通过; 后端降级测试待补 → Story 31.A.9)
 
 **关键文件**:
-- `backend/app/services/verification_service.py`
-- `backend/app/api/v1/endpoints/review.py`
+- `canvas-progress-tracker/obsidian-plugin/src/views/ScoringResultPanel.ts` (前端降级 UI)
+- `canvas-progress-tracker/obsidian-plugin/styles.css` (降级样式)
+- `backend/app/services/verification_service.py` (degraded 标志源头)
 
-**依赖**: Story 31.8 (已合并)
+**依赖**: Story 31.3 (recommend-action 端点)
 
 ---
 
@@ -325,6 +329,42 @@
 
 ---
 
+### Story 31.A.7: TTLCache 会话存储降级透明化 [P1]
+
+**描述**: 在不改变存储架构的前提下，为 TTLCache 会话存储添加启动警告日志、过期/淘汰事件日志、架构限制注释
+
+**来源**: 对抗性审核 2026-02-10 发现 #1 (🔴)
+
+**状态**: Pending
+
+**依赖**: 无
+
+---
+
+### Story 31.A.8: Mock 降级路径日志透明化 [P1]
+
+**描述**: 将 `_mock_evaluate_answer()` 的 4 个调用点日志从 debug 升级为 WARNING，API 响应增加 `degraded_reason` 字段，方法签名扩展为 4 元组
+
+**来源**: 对抗性审核 2026-02-10 发现 #4/#5 (🟡)
+
+**状态**: Pending
+
+**依赖**: 无
+
+---
+
+### Story 31.A.9: Story 31.10 推荐降级 UI 指示器后端集成测试 [P1]
+
+**描述**: 为 Story 31.10 的前端降级 UI 补全后端集成测试：验证 `degraded` 标志传播、降级响应格式、recommend-action 端点降级行为
+
+**来源**: 对抗性审核 2026-02-10 发现 #2/#7 (🔴/🟡)
+
+**状态**: Pending
+
+**依赖**: Story 31.10, Story 31.3
+
+---
+
 ## Compatibility Requirements
 
 - [x] 现有Agent API保持不变（仅新增端点）
@@ -358,10 +398,11 @@
 - [x] Story 31.5-31.7 完成（P2）
 - [x] Story 31.8-31.10 完成（补充 Story）
 - [x] Story 31.A.1-31.A.6 完成（管道修复）
-- [ ] 单元测试覆盖率 >= 95%
-- [ ] 端到端测试通过（生成 → 问答 → 决策 → 进度追踪）
+- [ ] Story 31.A.7-31.A.9 完成（对抗性审核补充 Story, 2026-02-10）
+- [ ] 单元测试覆盖率 >= 95% — ⚠️ 对抗性审核 2026-02-10: 后端覆盖率约 81%，距 95% 仍有差距。Story 31.10 (推荐降级 UI 指示器) 需补测试; TTLCache 非持久化为已知限制
+- [ ] 端到端测试通过（生成 → 问答 → 决策 → 进度追踪） — ⚠️ 审核发现: Story 31.2 E2E API test 缺失; mock 降级路径 (_mock_evaluate_answer) 需透明化
 - [x] 无回归（现有Agent和Review功能正常）
-- [ ] 文档更新（API文档、用户指南）
+- [ ] 文档更新（API文档、用户指南） — ⚠️ 审核发现: 回顾文档有幻觉声明(已修正); 可追溯性矩阵数据错误(已修正); Story 31.10 定义混乱(已澄清)
 
 ---
 
@@ -369,7 +410,7 @@
 
 ### Scope Validation
 
-- [x] Epic共16个Stories（31.1-31.10 + 31.A.1-31.A.6）
+- [x] Epic共19个Stories（31.1-31.10 + 31.A.1-31.A.9） [审核修正: 原 16 → 19]
 - [x] 遵循现有AgentService和RAG模式
 - [x] 集成复杂度可控（主要是替换Mock）
 - [x] 风险可控（有降级和回滚方案）

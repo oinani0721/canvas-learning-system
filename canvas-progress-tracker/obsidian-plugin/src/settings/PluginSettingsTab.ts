@@ -1381,7 +1381,11 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
                 .setCta()
                 .onClick(async () => {
                     if (!newPattern || !newSubject || !newCategory) {
-                        new Notice('❌ 请填写所有字段');
+                        new Notice('❌ 请填写所有字段（路径模式、学科、分类均不能为空）');
+                        return;
+                    }
+                    if (newSubject.length > 50) {
+                        new Notice('❌ 学科名称不能超过50字符');
                         return;
                     }
                     button.setDisabled(true);

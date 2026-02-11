@@ -599,6 +599,926 @@
       "score": null,
       "agent_feedback": "scoring",
       "timestamp": "2026-02-09T18:42:01.396133"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:21:32.292035",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.292035"
+    },
+    {
+      "key": "test:node-001:2026-02-10T02:21:32.312014",
+      "canvas_name": "test",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.312014"
+    },
+    {
+      "key": "test:node-002:2026-02-10T02:21:32.329879",
+      "canvas_name": "test",
+      "node_id": "node-002",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.329879"
+    },
+    {
+      "key": "test:node-003:2026-02-10T02:21:32.343397",
+      "canvas_name": "test",
+      "node_id": "node-003",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.343397"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:21:32.384196",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.384196"
+    },
+    {
+      "key": "test:node-001:2026-02-10T02:21:32.399891",
+      "canvas_name": "test",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.399891"
+    },
+    {
+      "key": "test:node-002:2026-02-10T02:21:32.411551",
+      "canvas_name": "test",
+      "node_id": "node-002",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.411551"
+    },
+    {
+      "key": "test:node-003:2026-02-10T02:21:32.420261",
+      "canvas_name": "test",
+      "node_id": "node-003",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.420261"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:21:32.469907",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.469907"
+    },
+    {
+      "key": "test:node-001:2026-02-10T02:21:32.486835",
+      "canvas_name": "test",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.486835"
+    },
+    {
+      "key": "test:node-002:2026-02-10T02:21:32.498095",
+      "canvas_name": "test",
+      "node_id": "node-002",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:32.498095"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:21:33.174846",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.174846"
+    },
+    {
+      "key": "test:node-001:2026-02-10T02:21:33.190293",
+      "canvas_name": "test",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.190293"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T02:21:33.411049",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.411049"
+    },
+    {
+      "key": "test0:node-001:2026-02-10T02:21:33.420187",
+      "canvas_name": "test0",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.420187"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T02:21:33.450725",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.450725"
+    },
+    {
+      "key": "test1:node-001:2026-02-10T02:21:33.463330",
+      "canvas_name": "test1",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.463330"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T02:21:33.489870",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.490540"
+    },
+    {
+      "key": "test2:node-001:2026-02-10T02:21:33.502799",
+      "canvas_name": "test2",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.502799"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T02:21:33.570298",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.570298"
+    },
+    {
+      "key": "test0:node-001:2026-02-10T02:21:33.584811",
+      "canvas_name": "test0",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.584811"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T02:21:33.617694",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.617694"
+    },
+    {
+      "key": "test1:node-001:2026-02-10T02:21:33.632967",
+      "canvas_name": "test1",
+      "node_id": "node-001",
+      "concept": "Generated analysis content",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:21:33.632967"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:24:00.464415",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:24:00.464415"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T02:24:01.182616",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:24:01.182616"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T02:24:01.211815",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:24:01.211815"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:25:57.518575",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:25:57.518575"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:25:57.556745",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:25:57.556745"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T02:26:01.220124",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:26:01.220124"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T02:26:01.234598",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:26:01.234598"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T02:26:01.245081",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:26:01.245081"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:33:30.512585",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:33:30.512585"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:33:30.571013",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:33:30.571013"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T02:33:33.385178",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:33:33.385178"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T02:33:33.409633",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:33:33.409633"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T02:33:33.441599",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:33:33.441599"
+    },
+    {
+      "key": "test:session-start:2026-02-10T02:34:28.578499",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T02:34:28.578499"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T03:12:30.165641",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:12:30.165641"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T03:12:51.776995",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:12:51.776995"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T03:12:52.131863",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:12:52.131863"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:19:16.411967",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:19:16.411967"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:19:16.485337",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:19:16.485337"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T03:19:19.400120",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:19:19.400120"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T03:19:19.439955",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:19:19.439955"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T03:19:19.475081",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:19:19.475081"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:40:16.513849",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:40:16.513849"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:45:04.032088",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:45:04.032088"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:45:04.106029",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:45:04.106029"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T03:45:06.894721",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:45:06.894721"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T03:45:06.921233",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:45:06.921233"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T03:45:06.951545",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:45:06.951545"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T03:51:36.813293",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:51:36.813293"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T03:51:37.933996",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:51:37.933996"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T03:51:38.205040",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:51:38.205040"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:56:10.823475",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:56:10.823475"
+    },
+    {
+      "key": "test:session-start:2026-02-10T03:56:10.868053",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:56:10.868053"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T03:56:13.652633",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:56:13.652633"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T03:56:13.667863",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:56:13.667863"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T03:56:13.681350",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T03:56:13.681859"
+    },
+    {
+      "key": "test:session-start:2026-02-10T04:16:25.910229",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:16:25.910229"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T04:23:20.528188",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:23:20.528188"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T04:23:20.808496",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:23:20.808496"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T04:23:21.140415",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:23:21.140415"
+    },
+    {
+      "key": "test:session-start:2026-02-10T04:29:39.113116",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:29:39.113116"
+    },
+    {
+      "key": "test:session-start:2026-02-10T04:29:39.173876",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:29:39.173876"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T04:29:40.510441",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:29:40.510441"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T04:29:40.541821",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:29:40.541821"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T04:29:40.581572",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:29:40.581572"
+    },
+    {
+      "key": "test/e2e_970d6457.canvas:e2e_node_a0691ab1:2026-02-10T04:40:22.755082",
+      "canvas_name": "test/e2e_970d6457.canvas",
+      "node_id": "e2e_node_a0691ab1",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:22.755082"
+    },
+    {
+      "key": "test/e2e_06f68728.canvas:e2e_node_6ef9195a:2026-02-10T04:40:22.934539",
+      "canvas_name": "test/e2e_06f68728.canvas",
+      "node_id": "e2e_node_6ef9195a",
+      "concept": "概率论基础",
+      "user_understanding": null,
+      "score": 88.0,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:22.934539"
+    },
+    {
+      "key": "test/complete.canvas:complete_node_001:2026-02-10T04:40:23.131638",
+      "canvas_name": "test/complete.canvas",
+      "node_id": "complete_node_001",
+      "concept": "完整测试概念",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.131638"
+    },
+    {
+      "key": "数学/线代.canvas:math_node:2026-02-10T04:40:23.340255",
+      "canvas_name": "数学/线代.canvas",
+      "node_id": "math_node",
+      "concept": "矩阵乘法",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.340255"
+    },
+    {
+      "key": "test/pagination_0.canvas:pagination_node_0:2026-02-10T04:40:23.544892",
+      "canvas_name": "test/pagination_0.canvas",
+      "node_id": "pagination_node_0",
+      "concept": "分页测试概念_0",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.544892"
+    },
+    {
+      "key": "test/pagination_1.canvas:pagination_node_1:2026-02-10T04:40:23.667005",
+      "canvas_name": "test/pagination_1.canvas",
+      "node_id": "pagination_node_1",
+      "concept": "分页测试概念_1",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.667005"
+    },
+    {
+      "key": "test/pagination_2.canvas:pagination_node_2:2026-02-10T04:40:23.782813",
+      "canvas_name": "test/pagination_2.canvas",
+      "node_id": "pagination_node_2",
+      "concept": "分页测试概念_2",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.782813"
+    },
+    {
+      "key": "test/pagination_3.canvas:pagination_node_3:2026-02-10T04:40:23.908977",
+      "canvas_name": "test/pagination_3.canvas",
+      "node_id": "pagination_node_3",
+      "concept": "分页测试概念_3",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:23.908977"
+    },
+    {
+      "key": "test/pagination_4.canvas:pagination_node_4:2026-02-10T04:40:24.032160",
+      "canvas_name": "test/pagination_4.canvas",
+      "node_id": "pagination_node_4",
+      "concept": "分页测试概念_4",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:24.032160"
+    },
+    {
+      "key": "test/persist.canvas:persist_node:2026-02-10T04:40:24.224559",
+      "canvas_name": "test/persist.canvas",
+      "node_id": "persist_node",
+      "concept": "持久化测试_0ea77570",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:24.224559"
+    },
+    {
+      "key": "test/multi_0.canvas:multi_node_0:2026-02-10T04:40:24.369530",
+      "canvas_name": "test/multi_0.canvas",
+      "node_id": "multi_node_0",
+      "concept": "概念A_f1ef",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:24.369530"
+    },
+    {
+      "key": "test/multi_1.canvas:multi_node_1:2026-02-10T04:40:24.512737",
+      "canvas_name": "test/multi_1.canvas",
+      "node_id": "multi_node_1",
+      "concept": "概念B_974f",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": "scoring",
+      "timestamp": "2026-02-10T04:40:24.512737"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T04:40:58.983425",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:40:58.983425"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T04:40:59.696406",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:40:59.696406"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T04:40:59.872306",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:40:59.872306"
+    },
+    {
+      "key": "test:session-start:2026-02-10T04:45:07.538067",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:45:07.538067"
+    },
+    {
+      "key": "test:session-start:2026-02-10T04:45:07.585455",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:45:07.585455"
+    },
+    {
+      "key": "test0:session-start:2026-02-10T04:45:10.402764",
+      "canvas_name": "test0",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:45:10.402764"
+    },
+    {
+      "key": "test1:session-start:2026-02-10T04:45:10.415350",
+      "canvas_name": "test1",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:45:10.415350"
+    },
+    {
+      "key": "test2:session-start:2026-02-10T04:45:10.426297",
+      "canvas_name": "test2",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T04:45:10.426297"
+    },
+    {
+      "key": "test:session-start:2026-02-10T05:05:17.328446",
+      "canvas_name": "test",
+      "node_id": "session-start",
+      "concept": "session-start",
+      "user_understanding": null,
+      "score": null,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:05:17.328446"
+    },
+    {
+      "key": "test\u0000.canvas:node1:2026-02-10T05:06:01.106524",
+      "canvas_name": "test\u0000.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:06:01.106524"
+    },
+    {
+      "key": "folder/subfolder/test.canvas:node1:2026-02-10T05:06:02.083269",
+      "canvas_name": "folder/subfolder/test.canvas",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:06:02.083269"
+    },
+    {
+      "key": "../../../etc/passwd:node1:2026-02-10T05:06:02.295465",
+      "canvas_name": "../../../etc/passwd",
+      "node_id": "node1",
+      "concept": "Unknown",
+      "user_understanding": "",
+      "score": 0.0,
+      "agent_feedback": null,
+      "timestamp": "2026-02-10T05:06:02.295465"
     }
   ],
   "metadata": {

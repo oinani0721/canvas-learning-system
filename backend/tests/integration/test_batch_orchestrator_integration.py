@@ -15,6 +15,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.models.session_models import (
     SessionInfo,
     SessionStatus,
@@ -341,7 +343,7 @@ class TestCancellationWorkflow:
         async def slow_agent(*args, **kwargs):
             nonlocal completed_before_cancel
             execution_started.set()
-            await asyncio.sleep(0.5)  # Slow execution
+            await simulate_async_delay(0.5)  # Slow execution
             completed_before_cancel += 1
             return MockAgentResult(success=True)
 
@@ -377,7 +379,7 @@ class TestCancellationWorkflow:
 
         # Wait for execution to start
         await execution_started.wait()
-        await asyncio.sleep(0.1)
+        await simulate_async_delay(0.1)
 
         # Request cancellation
         cancel_result = await orchestrator.cancel_session(session_id)
@@ -462,7 +464,7 @@ class TestProgressEventFlow:
         events_received = []
 
         async def async_callback(event: ProgressEvent):
-            await asyncio.sleep(0.01)  # Simulate async work
+            await simulate_async_delay(0.01)  # Simulate async work
             events_received.append(event)
 
         session_id = await real_session_manager.create_session(
@@ -511,7 +513,7 @@ class TestConcurrencyControl:
                 current_concurrent += 1
                 if current_concurrent > max_concurrent_observed:
                     max_concurrent_observed = current_concurrent
-            await asyncio.sleep(0.05)
+            await simulate_async_delay(0.05)
             async with lock:
                 current_concurrent -= 1
             return MockAgentResult(success=True)
@@ -580,8 +582,8 @@ class TestMemoryIntegration:
             groups=groups,
         )
 
-        # Memory write should have been called 3 times (once per node)
-        assert mock_agent_service._trigger_memory_write.call_count == 3
+        # Memory write: 1 session-start (Story 30.12) + 3 node completions = 4
+        assert mock_agent_service._trigger_memory_write.call_count == 4
 
     @pytest.mark.asyncio
     async def test_memory_write_not_called_on_failure(
@@ -614,8 +616,8 @@ class TestMemoryIntegration:
             groups=groups,
         )
 
-        # Memory write should not have been called
-        mock_agent_service._trigger_memory_write.assert_not_called()
+        # Memory write: only 1 session-start call (Story 30.12), none for failed nodes
+        assert mock_agent_service._trigger_memory_write.call_count == 1
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -633,7 +635,7 @@ class TestPerformanceMetrics:
     ):
         """Test that performance metrics are calculated correctly."""
         async def timed_agent(*args, **kwargs):
-            await asyncio.sleep(0.1)  # 100ms per call
+            await simulate_async_delay(0.1)  # 100ms per call
             return MockAgentResult(success=True)
 
         mock_agent_service.call_agent = AsyncMock(side_effect=timed_agent)
@@ -708,7 +710,7 @@ class TestErrorScenarios:
     ):
         """Test timeout handling in integration."""
         async def very_slow_agent(*args, **kwargs):
-            await asyncio.sleep(10)  # Very slow
+            await simulate_async_delay(10)  # Very slow
             return MockAgentResult()
 
         mock_agent_service.call_agent = AsyncMock(side_effect=very_slow_agent)

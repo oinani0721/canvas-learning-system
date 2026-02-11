@@ -23,6 +23,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.models.session_models import SessionStatus
 from app.services.batch_orchestrator import (
     BatchOrchestrator,
@@ -70,7 +72,7 @@ def create_mock_agent_service(delay_ms: int = SIMULATED_AGENT_DELAY_MS):
 
     async def mock_call_agent(agent_type: str, prompt: str, **kwargs):
         """Simulate agent processing with configurable delay."""
-        await asyncio.sleep(delay_ms / 1000.0)
+        await simulate_async_delay(delay_ms / 1000.0)
         result = MagicMock()
         result.success = True
         result.content = f"Mock result for {agent_type}"
@@ -278,7 +280,7 @@ async def test_100_node_batch_with_partial_failures(session_manager):
     async def flaky_call_agent(agent_type: str, prompt: str, **kwargs):
         nonlocal call_count
         call_count += 1
-        await asyncio.sleep(0.05)  # 50ms
+        await simulate_async_delay(0.05)  # 50ms
 
         # Fail every 10th call (10% failure rate)
         if call_count % 10 == 0:
@@ -397,3 +399,164 @@ async def test_concurrent_sessions_isolation(session_manager, mock_agent_service
     assert s1.status == SessionStatus.COMPLETED
     assert s2.status == SessionStatus.COMPLETED
     assert observed_peak <= MAX_CONCURRENT
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Realistic AI Latency Load Test (NFR HIGH evidence gap closure)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+REALISTIC_DELAY_MS = 3000  # 3s simulates real AI API latency (Gemini/Claude)
+REALISTIC_P95_THRESHOLD_MS = 10000  # 10s allows for queue wait time
+
+
+@pytest.mark.asyncio
+async def test_100_node_realistic_ai_latency(session_manager):
+    """
+    NFR Load Test: 100 nodes with realistic 3s AI API latency.
+
+    Closes HIGH evidence gap: previous tests used 100ms mock delay which
+    does not represent real Gemini/Claude API latency (2-5s per call).
+
+    With Semaphore(12) and 3s per call:
+    - Theoretical minimum: ceil(100/12) = 9 batches × 3s = 27s
+    - P95 per-node includes queue wait: up to ~8s for last-batch nodes
+
+    Validates:
+    - Orchestrator handles realistic latency without timeout/deadlock
+    - Semaphore(12) concurrency is respected under slow calls
+    - All 100 nodes complete successfully
+    - p95 per-node latency < 10s (includes queue wait)
+    """
+    mock_agent = create_mock_agent_service(delay_ms=REALISTIC_DELAY_MS)
+
+    orchestrator = BatchOrchestrator(
+        session_manager=session_manager,
+        agent_service=mock_agent,
+        max_concurrent=MAX_CONCURRENT,
+    )
+
+    session_id = await session_manager.create_session(
+        canvas_path="test/realistic-latency.canvas",
+        node_count=NODE_COUNT,
+        metadata={"test": "realistic-ai-latency"},
+    )
+
+    groups = make_groups()
+
+    # Start memory tracking
+    tracemalloc.start()
+    baseline_memory = tracemalloc.get_traced_memory()[1]
+
+    start_time = time.perf_counter()
+
+    result = await orchestrator.start_batch_session(
+        session_id=session_id,
+        canvas_path="test/realistic-latency.canvas",
+        groups=groups,
+        timeout=600,  # 10 minute timeout for realistic latency
+    )
+
+    total_duration = time.perf_counter() - start_time
+
+    _, peak_memory = tracemalloc.get_traced_memory()
+    tracemalloc.stop()
+    peak_memory_mb = (peak_memory - baseline_memory) / (1024 * 1024)
+
+    success_count = result.get("completed_nodes", 0)
+    failure_count = result.get("failed_nodes", 0)
+    peak_concurrent = result.get("performance_metrics", {}).get("peak_concurrent", 0)
+
+    # Get per-node execution times
+    session = await session_manager.get_session(session_id)
+    node_durations = []
+    for node_id, nr in session.node_results.items():
+        if nr.execution_time_ms is not None:
+            node_durations.append(float(nr.execution_time_ms))
+
+    if node_durations:
+        node_durations.sort()
+        p50 = statistics.median(node_durations)
+        p95_idx = int(len(node_durations) * 0.95)
+        p95 = node_durations[min(p95_idx, len(node_durations) - 1)]
+        p99_idx = int(len(node_durations) * 0.99)
+        p99 = node_durations[min(p99_idx, len(node_durations) - 1)]
+        avg = statistics.mean(node_durations)
+    else:
+        p50 = p95 = p99 = avg = 0.0
+
+    throughput = NODE_COUNT / total_duration if total_duration > 0 else 0
+
+    results = LoadTestResults(
+        total_duration_s=total_duration,
+        node_durations_ms=node_durations,
+        p50_ms=p50,
+        p95_ms=p95,
+        p99_ms=p99,
+        avg_ms=avg,
+        peak_concurrent=peak_concurrent,
+        success_count=success_count,
+        failure_count=failure_count,
+        peak_memory_mb=peak_memory_mb,
+        throughput_nodes_per_sec=throughput,
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Print NFR Evidence Table
+    # ═══════════════════════════════════════════════════════════════════════
+    theoretical_min_s = (NODE_COUNT / MAX_CONCURRENT) * (REALISTIC_DELAY_MS / 1000)
+    efficiency = (theoretical_min_s / total_duration * 100) if total_duration > 0 else 0
+
+    print("\n" + "=" * 70)
+    print("  EPIC-33 NFR LOAD TEST: 100-Node Batch (REALISTIC 3s AI LATENCY)")
+    print("=" * 70)
+    print(f"  Simulated AI delay:  {REALISTIC_DELAY_MS}ms per node")
+    print(f"  Concurrency:         Semaphore({MAX_CONCURRENT})")
+    print(f"  Theoretical minimum: {theoretical_min_s:.1f}s")
+    print(f"  Total Duration:      {results.total_duration_s:.2f}s")
+    print(f"  Scheduling Efficiency: {efficiency:.1f}%")
+    print(f"  Throughput:          {results.throughput_nodes_per_sec:.2f} nodes/sec")
+    print(f"  Avg per-node:        {results.avg_ms:.1f}ms")
+    print(f"  p50 per-node:        {results.p50_ms:.1f}ms")
+    print(f"  p95 per-node:        {results.p95_ms:.1f}ms")
+    print(f"  p99 per-node:        {results.p99_ms:.1f}ms")
+    print(f"  Peak Concurrent:     {results.peak_concurrent}")
+    print(f"  Success/Fail:        {results.success_count}/{results.failure_count}")
+    print(f"  Peak Memory Delta:   {results.peak_memory_mb:.2f}MB")
+    print("=" * 70)
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Assertions
+    # ═══════════════════════════════════════════════════════════════════════
+
+    # All nodes must complete
+    assert success_count == NODE_COUNT, (
+        f"Expected {NODE_COUNT} successful nodes, got {success_count}"
+    )
+    assert failure_count == 0, f"Expected 0 failures, got {failure_count}"
+
+    # p95 per-node latency < 10s (realistic threshold for 3s AI calls + queue wait)
+    assert results.p95_ms < REALISTIC_P95_THRESHOLD_MS, (
+        f"p95 latency {results.p95_ms:.1f}ms exceeds {REALISTIC_P95_THRESHOLD_MS}ms threshold"
+    )
+
+    # Peak concurrent should not exceed semaphore limit
+    assert results.peak_concurrent <= MAX_CONCURRENT, (
+        f"Peak concurrent {results.peak_concurrent} exceeds "
+        f"semaphore limit {MAX_CONCURRENT}"
+    )
+
+    # Memory usage should be reasonable
+    assert results.peak_memory_mb < MEMORY_THRESHOLD_MB, (
+        f"Peak memory delta {results.peak_memory_mb:.2f}MB exceeds "
+        f"{MEMORY_THRESHOLD_MB}MB threshold"
+    )
+
+    # Total duration should be somewhat close to theoretical minimum
+    # (allow 3x overhead for scheduling, context switching)
+    assert total_duration < theoretical_min_s * 3, (
+        f"Total duration {total_duration:.1f}s is more than 3x "
+        f"theoretical minimum {theoretical_min_s:.1f}s"
+    )
+
+    # Verify session state
+    assert session.status in (SessionStatus.COMPLETED, SessionStatus.PARTIAL_FAILURE)

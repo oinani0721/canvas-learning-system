@@ -17,6 +17,8 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import simulate_async_delay
+
 from app.services.agent_service import (
     MEMORY_WRITE_TIMEOUT,
     _record_failed_write,
@@ -54,7 +56,7 @@ class TestWriteWithTimeoutIntegration:
 
         async def slow_write(*args, **kwargs):
             # JUSTIFIED: Mock simulating slow write; cancelled by asyncio.wait_for, not a hard wait
-            await asyncio.sleep(30)
+            await simulate_async_delay(30)
 
         with patch("app.core.failed_writes_constants.FAILED_WRITES_FILE", fallback_file), \
              patch("app.services.agent_service.FAILED_WRITES_FILE", fallback_file), \

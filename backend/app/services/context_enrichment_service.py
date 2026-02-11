@@ -1411,6 +1411,7 @@ class ContextEnrichmentService:
             List of related memory dicts with relevance scores
         """
         if not self._graphiti_service:
+            logger.warning("_search_graphiti_relations: graphiti_service not available, returning empty")
             return []
 
         try:

@@ -24,8 +24,9 @@ import asyncio
 import pytest
 from unittest.mock import AsyncMock, patch
 
+from tests.conftest import simulate_async_delay, wait_for_mock_call
+
 from app.services.memory_service import MemoryService, GRAPHITI_JSON_WRITE_TIMEOUT
-from tests.conftest import wait_for_mock_call
 
 
 # ✅ 模块级别 fixture（不在类内定义）

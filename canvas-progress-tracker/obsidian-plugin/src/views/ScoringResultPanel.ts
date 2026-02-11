@@ -168,6 +168,8 @@ export class ScoringResultPanel extends Modal {
     private lastRetryTime: number = 0;
     /** Story 31.10: Flag to detect retry-triggered re-render */
     private isRetrying: boolean = false;
+    /** Story 31.10: Render version counter — detects stale renders from concurrent calls */
+    private renderVersion: number = 0;
 
     /**
      * Creates a new ScoringResultPanel
@@ -312,6 +314,7 @@ export class ScoringResultPanel extends Modal {
      * Story 31.3: Now fetches intelligent recommendations from API
      */
     private async renderCurrentResult(): Promise<void> {
+        const thisRender = ++this.renderVersion;
         const { contentEl } = this;
         contentEl.empty();
 
@@ -325,6 +328,12 @@ export class ScoringResultPanel extends Modal {
         // Story 31.3: Try to get API recommendations, fall back to score-based logic
         let suggestions: AgentSuggestion[];
         const recommendation = await this.fetchRecommendation(result);
+
+        // Stale render check: bail out if another render started during await
+        if (thisRender !== this.renderVersion) {
+            this.isRetrying = false;
+            return;
+        }
 
         if (recommendation) {
             suggestions = this.convertRecommendationToSuggestions(recommendation);
@@ -540,14 +549,16 @@ export class ScoringResultPanel extends Modal {
         // Set retry flag so renderCurrentResult can detect retry failure
         this.isRetrying = true;
 
-        try {
-            await this.renderCurrentResult();
-        } catch (error) {
-            // Re-enable button after 5 seconds on failure
-            new Notice('后端仍不可用');
+        await this.renderCurrentResult();
+
+        // After re-render, if still in fallback mode, apply 5s cooldown to new retry button
+        const newRetryBtn = this.contentEl.querySelector('.fallback-retry-button') as HTMLButtonElement | null;
+        if (newRetryBtn) {
+            newRetryBtn.disabled = true;
+            newRetryBtn.textContent = '冷却中...';
             setTimeout(() => {
-                btn.disabled = false;
-                btn.textContent = '重试';
+                newRetryBtn.disabled = false;
+                newRetryBtn.textContent = '🔄 重试';
             }, 5000);
         }
     }

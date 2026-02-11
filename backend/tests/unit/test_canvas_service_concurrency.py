@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import List
 
 import pytest
+
+from tests.conftest import simulate_async_delay
 from app.services.canvas_service import CanvasService
 
 # ============================================================================
@@ -162,7 +164,7 @@ class TestConcurrentWriteSerialization:
             lock = await canvas_service._get_lock(name)
             async with lock:
                 # Simulate some write time
-                await asyncio.sleep(0.05)
+                await simulate_async_delay(0.05)
                 canvas_path = canvas_service._get_canvas_path(name)
                 canvas_path.parent.mkdir(parents=True, exist_ok=True)
                 with open(canvas_path, 'w', encoding='utf-8') as f:

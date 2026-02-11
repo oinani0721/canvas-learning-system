@@ -48,6 +48,9 @@ logger = logging.getLogger(__name__)
 # Pattern version for A/B testing
 PATTERN_VERSION = "1.0.0"
 
+# Weight for catch-all agent (oral-explanation) — slightly lower to prefer specific matches
+ORAL_EXPLANATION_WEIGHT = 0.9
+
 # Content pattern map: agent_name -> pattern configuration
 # Patterns are ordered by specificity (more specific first)
 CONTENT_PATTERN_MAP: Dict[str, Dict[str, Any]] = {
@@ -152,7 +155,7 @@ CONTENT_PATTERN_MAP: Dict[str, Dict[str, Any]] = {
             r".*define.*",            # "define X"
             r".*explain.*what.*",     # "explain what"
         ],
-        "weight": 0.9,  # Slightly lower weight as catch-all
+        "weight": ORAL_EXPLANATION_WEIGHT,
         "priority": 6,  # Lower priority - used as default fallback
         "description": "Oral explanation - professor-style verbal explanation"
     },
@@ -161,10 +164,54 @@ CONTENT_PATTERN_MAP: Dict[str, Dict[str, Any]] = {
 # Default fallback agent when no patterns match or confidence is low
 DEFAULT_FALLBACK_AGENT = "oral-explanation"
 
-# Confidence thresholds (AC2)
+# ═══════════════════════════════════════════════════════════════════════════════
+# Confidence Thresholds & Scoring Constants
+# [Source: docs/stories/33.12.story.md — extracted from inline magic numbers]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# --- Routing decision thresholds (AC2) ---
+# NOTE: MEDIUM and LOW are intentionally equal — there is no "low but keep match" band.
+# >= 0.85 = high confidence, 0.70-0.85 = medium confidence, < 0.70 = fallback to default.
 CONFIDENCE_HIGH_THRESHOLD = 0.85    # Strong match, single dominant agent
-CONFIDENCE_MEDIUM_THRESHOLD = 0.70  # Multiple patterns, clear winner
-CONFIDENCE_LOW_THRESHOLD = 0.70     # Below this, use fallback
+CONFIDENCE_MEDIUM_THRESHOLD = 0.70  # Medium confidence lower bound (for batch counting)
+CONFIDENCE_LOW_THRESHOLD = 0.70     # Below this, use fallback agent
+
+# --- _calculate_confidence() scoring parameters ---
+CONFIDENCE_NO_MATCH = 0.50          # Confidence when no patterns match at all
+CONFIDENCE_BASE = 0.60              # Base confidence for multi-match scoring
+CONFIDENCE_SCORE_WEIGHT = 0.30      # Weight applied to top match score
+CONFIDENCE_SINGLE_MATCH_BASE = 0.85 # Base confidence for single-match case
+CONFIDENCE_SINGLE_MATCH_SCALE = 0.50  # Scale factor for single-match quality bonus
+CONFIDENCE_SINGLE_MATCH_OFFSET = 0.75  # Score offset for single-match calculation
+CONFIDENCE_MAX = 0.98               # Absolute ceiling for confidence
+CONFIDENCE_MIN = 0.40               # Absolute floor for confidence
+
+# Dominance detection: how far top match must exceed second match
+DOMINANCE_RATIO_HIGH = 0.30         # Score gap ratio for clear dominance
+DOMINANCE_RATIO_MODERATE = 0.15     # Score gap ratio for moderate dominance
+CONFIDENCE_CLEAR_DOMINANCE_BONUS = 0.15   # Bonus when top match clearly dominates
+CONFIDENCE_MODERATE_DOMINANCE_BONUS = 0.08  # Bonus when top match moderately dominates
+
+# Competing pattern penalty
+COMPETING_SCORE_RATIO = 0.70        # Fraction of top score to count as "competing"
+COMPETING_THRESHOLD = 2             # Number of competing matches before penalty applies
+CONFIDENCE_COMPETING_PENALTY = 0.05 # Penalty per extra competing pattern
+
+# --- _calculate_match_quality() parameters ---
+MATCH_QUALITY_BASE = 0.75           # Default quality for any pattern match
+MATCH_QUALITY_NO_LEADING_WILDCARD_BONUS = 0.10   # Bonus for anchored start
+MATCH_QUALITY_NO_TRAILING_WILDCARD_BONUS = 0.05  # Bonus for anchored end
+MATCH_QUALITY_LONG_PATTERN_BONUS = 0.05   # Bonus for specific (long) patterns
+MATCH_QUALITY_LONG_PATTERN_MIN_LEN = 6    # Minimum cleaned pattern length for bonus
+
+# --- analyze_content() pattern bonus ---
+PATTERN_COUNT_BONUS_PER_EXTRA = 0.05      # Score bonus per additional matched pattern
+PATTERN_COUNT_BONUS_MAX = 1.15            # Maximum pattern count multiplier
+
+# --- route_batch() accuracy weights ---
+BATCH_ACCURACY_HIGH_WEIGHT = 0.95   # Weight for high-confidence matches
+BATCH_ACCURACY_MEDIUM_WEIGHT = 0.80 # Weight for medium-confidence matches
+BATCH_ACCURACY_LOW_WEIGHT = 0.60    # Weight for low-confidence matches
 
 
 class AgentRoutingEngine:
@@ -237,7 +284,10 @@ class AgentRoutingEngine:
 
             if matched_patterns:
                 # Score = weight * match_quality * pattern count bonus
-                pattern_bonus = min(1.0 + 0.05 * (len(matched_patterns) - 1), 1.15)
+                pattern_bonus = min(
+                    1.0 + PATTERN_COUNT_BONUS_PER_EXTRA * (len(matched_patterns) - 1),
+                    PATTERN_COUNT_BONUS_MAX,
+                )
                 score = weight * max_match_quality * pattern_bonus
                 matches.append((agent_name, score, priority, matched_patterns))
 
@@ -259,19 +309,18 @@ class AgentRoutingEngine:
         Returns:
             Match quality score (0.0 - 1.0)
         """
-        # Base quality
-        quality = 0.75
+        quality = MATCH_QUALITY_BASE
 
         # Boost for patterns without leading/trailing wildcards
         if not pattern.startswith(".*"):
-            quality += 0.1
+            quality += MATCH_QUALITY_NO_LEADING_WILDCARD_BONUS
         if not pattern.endswith(".*"):
-            quality += 0.05
+            quality += MATCH_QUALITY_NO_TRAILING_WILDCARD_BONUS
 
         # Boost for longer specific patterns (more characters excluding wildcards)
         clean_pattern = re.sub(r'\.\*|\.\+|\\s\+|\\s\*', '', pattern)
-        if len(clean_pattern) > 6:
-            quality += 0.05
+        if len(clean_pattern) > MATCH_QUALITY_LONG_PATTERN_MIN_LEN:
+            quality += MATCH_QUALITY_LONG_PATTERN_BONUS
 
         return min(quality, 1.0)
 
@@ -299,12 +348,16 @@ class AgentRoutingEngine:
             return 1.0
 
         if not matches:
-            return 0.5  # No matches, low confidence fallback
+            return CONFIDENCE_NO_MATCH
 
         if len(matches) == 1:
             # Single match - base confidence on match score
             score = matches[0][1]
-            return min(0.85 + (score - 0.75) * 0.5, 0.98)
+            return min(
+                CONFIDENCE_SINGLE_MATCH_BASE
+                + (score - CONFIDENCE_SINGLE_MATCH_OFFSET) * CONFIDENCE_SINGLE_MATCH_SCALE,
+                CONFIDENCE_MAX,
+            )
 
         # Multiple matches - check dominance
         top_score = matches[0][1]
@@ -317,20 +370,22 @@ class AgentRoutingEngine:
             score_gap = 0
 
         # Base confidence from top score
-        base_confidence = 0.6 + (top_score * 0.3)
+        base_confidence = CONFIDENCE_BASE + (top_score * CONFIDENCE_SCORE_WEIGHT)
 
         # Bonus for clear winner
-        if score_gap >= 0.3:
-            base_confidence += 0.15  # Clear dominance
-        elif score_gap >= 0.15:
-            base_confidence += 0.08  # Moderate dominance
+        if score_gap >= DOMINANCE_RATIO_HIGH:
+            base_confidence += CONFIDENCE_CLEAR_DOMINANCE_BONUS
+        elif score_gap >= DOMINANCE_RATIO_MODERATE:
+            base_confidence += CONFIDENCE_MODERATE_DOMINANCE_BONUS
 
         # Penalty for multiple competing patterns
-        competing_count = sum(1 for _, score in matches if score >= top_score * 0.7)
-        if competing_count > 2:
-            base_confidence -= 0.05 * (competing_count - 2)
+        competing_count = sum(
+            1 for _, score in matches if score >= top_score * COMPETING_SCORE_RATIO
+        )
+        if competing_count > COMPETING_THRESHOLD:
+            base_confidence -= CONFIDENCE_COMPETING_PENALTY * (competing_count - COMPETING_THRESHOLD)
 
-        return max(min(base_confidence, 0.98), 0.4)
+        return max(min(base_confidence, CONFIDENCE_MAX), CONFIDENCE_MIN)
 
     def route_single_node(self, request: RoutingRequest) -> RoutingResult:
         """
@@ -371,7 +426,7 @@ class AgentRoutingEngine:
             return RoutingResult(
                 node_id=request.node_id,
                 recommended_agent=DEFAULT_FALLBACK_AGENT,
-                confidence=0.5,
+                confidence=CONFIDENCE_NO_MATCH,
                 patterns_matched=[],
                 fallback_agent=None,
                 reason="no_pattern_match"
@@ -459,9 +514,9 @@ class AgentRoutingEngine:
         if total_nodes > 0:
             # Weight high confidence matches more heavily
             weighted_sum = (
-                high_confidence_count * 0.95 +
-                medium_confidence_count * 0.80 +
-                low_confidence_count * 0.60
+                high_confidence_count * BATCH_ACCURACY_HIGH_WEIGHT +
+                medium_confidence_count * BATCH_ACCURACY_MEDIUM_WEIGHT +
+                low_confidence_count * BATCH_ACCURACY_LOW_WEIGHT
             )
             accuracy_estimate = weighted_sum / total_nodes
         else:
@@ -499,8 +554,42 @@ __all__ = [
     "CONTENT_PATTERN_MAP",
     "PATTERN_VERSION",
     "DEFAULT_FALLBACK_AGENT",
+    "ORAL_EXPLANATION_WEIGHT",
+    # Routing decision thresholds
     "CONFIDENCE_HIGH_THRESHOLD",
     "CONFIDENCE_MEDIUM_THRESHOLD",
     "CONFIDENCE_LOW_THRESHOLD",
+    # Confidence scoring parameters
+    "CONFIDENCE_NO_MATCH",
+    "CONFIDENCE_BASE",
+    "CONFIDENCE_SCORE_WEIGHT",
+    "CONFIDENCE_SINGLE_MATCH_BASE",
+    "CONFIDENCE_SINGLE_MATCH_SCALE",
+    "CONFIDENCE_SINGLE_MATCH_OFFSET",
+    "CONFIDENCE_MAX",
+    "CONFIDENCE_MIN",
+    # Dominance detection
+    "DOMINANCE_RATIO_HIGH",
+    "DOMINANCE_RATIO_MODERATE",
+    "CONFIDENCE_CLEAR_DOMINANCE_BONUS",
+    "CONFIDENCE_MODERATE_DOMINANCE_BONUS",
+    # Competing pattern penalty
+    "COMPETING_SCORE_RATIO",
+    "COMPETING_THRESHOLD",
+    "CONFIDENCE_COMPETING_PENALTY",
+    # Match quality scoring
+    "MATCH_QUALITY_BASE",
+    "MATCH_QUALITY_NO_LEADING_WILDCARD_BONUS",
+    "MATCH_QUALITY_NO_TRAILING_WILDCARD_BONUS",
+    "MATCH_QUALITY_LONG_PATTERN_BONUS",
+    "MATCH_QUALITY_LONG_PATTERN_MIN_LEN",
+    # Pattern count bonus
+    "PATTERN_COUNT_BONUS_PER_EXTRA",
+    "PATTERN_COUNT_BONUS_MAX",
+    # Batch accuracy weights
+    "BATCH_ACCURACY_HIGH_WEIGHT",
+    "BATCH_ACCURACY_MEDIUM_WEIGHT",
+    "BATCH_ACCURACY_LOW_WEIGHT",
+    # Factory
     "get_routing_engine",
 ]

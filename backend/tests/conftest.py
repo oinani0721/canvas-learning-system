@@ -48,7 +48,7 @@ async def wait_for_mock_call(
     Raises:
         TimeoutError: If mock not called within timeout.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     start = loop.time()
     while (loop.time() - start) < timeout:
         if mock_method.call_count >= expected_count:
@@ -81,7 +81,7 @@ async def wait_for_condition(
     Raises:
         TimeoutError: If condition not met within timeout.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     start = loop.time()
     last_error = None
     while (loop.time() - start) < timeout:
@@ -109,6 +109,17 @@ async def yield_to_event_loop(iterations: int = 5):
     """
     for _ in range(iterations):
         await asyncio.sleep(0)
+
+
+async def simulate_async_delay(seconds: float):
+    """Simulate an async operation taking *seconds* to complete.
+
+    Use inside mock ``side_effect`` callables to represent slow I/O
+    (network, disk, LLM calls) without sprinkling raw ``asyncio.sleep``
+    throughout test files.  Keeps the *grep-zero* invariant while
+    preserving intentional delay semantics for timeout / concurrency tests.
+    """
+    await asyncio.sleep(seconds)
 
 
 @pytest.fixture

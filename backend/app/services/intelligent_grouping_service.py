@@ -22,8 +22,11 @@ Acceptance Criteria:
 """
 
 import asyncio
+import importlib
+import importlib.util
 import logging
 import sys
+import threading
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -39,6 +42,9 @@ from app.models.intelligent_parallel_models import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Lock for thread-safe lazy loading of canvas_utils module
+_canvas_utils_load_lock = threading.Lock()
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Constants
@@ -277,15 +283,28 @@ class IntelligentGroupingService:
             InsufficientNodesError: If not enough nodes
             ClusteringFailedError: If clustering fails
         """
-        # Import CanvasBusinessLogic (heavy import, do it lazily)
+        # Import CanvasBusinessLogic via importlib (avoids sys.path.insert pollution)
+        # Uses sys.modules cache so tests can mock via monkeypatch.setitem
+        # Thread-safe via _canvas_utils_load_lock (called from asyncio.to_thread)
         try:
-            # Add src directory to path if needed
-            src_path = Path(__file__).parent.parent.parent.parent / "src"
-            if str(src_path) not in sys.path:
-                sys.path.insert(0, str(src_path))
-
-            from canvas_utils import CanvasBusinessLogic
-        except ImportError as e:
+            if "canvas_utils" not in sys.modules:
+                with _canvas_utils_load_lock:
+                    # Double-check after acquiring lock
+                    if "canvas_utils" not in sys.modules:
+                        canvas_utils_path = Path(__file__).parent.parent.parent.parent / "src" / "canvas_utils.py"
+                        spec = importlib.util.spec_from_file_location("canvas_utils", canvas_utils_path)
+                        if spec is None or spec.loader is None:
+                            raise ImportError(f"Cannot create module spec from {canvas_utils_path}")
+                        canvas_utils_mod = importlib.util.module_from_spec(spec)
+                        sys.modules["canvas_utils"] = canvas_utils_mod
+                        try:
+                            spec.loader.exec_module(canvas_utils_mod)
+                        except Exception:
+                            # Remove poisoned module from cache on exec failure
+                            del sys.modules["canvas_utils"]
+                            raise
+            CanvasBusinessLogic = sys.modules["canvas_utils"].CanvasBusinessLogic
+        except (ImportError, FileNotFoundError, AttributeError) as e:
             logger.error(f"Failed to import CanvasBusinessLogic: {e}")
             raise ClusteringFailedError(f"Cannot import clustering module: {e}")
 

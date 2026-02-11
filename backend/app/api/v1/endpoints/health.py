@@ -28,6 +28,11 @@ from pydantic import BaseModel, Field
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from app.config import Settings, get_settings
+from app.core.failure_counters import (
+    get_dual_write_failures,
+    get_edge_sync_failures,
+    reset_counters,
+)
 from app.dependencies import AgentServiceDep
 from app.middleware.agent_metrics import get_agent_metrics_snapshot
 from app.middleware.memory_metrics import get_memory_metrics_snapshot
@@ -1276,9 +1281,22 @@ class StorageHealthResponse(BaseModel):
     timestamp: datetime = Field(
         description="Health check timestamp"
     )
+    # Story 36.12 AC-36.12.6: Failure counters for observability
+    edge_sync_failures: int = Field(
+        default=0,
+        description="Total edge sync failures since last reset"
+    )
+    dual_write_failures: int = Field(
+        default=0,
+        description="Total dual-write failures since last reset"
+    )
 
 
-def _aggregate_storage_status(backends: List[StorageBackendStatus]) -> str:
+def _aggregate_storage_status(
+    backends: List[StorageBackendStatus],
+    edge_sync_failures: int = 0,
+    dual_write_failures: int = 0,
+) -> str:
     """Aggregate storage backend statuses.
 
     ✅ Story 36.10 AC-36.10.5
@@ -1294,6 +1312,10 @@ def _aggregate_storage_status(backends: List[StorageBackendStatus]) -> str:
 
     # Any other errors = degraded
     if any(s == "error" for s in statuses.values()):
+        return "degraded"
+
+    # Story 36.12 AC-36.12.6: Failure counters > 0 = degraded
+    if edge_sync_failures > 0 or dual_write_failures > 0:
         return "degraded"
 
     return "healthy"
@@ -1651,8 +1673,12 @@ async def check_storage_health(
     neo4j_pool = _get_neo4j_pool_stats()
     connection_pool = {"neo4j": neo4j_pool}
 
-    # Aggregate status
-    overall_status = _aggregate_storage_status(storage_backends)
+    # Story 36.12 AC-36.12.6: Get failure counters
+    esf = get_edge_sync_failures()
+    dwf = get_dual_write_failures()
+
+    # Aggregate status (now considers failure counters)
+    overall_status = _aggregate_storage_status(storage_backends, esf, dwf)
 
     # Build response
     response = StorageHealthResponse(
@@ -1662,7 +1688,9 @@ async def check_storage_health(
         latency_metrics=latency_metrics,
         cached=False,
         cache_ttl_remaining_seconds=0,
-        timestamp=datetime.now(timezone.utc)
+        timestamp=datetime.now(timezone.utc),
+        edge_sync_failures=esf,
+        dual_write_failures=dwf,
     )
 
     # Cache the response
@@ -1671,6 +1699,31 @@ async def check_storage_health(
 
     logger.debug(f"Storage health check completed: {overall_status} ({total_latency_ms:.1f}ms)")
     return response
+
+
+@router.post(
+    "/health/storage/reset-counters",
+    summary="重置存储失败计数器",
+    description="重置 edge_sync_failures 和 dual_write_failures 计数器（运维用）",
+    operation_id="reset_storage_failure_counters",
+)
+async def reset_storage_failure_counters() -> Dict[str, Any]:
+    """
+    Reset failure counters for storage health.
+
+    Story 36.12 AC-36.12.6: Operational endpoint to reset counters
+    after failures have been investigated and resolved.
+
+    Returns:
+        Previous counter values before reset.
+    """
+    prev = reset_counters()
+    # Invalidate cache so next health check reflects reset
+    global _storage_health_cache, _storage_health_cache_time
+    _storage_health_cache = None
+    _storage_health_cache_time = 0.0
+    logger.info(f"Storage failure counters reset: {prev}")
+    return {"reset": True, "previous_values": prev}
 
 
 # ============================================================================

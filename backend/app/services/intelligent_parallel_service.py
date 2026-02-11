@@ -15,6 +15,7 @@ Connects REST endpoints to real backend services:
 import asyncio
 import logging
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
     from app.services.batch_orchestrator import BatchOrchestrator
     from app.services.agent_service import AgentService
     from app.services.agent_routing_engine import AgentRoutingEngine
+    from app.services.canvas_service import CanvasService
 
 from app.models.intelligent_parallel_models import (
     CancelResponse,
@@ -31,6 +33,7 @@ from app.models.intelligent_parallel_models import (
     GroupProgress,
     GroupStatus,
     IntelligentParallelResponse,
+    NodeError,
     NodeGroup,
     NodeInGroup,
     NodeResult,
@@ -68,6 +71,7 @@ class IntelligentParallelService:
         agent_service: Optional["AgentService"] = None,
         routing_engine: Optional["AgentRoutingEngine"] = None,
         connection_manager: Optional[ConnectionManager] = None,
+        canvas_service: Optional["CanvasService"] = None,
     ) -> None:
         """
         Initialize service with all required dependencies.
@@ -79,6 +83,7 @@ class IntelligentParallelService:
             agent_service: AgentService for single-node agent calls
             routing_engine: AgentRoutingEngine for content-based routing
             connection_manager: ConnectionManager for WebSocket broadcasting
+            canvas_service: CanvasService for reading node content (Story 33.10)
         """
         self._grouping_service = grouping_service
         self._session_manager = session_manager
@@ -86,6 +91,7 @@ class IntelligentParallelService:
         self._agent_service = agent_service
         self._routing_engine = routing_engine
         self._connection_manager = connection_manager or get_connection_manager()
+        self._canvas_service = canvas_service
 
         # Log dependency injection status
         if self._grouping_service is None:
@@ -252,7 +258,7 @@ class IntelligentParallelService:
             total_nodes=total_nodes,
             created_at=now,
             estimated_completion=now + timedelta(seconds=timeout // 2),
-            websocket_url=f"ws://localhost:8000/ws/intelligent-parallel/{session_id}",
+            websocket_url=None,  # Story 33.10 Fix #4: let frontend build from window.location
         )
 
     async def _run_batch_in_background(
@@ -328,36 +334,80 @@ class IntelligentParallelService:
             "cancelled": ParallelTaskStatus.cancelled,
             "partial_failure": ParallelTaskStatus.partial_failure,
         }
-        session_status_value = session.status.value if hasattr(session.status, 'value') else str(session.status)
+        session_status_value = session.status.value
         parallel_status = status_map.get(
             session_status_value, ParallelTaskStatus.pending
         )
 
         # Build progress percent
-        total_nodes = session.node_count if hasattr(session, 'node_count') else 0
-        completed_nodes = session.completed_nodes if hasattr(session, 'completed_nodes') else 0
-        failed_nodes = session.failed_nodes if hasattr(session, 'failed_nodes') else 0
+        total_nodes = session.node_count
+        completed_nodes = session.completed_nodes
+        failed_nodes = session.failed_nodes
         progress_percent = (
             int(completed_nodes / total_nodes * 100) if total_nodes > 0 else 0
         )
 
-        # Build group progress from metadata if available
+        # Story 33.10 Fix #3: Build group progress from session.node_results
         groups_progress = []
-        metadata = session.metadata if hasattr(session, 'metadata') else {}
+        metadata = session.metadata
+        node_results = session.node_results
         if metadata and "groups" in metadata:
             for g_meta in metadata["groups"]:
                 group_id = g_meta.get("group_id", "unknown")
                 agent_type = g_meta.get("agent_type", "unknown")
                 node_ids = g_meta.get("node_ids", [])
+                node_ids_set = set(node_ids)
+
+                # Count completed/failed from actual results
+                group_completed = 0
+                group_errors: List[Any] = []
+                group_results_list: List[Any] = []
+                for nid in node_ids:
+                    if nid in node_results:
+                        nr = node_results[nid]
+                        nr_status = nr.status
+                        if nr_status == "success":
+                            group_completed += 1
+                            # Build NodeResult for the response model
+                            file_path = nr.result
+                            group_results_list.append(
+                                NodeResult(
+                                    node_id=nid,
+                                    file_path=str(file_path) if file_path else None,
+                                )
+                            )
+                        elif nr_status == "failed":
+                            error_msg = nr.error
+                            group_errors.append(
+                                NodeError(
+                                    node_id=nid,
+                                    error_message=error_msg or "Unknown error",
+                                )
+                            )
+
+                # Determine group status
+                total_in_group = len(node_ids)
+                processed = group_completed + len(group_errors)
+                if processed == 0:
+                    group_status = GroupStatus.pending
+                elif processed < total_in_group:
+                    group_status = GroupStatus.running
+                elif len(group_errors) > 0 and group_completed == 0:
+                    group_status = GroupStatus.failed
+                elif len(group_errors) > 0:
+                    group_status = GroupStatus.failed  # partial failure
+                else:
+                    group_status = GroupStatus.completed
+
                 groups_progress.append(
                     GroupProgress(
                         group_id=group_id,
-                        status=GroupStatus.pending,
+                        status=group_status,
                         agent_type=agent_type,
-                        completed_nodes=0,
-                        total_nodes=len(node_ids),
-                        results=[],
-                        errors=[],
+                        completed_nodes=group_completed,
+                        total_nodes=total_in_group,
+                        results=group_results_list,
+                        errors=group_errors,
                     )
                 )
 
@@ -367,8 +417,8 @@ class IntelligentParallelService:
             ParallelTaskStatus.completed,
             ParallelTaskStatus.partial_failure,
         ):
-            started = session.started_at if hasattr(session, 'started_at') else None
-            ended = session.completed_at if hasattr(session, 'completed_at') else None
+            started = session.started_at
+            ended = session.completed_at
             if started and ended:
                 duration = (ended - started).total_seconds()
                 perf_metrics = PerformanceMetrics(
@@ -385,13 +435,16 @@ class IntelligentParallelService:
             status=parallel_status,
             total_groups=len(groups_progress) if groups_progress else 0,
             total_nodes=total_nodes,
-            completed_groups=0,  # Will be updated by orchestrator
+            completed_groups=sum(
+                1 for g in groups_progress
+                if g.status in (GroupStatus.completed, GroupStatus.failed)
+            ),
             completed_nodes=completed_nodes,
             failed_nodes=failed_nodes,
             progress_percent=progress_percent,
-            created_at=session.created_at if hasattr(session, 'created_at') else datetime.now(),
-            started_at=session.started_at if hasattr(session, 'started_at') else None,
-            completed_at=session.completed_at if hasattr(session, 'completed_at') else None,
+            created_at=session.created_at,
+            started_at=session.started_at,
+            completed_at=session.completed_at,
             groups=groups_progress,
             performance_metrics=perf_metrics,
         )
@@ -427,31 +480,30 @@ class IntelligentParallelService:
             return None
 
         # Check if already terminal
-        session_status_value = session.status.value if hasattr(session.status, 'value') else str(session.status)
+        session_status_value = session.status.value
         if session_status_value in ("completed", "cancelled", "failed"):
             raise ValueError(
                 f"Session already {session_status_value}, cannot cancel"
             )
 
-        completed_count = session.completed_nodes if hasattr(session, 'completed_nodes') else 0
+        completed_count = session.completed_nodes
 
         # Use batch orchestrator for graceful cancellation if available
         if self._batch_orchestrator is not None:
             result = await self._batch_orchestrator.cancel_session(session_id)
             if result and result.get("success"):
                 completed_count = result.get("completed_count", completed_count)
-        else:
-            # Fallback: directly transition session state
-            logger.warning(
-                "batch_orchestrator not injected — performing direct state transition for cancel"
+
+        # Always transition session state to CANCELLED immediately
+        # (batch_orchestrator.cancel_session only sets a flag; we must also
+        # persist the terminal state so GET /progress reflects it right away)
+        try:
+            from app.models.session_models import SessionStatus
+            await self._session_manager.transition_state(
+                session_id, SessionStatus.CANCELLED
             )
-            try:
-                from app.models.session_models import SessionStatus
-                await self._session_manager.transition_state(
-                    session_id, SessionStatus.CANCELLED
-                )
-            except Exception as e:
-                logger.error(f"Failed to transition session to cancelled: {e}")
+        except Exception as e:
+            logger.warning(f"Session cancel: state transition failed: {e}")
 
         logger.info(
             f"Session cancelled: {session_id}, completed_count={completed_count}"
@@ -463,6 +515,73 @@ class IntelligentParallelService:
             completed_count=completed_count,
         )
 
+    async def _get_node_content(
+        self,
+        canvas_path: str,
+        node_id: str,
+    ) -> Optional[str]:
+        """
+        Get actual node content from canvas_service.
+
+        Story 33.10 Fix #2: Fetches real node content instead of using
+        a placeholder prompt string.
+
+        Args:
+            canvas_path: Path to the canvas file
+            node_id: ID of the node to retrieve
+
+        Returns:
+            Node content string if available, None otherwise
+        """
+        if self._canvas_service is None:
+            logger.warning(
+                "[Story 33.10] canvas_service not injected — "
+                "cannot fetch real node content"
+            )
+            return None
+
+        try:
+            canvas_name = Path(canvas_path).stem
+            canvas_data = await self._canvas_service.read_canvas(canvas_name)
+            if not canvas_data:
+                logger.warning(f"[Story 33.10] Canvas not found: {canvas_name}")
+                return None
+
+            nodes = canvas_data.get("nodes", [])
+            target_node = None
+            for node in nodes:
+                if node.get("id") == node_id:
+                    target_node = node
+                    break
+
+            if target_node is None:
+                logger.warning(
+                    f"[Story 33.10] Node not found: {node_id} in {canvas_name}"
+                )
+                return None
+
+            from .context_enrichment_service import get_node_content
+
+            vault_path = ""
+            if self._canvas_service and hasattr(self._canvas_service, 'canvas_base_path'):
+                vault_path = self._canvas_service.canvas_base_path or ""
+
+            # Wrap sync file I/O in thread to avoid blocking event loop
+            # (get_node_content reads files synchronously for "file" type nodes)
+            content = await asyncio.to_thread(get_node_content, target_node, vault_path)
+            if content:
+                logger.debug(
+                    f"[Story 33.10] Retrieved content for node {node_id}: "
+                    f"{len(content)} chars"
+                )
+            return content
+
+        except Exception as e:
+            logger.warning(
+                f"[Story 33.10] Failed to get node content (non-blocking): {e}"
+            )
+            return None
+
     async def retry_single_node(
         self,
         node_id: str,
@@ -473,8 +592,8 @@ class IntelligentParallelService:
         Execute single agent on a specific node.
 
         Uses AgentService.call_agent() for real agent invocation.
-        If routing_engine is available and agent_type needs resolution,
-        uses content-based routing.
+        Story 33.10 Fix #2: Fetches real node content from canvas file
+        instead of using a meaningless placeholder string.
 
         Args:
             node_id: Node ID to process
@@ -499,8 +618,16 @@ class IntelligentParallelService:
             )
 
         try:
-            # Build prompt for the agent
-            prompt = f"Process node {node_id} from canvas {canvas_path}"
+            # Story 33.10 Fix #2: Fetch real node content from canvas
+            node_content = await self._get_node_content(canvas_path, node_id)
+            if node_content:
+                prompt = node_content
+            else:
+                logger.warning(
+                    f"[Story 33.10] Could not fetch content for node {node_id}, "
+                    "using fallback prompt"
+                )
+                prompt = f"Process node {node_id} from canvas {canvas_path}"
 
             # Call real agent
             result = await self._agent_service.call_agent(

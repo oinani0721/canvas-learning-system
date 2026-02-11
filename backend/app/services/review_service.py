@@ -63,7 +63,7 @@ import json
 import logging
 import random
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from enum import Enum
 from pathlib import Path as _Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -277,6 +277,8 @@ class ReviewService:
         self._task_canvas_map: Dict[str, str] = {}  # Maps task_id to canvas_name
         # Story 32.2 + P0-2: Card state storage with file persistence
         self._card_states: Dict[str, str] = self._load_card_states()
+        # Story 32.10 AC-3: Track fire-and-forget persistence failures
+        self._auto_persist_failures: int = 0
         logger.debug("ReviewService initialized")
 
     @staticmethod
@@ -364,7 +366,7 @@ class ReviewService:
         # Create background task
         async def _generate():
             await asyncio.sleep(0.2)  # Simulate work
-            timestamp = datetime.now().strftime("%Y%m%d")
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d")
             return {
                 "name": f"{canvas_name}-检验白板-{timestamp}",
                 "source_canvas": canvas_name,
@@ -633,7 +635,7 @@ class ReviewService:
             selected_concepts = random.sample(selected_concepts, question_count)
 
         # Generate verification canvas (simplified stub - actual generation logic elsewhere)
-        timestamp = datetime.now().strftime("%Y%m%d")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d")
         review_canvas_name = f"{source_canvas_name}-检验白板-{timestamp}"
 
         # Store relationship in Graphiti
@@ -648,7 +650,7 @@ class ReviewService:
             "source_canvas_name": source_canvas_name,
             "question_count": len(selected_concepts),
             "mode_used": mode,
-            "generated_at": datetime.now().isoformat(),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
             "weak_concepts": weak_concepts_data,  # AC5: Enhanced response
             "weight_config": weight_config,  # AC5: Weight configuration
             "fallback_used": fallback_used  # AC2 of Story 24.6: Indicate if fallback was triggered
@@ -724,7 +726,7 @@ class ReviewService:
                 return {
                     "canvas_name": canvas_name,
                     "concept_id": concept_id,
-                    "scheduled_date": due_date.isoformat() if due_date else datetime.now().isoformat(),
+                    "scheduled_date": due_date.isoformat() if due_date else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
                     "interval_days": interval_days,
                     "retrievability": retrievability,
                     "fsrs_state": {
@@ -748,11 +750,13 @@ class ReviewService:
         ebbinghaus_intervals = {1: 1, 2: 7, 3: 30, 4: 90}
         interval = ebbinghaus_intervals.get(trigger_point, 1)
 
+        # Story 32.9 AC-1: scheduled_date must be a future date, not "now"
+        scheduled_date = datetime.now(timezone.utc) + timedelta(days=interval)
         return {
             "canvas_name": canvas_name,
             "concept_id": concept_id,
             "trigger_point": trigger_point,
-            "scheduled_date": datetime.now().isoformat(),
+            "scheduled_date": scheduled_date.isoformat(),
             "interval_days": interval,
             "status": "scheduled",
             "algorithm": "ebbinghaus-fallback"
@@ -852,7 +856,6 @@ class ReviewService:
 
                 # Calculate interval in days
                 if due_date:
-                    from datetime import timezone
                     now = datetime.now(timezone.utc)
                     interval_days = max(0, (due_date - now).days)
                 else:
@@ -886,7 +889,7 @@ class ReviewService:
                     "concept_id": concept_id,
                     "rating": rating,
                     "score": score,  # Preserve original score for logging
-                    "next_review": due_date.isoformat() if due_date else datetime.now().isoformat(),
+                    "next_review": due_date.isoformat() if due_date else (datetime.now(timezone.utc) + timedelta(days=interval_days)).isoformat(),
                     "interval_days": interval_days,
                     "fsrs_state": {
                         "stability": float(getattr(updated_card, "stability", 0.0)),
@@ -897,7 +900,7 @@ class ReviewService:
                     },
                     "card_data": card_data,
                     "details": details or {},
-                    "recorded_at": datetime.now().isoformat(),
+                    "recorded_at": datetime.now(timezone.utc).isoformat(),
                     "status": "recorded",
                     "algorithm": "fsrs-4.5"
                 }
@@ -924,15 +927,18 @@ class ReviewService:
             rating_intervals = {1: 1, 2: 3, 3: 7, 4: 30}
             interval = rating_intervals.get(rating, 1)
 
+        # Story 32.9 AC-1: next_review must be a future date, not "now"
+        now_utc = datetime.now(timezone.utc)
+        next_review_date = now_utc + timedelta(days=interval)
         return {
             "canvas_name": canvas_name,
             "concept_id": concept_id,
             "rating": rating,
             "score": score,
-            "next_review": datetime.now().isoformat(),
+            "next_review": next_review_date.isoformat(),
             "interval_days": interval,
             "details": details or {},
-            "recorded_at": datetime.now().isoformat(),
+            "recorded_at": now_utc.isoformat(),
             "status": "recorded",
             "algorithm": "ebbinghaus-fallback"
         }
@@ -969,7 +975,7 @@ class ReviewService:
         from collections import defaultdict
 
         # Calculate date range
-        end_date = datetime.now().date()
+        end_date = datetime.now(timezone.utc).date()
         start_date = end_date - timedelta(days=days)
 
         # Get history from storage/graphiti
@@ -1231,7 +1237,7 @@ class ReviewService:
                     "fromNode": review_canvas,
                     "toNode": original_canvas,
                     "label": f"generated in {mode} mode",
-                    "id": f"review_{mode}_{datetime.now().strftime('%Y%m%d')}"
+                    "id": f"review_{mode}_{datetime.now(timezone.utc).strftime('%Y%m%d')}"
                 }
             )
 
@@ -1467,8 +1473,7 @@ class ReviewService:
             return []
 
         try:
-            # Using JSON storage fallback for now
-            # TODO: Replace with real Neo4j query when Graphiti is fully integrated
+            # Story 36.7: Uses LearningMemoryClient (supports both JSON and Neo4j backends)
             from app.clients.graphiti_client import get_learning_memory_client
             memory_client = get_learning_memory_client()
             await memory_client.initialize()
@@ -1493,7 +1498,7 @@ class ReviewService:
                 if source not in review_sessions:
                     review_sessions[source] = {
                         "review_canvas_path": source,
-                        "date": memory.get("timestamp", datetime.now()),
+                        "date": memory.get("timestamp", datetime.now(timezone.utc)),
                         "mode": memory.get("mode", "fresh"),
                         "concepts": [],
                         "scores": []
@@ -1784,7 +1789,7 @@ class ReviewService:
                     "score": score,
                     "card_data": card_data,
                     "algorithm": "fsrs-4.5",
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now(timezone.utc).isoformat()
                 }
 
                 await memory_client.add_learning_memory(memory_data)
@@ -1854,6 +1859,9 @@ class ReviewService:
                 # Persist auto-created card via fire-and-forget background task.
                 # Bypasses self.graphiti_client gate (not injected by dependencies.py)
                 # and uses get_learning_memory_client() directly.
+                # Story 32.10 AC-3: Capture self for failure counter
+                _self_ref = self
+
                 async def _persist_auto_created_card(cid: str, cdata: str) -> None:
                     try:
                         from app.clients.graphiti_client import get_learning_memory_client
@@ -1866,12 +1874,17 @@ class ReviewService:
                             "card_data": cdata,
                             "algorithm": "fsrs-4.5",
                             "auto_created": True,
-                            "timestamp": datetime.now().isoformat()
+                            "timestamp": datetime.now(timezone.utc).isoformat()
                         }
                         await memory_client.add_learning_memory(memory_data)
                         logger.info(f"Persisted auto-created card to Graphiti: {cid}")
                     except Exception as e:
-                        logger.warning(f"Failed to persist auto-created card for {cid}: {e}")
+                        # Story 32.10 AC-3: Track failure count for observability
+                        _self_ref._auto_persist_failures += 1
+                        logger.warning(
+                            f"Failed to persist auto-created card for {cid} "
+                            f"(total failures: {_self_ref._auto_persist_failures}): {e}"
+                        )
 
                 asyncio.create_task(_persist_auto_created_card(concept_id, card_data))
             else:
@@ -1932,4 +1945,92 @@ class ReviewService:
         # Clearing here causes data loss when DI yield calls cleanup after each request.
         logger.debug("ReviewService cleanup completed")
 
-    # ═══════════════════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 38.9: ReviewService Singleton Factory (canonical entry point)
+# Pattern: async double-check lock (aligned with get_memory_service in memory_service.py)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_review_service_singleton: Optional["ReviewService"] = None
+_review_service_singleton_lock = asyncio.Lock()
+
+
+async def get_review_service() -> "ReviewService":
+    """Get or create the ReviewService singleton.
+
+    Story 38.9 AC1: Canonical singleton factory with double-check lock.
+    All consumers (dependencies.py, review.py endpoints) must use this
+    single entry point to ensure DI alignment.
+
+    Dependencies created:
+    - CanvasService with memory_client (EPIC-36 P0 fix)
+    - BackgroundTaskManager
+    - FSRSManager via create_fsrs_manager() (Story 32.8)
+    - graphiti_client via get_graphiti_temporal_client() (Story 34.8 AC2)
+    """
+    global _review_service_singleton
+    if _review_service_singleton is not None:
+        return _review_service_singleton
+
+    async with _review_service_singleton_lock:
+        # Double-check after acquiring lock
+        if _review_service_singleton is not None:
+            return _review_service_singleton
+
+        from app.config import get_settings
+        from app.services.canvas_service import CanvasService
+        from app.services.background_task_manager import BackgroundTaskManager
+
+        settings = get_settings()
+
+        # 1. CanvasService with memory_client (EPIC-36 P0 fix alignment)
+        memory_client = None
+        try:
+            from app.services.memory_service import get_memory_service as _get_mem
+            memory_client = await _get_mem()
+        except Exception as e:
+            logger.warning(f"MemoryService not available for CanvasService edge sync: {e}")
+
+        canvas_service = CanvasService(
+            canvas_base_path=settings.canvas_base_path,
+            memory_client=memory_client
+        )
+
+        # 2. BackgroundTaskManager
+        task_manager = BackgroundTaskManager()
+
+        # 3. FSRSManager (Story 32.8: unified factory)
+        fsrs_manager = create_fsrs_manager(settings)
+
+        # 4. graphiti_client (Story 34.8 AC2: explicit injection)
+        graphiti_client = None
+        try:
+            from app.dependencies import get_graphiti_temporal_client
+            graphiti_client = get_graphiti_temporal_client()
+        except Exception as e:
+            logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
+
+        if not graphiti_client:
+            logger.warning(
+                "Graphiti client not available for ReviewService, "
+                "history will use FSRS fallback"
+            )
+
+        _review_service_singleton = ReviewService(
+            canvas_service=canvas_service,
+            task_manager=task_manager,
+            graphiti_client=graphiti_client,
+            fsrs_manager=fsrs_manager
+        )
+        logger.info("ReviewService singleton created via services layer factory")
+        return _review_service_singleton
+
+
+def reset_review_service_singleton() -> None:
+    """Reset the ReviewService singleton (for test isolation).
+
+    Story 38.9 AC4: Tests call this instead of directly setting
+    review._review_service_instance = None.
+    """
+    global _review_service_singleton
+    _review_service_singleton = None

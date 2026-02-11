@@ -32,6 +32,8 @@ from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 
 # ---------------------------------------------------------------------------
 # Shared helpers
@@ -709,7 +711,7 @@ class TestNeo4jWriteLatencyMetrics:
         original_run = client._run_query_json_fallback
 
         async def slow_fallback(query, params):
-            await asyncio.sleep(0.25)  # 250ms > 200ms threshold
+            await simulate_async_delay(0.25)  # 250ms > 200ms threshold
             return await original_run(query, params)
 
         client._run_query_json_fallback = slow_fallback

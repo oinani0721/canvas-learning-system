@@ -451,4 +451,82 @@ describe('ScoringResultPanel - Story 31.10: Recommendation Status Indicator', ()
             expect(retryBtn).toBeNull();
         });
     });
+
+    // ===================================================================
+    // Code Review Fix: Retry cooldown and stale render protection
+    // ===================================================================
+
+    describe('Retry cooldown behavior (Task 3.6)', () => {
+        it('should disable new retry button for 5s cooldown after retry failure', async () => {
+            const result = createMockResult();
+            apiClient.recommendAction.mockRejectedValue(new Error('Server down'));
+
+            const panel = new ScoringResultPanel(app, [result], apiClient, callbacks);
+            panel.onOpen();
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            // Click retry
+            const contentEl = (panel as any).contentEl as HTMLElement;
+            const retryBtn = contentEl.querySelector(
+                '.fallback-retry-button'
+            ) as HTMLButtonElement;
+            retryBtn.click();
+
+            await new Promise((r) => setTimeout(r, 100));
+
+            // After failed retry, the NEW retry button should be in cooldown state
+            const newContentEl = (panel as any).contentEl as HTMLElement;
+            const newRetryBtn = newContentEl.querySelector(
+                '.fallback-retry-button'
+            ) as HTMLButtonElement;
+            expect(newRetryBtn).not.toBeNull();
+            expect(newRetryBtn.disabled).toBe(true);
+            expect(newRetryBtn.textContent).toBe('冷却中...');
+        });
+
+        it('should show retry button enabled initially (no cooldown on first load)', async () => {
+            const result = createMockResult();
+            apiClient.recommendAction.mockRejectedValue(new Error('API down'));
+
+            const panel = new ScoringResultPanel(app, [result], apiClient, callbacks);
+            panel.onOpen();
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            const contentEl = (panel as any).contentEl as HTMLElement;
+            const retryBtn = contentEl.querySelector(
+                '.fallback-retry-button'
+            ) as HTMLButtonElement;
+            expect(retryBtn).not.toBeNull();
+            expect(retryBtn.disabled).toBe(false);
+        });
+
+        it('should not apply cooldown when retry succeeds', async () => {
+            const result = createMockResult();
+            apiClient.recommendAction
+                .mockRejectedValueOnce(new Error('Temp failure'))
+                .mockResolvedValueOnce(createMockRecommendation());
+
+            const panel = new ScoringResultPanel(app, [result], apiClient, callbacks);
+            panel.onOpen();
+
+            await new Promise((r) => setTimeout(r, 50));
+
+            // Click retry — this time it succeeds
+            const contentEl = (panel as any).contentEl as HTMLElement;
+            const retryBtn = contentEl.querySelector(
+                '.fallback-retry-button'
+            ) as HTMLButtonElement;
+            retryBtn.click();
+
+            await new Promise((r) => setTimeout(r, 100));
+
+            // Should now be in online mode — no retry button at all
+            const newContentEl = (panel as any).contentEl as HTMLElement;
+            const newRetryBtn = newContentEl.querySelector('.fallback-retry-button');
+            expect(newRetryBtn).toBeNull();
+            expect(newContentEl.querySelector('.recommendation-status-online')).not.toBeNull();
+        });
+    });
 });

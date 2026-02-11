@@ -576,7 +576,7 @@ export class ProgressMonitorModal extends Modal {
     private async pollStatus(): Promise<void> {
         try {
             const response = await fetch(
-                `${this.apiBaseUrl}/canvas/intelligent-parallel/status/${this.sessionId}`,
+                `${this.apiBaseUrl}/canvas/intelligent-parallel/${this.sessionId}`,
                 {
                     method: 'GET',
                     headers: {

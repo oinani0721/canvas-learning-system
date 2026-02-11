@@ -551,21 +551,26 @@ class TestPerformance:
             canvas_service=mock_canvas_service,
             cross_canvas_service=mock_cross_canvas_service
         )
-        # Override TTL to 0.1 seconds for testing
-        service._association_cache_ttl = 0.1
-
         canvas_path = "习题-测试.canvas"
 
-        # First request
+        # First request — populates cache
         await service.get_cross_canvas_context(canvas_path)
 
         # Cache should be populated
         assert canvas_path in service._association_cache
 
-        # Wait for TTL to expire
-        await simulate_async_delay(0.2)
+        # Replace cache with a very short TTL so entries expire almost instantly
+        from cachetools import TTLCache
+        old_cache = service._association_cache
+        service._association_cache = TTLCache(maxsize=1000, ttl=0.01)
+        # Copy the cached entry into the short-TTL cache
+        for k in old_cache:
+            service._association_cache[k] = old_cache[k]
 
-        # Check cache - should be cleared on next access
+        # Wait just long enough for TTL to expire
+        await simulate_async_delay(0.02)
+
+        # TTLCache auto-evicts expired entries
         cached = service._get_cached_association(canvas_path)
         assert cached is None, "Cache should have expired"
 
@@ -642,10 +647,10 @@ class TestCrossCanvasIntegration:
         result1 = await service.get_cross_canvas_context(canvas_path)
         assert result1 is None
 
-        # Should be cached
+        # Should be cached (negative caching stores None directly)
         assert canvas_path in service._association_cache
-        cached_result, _ = service._association_cache[canvas_path]
-        assert cached_result is None
+        cached_value = service._association_cache[canvas_path]
+        assert cached_value is None
 
         # Second call should use cache (not call service again)
         result2 = await service.get_cross_canvas_context(canvas_path)
@@ -653,3 +658,46 @@ class TestCrossCanvasIntegration:
 
         # Service should only be called once
         assert mock_cross_canvas.get_lecture_for_exercise.call_count == 1
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# AC Coverage Gap Tests
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestACCoverageGaps:
+    """Tests for AC-36.8.2 (top 5 extraction) and AC-36.8.6 (graceful degradation)."""
+
+    def test_top_5_knowledge_point_extraction(self, context_enrichment_service):
+        """AC-36.8.2: Verify only top 5 knowledge points extracted from lecture."""
+        # Create 10 nodes
+        lecture_nodes = [
+            {"id": f"node{i}", "type": "text", "text": f"Concept {i}",
+             "x": 0, "y": i * 100, "color": "4"}
+            for i in range(10)
+        ]
+
+        result = context_enrichment_service.extract_top_knowledge_points(
+            lecture_nodes=lecture_nodes,
+            max_nodes=5
+        )
+
+        assert len(result) <= 5, f"Expected max 5 nodes, got {len(result)}"
+
+    @pytest.mark.asyncio
+    async def test_graceful_degradation_no_associated_lecture(
+        self, mock_canvas_service
+    ):
+        """AC-36.8.6: Returns empty/None when no associated lecture exists."""
+        mock_cross_canvas = MagicMock()
+        mock_cross_canvas.get_lecture_for_exercise = AsyncMock(return_value=None)
+
+        service = ContextEnrichmentService(
+            canvas_service=mock_canvas_service,
+            cross_canvas_service=mock_cross_canvas
+        )
+
+        # Exercise canvas with no lecture association
+        result = await service.get_cross_canvas_context("习题-不存在.canvas")
+
+        # Should return None gracefully, no exception
+        assert result is None

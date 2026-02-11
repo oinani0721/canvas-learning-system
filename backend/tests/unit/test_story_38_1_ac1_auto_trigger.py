@@ -14,6 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import yield_to_event_loop
+
 
 class TestAC1AutoTrigger:
     """AC-1: Canvas node create/update auto-triggers LanceDB index."""
@@ -126,7 +128,7 @@ class TestAC1AutoTrigger:
             second_task = svc._pending_tasks["test_canvas"]
 
             # Allow event loop to process the cancellation
-            await asyncio.sleep(0)
+            await yield_to_event_loop(1)
 
             assert first_task.cancelled() or first_task.done(), (
                 "First debounce task should be cancelled when a second update arrives"

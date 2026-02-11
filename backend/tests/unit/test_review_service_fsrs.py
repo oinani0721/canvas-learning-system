@@ -377,3 +377,295 @@ class TestAlgorithmField:
         assert "algorithm" in result
         # Should be fsrs-4.5 or ebbinghaus-fallback
         assert result["algorithm"] in ["fsrs-4.5", "ebbinghaus-fallback"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.11 P1-A: Ebbinghaus Fallback — next_review must be future date
+# (Restored from Story 32.9; removed by Story 38.9 refactoring)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestEbbinghausFallbackNextReview:
+    """P1: When FSRS is unavailable, Ebbinghaus fallback must return
+    next_review as a future date (now + interval), not 'now'."""
+
+    @pytest.fixture
+    def fallback_service(self, mock_canvas_service, mock_task_manager):
+        from app.services.review_service import ReviewService
+        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
+            return ReviewService(
+                canvas_service=mock_canvas_service,
+                task_manager=mock_task_manager,
+                fsrs_manager=None
+            )
+
+    @pytest.mark.asyncio
+    async def test_fallback_score_low_interval_1_day(self, fallback_service):
+        """score < 40 → interval=1 day, next_review = now + 1 day."""
+        from datetime import datetime, timezone
+        before = datetime.now(timezone.utc)
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c1", score=20
+        )
+        assert result["algorithm"] == "ebbinghaus-fallback"
+        assert result["interval_days"] == 1
+        next_review = datetime.fromisoformat(result["next_review"])
+        assert next_review > before, "next_review must be in the future"
+
+    @pytest.mark.asyncio
+    async def test_fallback_score_medium_interval_3_days(self, fallback_service):
+        """score 40-59 → interval=3 days."""
+        from datetime import datetime, timezone
+        before = datetime.now(timezone.utc)
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c2", score=50
+        )
+        assert result["interval_days"] == 3
+        next_review = datetime.fromisoformat(result["next_review"])
+        assert (next_review - before).days >= 2
+
+    @pytest.mark.asyncio
+    async def test_fallback_score_good_interval_7_days(self, fallback_service):
+        """score 60-84 → interval=7 days."""
+        from datetime import datetime, timezone
+        before = datetime.now(timezone.utc)
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c3", score=70
+        )
+        assert result["interval_days"] == 7
+        next_review = datetime.fromisoformat(result["next_review"])
+        assert (next_review - before).days >= 6
+
+    @pytest.mark.asyncio
+    async def test_fallback_score_easy_interval_30_days(self, fallback_service):
+        """score >= 85 → interval=30 days."""
+        from datetime import datetime, timezone
+        before = datetime.now(timezone.utc)
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c4", score=95
+        )
+        assert result["interval_days"] == 30
+        next_review = datetime.fromisoformat(result["next_review"])
+        assert (next_review - before).days >= 29
+
+    @pytest.mark.asyncio
+    async def test_fallback_rating_only_no_score(self, fallback_service):
+        """rating=1 without score → interval=1 day."""
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c5", rating=1
+        )
+        assert result["algorithm"] == "ebbinghaus-fallback"
+        assert result["interval_days"] == 1
+
+    @pytest.mark.asyncio
+    async def test_fallback_recorded_at_is_utc(self, fallback_service):
+        """recorded_at must contain timezone info (UTC)."""
+        from datetime import datetime, timezone
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c6", score=50
+        )
+        recorded_at = datetime.fromisoformat(result["recorded_at"])
+        assert recorded_at.tzinfo is not None, "recorded_at must be timezone-aware"
+
+    @pytest.mark.asyncio
+    async def test_fallback_next_review_is_utc(self, fallback_service):
+        """next_review must contain timezone info (UTC)."""
+        from datetime import datetime, timezone
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c7", score=50
+        )
+        next_review = datetime.fromisoformat(result["next_review"])
+        assert next_review.tzinfo is not None, "next_review must be timezone-aware"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.11 P1-B: schedule_review Ebbinghaus Fallback
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestScheduleReviewFallback:
+    """P1: schedule_review Ebbinghaus fallback must return future scheduled_date."""
+
+    @pytest.fixture
+    def fallback_service(self, mock_canvas_service, mock_task_manager):
+        from app.services.review_service import ReviewService
+        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
+            return ReviewService(
+                canvas_service=mock_canvas_service,
+                task_manager=mock_task_manager,
+                fsrs_manager=None
+            )
+
+    @pytest.mark.asyncio
+    async def test_schedule_fallback_returns_future_date(self, fallback_service):
+        """Ebbinghaus scheduled_date must be in the future."""
+        from datetime import datetime, timezone
+        before = datetime.now(timezone.utc)
+        result = await fallback_service.schedule_review(
+            canvas_name="test", concept_id="c1", trigger_point=1
+        )
+        assert result["algorithm"] == "ebbinghaus-fallback"
+        scheduled = datetime.fromisoformat(result["scheduled_date"])
+        assert scheduled > before, "scheduled_date must be in the future"
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("trigger_point,expected_interval", [
+        (1, 1), (2, 7), (3, 30), (4, 90),
+    ])
+    async def test_schedule_fallback_interval_mapping(
+        self, fallback_service, trigger_point, expected_interval
+    ):
+        """Each trigger_point maps to correct Ebbinghaus interval."""
+        result = await fallback_service.schedule_review(
+            canvas_name="test", concept_id="c1", trigger_point=trigger_point
+        )
+        assert result["interval_days"] == expected_interval
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.11 P1-C: Boundary Conditions
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestRecordReviewBoundaryConditions:
+    """P1: Edge cases for score/rating inputs."""
+
+    @pytest.fixture
+    def review_service(self, review_service_factory):
+        return review_service_factory()
+
+    @pytest.mark.asyncio
+    async def test_score_zero_maps_to_again(self, review_service):
+        """score=0 → rating=1 (Again), interval should be shortest."""
+        result = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_zero", score=0
+        )
+        assert result["rating"] == 1
+
+    @pytest.mark.asyncio
+    async def test_score_100_maps_to_easy(self, review_service):
+        """score=100 → rating=4 (Easy)."""
+        result = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_100", score=100
+        )
+        assert result["rating"] == 4
+
+    @pytest.mark.asyncio
+    async def test_no_score_no_rating_defaults_to_good(self, review_service):
+        """Neither score nor rating → default rating=3 (Good)."""
+        result = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_default"
+        )
+        assert result["rating"] == 3
+
+    @pytest.mark.asyncio
+    async def test_rating_takes_precedence_over_score(self, review_service):
+        """When both provided, rating is used directly (not converted from score)."""
+        result = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_both", score=95, rating=1
+        )
+        # rating=1 should be used, not score=95→rating=4
+        assert result["rating"] == 1
+
+    @pytest.mark.asyncio
+    async def test_invalid_rating_clamped_to_range(self, review_service):
+        """rating=0 → clamped to 1; rating=5 → clamped to 4."""
+        result_low = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_low", rating=0
+        )
+        assert result_low["rating"] >= 1
+
+        result_high = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_high", rating=5
+        )
+        assert result_high["rating"] <= 4
+
+    @pytest.mark.asyncio
+    async def test_invalid_rating_string_defaults_to_good(self, review_service):
+        """Non-numeric rating (e.g., 'abc') → default to 3."""
+        result = await review_service.record_review_result(
+            canvas_name="test", concept_id="c_str", rating="abc"
+        )
+        assert result["rating"] == 3
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.11 P1-D: Algorithm Selection Path
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAlgorithmSelectionPath:
+    """P1: Verify FSRS vs Ebbinghaus algorithm selection."""
+
+    @pytest.fixture
+    def fsrs_service(self, review_service_factory):
+        """Service with FSRS enabled."""
+        return review_service_factory()
+
+    @pytest.fixture
+    def fallback_service(self, mock_canvas_service, mock_task_manager):
+        """Service with FSRS disabled."""
+        from app.services.review_service import ReviewService
+        with patch("app.services.review_service.create_fsrs_manager", return_value=None):
+            return ReviewService(
+                canvas_service=mock_canvas_service,
+                task_manager=mock_task_manager,
+                fsrs_manager=None
+            )
+
+    @pytest.mark.asyncio
+    async def test_fsrs_enabled_uses_fsrs_algorithm(self, fsrs_service):
+        """When FSRS is available, algorithm should be 'fsrs-4.5'."""
+        if fsrs_service._fsrs_manager is None:
+            pytest.skip("FSRS not available in test environment")
+        result = await fsrs_service.record_review_result(
+            canvas_name="test", concept_id="c_fsrs", rating=3
+        )
+        assert result["algorithm"] == "fsrs-4.5"
+
+    @pytest.mark.asyncio
+    async def test_fsrs_disabled_uses_ebbinghaus(self, fallback_service):
+        """When FSRS is unavailable, algorithm should be 'ebbinghaus-fallback'."""
+        result = await fallback_service.record_review_result(
+            canvas_name="test", concept_id="c_ebb", rating=3
+        )
+        assert result["algorithm"] == "ebbinghaus-fallback"
+
+    @pytest.mark.asyncio
+    async def test_schedule_fsrs_vs_ebbinghaus(self, fsrs_service, fallback_service):
+        """schedule_review returns different algorithms based on FSRS availability."""
+        if fsrs_service._fsrs_manager is None:
+            pytest.skip("FSRS not available in test environment")
+        # FSRS schedule_review with existing card_state avoids new-card edge cases
+        # First record a review to create a card, then schedule using the card_data
+        record = await fsrs_service.record_review_result(
+            canvas_name="test", concept_id="c_sched", rating=3
+        )
+        fsrs_result = await fsrs_service.schedule_review(
+            canvas_name="test", concept_id="c_sched", trigger_point=1,
+            card_state=record.get("card_data")
+        )
+        fallback_result = await fallback_service.schedule_review(
+            canvas_name="test", concept_id="c1", trigger_point=1
+        )
+        assert fsrs_result["algorithm"] == "fsrs-4.5"
+        assert fallback_result["algorithm"] == "ebbinghaus-fallback"
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 32.11 P1-E: Fire-and-Forget Failure Counter
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class TestAutoPersistFailureCounter:
+    """P1: _auto_persist_failures counter for observability."""
+
+    def test_counter_starts_at_zero(self, review_service_factory):
+        """Freshly created ReviewService has 0 failures."""
+        svc = review_service_factory()
+        assert svc._auto_persist_failures == 0
+
+    def test_counter_is_integer(self, review_service_factory):
+        """Counter is always an integer."""
+        svc = review_service_factory()
+        assert isinstance(svc._auto_persist_failures, int)

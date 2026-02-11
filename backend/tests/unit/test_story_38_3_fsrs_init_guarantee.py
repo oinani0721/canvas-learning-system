@@ -332,28 +332,29 @@ class TestCodeReviewC1FireAndForgetPersistence:
 
 
 class TestCodeReviewC2ReviewServiceSingleton:
-    """C2 Fix: _get_or_create_review_service() module-level singleton in review.py."""
+    """Story 38.9: ReviewService singleton now lives in services/review_service.py."""
 
     @pytest.fixture(autouse=True)
     def reset_singleton(self):
         """Reset review service singleton before and after each test."""
-        import app.api.v1.endpoints.review as review_module
-        review_module._review_service_instance = None
+        from app.services.review_service import reset_review_service_singleton
+        reset_review_service_singleton()
         yield
-        review_module._review_service_instance = None
+        reset_review_service_singleton()
 
-    def test_singleton_creates_review_service(self):
-        """_get_or_create_review_service returns a ReviewService instance."""
-        import app.api.v1.endpoints.review as review_module
-        svc = review_module._get_or_create_review_service()
-        from app.services.review_service import ReviewService
+    @pytest.mark.asyncio
+    async def test_singleton_creates_review_service(self):
+        """get_review_service() returns a ReviewService instance."""
+        from app.services.review_service import get_review_service, ReviewService
+        svc = await get_review_service()
         assert isinstance(svc, ReviewService)
 
-    def test_singleton_returns_same_instance(self):
-        """Calling _get_or_create_review_service twice returns the same object."""
-        import app.api.v1.endpoints.review as review_module
-        svc1 = review_module._get_or_create_review_service()
-        svc2 = review_module._get_or_create_review_service()
+    @pytest.mark.asyncio
+    async def test_singleton_returns_same_instance(self):
+        """Calling get_review_service() twice returns the same object."""
+        from app.services.review_service import get_review_service
+        svc1 = await get_review_service()
+        svc2 = await get_review_service()
         assert svc1 is svc2
 
 

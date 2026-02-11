@@ -89,6 +89,8 @@ export interface ColorChangeEventBatch {
             new_level: ColorMasteryLevel | null;
             concept: string;
             node_text?: string;
+            /** Resolved subject from user mappings (AC-30.19.5) */
+            subject?: string;
         };
     }>;
 }
@@ -97,6 +99,14 @@ export interface ColorChangeEventBatch {
  * Service settings
  * [Source: AC-30.6.4 - 500ms防抖机制]
  */
+/**
+ * Subject mapping rule for local resolution (AC-30.19.5)
+ */
+interface SubjectMappingEntry {
+    pattern: string;
+    subject: string;
+}
+
 export interface NodeColorChangeWatcherSettings {
     /** Enable the watcher */
     enabled: boolean;
@@ -108,6 +118,12 @@ export interface NodeColorChangeWatcherSettings {
     timeout: number;
     /** Enable console logging for debugging */
     enableLogging: boolean;
+    /** Enable subject isolation (AC-30.19.5) */
+    enableSubjectIsolation: boolean;
+    /** Default subject when no mapping matches */
+    defaultSubject: string;
+    /** User-configured subject mapping rules (AC-30.19.5) */
+    subjectMappings: SubjectMappingEntry[];
 }
 
 /**
@@ -120,6 +136,9 @@ export const DEFAULT_NODE_COLOR_WATCHER_SETTINGS: NodeColorChangeWatcherSettings
     apiBaseUrl: 'http://localhost:8000/api/v1',
     timeout: 500,
     enableLogging: false,
+    enableSubjectIsolation: false,
+    defaultSubject: 'general',
+    subjectMappings: [],
 };
 
 /**
@@ -544,6 +563,51 @@ export class NodeColorChangeWatcher {
     }
 
     // ========================================================================
+    // Private Methods - Subject Resolution (AC-30.19.5)
+    // ========================================================================
+
+    /**
+     * Resolve subject from canvas path using user-configured mappings
+     * Priority: user mappings > backend auto-inference (undefined = let backend decide)
+     * [Source: AC-30.19.5 - 优先使用用户配置的映射]
+     */
+    private resolveSubject(canvasPath: string): string | undefined {
+        if (!this.settings.enableSubjectIsolation) {
+            return undefined;
+        }
+
+        const normalizedPath = canvasPath.replace(/\\/g, '/');
+
+        for (const rule of this.settings.subjectMappings) {
+            if (this.matchGlob(rule.pattern, normalizedPath)) {
+                this.log(`Subject resolved: "${canvasPath}" → "${rule.subject}" (pattern: ${rule.pattern})`);
+                return rule.subject;
+            }
+        }
+
+        // No user mapping matched — return undefined to let backend auto-infer
+        return undefined;
+    }
+
+    /**
+     * Simple glob matcher for subject mapping patterns
+     * Supports ** (recursive) and * (single level)
+     */
+    private matchGlob(pattern: string, path: string): boolean {
+        const normalizedPattern = pattern.replace(/\\/g, '/');
+        const regexStr = normalizedPattern
+            .replace(/[.+^${}()|[\]]/g, '\\$&')
+            .replace(/\*\*/g, '\u0000')
+            .replace(/\*/g, '[^/]*')
+            .replace(/\u0000/g, '.*');
+        try {
+            return new RegExp(`^${regexStr}$`, 'i').test(path);
+        } catch {
+            return false;
+        }
+    }
+
+    // ========================================================================
     // Private Methods - API Communication
     // ========================================================================
 
@@ -554,20 +618,24 @@ export class NodeColorChangeWatcher {
      */
     private async postColorChangeEvents(events: ColorChangeEvent[]): Promise<void> {
         const payload: ColorChangeEventBatch = {
-            events: events.map((e) => ({
-                event_type: e.eventType,
-                timestamp: e.timestamp.toISOString(),
-                canvas_path: e.canvasPath,
-                node_id: e.nodeId,
-                metadata: {
-                    old_color: e.oldColor,
-                    new_color: e.newColor,
-                    old_level: e.oldLevel,
-                    new_level: e.newLevel,
-                    concept: e.nodeText || 'unknown',
-                    node_text: e.nodeText,
-                },
-            })),
+            events: events.map((e) => {
+                const subject = this.resolveSubject(e.canvasPath);
+                return {
+                    event_type: e.eventType,
+                    timestamp: e.timestamp.toISOString(),
+                    canvas_path: e.canvasPath,
+                    node_id: e.nodeId,
+                    metadata: {
+                        old_color: e.oldColor,
+                        new_color: e.newColor,
+                        old_level: e.oldLevel,
+                        new_level: e.newLevel,
+                        concept: e.nodeText || 'unknown',
+                        node_text: e.nodeText,
+                        ...(subject !== undefined ? { subject } : {}),
+                    },
+                };
+            }),
         };
 
         // [Source: Context7:/obsidianmd/obsidian-api - requestUrl]

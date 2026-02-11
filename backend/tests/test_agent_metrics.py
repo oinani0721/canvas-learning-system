@@ -12,6 +12,9 @@ Tests the track_agent_execution decorator and metric recording functions.
 import asyncio
 
 import pytest
+
+from tests.conftest import simulate_async_delay
+
 from app.middleware.agent_metrics import (
     AGENT_ERRORS,
     AGENT_EXECUTION_TIME,
@@ -66,7 +69,7 @@ async def test_track_agent_execution_async_success():
     """Test that async function success is tracked correctly."""
     @track_agent_execution("scoring-agent")
     async def sample_agent():
-        await asyncio.sleep(0.01)
+        await simulate_async_delay(0.01)
         return {"result": "success"}
 
     result = await sample_agent()

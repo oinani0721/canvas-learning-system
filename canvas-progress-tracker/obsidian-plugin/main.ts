@@ -54,6 +54,8 @@ import { BackendProcessManager, createBackendProcessManager, BackendStatus } fro
 import { CanvasFileManager } from './src/managers/CanvasFileManager';
 import type { CanvasData, CanvasTextNode } from './src/types/canvas';
 import { ScoringCheckpointService, SuggestionChoice } from './src/services/ScoringCheckpointService';
+// Story 35.5: Attach Media Modal - multimodal content upload
+import { AttachMediaModal } from './src/modals/AttachMediaModal';
 // Story 16.1: Canvas Association UI - Textbook Mounting
 import { TextbookMountService } from './src/services/TextbookMountService';
 import { CanvasAssociationModal } from './src/modals/CanvasAssociationModal';
@@ -610,6 +612,8 @@ export default class CanvasReviewPlugin extends Plugin {
                 }
                 if (this.memoryQueryService) {
                     this.todayReviewListService.setMemoryQueryService(this.memoryQueryService);
+                    // Story 30.17 AC-30.17.4: Always confirm MemoryQueryService connection
+                    console.log('Canvas Review System: MemoryQueryService connected to TodayReviewListService');
                 }
                 if (this.fsrsStateQueryService) {
                     this.todayReviewListService.setFSRSStateQueryService(this.fsrsStateQueryService);
@@ -1564,6 +1568,38 @@ export default class CanvasReviewPlugin extends Plugin {
                             }
                         }
                     );
+                },
+
+                // Story 35.5: Attach Media to Canvas Node
+                // AC 35.5.1: Right-click menu "附加媒体文件"
+                // AC 35.5.2: Open AttachMediaModal with upload function
+                // AC 35.5.3: Upload via ApiClient.uploadMultimodal()
+                attachMedia: async (context: MenuContext) => {
+                    if (!this.apiClient) {
+                        new Notice('API客户端未初始化');
+                        return;
+                    }
+                    const nodeId = context.nodeId || '';
+                    if (!nodeId) {
+                        new Notice('无法获取节点ID');
+                        return;
+                    }
+
+                    const modal = new AttachMediaModal(this.app, {
+                        nodeId,
+                        conceptId: nodeId,
+                        canvasPath: context.filePath,
+                        uploadFn: async (file: File, conceptId: string, onProgress?: (percent: number) => void) => {
+                            return await this.apiClient!.uploadMultimodal(file, conceptId, onProgress, context.filePath);
+                        },
+                        onUploadComplete: (response) => {
+                            new Notice(`✅ 媒体上传成功: ${response.path || response.id}`);
+                        },
+                        onUploadError: (error) => {
+                            console.error('[Story 35.5] Upload failed:', error);
+                        },
+                    });
+                    modal.open();
                 },
             });
 

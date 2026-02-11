@@ -30,6 +30,7 @@ from app.dependencies import (
 from app.main import app
 from app.services.agent_service import AgentService
 from app.services.canvas_service import CanvasService
+from app.clients.neo4j_client import Neo4jClient
 from app.services.review_service import ReviewService
 from fastapi.testclient import TestClient
 
@@ -56,6 +57,23 @@ def mock_settings():
         DEBUG=True,
         CANVAS_BASE_PATH="/test/path"
     )
+
+
+@pytest.fixture
+def mock_canvas_service(mock_settings):
+    """Mock CanvasService instance for DI tests."""
+    service = MagicMock(spec=CanvasService)
+    service.canvas_base_path = mock_settings.canvas_base_path
+    service.cleanup = AsyncMock()
+    return service
+
+
+@pytest.fixture
+def mock_neo4j_client():
+    """Mock Neo4jClient instance for DI tests."""
+    client = MagicMock(spec=Neo4jClient)
+    client.stats = {"mode": "mock"}
+    return client
 
 
 @pytest.fixture
@@ -187,18 +205,24 @@ class TestGetAgentService:
     """Tests for get_agent_service() dependency."""
 
     @pytest.mark.asyncio
-    async def test_get_agent_service_returns_correct_type(self, mock_settings):
+    async def test_get_agent_service_returns_correct_type(
+        self, mock_settings, mock_canvas_service, mock_neo4j_client
+    ):
         """
         Test that get_agent_service() yields an AgentService instance.
 
         [Source: docs/stories/15.3.story.md#Testing - AC: 4]
         """
-        async for service in get_agent_service(mock_settings):
+        async for service in get_agent_service(
+            mock_settings, mock_canvas_service, mock_neo4j_client
+        ):
             assert isinstance(service, AgentService)
             break
 
     @pytest.mark.asyncio
-    async def test_get_agent_service_cleanup_called(self, mock_settings):
+    async def test_get_agent_service_cleanup_called(
+        self, mock_settings, mock_canvas_service, mock_neo4j_client
+    ):
         """
         Test that cleanup is called when context exits.
 
@@ -213,7 +237,9 @@ class TestGetAgentService:
             await original_cleanup(self)
 
         with patch.object(AgentService, 'cleanup', mock_cleanup):
-            async for service in get_agent_service(mock_settings):
+            async for service in get_agent_service(
+                mock_settings, mock_canvas_service, mock_neo4j_client
+            ):
                 pass
 
         assert cleanup_called

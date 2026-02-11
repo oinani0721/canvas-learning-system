@@ -276,7 +276,7 @@ class GraphitiTemporalClient(GraphitiClientBase if GRAPHITI_BASE_AVAILABLE else 
             neo4j_user = settings.neo4j_user
             neo4j_password = settings.neo4j_password
 
-            # Configure all three Graphiti clients using AI proxy settings.
+            # Configure all three Graphiti clients using AI proxy settings
             # Graphiti requires llm_client, embedder, AND cross_encoder;
             # if any is missing it creates a default OpenAI client that
             # demands OPENAI_API_KEY env var.

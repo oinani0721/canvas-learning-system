@@ -85,6 +85,20 @@ export interface MediaPanelProps {
 }
 
 /**
+ * Story 35.11: Type-safe interface for MediaPanel container element.
+ * Replaces `(container as MediaPanelContainer).__performApiSearch` pattern.
+ */
+export interface MediaPanelContainer extends HTMLElement {
+    __state?: PanelState;
+    __render?: () => void;
+    __fetchMediaItems?: (isRefresh?: boolean) => Promise<void>;
+    __handleConceptChange?: (newConceptId: string) => void;
+    __setSearchMode?: (mode: 'vector' | 'text' | null) => void;
+    __performApiSearch?: (query: string) => Promise<void>;
+    __cleanup?: () => void;
+}
+
+/**
  * Props for MediaList component.
  */
 export interface MediaListProps {
@@ -465,14 +479,15 @@ export function createMediaPanel(props: MediaPanelProps): HTMLElement {
         renderItems();
     }
 
-    // Store references for external access
-    (container as any).__state = state;
-    (container as any).__render = renderItems;
-    (container as any).__fetchMediaItems = fetchMediaItems;
-    (container as any).__handleConceptChange = handleConceptChange;
-    (container as any).__setSearchMode = setSearchMode;
-    (container as any).__performApiSearch = performApiSearch;
-    (container as any).__cleanup = () => {
+    // Store references for external access (Story 35.11: type-safe container)
+    const typedContainer = container as MediaPanelContainer;
+    typedContainer.__state = state;
+    typedContainer.__render = renderItems;
+    typedContainer.__fetchMediaItems = fetchMediaItems;
+    typedContainer.__handleConceptChange = handleConceptChange;
+    typedContainer.__setSearchMode = setSearchMode;
+    typedContainer.__performApiSearch = performApiSearch;
+    typedContainer.__cleanup = () => {
         // Story 35.4: Cleanup on unmount
         if (currentAbortController) {
             currentAbortController.abort();
@@ -1235,13 +1250,13 @@ function getTypeIcon(type: Exclude<MediaType, 'all'>): string {
  * Updates the media panel with new items.
  */
 export function updateMediaPanel(container: HTMLElement, items: MediaItem[]): void {
-    const render = (container as any).__render;
+    const render = (container as MediaPanelContainer).__render;
     if (render) {
         // Store new items and re-render
-        const state = (container as any).__state;
+        const state = (container as MediaPanelContainer).__state;
         // The render function closes over the original items, so we need to update via DOM
         const content = container.querySelector('.media-panel-content');
-        if (content) {
+        if (content && state) {
             content.innerHTML = '';
             const list = createMediaList({
                 items: filterAndSortItems(items, state),
@@ -1258,7 +1273,7 @@ export function updateMediaPanel(container: HTMLElement, items: MediaItem[]): vo
  * Gets the current filter state of a media panel.
  */
 export function getMediaPanelFilter(container: HTMLElement): MediaType {
-    const state = (container as any).__state as PanelState | undefined;
+    const state = (container as MediaPanelContainer).__state;
     return state?.filter || 'all';
 }
 
@@ -1266,8 +1281,8 @@ export function getMediaPanelFilter(container: HTMLElement): MediaType {
  * Sets the filter for a media panel.
  */
 export function setMediaPanelFilter(container: HTMLElement, filter: MediaType): void {
-    const state = (container as any).__state as PanelState | undefined;
-    const render = (container as any).__render;
+    const state = (container as MediaPanelContainer).__state;
+    const render = (container as MediaPanelContainer).__render;
     if (state && render) {
         state.filter = filter;
         render();
@@ -1292,7 +1307,7 @@ export function setMediaPanelFilter(container: HTMLElement, filter: MediaType): 
  * ```
  */
 export function updateMediaPanelConcept(container: HTMLElement, conceptId: string): void {
-    const handleConceptChange = (container as any).__handleConceptChange;
+    const handleConceptChange = (container as MediaPanelContainer).__handleConceptChange;
     if (handleConceptChange) {
         handleConceptChange(conceptId);
     }
@@ -1315,7 +1330,7 @@ export function updateMediaPanelConcept(container: HTMLElement, conceptId: strin
  * ```
  */
 export function cleanupMediaPanel(container: HTMLElement): void {
-    const cleanup = (container as any).__cleanup;
+    const cleanup = (container as MediaPanelContainer).__cleanup;
     if (cleanup) {
         cleanup();
     }
@@ -1328,7 +1343,7 @@ export function cleanupMediaPanel(container: HTMLElement): void {
  * @returns true if the panel is loading data
  */
 export function isMediaPanelLoading(container: HTMLElement): boolean {
-    const state = (container as any).__state as PanelState | undefined;
+    const state = (container as MediaPanelContainer).__state;
     return state?.isLoading || false;
 }
 
@@ -1339,7 +1354,7 @@ export function isMediaPanelLoading(container: HTMLElement): boolean {
  * @returns The current ApiError or null if no error
  */
 export function getMediaPanelError(container: HTMLElement): ApiError | null {
-    const state = (container as any).__state as PanelState | undefined;
+    const state = (container as MediaPanelContainer).__state;
     return state?.error || null;
 }
 
@@ -1349,7 +1364,7 @@ export function getMediaPanelError(container: HTMLElement): ApiError | null {
  * @param container - The MediaPanel container element
  */
 export function refreshMediaPanel(container: HTMLElement): void {
-    const fetchMediaItems = (container as any).__fetchMediaItems;
+    const fetchMediaItems = (container as MediaPanelContainer).__fetchMediaItems;
     if (fetchMediaItems) {
         fetchMediaItems(true);
     }

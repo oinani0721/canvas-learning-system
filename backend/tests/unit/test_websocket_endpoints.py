@@ -14,6 +14,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.conftest import simulate_async_delay
+
 from app.models.intelligent_parallel_models import (
     ParallelTaskStatus,
     WSEventType,
@@ -595,7 +597,7 @@ class TestWebSocketEndpoint:
         # Start heartbeat and cancel it quickly
         task = asyncio.create_task(run_heartbeat())
         # Wait just a bit then cancel
-        await asyncio.sleep(0.05)
+        await simulate_async_delay(0.05)
         task.cancel()
 
         try:

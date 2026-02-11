@@ -312,6 +312,28 @@ class TestRRFMultimodalFusion:
         assert "multimodal" in DEFAULT_SOURCE_WEIGHTS
         assert DEFAULT_SOURCE_WEIGHTS["multimodal"] == 0.15
 
+    def test_all_source_weights_sum_to_one(self):
+        """验证所有 5 源权重总和为 1.0，且每个权重值正确"""
+        from agentic_rag.nodes import DEFAULT_SOURCE_WEIGHTS
+
+        expected = {
+            "graphiti": 0.25,
+            "lancedb": 0.25,
+            "textbook": 0.20,
+            "cross_canvas": 0.15,
+            "multimodal": 0.15,
+        }
+        assert set(DEFAULT_SOURCE_WEIGHTS.keys()) == set(expected.keys()), (
+            f"权重 key 不匹配: {set(DEFAULT_SOURCE_WEIGHTS.keys())} != {set(expected.keys())}"
+        )
+        for source, weight in expected.items():
+            assert DEFAULT_SOURCE_WEIGHTS[source] == pytest.approx(weight), (
+                f"{source} 权重不正确: {DEFAULT_SOURCE_WEIGHTS[source]} != {weight}"
+            )
+        assert sum(DEFAULT_SOURCE_WEIGHTS.values()) == pytest.approx(1.0), (
+            f"权重总和不为 1.0: {sum(DEFAULT_SOURCE_WEIGHTS.values())}"
+        )
+
     def test_fuse_results_includes_multimodal(self, sample_rag_state):
         """测试fuse_results函数处理multimodal_results"""
         # 设置多模态结果

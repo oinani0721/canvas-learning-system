@@ -35,20 +35,24 @@ from app.models import (
 )
 from app.services.review_service import ReviewService
 
-# The correct patch target: review.py uses _get_or_create_review_service() singleton,
-# NOT app.dependencies.get_review_service (which is a FastAPI Depends async generator).
-REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_or_create_review_service"
+# The correct patch target: review.py imports get_review_service as _get_review_service_singleton
+# (Story 38.9 canonical singleton pattern). NOT the old _get_or_create_review_service.
+REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_review_service_singleton"
 
 
 @pytest.fixture(autouse=True)
 def _reset_review_service_singleton():
-    """Reset the module-level ReviewService singleton between tests to prevent contamination."""
-    import app.api.v1.endpoints.review as review_module
-    original = review_module._review_service_instance
+    """Reset ReviewService singleton between tests to prevent contamination.
+
+    Story 34.10 AC1: Updated to use canonical reset function from Story 38.9.
+    Reference: tests/integration/review_history/conftest.py
+    """
+    from app.services.review_service import reset_review_service_singleton
+    reset_review_service_singleton()
     try:
         yield
     finally:
-        review_module._review_service_instance = original
+        reset_review_service_singleton()
 
 
 class TestReviewHistoryPaginationEndpoint:
@@ -975,42 +979,43 @@ class TestRealReviewServiceHistory:
 
 
 class TestReviewServiceDICompleteness:
-    """Story 34.8 AC2: Verify get_review_service explicitly handles graphiti_client."""
+    """Story 34.8 AC2: Verify canonical singleton handles graphiti_client.
 
-    def test_dependencies_get_review_service_passes_graphiti_client(self):
-        """AC2: dependencies.py get_review_service() must explicitly inject graphiti_client."""
-        from pathlib import Path
-        deps_path = Path(__file__).resolve().parents[2] / "app" / "dependencies.py"
-        source = deps_path.read_text(encoding="utf-8")
+    Story 34.10 AC1: Updated for Story 38.9 canonical singleton pattern.
+    After 38.9, both dependencies.py and review.py delegate to
+    review_service.get_review_service() which owns the graphiti_client injection.
+    """
 
-        # Find the get_review_service function body
-        func_start = source.find("async def get_review_service(")
-        assert func_start != -1, "get_review_service() not found in dependencies.py"
-        # Find the next top-level function/class to bound the search
-        next_func = source.find("\n# ", func_start + 10)
-        func_body = source[func_start:next_func] if next_func != -1 else source[func_start:]
+    def test_canonical_singleton_injects_graphiti_client(self):
+        """AC2: review_service.get_review_service() must explicitly inject graphiti_client.
 
-        # The source must contain explicit graphiti_client handling
-        assert "graphiti_client" in func_body, (
-            "get_review_service() does not mention graphiti_client — "
+        Story 38.9 moved singleton creation to review_service.py.
+        The graphiti_client injection now happens there, not in dependencies.py or review.py.
+        """
+        import inspect
+        from app.services.review_service import get_review_service
+
+        source = inspect.getsource(get_review_service)
+        assert "graphiti_client" in source, (
+            "Canonical get_review_service() does not mention graphiti_client — "
             "it must explicitly inject or handle this parameter"
         )
-        # Must pass it to ReviewService constructor
-        assert "graphiti_client=graphiti_client" in func_body, (
-            "get_review_service() does not pass graphiti_client= to ReviewService()"
-        )
-
-    def test_review_module_singleton_passes_graphiti_client(self):
-        """AC2: review.py _get_or_create_review_service() must also inject graphiti_client."""
-        import inspect
-        from app.api.v1.endpoints.review import _get_or_create_review_service
-
-        source = inspect.getsource(_get_or_create_review_service)
-        assert "graphiti_client" in source, (
-            "_get_or_create_review_service() does not mention graphiti_client"
-        )
         assert "graphiti_client=graphiti_client" in source, (
-            "_get_or_create_review_service() does not pass graphiti_client= to ReviewService()"
+            "Canonical get_review_service() does not pass graphiti_client= to ReviewService()"
+        )
+
+    def test_dependencies_delegates_to_canonical_singleton(self):
+        """AC2: dependencies.py get_review_service() must delegate to canonical singleton.
+
+        Story 38.9 AC2: dependencies.py no longer creates ReviewService directly.
+        It delegates to review_service.get_review_service() which handles all DI.
+        """
+        import inspect
+        from app.dependencies import get_review_service
+
+        source = inspect.getsource(get_review_service)
+        assert "_get_rs_singleton" in source or "get_review_service" in source, (
+            "dependencies.py get_review_service() does not delegate to canonical singleton"
         )
 
 

@@ -26,6 +26,7 @@ from fastapi.responses import JSONResponse
 
 logger = logging.getLogger(__name__)
 
+from app.services.intelligent_grouping_service import CanvasNotFoundError
 from app.models.intelligent_parallel_models import (
     CancelResponse,
     ConfirmRequest,
@@ -125,12 +126,11 @@ async def _ensure_async_deps() -> None:
     """
     Lazily inject batch_orchestrator and agent_service into the singleton.
 
-    Story 33.9 P0 Fix: These deps require GeminiClient + CanvasService +
-    Neo4jClient which are constructed from settings. This function is
-    idempotent — it's a no-op after the first successful call.
+    Story 33.11: Delegates to dependencies.py build_batch_processing_deps()
+    so that DI construction logic lives in ONE place (single source of truth).
 
-    EPIC-33 P0 Fix #3: Uses asyncio.Lock for double-check locking to prevent
-    race condition when concurrent first requests arrive simultaneously.
+    Uses asyncio.Lock for double-check locking to prevent race condition
+    when concurrent first requests arrive simultaneously.
 
     Called by every endpoint before using the service.
     """
@@ -146,63 +146,18 @@ async def _ensure_async_deps() -> None:
 
         service = get_service()
 
-        from app.dependencies import (
-            get_settings,
-            get_neo4j_client_dep,
-            get_session_manager,
-            get_agent_routing_engine,
-        )
-        from app.clients.gemini_client import GeminiClient
-        from app.services.agent_service import AgentService
-        from app.services.batch_orchestrator import BatchOrchestrator
-        from app.services.canvas_service import CanvasService
+        # Story 33.11 AC-33.11.2: Delegate to dependencies.py (single source of truth)
+        from app.dependencies import build_batch_processing_deps
+        batch_orchestrator, agent_service, canvas_service = await build_batch_processing_deps()
 
-        settings = get_settings()
-
-        # 1. GeminiClient (sync constructor)
-        gemini_client = None
-        if settings.AI_API_KEY:
-            try:
-                gemini_client = GeminiClient(
-                    api_key=settings.AI_API_KEY,
-                    model=settings.AI_MODEL_NAME,
-                    base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
-                )
-            except Exception as e:
-                logger.error(f"[Story 33.9] Failed to create GeminiClient: {e}")
-
-        # 2. CanvasService (sync constructor)
-        canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
-        canvas_service = CanvasService(canvas_base_path=canvas_base_path)
-
-        # 3. AgentService (sync constructor)
-        neo4j_client = get_neo4j_client_dep()
-        agent_service = AgentService(
-            gemini_client=gemini_client,
-            canvas_service=canvas_service,
-            neo4j_client=neo4j_client,
-        )
-
-        # 4. BatchOrchestrator (sync constructor, singleton-shared)
-        session_manager = get_session_manager()
-        vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
-        routing_engine = get_agent_routing_engine()
-
-        batch_orchestrator = BatchOrchestrator(
-            session_manager=session_manager,
-            agent_service=agent_service,
-            canvas_service=canvas_service,
-            vault_path=vault_path,
-            routing_engine=routing_engine,
-        )
-
-        # 5. Inject into the singleton service
+        # Inject into the singleton service
         service._batch_orchestrator = batch_orchestrator
         service._agent_service = agent_service
+        service._canvas_service = canvas_service
 
         _deps_initialized = True
         logger.info(
-            "[Story 33.9] P0 DI fix applied: batch_orchestrator and agent_service injected"
+            "[Story 33.11] DI consolidated: batch deps built via dependencies.py"
         )
 
 
@@ -271,7 +226,7 @@ async def analyze_canvas(
             min_nodes_per_group=request.min_nodes_per_group,
         )
         return result
-    except FileNotFoundError as e:
+    except (FileNotFoundError, CanvasNotFoundError) as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -351,7 +306,7 @@ async def confirm_batch(
             timeout=request.timeout,
         )
         return result
-    except FileNotFoundError as e:
+    except (FileNotFoundError, CanvasNotFoundError) as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={
@@ -594,7 +549,7 @@ async def retry_single_node(
             canvas_path=request.canvas_path,
         )
         return result
-    except FileNotFoundError as e:
+    except (FileNotFoundError, CanvasNotFoundError) as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={

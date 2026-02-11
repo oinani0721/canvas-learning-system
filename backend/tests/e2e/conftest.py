@@ -15,14 +15,18 @@ Provides:
 """
 
 import asyncio
+import io
 import json
 import sys
 import time
+
+from tests.conftest import simulate_async_delay
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 from app.config import Settings, get_settings
@@ -48,6 +52,56 @@ def get_e2e_settings_override() -> Settings:
         CORS_ORIGINS="http://localhost:3000",
         CANVAS_BASE_PATH="./test_canvas",
     )
+
+
+# =============================================================================
+# Shared Multimodal E2E Fixtures
+# Used by: test_multimodal_upload_e2e.py, test_multimodal_search_delete_e2e.py,
+#          test_multimodal_perf_utility_e2e.py
+# =============================================================================
+
+@pytest.fixture
+def client() -> Generator[TestClient, None, None]:
+    """Synchronous test client for multimodal E2E tests."""
+    app.dependency_overrides[get_settings] = get_e2e_settings_override
+    with TestClient(app) as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def test_image_file() -> bytes:
+    """Minimal 1x1 red PNG image for testing."""
+    return bytes([
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE,
+        0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54,
+        0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00, 0x00,
+        0x01, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB4,
+        0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+        0xAE, 0x42, 0x60, 0x82,
+    ])
+
+
+@pytest.fixture
+def test_pdf_file() -> bytes:
+    """Minimal PDF file for testing."""
+    return b"""%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj
+xref
+0 4
+0000000000 65535 f
+0000000009 00000 n
+0000000052 00000 n
+0000000101 00000 n
+trailer<</Size 4/Root 1 0 R>>
+startxref
+178
+%%EOF"""
 
 
 # =============================================================================
@@ -87,7 +141,7 @@ def test_canvas_10_nodes(tmp_path: Path) -> Path:
         "edges": []
     }
 
-    canvas_dir = tmp_path / "笔记库"
+    canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_10.canvas"
@@ -122,7 +176,7 @@ def test_canvas_20_nodes(tmp_path: Path) -> Path:
         "edges": []
     }
 
-    canvas_dir = tmp_path / "笔记库"
+    canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_20.canvas"
@@ -161,7 +215,7 @@ def test_canvas_100_nodes(tmp_path: Path) -> Path:
         "edges": []
     }
 
-    canvas_dir = tmp_path / "笔记库"
+    canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_100.canvas"
@@ -210,7 +264,7 @@ def test_canvas_with_failing_node(tmp_path: Path) -> Path:
         "edges": []
     }
 
-    canvas_dir = tmp_path / "笔记库"
+    canvas_dir = tmp_path / "test_vault"
     canvas_dir.mkdir(parents=True, exist_ok=True)
 
     canvas_file = canvas_dir / "test_parallel_failing.canvas"
@@ -283,7 +337,7 @@ def mock_agent_responses(mocker):
     """
     async def mock_call_agent(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
         """Mock agent response with minimal delay."""
-        await asyncio.sleep(0.01)  # 10ms simulated processing
+        await simulate_async_delay(0.01)  # 10ms simulated processing
         return {
             "success": True,
             "agent_type": agent_type,
@@ -314,7 +368,7 @@ def mock_agent_with_failures(mocker):
     async def mock_call_agent_with_failure(agent_type: str, node_id: str, node_text: str, *args, **kwargs):
         """Mock agent that fails for empty text or node-999."""
         call_count["value"] += 1
-        await asyncio.sleep(0.01)
+        await simulate_async_delay(0.01)
 
         if node_id == "node-999" or not node_text.strip():
             raise ValueError(f"Agent processing failed for node {node_id}: empty content")
@@ -555,3 +609,129 @@ def mock_canvas_utils(monkeypatch):
     monkeypatch.setitem(sys.modules, 'canvas_utils', mock_module)
 
     return mock_module
+
+
+# =============================================================================
+# Shared Singleton Reset (autouse for all E2E tests)
+# =============================================================================
+
+@pytest.fixture(autouse=True)
+def _reset_e2e_singletons():
+    """
+    Reset service singletons before and after each E2E test for isolation.
+
+    Ensures no leaked state between tests (service instance, deps, overrides).
+    """
+    from app.api.v1.endpoints.intelligent_parallel import reset_service
+    reset_service()
+    SessionManager.reset_instance()
+    try:
+        yield
+    finally:
+        reset_service()
+        SessionManager.reset_instance()
+        app.dependency_overrides.clear()
+
+
+# =============================================================================
+# Shared Helpers: Clustering Mock & Lightweight DI
+# Used by both test_intelligent_parallel.py and test_epic33_batch_pipeline.py
+# =============================================================================
+
+def mock_perform_clustering(self, canvas_path, target_color, max_groups, min_nodes_per_group):
+    """
+    Shared mock replacement for IntelligentGroupingService._perform_clustering.
+
+    Reads the real canvas file, filters by target_color, and returns
+    a simple clustering result without needing canvas_utils.
+    """
+    with open(str(canvas_path), "r", encoding="utf-8") as f:
+        canvas_data = json.load(f)
+
+    nodes = canvas_data.get("nodes", [])
+    text_nodes = [
+        n for n in nodes
+        if n.get("type") == "text"
+        and n.get("color") == target_color
+        and n.get("text", "").strip()
+    ]
+
+    if len(text_nodes) < min_nodes_per_group:
+        from app.services.intelligent_grouping_service import InsufficientNodesError
+        raise InsufficientNodesError(
+            f"Not enough nodes with color '{target_color}'. "
+            f"Found {len(text_nodes)}, need at least {min_nodes_per_group}"
+        )
+
+    group_size = max(min_nodes_per_group, 5)
+    clusters = []
+    for i in range(0, len(text_nodes), group_size):
+        chunk = text_nodes[i:i + group_size]
+        node_texts = {n["id"]: n.get("text", "") for n in chunk}
+        clusters.append({
+            "id": f"cluster-{i // group_size + 1}",
+            "label": f"group{i // group_size + 1}",
+            "top_keywords": ["test", "concept"],
+            "confidence": 0.75,
+            "nodes": [n["id"] for n in chunk],
+            "node_texts": node_texts,
+        })
+
+    return {
+        "clusters": clusters,
+        "optimization_stats": {
+            "clustering_accuracy": 0.6,
+            "total_nodes": len(text_nodes),
+            "clusters_created": len(clusters),
+        },
+        "clustering_parameters": {"n_clusters": len(clusters)},
+    }
+
+
+def make_lightweight_ensure_deps(settings, agent_mock):
+    """
+    Factory returning async function that replaces _ensure_async_deps.
+
+    Injects lightweight mock dependencies (no Neo4j, no real GeminiClient)
+    so the batch pipeline can execute end-to-end with mocked agents.
+    """
+
+    async def _lightweight_ensure_deps():
+        import app.api.v1.endpoints.intelligent_parallel as ep_mod
+
+        if ep_mod._deps_initialized:
+            return
+
+        service = ep_mod.get_service()
+
+        from app.services.batch_orchestrator import BatchOrchestrator
+        from app.services.agent_service import AgentService
+        from app.services.canvas_service import CanvasService
+
+        canvas_base = str(settings.canvas_base_path) if settings.canvas_base_path else None
+        canvas_service = CanvasService(canvas_base_path=canvas_base)
+
+        # Create AgentService with mocked gemini_client
+        agent_service = AgentService(
+            gemini_client=MagicMock(),
+            canvas_service=canvas_service,
+        )
+        # Patch call_agent on the instance
+        agent_service.call_agent = agent_mock
+
+        session_manager = SessionManager.get_instance()
+
+        batch_orchestrator = BatchOrchestrator(
+            session_manager=session_manager,
+            agent_service=agent_service,
+            canvas_service=canvas_service,
+            vault_path=canvas_base,
+        )
+
+        service._batch_orchestrator = batch_orchestrator
+        service._agent_service = agent_service
+        service._canvas_service = canvas_service
+
+        ep_mod._deps_initialized = True
+
+    return _lightweight_ensure_deps

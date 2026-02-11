@@ -432,9 +432,9 @@ class TestAgentMappingIntegration:
         """Test default fallback agent is in mapping."""
         assert DEFAULT_FALLBACK_AGENT in ALL_AGENT_NAMES
 
-    def test_agent_mapping_has_14_agents(self):
-        """Test agent mapping has exactly 14 agents."""
-        assert len(ALL_AGENT_NAMES) == 14
+    def test_agent_mapping_has_15_agents(self):
+        """Test agent mapping has exactly 15 agents."""
+        assert len(ALL_AGENT_NAMES) == 15
 
     def test_routed_agents_have_memory_types(self, routing_engine):
         """Test all routed agents have memory types defined."""

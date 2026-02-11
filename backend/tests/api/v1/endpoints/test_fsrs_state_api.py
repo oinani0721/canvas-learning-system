@@ -9,13 +9,13 @@ Tests the HTTP endpoints:
 
 [Source: docs/implementation-artifacts/story-38.3.md]
 
-Fix: Patch targets corrected from app.dependencies.get_review_service
-to review module singleton (_review_service_instance) and module-level
-FSRS flags (FSRS_AVAILABLE, FSRS_RUNTIME_OK) to match actual endpoint code.
+Story 38.9: Patch targets use services-layer singleton via
+_get_review_service_singleton (imported in review.py from services layer)
+and module-level FSRS flags (FSRS_AVAILABLE, FSRS_RUNTIME_OK).
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -37,8 +37,10 @@ def get_settings_override() -> Settings:
 @pytest.fixture(autouse=True)
 def override_settings():
     app.dependency_overrides[get_settings] = get_settings_override
-    yield
-    app.dependency_overrides.clear()
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
 
 
 @pytest.fixture
@@ -49,20 +51,19 @@ def client():
 
 @pytest.fixture
 def mock_review_singleton():
-    """Inject a mock into review.py's module-level singleton.
+    """Inject a mock into the services-layer ReviewService singleton.
 
-    The FSRS state endpoint uses _get_or_create_review_service() which
-    reads/writes review._review_service_instance. We must patch this
-    singleton directly, NOT app.dependencies.get_review_service.
+    Story 38.9: The FSRS state endpoint uses await _get_review_service_singleton()
+    which delegates to services.review_service.get_review_service(). We patch
+    the imported name in review.py to inject our mock.
     """
-    import app.api.v1.endpoints.review as review_mod
-    old_instance = review_mod._review_service_instance
     mock_service = MagicMock()
-    review_mod._review_service_instance = mock_service
-    try:
+    with patch(
+        "app.api.v1.endpoints.review._get_review_service_singleton",
+        new_callable=AsyncMock,
+        return_value=mock_service,
+    ):
         yield mock_service
-    finally:
-        review_mod._review_service_instance = old_instance
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

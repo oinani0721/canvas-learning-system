@@ -18,6 +18,32 @@ from datetime import datetime, timezone
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
+from app.main import app
+from app.config import get_settings, Settings
+
+# Correct patch target: review.py imports get_review_service as _get_review_service_singleton
+REVIEW_SERVICE_PATCH = "app.api.v1.endpoints.review._get_review_service_singleton"
+
+
+def _test_settings_override() -> Settings:
+    return Settings(
+        PROJECT_NAME="Canvas Test",
+        VERSION="1.0.0-test",
+        DEBUG=True,
+        LOG_LEVEL="DEBUG",
+        CORS_ORIGINS="http://localhost:3000",
+        CANVAS_BASE_PATH="./test_canvas",
+    )
+
+
+@pytest.fixture(autouse=True)
+def override_settings():
+    app.dependency_overrides[get_settings] = _test_settings_override
+    try:
+        yield
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
 
 @pytest.fixture
 def mock_canvas_service():
@@ -53,8 +79,8 @@ class TestFSRSStateQueryEndpoint:
     @pytest.fixture
     def test_client(self):
         """Create FastAPI test client."""
-        from app.main import app
-        return TestClient(app)
+        with TestClient(app) as c:
+            yield c
 
     def test_endpoint_returns_fsrs_state_when_card_exists(self, test_client):
         """
@@ -77,8 +103,9 @@ class TestFSRSStateQueryEndpoint:
         })
 
         with patch(
-            "app.dependencies.get_review_service",
-            return_value=mock_service
+            REVIEW_SERVICE_PATCH,
+            new_callable=AsyncMock,
+            return_value=mock_service,
         ):
             response = test_client.get(f"/api/v1/review/fsrs-state/{concept_id}")
 
@@ -115,8 +142,9 @@ class TestFSRSStateQueryEndpoint:
         })
 
         with patch(
-            "app.dependencies.get_review_service",
-            return_value=mock_service
+            REVIEW_SERVICE_PATCH,
+            new_callable=AsyncMock,
+            return_value=mock_service,
         ):
             response = test_client.get(f"/api/v1/review/fsrs-state/{concept_id}")
 
@@ -139,8 +167,9 @@ class TestFSRSStateQueryEndpoint:
         })
 
         with patch(
-            "app.dependencies.get_review_service",
-            return_value=mock_service
+            REVIEW_SERVICE_PATCH,
+            new_callable=AsyncMock,
+            return_value=mock_service,
         ):
             response = test_client.get(f"/api/v1/review/fsrs-state/{concept_id}")
 
@@ -165,8 +194,9 @@ class TestFSRSStateQueryEndpoint:
         })
 
         with patch(
-            "app.dependencies.get_review_service",
-            return_value=mock_service
+            REVIEW_SERVICE_PATCH,
+            new_callable=AsyncMock,
+            return_value=mock_service,
         ):
             response = test_client.get(f"/api/v1/review/fsrs-state/{concept_id}")
 

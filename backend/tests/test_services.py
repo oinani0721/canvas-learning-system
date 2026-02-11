@@ -19,7 +19,7 @@ from app.services.agent_service import AgentResult, AgentService, AgentType
 from app.services.background_task_manager import BackgroundTaskManager, TaskStatus
 from app.services.canvas_service import CanvasService
 from app.services.review_service import ReviewProgress, ReviewService
-from tests.conftest import wait_for_condition, yield_to_event_loop
+from tests.conftest import simulate_async_delay, wait_for_condition, yield_to_event_loop
 
 # ============================================================================
 # CanvasService Tests
@@ -349,7 +349,7 @@ class TestAgentService:
         ]
 
         # Small delay to ensure tasks started
-        await asyncio.sleep(0.01)
+        await simulate_async_delay(0.01)
 
         # Cleanup should wait for all calls
         await service.cleanup()
@@ -371,7 +371,7 @@ class TestBackgroundTaskManager:
     async def test_create_task(self, task_manager: BackgroundTaskManager):
         """Test task creation"""
         async def sample_task():
-            await asyncio.sleep(0.1)
+            await simulate_async_delay(0.1)
             return {"result": "success"}
 
         # Act
@@ -397,7 +397,7 @@ class TestBackgroundTaskManager:
         status_history = []
 
         async def tracked_task():
-            await asyncio.sleep(0.1)
+            await simulate_async_delay(0.1)
             return "done"
 
         # Create task
@@ -424,7 +424,7 @@ class TestBackgroundTaskManager:
     async def test_task_failure_status(self, task_manager: BackgroundTaskManager):
         """Test task failure sets FAILED status"""
         async def failing_task():
-            await asyncio.sleep(0.05)
+            await simulate_async_delay(0.05)
             raise ValueError("Task failed")
 
         task_id = await task_manager.create_task("test_type", failing_task)
@@ -443,7 +443,7 @@ class TestBackgroundTaskManager:
     async def test_cancel_running_task(self, task_manager: BackgroundTaskManager):
         """Test cancelling a running task"""
         async def long_task():
-            await asyncio.sleep(10)  # Long task
+            await simulate_async_delay(10)  # Long task
             return "should not reach"
 
         task_id = await task_manager.create_task("test_type", long_task)
@@ -481,7 +481,7 @@ class TestBackgroundTaskManager:
         """Test progress update"""
         async def progressive_task():
             for i in range(10):
-                await asyncio.sleep(0.01)
+                await simulate_async_delay(0.01)
             return "done"
 
         task_id = await task_manager.create_task("test_type", progressive_task)
@@ -506,7 +506,7 @@ class TestBackgroundTaskManager:
             return "done"
 
         async def long_task():
-            await asyncio.sleep(10)
+            await simulate_async_delay(10)
             return "done"
 
         # Create tasks

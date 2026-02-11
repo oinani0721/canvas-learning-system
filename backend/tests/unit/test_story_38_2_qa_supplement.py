@@ -15,6 +15,8 @@ import logging
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import simulate_async_delay
+
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
@@ -463,7 +465,7 @@ class TestConcurrentRecoveryProtection:
         async def slow_get_episodes(limit=1000):
             nonlocal call_count
             call_count += 1
-            await asyncio.sleep(0.05)  # Small delay to allow concurrent entry
+            await simulate_async_delay(0.05)  # Small delay to allow concurrent entry
             return [{"user_id": "u1", "concept": f"concept-{call_count}",
                      "concept_id": "c1", "score": 80,
                      "timestamp": "2026-02-06T10:00:00"}]

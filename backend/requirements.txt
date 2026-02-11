@@ -91,5 +91,7 @@ pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.0.0
 httpx>=0.25.0
+# Story 35.12: Pact Provider Verification (optional — tests skip if missing)
+pact-python>=2.0.0
 # ✅ NFR Quick Win #1: Dependency vulnerability scanning
 pip-audit>=2.7.0

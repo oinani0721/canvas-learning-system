@@ -233,7 +233,7 @@ class MultimodalService:
             )
             tmp_path.replace(self._persistence_path)
         except Exception as e:
-            logger.error(f"Failed to save content index: {e}")
+            logger.error("Failed to save content index: %s", e)
 
     def _load_index(self) -> None:
         """Load _content_store from JSON file on startup."""
@@ -256,10 +256,10 @@ class MultimodalService:
                     entry["metadata"] = MultimodalMetadataSchema(**meta)
                 self._content_store[cid] = entry
             logger.info(
-                f"Loaded {len(self._content_store)} items from content index"
+                "Loaded %d items from content index", len(self._content_store)
             )
         except Exception as e:
-            logger.error(f"Failed to load content index: {e}")
+            logger.error("Failed to load content index: %s", e)
 
     # ── Thumbnail generation ──────────────────────────────────────────────
 
@@ -298,7 +298,7 @@ class MultimodalService:
                 img.thumbnail((100, 100), Image.LANCZOS)
                 img.save(thumb_path, "JPEG", quality=80)
 
-            logger.debug(f"Thumbnail generated: {thumb_path}")
+            logger.debug("Thumbnail generated: %s", thumb_path)
             return str(thumb_path)
 
         except ImportError:
@@ -308,7 +308,7 @@ class MultimodalService:
             )
             return None
         except Exception as e:
-            logger.warning(f"Thumbnail generation failed for {content_id}: {e}")
+            logger.warning("Thumbnail generation failed for %s: %s", content_id, e)
             return None
 
     async def initialize(self) -> bool:
@@ -437,7 +437,7 @@ class MultimodalService:
                 return
             if file_bytes[:2] in (b'\xff\xfb', b'\xff\xf3', b'\xff\xf2'):
                 return
-            logger.warning(f"Unrecognized audio format for {filename}, allowing upload")
+            logger.warning("Unrecognized audio format for %s, allowing upload", filename)
             return
 
         # Video: ftyp (MP4/MOV) at offset 4, EBML (WebM/MKV)
@@ -446,7 +446,7 @@ class MultimodalService:
                 return
             if file_bytes[:4] == b'\x1a\x45\xdf\xa3':
                 return
-            logger.warning(f"Unrecognized video format for {filename}, allowing upload")
+            logger.warning("Unrecognized video format for %s, allowing upload", filename)
             return
 
         # For IMAGE and PDF: strict — reject unrecognized files
@@ -553,7 +553,7 @@ class MultimodalService:
             with open(file_path, "wb") as f:
                 f.write(file_bytes)
         except Exception as e:
-            logger.error(f"Failed to save file: {e}")
+            logger.error("Failed to save file: %s", e)
             raise MultimodalServiceError(f"Failed to save file: {e}")
 
         # Generate content ID
@@ -608,7 +608,7 @@ class MultimodalService:
                 )
                 await self.multimodal_store.add(mm_content)
             except Exception as e:
-                logger.warning(f"Failed to add to MultimodalStore: {e}")
+                logger.warning("Failed to add to MultimodalStore: %s", e)
 
         # Build response
         response_content = MultimodalResponse(
@@ -697,7 +697,7 @@ class MultimodalService:
             with open(file_path, "wb") as f:
                 f.write(content_bytes)
         except Exception as e:
-            logger.error(f"Failed to save URL content: {e}")
+            logger.error("Failed to save URL content: %s", e)
             raise MultimodalServiceError(f"Failed to save content: {e}")
 
         # Generate content ID
@@ -814,7 +814,7 @@ class MultimodalService:
                         ) if content.metadata else None,
                     )
             except Exception as e:
-                logger.warning(f"MultimodalStore get failed: {e}")
+                logger.warning("MultimodalStore get failed: %s", e)
 
         raise ContentNotFoundError(content_id)
 
@@ -862,9 +862,9 @@ class MultimodalService:
             try:
                 await self.multimodal_store.update(content_id, updates)
             except Exception as e:
-                logger.warning(f"MultimodalStore update failed: {e}")
+                logger.warning("MultimodalStore update failed: %s", e)
 
-        logger.info(f"Updated content: {content_id}")
+        logger.info("Updated content: %s", content_id)
 
         return MultimodalResponse(
             id=data["id"],
@@ -911,7 +911,7 @@ class MultimodalService:
                 file_path.unlink()
                 file_deleted = True
             except Exception as e:
-                logger.warning(f"Failed to delete file: {e}")
+                logger.warning("Failed to delete file: %s", e)
 
         # Delete thumbnail if exists
         thumbnail_deleted = False
@@ -922,7 +922,7 @@ class MultimodalService:
                     thumb_path.unlink()
                     thumbnail_deleted = True
                 except Exception as e:
-                    logger.warning(f"Failed to delete thumbnail: {e}")
+                    logger.warning("Failed to delete thumbnail: %s", e)
 
         # Remove from store
         del self._content_store[content_id]
@@ -935,9 +935,9 @@ class MultimodalService:
             try:
                 await self.multimodal_store.delete(content_id)
             except Exception as e:
-                logger.warning(f"MultimodalStore delete failed: {e}")
+                logger.warning("MultimodalStore delete failed: %s", e)
 
-        logger.info(f"Deleted content: {content_id} (file_deleted={file_deleted}, thumbnail_deleted={thumbnail_deleted})")
+        logger.info("Deleted content: %s (file_deleted=%s, thumbnail_deleted=%s)", content_id, file_deleted, thumbnail_deleted)
 
     async def list_content(
         self,
@@ -1136,7 +1136,7 @@ class MultimodalService:
                 with open(thumb_path, "rb") as f:
                     return base64.b64encode(f.read()).decode("utf-8")
         except Exception as e:
-            logger.warning(f"Failed to load thumbnail {thumbnail_path}: {e}")
+            logger.warning("Failed to load thumbnail %s: %s", thumbnail_path, e)
         return None
 
     async def get_by_concept(
@@ -1185,7 +1185,7 @@ class MultimodalService:
                     seen_ids.add(content.id)
 
             except Exception as e:
-                logger.warning(f"MultimodalStore get_by_concept failed: {e}")
+                logger.warning("MultimodalStore get_by_concept failed: %s", e)
 
         # Also check in-memory/JSON store for items not in MultimodalStore
         # (handles items added when MultimodalStore was unavailable)
@@ -1308,7 +1308,7 @@ class MultimodalService:
                     )
 
             except Exception as e:
-                logger.warning(f"MultimodalStore search failed: {e}")
+                logger.warning("MultimodalStore search failed: %s", e)
 
         # Fallback: simple text search in descriptions
         logger.warning(
@@ -1474,7 +1474,7 @@ class MultimodalService:
                             pass
 
             except Exception as e:
-                logger.warning(f"MultimodalStore list failed: {e}")
+                logger.warning("MultimodalStore list failed: %s", e)
 
         # Fallback to in-memory store
         if not all_items:

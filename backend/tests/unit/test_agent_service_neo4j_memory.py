@@ -21,6 +21,8 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from tests.conftest import simulate_async_delay
+
 # Import the service to test
 from app.services.agent_service import AgentService
 
@@ -363,7 +365,7 @@ class TestAC5TimeoutMechanism:
         """Test that timeout returns empty string (graceful degradation)"""
         # Make run_query take longer than 500ms
         async def slow_query(*args, **kwargs):
-            await asyncio.sleep(1.0)  # 1 second delay
+            await simulate_async_delay(1.0)  # 1 second delay
             return []
 
         mock_neo4j_client.run_query = slow_query

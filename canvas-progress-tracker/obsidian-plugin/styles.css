@@ -5803,8 +5803,8 @@
     border-radius: 6px;
     margin: 8px 0;
     font-size: 0.9em;
-    background-color: rgba(0, 200, 83, 0.1);
-    border: 1px solid rgba(0, 200, 83, 0.3);
+    background-color: var(--background-modifier-success, rgba(0, 200, 83, 0.1));
+    border: 1px solid var(--text-success, rgba(0, 200, 83, 0.3));
 }
 
 .recommendation-status-online .recommendation-status-label {

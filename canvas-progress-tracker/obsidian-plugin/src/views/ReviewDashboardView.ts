@@ -195,6 +195,9 @@ export class ReviewDashboardView extends ItemView {
                             reviewCount,
                             lastReviewDate: review.reviewDate,
                             status: 'pending',
+                            // Story 30.17: Pass degradation info to UI
+                            fsrsUnavailable: priorityResult.fsrsUnavailable,
+                            degradedDimensions: priorityResult.degradedDimensions,
                         };
                     })
                 );
@@ -289,15 +292,15 @@ export class ReviewDashboardView extends ItemView {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const fsrsService = (this.plugin as any).fsrsStateQueryService;
             if (!fsrsService) {
+                // Story 30.17: Always warn on FSRS service unavailability
+                console.warn('[ReviewDashboard] FSRSStateQueryService not available — FSRS data degraded for:', conceptId);
                 return null;
             }
             const response = await fsrsService.queryFSRSState(conceptId);
             return response?.fsrs_state || null;
         } catch (error) {
-            // Silent degradation - FSRS query failure shouldn't block dashboard
-            if (this.plugin.settings?.debugMode) {
-                console.warn('[ReviewDashboard] FSRS state query failed for:', conceptId, error);
-            }
+            // Story 30.17: Always warn on FSRS query failure (removed debugMode gate)
+            console.warn('[ReviewDashboard] FSRS state query failed for:', conceptId, error);
             return null;
         }
     }
@@ -317,13 +320,14 @@ export class ReviewDashboardView extends ItemView {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const fsrsService = (this.plugin as any).fsrsStateQueryService;
             if (!fsrsService) {
+                // Story 30.17: Always warn on FSRS service unavailability
+                console.warn(`[ReviewDashboard] FSRSStateQueryService not available — batch FSRS data degraded for ${conceptIds.length} concepts`);
                 return new Map();
             }
             return await fsrsService.batchQueryFSRSStates(conceptIds);
         } catch (error) {
-            if (this.plugin.settings?.debugMode) {
-                console.warn('[ReviewDashboard] Batch FSRS query failed:', error);
-            }
+            // Story 30.17: Always warn on batch FSRS query failure (removed debugMode gate)
+            console.warn('[ReviewDashboard] Batch FSRS query failed:', error);
             return new Map();
         }
     }
@@ -863,7 +867,10 @@ export class ReviewDashboardView extends ItemView {
         const groupedEntries = this.groupEntriesByDate(entries);
 
         Object.entries(groupedEntries)
-            .slice(0, showAll ? undefined : 7) // Story 34.4: Show all days when showAll=true
+            // Story 34.4 双层分页: 前端层控制显示的日期分组数（默认7天）
+            // 后端 API limit 参数独立控制返回的记录条数（默认5条）
+            // showAll=true 同时解除两层限制。详见 34.4.story.md "双层分页架构说明"
+            .slice(0, showAll ? undefined : 7)
             .forEach(([date, dateEntries]) => {
                 const dateGroup = historyList.createDiv({ cls: 'history-date-group' });
                 dateGroup.createDiv({ text: date, cls: 'history-date-header' });
@@ -1946,6 +1953,26 @@ export class ReviewDashboardView extends ItemView {
             'trending-up'
         );
 
+        // Story 30.17: FSRS degradation summary
+        const allTasks = this.state.tasks || [];
+        const degradedCount = allTasks.filter(t =>
+            (t.degradedDimensions && t.degradedDimensions.length > 0) || t.fsrsUnavailable
+        ).length;
+        if (degradedCount > 0 && allTasks.length > 0) {
+            const degradedStat = summaryStats.createDiv({ cls: 'stat-item degradation-stat' });
+            degradedStat.createSpan({ text: `⚠️ ${degradedCount}/${allTasks.length}` });
+            degradedStat.createSpan({ text: '缺少FSRS数据', cls: 'stat-label' });
+            degradedStat.title = `${degradedCount} 个概念缺少FSRS数据，优先级为预估值`;
+            degradedStat.style.cssText = 'color: var(--text-warning, #e5a00d);';
+
+            // Global warning when >50% degraded
+            if (degradedCount / allTasks.length > 0.5) {
+                const globalWarning = header.createDiv({ cls: 'degradation-global-warning' });
+                globalWarning.setText(`⚠️ 超过50%的概念缺少FSRS数据 (${degradedCount}/${allTasks.length})，当前优先级排序可能不准确`);
+                globalWarning.style.cssText = 'padding:6px 12px;margin-top:8px;border-radius:4px;font-size:12px;background:var(--background-modifier-error-hover, #f8d7da);color:var(--text-error, #dc3545);border:1px solid var(--background-modifier-error, #f5c2c7);';
+            }
+        }
+
         // Actions area
         const actions = header.createDiv({ cls: 'header-actions' });
 
@@ -2198,11 +2225,18 @@ export class ReviewDashboardView extends ItemView {
         const priorityBadge = badges.createSpan({ cls: `priority-badge ${task.priority}` });
         priorityBadge.setText(this.getPriorityLabel(task.priority));
 
-        // Story 38.3 AC-2: FSRS data unavailable indicator
-        if (task.fsrsUnavailable) {
+        // Story 30.17: Degradation indicator with warning emoji and tooltip
+        if (task.degradedDimensions && task.degradedDimensions.length > 0) {
+            const degradedBadge = badges.createSpan({ cls: 'degraded-priority-badge' });
+            degradedBadge.setText(`⚠️ ${task.degradedDimensions.length}/4`);
+            degradedBadge.title = `FSRS数据不可用，优先级为预估值。降级维度: ${task.degradedDimensions.join(', ')}`;
+            degradedBadge.style.cssText = 'margin-left:4px;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--background-modifier-error);color:var(--text-on-accent);opacity:0.85;cursor:help;';
+        } else if (task.fsrsUnavailable) {
+            // Fallback for legacy fsrsUnavailable flag without degradedDimensions
             const fsrsBadge = badges.createSpan({ cls: 'fsrs-unavailable-badge' });
-            fsrsBadge.setText('FSRS data unavailable');
-            fsrsBadge.style.cssText = 'margin-left:4px;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--background-modifier-error);color:var(--text-on-accent);opacity:0.8;';
+            fsrsBadge.setText('⚠️ FSRS');
+            fsrsBadge.title = 'FSRS数据不可用，优先级为预估值';
+            fsrsBadge.style.cssText = 'margin-left:4px;padding:1px 6px;border-radius:3px;font-size:10px;background:var(--background-modifier-error);color:var(--text-on-accent);opacity:0.8;cursor:help;';
         }
 
         // Time badge (if overdue or due today)

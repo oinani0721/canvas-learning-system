@@ -174,6 +174,8 @@ export interface ReviewTask {
     category?: string;
     /** Story 38.3 AC-2: Whether FSRS data was unavailable for priority calculation */
     fsrsUnavailable?: boolean;
+    /** Story 30.17: Which priority dimensions used degraded/fallback values */
+    degradedDimensions?: string[];
 }
 
 // ============================================================================

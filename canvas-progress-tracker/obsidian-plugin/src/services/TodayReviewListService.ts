@@ -717,21 +717,23 @@ export class TodayReviewListService {
      */
     private async queryFSRSStateForPriority(conceptId: string): Promise<FSRSCardState | null> {
         if (!this.fsrsStateQueryService || !conceptId) {
+            // Story 30.17: Always warn on FSRS service unavailability
+            console.warn(`[TodayReviewListService] FSRS service unavailable or empty conceptId — priority degraded for: ${conceptId || '(empty)'}`);
             return null;
         }
         try {
             const response = await this.fsrsStateQueryService.queryFSRSState(conceptId);
             if (!response || !response.found || !response.fsrs_state) {
-                // Story 38.3 AC-2: Log reason to console for debugging
-                if (response?.reason) {
-                    console.debug(`[TodayReviewListService] FSRS data unavailable for ${conceptId}: ${response.reason}`);
-                }
+                // Story 30.17: Upgraded from debug to warn (always visible)
+                const reason = response?.reason || 'no FSRS state found';
+                console.warn(`[TodayReviewListService] FSRS data unavailable for ${conceptId}: ${reason}`);
                 return null;
             }
             return this.convertFSRSStateToCardState(conceptId, response.fsrs_state);
         } catch (error) {
-            console.warn('[TodayReviewListService] FSRS state query failed, using defaults:', error);
-            return null; // Silent degradation - PriorityCalculatorService handles null
+            // Story 30.17: Degraded priority calculation (removed "silent" label)
+            console.warn('[TodayReviewListService] FSRS state query failed, priority degraded:', error);
+            return null;
         }
     }
 

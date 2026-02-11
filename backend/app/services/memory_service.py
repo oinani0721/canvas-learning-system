@@ -65,6 +65,11 @@ from app.core.subject_config import (
 )
 # Story 36.9 AC-36.9.5: Import settings for ENABLE_GRAPHITI_JSON_DUAL_WRITE config flag
 from app.config import settings
+from app.core.failure_counters import (
+    DUAL_WRITE_DEAD_LETTER_PATH,
+    increment_dual_write_failures,
+    write_dead_letter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -200,6 +205,8 @@ class MemoryService:
         self._score_history_cache: TTLCache = TTLCache(maxsize=1000, ttl=SCORE_HISTORY_CACHE_TTL)
         # NFR-P0: Lock for cache stampede protection (double-check locking)
         self._score_cache_lock = asyncio.Lock()
+        # Story 30.24 AC-30.24.4: Track batch write failures for shutdown safety
+        self._pending_failed_writes: List[Dict[str, Any]] = []
         logger.debug("MemoryService initialized with Graphiti JSON dual-write support")
 
     async def initialize(self) -> bool:
@@ -330,12 +337,33 @@ class MemoryService:
             logger.debug(f"Graphiti JSON dual-write succeeded: {episode_id}")
         except asyncio.TimeoutError:
             # ✅ AC-36.9.4: Timeout protection - silent degradation
+            # Story 36.12 AC-36.12.5: Counter + dead-letter
+            count = increment_dual_write_failures()
             logger.warning(
-                f"Graphiti JSON dual-write timeout ({GRAPHITI_JSON_WRITE_TIMEOUT}s): {episode_id}"
+                f"Graphiti JSON dual-write timeout ({GRAPHITI_JSON_WRITE_TIMEOUT}s): "
+                f"episode_id={episode_id}, total_failures={count}"
+            )
+            write_dead_letter(
+                DUAL_WRITE_DEAD_LETTER_PATH,
+                "dual_write",
+                f"TimeoutError after {GRAPHITI_JSON_WRITE_TIMEOUT}s",
+                episode_id=episode_id,
+                timeout_ms=int(GRAPHITI_JSON_WRITE_TIMEOUT * 1000),
             )
         except Exception as e:
             # ✅ AC-36.9.3: Silent degradation - log warning but don't raise
-            logger.warning(f"Graphiti JSON dual-write failed for {episode_id}: {e}")
+            # Story 36.12 AC-36.12.5: Counter + dead-letter
+            count = increment_dual_write_failures()
+            logger.warning(
+                f"Graphiti JSON dual-write failed: "
+                f"episode_id={episode_id}, error={e}, total_failures={count}"
+            )
+            write_dead_letter(
+                DUAL_WRITE_DEAD_LETTER_PATH,
+                "dual_write",
+                str(e),
+                episode_id=episode_id,
+            )
 
     async def _write_to_graphiti_json_with_retry(
         self,
@@ -418,7 +446,20 @@ class MemoryService:
                     logger.warning(f"Graphiti write timeout, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
                     await asyncio.sleep(delay)
                     continue
-                logger.warning(f"Graphiti write failed after {max_retries + 1} attempts (timeout): {episode_id}")
+                # Story 36.12 AC-36.12.5: Counter + dead-letter after all retries
+                count = increment_dual_write_failures()
+                logger.warning(
+                    f"Graphiti write failed after {max_retries + 1} attempts (timeout): "
+                    f"episode_id={episode_id}, total_failures={count}"
+                )
+                write_dead_letter(
+                    DUAL_WRITE_DEAD_LETTER_PATH,
+                    "dual_write",
+                    f"TimeoutError after {max_retries + 1} attempts",
+                    episode_id=episode_id,
+                    retry_count=max_retries + 1,
+                    timeout_ms=int(GRAPHITI_JSON_WRITE_TIMEOUT * 1000),
+                )
                 return False
             except Exception as e:
                 if attempt < max_retries:
@@ -426,7 +467,19 @@ class MemoryService:
                     logger.warning(f"Graphiti write error: {e}, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
                     await asyncio.sleep(delay)
                     continue
-                logger.warning(f"Graphiti write failed after {max_retries + 1} attempts: {episode_id} - {e}")
+                # Story 36.12 AC-36.12.5: Counter + dead-letter after all retries
+                count = increment_dual_write_failures()
+                logger.warning(
+                    f"Graphiti write failed after {max_retries + 1} attempts: "
+                    f"episode_id={episode_id}, error={e}, total_failures={count}"
+                )
+                write_dead_letter(
+                    DUAL_WRITE_DEAD_LETTER_PATH,
+                    "dual_write",
+                    str(e),
+                    episode_id=episode_id,
+                    retry_count=max_retries + 1,
+                )
                 return False
         return False  # Should not reach here, but for safety
 
@@ -1130,6 +1183,18 @@ class MemoryService:
                 # Fix C3: Surface Neo4j errors in response so caller knows about partial failures
                 errors.extend(neo4j_errors)
                 failed += len(neo4j_errors)
+                # Story 30.24 AC-30.24.4: Track failed writes for shutdown safety
+                for i, err in enumerate(neo4j_errors):
+                    err_index = err.get("index")
+                    if err_index is not None and err_index < len(episode_ids):
+                        eid = episode_ids[err_index]
+                    else:
+                        eid = f"unknown_{i}"
+                    self._pending_failed_writes.append({
+                        "episode_id": eid,
+                        "timestamp": datetime.now().isoformat(),
+                        "reason": err.get("error", "unknown"),
+                    })
 
         # ── Phase 3: 性能指标 (Story 30.11 AC-30.11.5) ──
         elapsed_ms = (time.monotonic() - batch_start) * 1000
@@ -1413,13 +1478,50 @@ class MemoryService:
         is a shared singleton used by multiple services. Neo4j cleanup is handled
         separately at application shutdown via cleanup_memory_service().
 
+        Story 30.24 AC-30.24.4: Flushes pending failed writes to
+        failed_writes.jsonl before clearing state, so no data is silently lost.
+
         [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
         """
+        # Story 30.24 AC-30.24.4: Flush pending failed writes before cleanup
+        if self._pending_failed_writes:
+            self._flush_pending_failed_writes()
+
         self._initialized = False
         self._episodes.clear()
         self._score_history_cache.clear()
         self._episodes_recovered = False
         logger.debug("MemoryService local state cleanup completed")
+
+    def _flush_pending_failed_writes(self) -> None:
+        """
+        Story 30.24 AC-30.24.4: Persist pending batch write failures to
+        data/failed_writes.jsonl so they survive shutdown.
+
+        Thread-safe via failed_writes_lock (shared with agent_service).
+
+        Note: This is a synchronous method called from async cleanup().
+        Safe in single-threaded asyncio (no await between iteration and clear).
+        If cleanup() is ever called from a signal handler thread, consider
+        wrapping _pending_failed_writes access with an asyncio.Lock.
+        """
+        if not self._pending_failed_writes:
+            return
+
+        try:
+            FAILED_WRITES_FILE.parent.mkdir(parents=True, exist_ok=True)
+            with failed_writes_lock:
+                with open(FAILED_WRITES_FILE, "a", encoding="utf-8") as f:
+                    for entry in self._pending_failed_writes:
+                        f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+            logger.warning(
+                f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
+                f"pending failed writes to {FAILED_WRITES_FILE}"
+            )
+        except Exception as e:
+            logger.error(f"[Story 30.24] Failed to flush pending writes: {e}")
+        finally:
+            self._pending_failed_writes.clear()
 
 
 # Singleton instance — the ONLY MemoryService singleton entry point for the entire project.

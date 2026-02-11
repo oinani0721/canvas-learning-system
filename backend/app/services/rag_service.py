@@ -315,10 +315,42 @@ class RAGService:
             logger.warning("get_weak_concepts: LangGraph not available, returning empty list")
             return []
 
-        # TODO: Implement actual weak concept retrieval from Temporal Memory
-        # For now, return empty list (graceful degradation)
-        logger.info(f"get_weak_concepts called for {canvas_file}, limit={limit}")
-        return []
+        # Story 36 fix: Query LearningMemoryClient for low-score concepts
+        try:
+            from app.clients.graphiti_client import get_learning_memory_client
+            memory_client = get_learning_memory_client()
+            await memory_client.initialize()
+
+            history = await memory_client.get_learning_history(canvas_file, limit=100)
+            if not history:
+                logger.info(f"get_weak_concepts: no learning history for {canvas_file}")
+                return []
+
+            # Aggregate by concept: keep lowest score per concept
+            concept_map: Dict[str, Dict[str, Any]] = {}
+            for entry in history:
+                concept = entry.get("concept", "")
+                if not concept:
+                    continue
+                score = entry.get("score", entry.get("quality_score", 0.5))
+                existing = concept_map.get(concept)
+                if existing is None or score < existing.get("score", 1.0):
+                    concept_map[concept] = {
+                        "concept": concept,
+                        "score": score,
+                        "stability": entry.get("stability", 0.0),
+                        "last_review": entry.get("timestamp", entry.get("created_at", "")),
+                        "review_count": entry.get("review_count", 1),
+                        "canvas_file": canvas_file,
+                    }
+
+            # Sort by score ascending (weakest first), return top N
+            weak = sorted(concept_map.values(), key=lambda x: x.get("score", 1.0))
+            return weak[:limit]
+
+        except Exception as e:
+            logger.warning(f"get_weak_concepts: failed to query learning memory: {e}")
+            return []
 
     def get_status(self) -> Dict[str, Any]:
         """

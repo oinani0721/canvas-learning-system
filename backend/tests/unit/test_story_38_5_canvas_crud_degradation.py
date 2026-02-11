@@ -19,7 +19,7 @@ import json
 import logging
 from pathlib import Path
 
-from tests.conftest import wait_for_condition
+from tests.conftest import simulate_async_delay, wait_for_condition
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -219,7 +219,7 @@ class TestAC2Neo4jDownFallback:
 
         async def slow_record(**kwargs):
             # JUSTIFIED: Mock simulating slow Neo4j; cancelled by wait_for timeout, not a hard wait
-            await asyncio.sleep(5)
+            await simulate_async_delay(5)
 
         mock_memory = AsyncMock()
         mock_memory.record_temporal_event = slow_record

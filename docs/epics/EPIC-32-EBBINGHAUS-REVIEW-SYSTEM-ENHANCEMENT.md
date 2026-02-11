@@ -340,8 +340,49 @@ Phase 4: 文档 [Week 3] - P2
 1. **Week 1**: Story 32.1 → Story 32.2 (顺序依赖)
 2. **Week 2**: Story 32.3 + Story 32.4 (可并行)
 3. **Week 3**: Story 32.6 + Story 32.7 (可并行，~~32.5已删除~~)
+4. **Week 4 (审核后追加)**: Story 32.10 → Story 32.11 (顺序依赖)
 
 使用 `/BMad:agents:dev` 或 `*create-brownfield-story` 开始实施具体Story。
+
+---
+
+### Story 32.10: 测试可靠性与隔离修复 [P1]
+
+**目标**: 修复对抗性审核发现的 3 个 P1 测试可靠性问题
+
+**验收标准**:
+- AC-32.10.1: `test_fsrs_manager.py` 中 `datetime.now()` 替换为固定时间（消除午夜 flaky）
+- AC-32.10.2: `test_fsrs_state_api.py` yield fixture 添加 try/finally 保护
+- AC-32.10.3: `test_fsrs_state_api.py` `clear()` 替换为精准 `pop()` 清理
+- AC-32.10.4: 全部 188 个 EPIC-32 测试回归通过
+
+**修改文件**:
+- `backend/tests/unit/test_fsrs_manager.py`
+- `backend/tests/api/v1/endpoints/test_fsrs_state_api.py`
+
+**预计工时**: 1-2 小时
+**详细 Story**: `docs/stories/32.10.story.md`
+
+---
+
+### Story 32.11: E2E 降级测试 + 并发安全验证 [P2]
+
+**目标**: 补充 E2E 降级端到端测试和并发写入安全测试，将 P1 覆盖率从 89% 提升到 100%
+
+**验收标准**:
+- AC-32.11.1: USE_FSRS=False 时 HTTP record/schedule/fsrs-state 端到端验证
+- AC-32.11.2: Health endpoint 显示 FSRS degraded 状态
+- AC-32.11.3: 10 并发 record_review_result 调用无异常 + JSON 不损坏
+- AC-32.11.4: Ebbinghaus fallback next_review 时间正确性
+- AC-32.11.5: P1 覆盖率 ≥ 100%
+
+**新增文件**:
+- `backend/tests/e2e/test_review_fsrs_degradation.py`
+- `backend/tests/unit/test_card_state_concurrent_write.py`
+
+**预计工时**: 3-4 小时
+**依赖**: Story 32.10
+**详细 Story**: `docs/stories/32.11.story.md`
 
 ---
 
@@ -351,5 +392,6 @@ Phase 4: 文档 [Week 3] - P2
 |------|---------|-------------|--------|
 | 2026-01-18 | 0.1 | Initial draft based on deep research | PM Agent (John) |
 | 2026-01-18 | 0.2 | **删除Story 32.5** (与EPIC-30 Story 30.8重复)，节省6小时；更新Story 32.6依赖 | PM Agent (John) |
+| 2026-02-10 | 0.3 | **新增Story 32.10, 32.11** — 对抗性审核发现的测试可靠性+覆盖率缺口修复 | Claude Opus 4.6 |
 
 ---

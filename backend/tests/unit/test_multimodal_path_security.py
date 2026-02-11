@@ -35,7 +35,10 @@ def service(tmp_storage):
     reset_multimodal_service()
     svc = MultimodalService(storage_base_path=str(tmp_storage))
     svc._initialized = True
-    return svc
+    try:
+        yield svc
+    finally:
+        reset_multimodal_service()
 
 
 # =============================================================================

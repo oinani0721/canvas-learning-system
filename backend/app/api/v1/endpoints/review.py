@@ -79,6 +79,10 @@ except ImportError as e:
 
 # Story 38.9 AC3: ReviewService singleton now lives in services layer.
 # Import the canonical factory instead of maintaining a duplicate here.
+# Story 34.10 AC3: This direct import (not Depends()) is intentional.
+# Endpoints use try/except for inline error handling, which requires calling
+# the singleton factory directly rather than via FastAPI's Depends() mechanism.
+# See dependencies.py for the Depends()-based alias (unused by this router).
 from app.services.review_service import (
     get_review_service as _get_review_service_singleton,
     reset_review_service_singleton as _reset_review_service_singleton,
@@ -1047,7 +1051,7 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
     """
     from datetime import date, timedelta
 
-    logger.info("POST /review/record canvas=%s node=%s rating=%s score=%s", request.canvas_name, request.node_id, request.rating, request.score)
+    logger.info("PUT /review/record canvas=%s node=%s rating=%s score=%s", request.canvas_name, request.node_id, request.rating, request.score)
     # Story 38.9 AC3: Use canonical singleton from services layer
     review_service = await _get_review_service_singleton()
 
@@ -1079,9 +1083,20 @@ async def record_review_result(request: RecordReviewRequest) -> RecordReviewResp
                 lapses=state.get("lapses", 0)
             )
 
+        # Code Review Fix: Map service return keys correctly
+        # Service returns "next_review" (ISO datetime string) and "interval_days" (int)
+        interval = result.get("interval_days") or result.get("new_interval") or 1
+        next_review_raw = result.get("next_review") or result.get("next_review_date")
+        if next_review_raw and isinstance(next_review_raw, str):
+            next_review_date_val = date.fromisoformat(next_review_raw[:10])
+        elif isinstance(next_review_raw, date):
+            next_review_date_val = next_review_raw
+        else:
+            next_review_date_val = date.today() + timedelta(days=interval)
+
         return RecordReviewResponse(
-            next_review_date=result.get("next_review_date", date.today() + timedelta(days=1)),
-            new_interval=result.get("new_interval", 1),
+            next_review_date=next_review_date_val,
+            new_interval=interval,
             fsrs_state=fsrs_state,
             card_data=result.get("card_data"),
             algorithm=result.get("algorithm", "fsrs-4.5")

@@ -27,6 +27,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 import pytest_asyncio
 
+from tests.conftest import simulate_async_delay
+
 from app.clients.graphiti_client_base import EdgeRelationship
 from app.clients.graphiti_client import GraphitiEdgeClient
 from app.clients.neo4j_client import Neo4jClient
@@ -69,14 +71,14 @@ def mock_neo4j_client():
     # Mock create_edge_relationship with realistic latency (5-50ms)
     async def mock_create_edge(*args, **kwargs):
         # Simulate Neo4j operation with realistic latency
-        await asyncio.sleep(0.01 + 0.02 * (hash(str(kwargs)) % 100) / 100)  # 10-30ms
+        await simulate_async_delay(0.01 + 0.02 * (hash(str(kwargs)) % 100) / 100)  # 10-30ms
         return True
 
     client.create_edge_relationship = AsyncMock(side_effect=mock_create_edge)
 
     # Mock run_query with realistic latency (3-30ms)
     async def mock_run_query(*args, **kwargs):
-        await asyncio.sleep(0.005 + 0.015 * (hash(str(kwargs)) % 100) / 100)  # 5-20ms
+        await simulate_async_delay(0.005 + 0.015 * (hash(str(kwargs)) % 100) / 100)  # 5-20ms
         return [{"node_id": "test", "content": "test", "canvas_path": "test.canvas"}]
 
     client.run_query = AsyncMock(side_effect=mock_run_query)

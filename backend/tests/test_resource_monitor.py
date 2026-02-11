@@ -13,6 +13,9 @@ import asyncio
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from tests.conftest import simulate_async_delay
+
 from app.services.resource_monitor import (
     DEFAULT_THRESHOLDS,
     ResourceMonitor,
@@ -329,7 +332,7 @@ async def test_start_background_collection():
         assert monitor._running is True
 
         # Let it run for a short time
-        await asyncio.sleep(0.2)
+        await simulate_async_delay(0.2)
 
         # Stop collection
         await monitor.stop_background_collection()

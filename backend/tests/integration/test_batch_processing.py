@@ -5,7 +5,7 @@
 Integration tests for service layer orchestration.
 
 Tests:
-- Service chain: SessionManager → IntelligentGroupingService → AgentRoutingEngine → BatchOrchestrator → ResultMerger
+- Service chain: SessionManager → IntelligentGroupingService → AgentRoutingEngine → BatchOrchestrator
 - Session lifecycle management
 - Memory write triggers (fire-and-forget pattern from EPIC-30)
 
@@ -17,23 +17,12 @@ import asyncio
 import json
 import sys
 from pathlib import Path
-from typing import Dict, List
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from app.services.session_manager import SessionManager, SessionStatus, SessionInfo
 from app.services.batch_orchestrator import BatchOrchestrator
-from app.services.result_merger import (
-    ResultMerger,
-    SupplementaryMerger,
-    HierarchicalMerger,
-    VotingMerger,
-    get_merger,
-    MergeStrategyType,
-)
-from app.models.intelligent_parallel_models import ParallelTaskStatus
-from app.models.merge_strategy_models import AgentResult, MergeConfig
 
 
 # =============================================================================
@@ -159,7 +148,7 @@ class TestServiceLayerOrchestration:
     """
     Integration tests for service chain orchestration.
 
-    Tests: SessionManager → IntelligentGroupingService → AgentRoutingEngine → BatchOrchestrator → ResultMerger
+    Tests: SessionManager → IntelligentGroupingService → AgentRoutingEngine → BatchOrchestrator
     """
 
     @pytest.mark.integration
@@ -641,124 +630,3 @@ class TestMemoryWriteTriggers:
         assert agent_result["success"] is True
 
 
-# =============================================================================
-# Test Class: Result Merger Integration (AC-33.8.6)
-# [Source: docs/stories/33.8.story.md - Task 7.2]
-# =============================================================================
-
-class TestResultMergerIntegration:
-    """
-    Integration tests for ResultMerger strategies.
-
-    Tests all three merge strategies: supplementary, hierarchical, voting.
-    """
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_supplementary_merger(self):
-        """
-        Test SupplementaryMerger concatenates outputs.
-
-        [Source: Story 33.7 - AC1]
-        """
-        merger = SupplementaryMerger()
-
-        results = [
-            AgentResult(
-                node_id="n1",
-                agent_name="oral-explanation",
-                result="这是口语化解释的内容。",
-                success=True,
-            ),
-            AgentResult(
-                node_id="n2",
-                agent_name="example-teaching",
-                result="这是例题教学的内容。",
-                success=True,
-            ),
-        ]
-
-        merged = await merger.merge(results)
-
-        assert merged.merged_content is not None
-        assert "oral-explanation" in merged.merged_content or "口语" in merged.merged_content
-        assert merged.quality_score is not None
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_hierarchical_merger(self):
-        """
-        Test HierarchicalMerger organizes by difficulty.
-
-        [Source: Story 33.7 - AC2]
-        """
-        merger = HierarchicalMerger()
-
-        results = [
-            AgentResult(
-                node_id="n1",
-                agent_name="oral-explanation",
-                result="入门级：这是基础概念的简单介绍。",
-                success=True,
-            ),
-            AgentResult(
-                node_id="n2",
-                agent_name="deep-decomposition",
-                result="深入分析：这是高级内容的深度剖析。",
-                success=True,
-            ),
-        ]
-
-        merged = await merger.merge(results)
-
-        assert merged.merged_content is not None
-        assert merged.strategy_used == MergeStrategyType.hierarchical
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_voting_merger_deduplication(self):
-        """
-        Test VotingMerger deduplicates similar content.
-
-        [Source: Story 33.7 - AC3]
-        """
-        merger = VotingMerger()
-
-        # Two similar results that should be deduplicated
-        results = [
-            AgentResult(
-                node_id="n1",
-                agent_name="oral-explanation",
-                result="递归是一个函数调用自身的编程技术。",
-                success=True,
-            ),
-            AgentResult(
-                node_id="n2",
-                agent_name="clarification-path",
-                result="递归是函数调用自己的技术，用于解决可分解的问题。",
-                success=True,
-            ),
-        ]
-
-        merged = await merger.merge(results)
-
-        assert merged.merged_content is not None
-        # Quality score should reflect deduplication
-        assert merged.quality_score.redundancy is not None
-
-    @pytest.mark.integration
-    @pytest.mark.asyncio
-    async def test_get_merger_factory(self):
-        """
-        Test get_merger factory returns correct strategy.
-
-        [Source: Story 33.7 - AC4]
-        """
-        supplementary = get_merger(MergeStrategyType.supplementary)
-        assert isinstance(supplementary, SupplementaryMerger)
-
-        hierarchical = get_merger(MergeStrategyType.hierarchical)
-        assert isinstance(hierarchical, HierarchicalMerger)
-
-        voting = get_merger(MergeStrategyType.voting)
-        assert isinstance(voting, VotingMerger)

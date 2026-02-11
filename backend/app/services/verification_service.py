@@ -48,9 +48,13 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, NoReturn, Optional
 
 from cachetools import TTLCache
+
+# Story 31.A.7: TTLCache session storage constants (single source of truth)
+SESSION_TTL = 3600       # seconds — sessions expire after 1 hour of inactivity
+SESSION_MAXSIZE = 500    # max concurrent sessions — LRU eviction beyond this limit
 
 # Story 31.1: Environment variable for mock mode
 USE_MOCK_VERIFICATION = os.getenv("USE_MOCK_VERIFICATION", "false").lower() == "true"
@@ -452,11 +456,17 @@ class VerificationService:
         [Source: docs/stories/31.4.story.md#Task-2]
         [Source: docs/stories/31.5.story.md#Task-7]
         """
-        # 活动会话存储 (session_id -> state)
-        # NFR-P0: TTLCache with 1h TTL for auto-cleanup of abandoned sessions
-        self._sessions: TTLCache = TTLCache(maxsize=500, ttl=3600)
-        # 进度存储 (session_id -> VerificationProgress)
-        self._progress: TTLCache = TTLCache(maxsize=500, ttl=3600)
+        # ⚠️ ARCHITECTURE LIMITATION (Story 31.A.7):
+        # Sessions are stored in-memory TTLCache. This means:
+        # 1. Service restart = ALL sessions lost (no persistence)
+        # 2. Sessions auto-expire after SESSION_TTL seconds of inactivity
+        # 3. Max SESSION_MAXSIZE concurrent sessions (LRU eviction beyond limit)
+        # 4. No cross-process sharing (single-instance only)
+        #
+        # This is a KNOWN LIMITATION, not a bug.
+        # Future improvement: Story 31.A.10 (Redis/DB persistence)
+        self._sessions: TTLCache = TTLCache(maxsize=SESSION_MAXSIZE, ttl=SESSION_TTL)
+        self._progress: TTLCache = TTLCache(maxsize=SESSION_MAXSIZE, ttl=SESSION_TTL)
 
         # Story 24.5: RAG Integration dependencies
         self._rag_service = rag_service
@@ -488,6 +498,23 @@ class VerificationService:
             f"Memory: {memory_service is not None}, "
             f"MockMode: {USE_MOCK_VERIFICATION})"
         )
+
+        # Story 31.A.7 AC-31.A.7.1: Startup storage mode warning
+        logger.warning(
+            "VerificationService using IN-MEMORY TTLCache for session storage "
+            f"(maxsize={SESSION_MAXSIZE}, ttl={SESSION_TTL}s). "
+            "Sessions will be LOST on service restart. "
+            "This is a known limitation — see Story 31.A.7."
+        )
+
+    def _raise_session_not_found(self, session_id: str) -> NoReturn:
+        """Story 31.A.7 AC-31.A.7.2: Log warning and raise ValueError for missing sessions."""
+        logger.warning(
+            f"Session {session_id} not found — may have expired (TTL={SESSION_TTL}s) "
+            f"or been evicted (LRU maxsize={SESSION_MAXSIZE}). "
+            "User will need to start a new session."
+        )
+        raise ValueError(f"Session not found: {session_id}")
 
     def _get_neo4j_client(self):
         """Safe accessor for Neo4jClient via GraphitiTemporalClient."""
@@ -662,8 +689,8 @@ class VerificationService:
 
         [Source: docs/stories/31.1.story.md#Task-3]
         """
-        if session_id not in self._sessions:
-            raise ValueError(f"Session not found: {session_id}")
+        if session_id not in self._sessions or session_id not in self._progress:
+            self._raise_session_not_found(session_id)
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
@@ -674,7 +701,7 @@ class VerificationService:
 
         # Story 31.1 AC-31.1.3: Call scoring-agent with timeout protection
         # Wave 3: degraded flag indicates fallback/mock evaluation
-        quality, score, degraded = await self._evaluate_answer_with_scoring_agent(
+        quality, score, degraded, degraded_reason = await self._evaluate_answer_with_scoring_agent(
             concept=current_concept,
             user_answer=user_answer,
             canvas_name=canvas_name
@@ -706,6 +733,11 @@ class VerificationService:
             "quality": quality,
             "score": score,
             "degraded": degraded,
+            "degraded_reason": degraded_reason if degraded else None,
+            "degraded_warning": (
+                "评分基于答案长度而非内容质量，仅供参考"
+                if degraded else None
+            ),
             "action": action["action"],
             "hint": action.get("hint"),
             "next_question": action.get("next_question"),
@@ -830,12 +862,19 @@ class VerificationService:
             session_id: 会话ID
 
         Returns:
-            进度信息字典
+            进度信息字典 (包含 storage_info — Story 31.A.7 AC-31.A.7.4)
         """
         if session_id not in self._progress:
-            raise ValueError(f"Session not found: {session_id}")
+            self._raise_session_not_found(session_id)
 
-        return self._progress[session_id].to_dict()
+        result = self._progress[session_id].to_dict()
+        # Story 31.A.7 AC-31.A.7.4: Include storage type info for frontend awareness
+        result["storage_info"] = {
+            "type": "in_memory_ttl_cache",
+            "ttl_seconds": SESSION_TTL,
+            "warning": f"Session will expire after {SESSION_TTL // 60} minute(s) of inactivity",
+        }
+        return result
 
     async def skip_concept(self, session_id: str) -> Dict[str, Any]:
         """
@@ -847,8 +886,8 @@ class VerificationService:
         Returns:
             下一步信息
         """
-        if session_id not in self._sessions:
-            raise ValueError(f"Session not found: {session_id}")
+        if session_id not in self._sessions or session_id not in self._progress:
+            self._raise_session_not_found(session_id)
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
@@ -872,8 +911,8 @@ class VerificationService:
         H3 fix: Validate state before transition.
         H2 fix: Record paused_at timestamp for duration tracking.
         """
-        if session_id not in self._sessions:
-            raise ValueError(f"Session not found: {session_id}")
+        if session_id not in self._sessions or session_id not in self._progress:
+            self._raise_session_not_found(session_id)
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
@@ -912,8 +951,8 @@ class VerificationService:
         which queries Graphiti for dedup. The regenerated question may differ from
         what would have been generated at the original time if Graphiti state changed.
         """
-        if session_id not in self._sessions:
-            raise ValueError(f"Session not found: {session_id}")
+        if session_id not in self._sessions or session_id not in self._progress:
+            self._raise_session_not_found(session_id)
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
@@ -966,8 +1005,8 @@ class VerificationService:
         Returns:
             最终结果摘要
         """
-        if session_id not in self._sessions:
-            raise ValueError(f"Session not found: {session_id}")
+        if session_id not in self._sessions or session_id not in self._progress:
+            self._raise_session_not_found(session_id)
 
         state = self._sessions[session_id]
         progress = self._progress[session_id]
@@ -1235,6 +1274,7 @@ class VerificationService:
 
         Story 31.1 AC-31.1.3: Call scoring-agent (unified 0-100 scale).
         Wave 3: Returns degraded flag when falling back to mock evaluation.
+        Story 31.A.8: Returns degraded_reason for transparency.
 
         Args:
             concept: The concept being tested
@@ -1242,40 +1282,53 @@ class VerificationService:
             canvas_name: Canvas name for context
 
         Returns:
-            Tuple of (quality: str, score: float, degraded: bool)
+            Tuple of (quality, score, degraded, degraded_reason):
             - quality: "excellent", "good", "partial", or "wrong"
             - score: 0-100 range (unified scale)
             - degraded: True when using fallback/mock evaluation
+            - degraded_reason: one of "mock_mode_enabled", "agent_timeout",
+              "agent_exception", "agent_unavailable", or None if not degraded
 
         [Source: docs/stories/31.1.story.md#Task-3]
-        [Source: specs/data/scoring-response.schema.json]
+        [Source: docs/stories/31.A.8.story.md#AC-31.A.8.4]
         """
         # AC-31.1.5: Check mock mode
         if USE_MOCK_VERIFICATION:
-            logger.debug("Mock mode enabled, using character-length based scoring")
             quality, score = self._mock_evaluate_answer(user_answer)
-            return quality, score, True
+            logger.warning(
+                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+                f"Reason: mock_mode_enabled. Score={score} is NOT based on content quality. "
+                "User may receive inaccurate assessment."
+            )
+            return quality, score, True, "mock_mode_enabled"
 
         try:
             # AC-31.1.5: 15s timeout protection
-            quality, score, degraded = await asyncio.wait_for(
+            quality, score, degraded, reason = await asyncio.wait_for(
                 self._do_scoring_agent_call(concept, user_answer, canvas_name),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
-            return quality, score, degraded
+            return quality, score, degraded, reason
 
         except asyncio.TimeoutError:
-            logger.warning(
-                f"Scoring-agent timeout for concept {concept} "
-                f"(timeout={VERIFICATION_AI_TIMEOUT}s), using fallback evaluation"
-            )
             quality, score = self._mock_evaluate_answer(user_answer)
-            return quality, score, True
+            logger.warning(
+                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+                f"Reason: agent_timeout (timeout={VERIFICATION_AI_TIMEOUT}s). "
+                f"Score={score} is NOT based on content quality. "
+                "User may receive inaccurate assessment."
+            )
+            return quality, score, True, "agent_timeout"
 
         except Exception as e:
-            logger.error(f"Scoring-agent call failed for concept {concept}: {e}")
             quality, score = self._mock_evaluate_answer(user_answer)
-            return quality, score, True
+            logger.warning(
+                f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+                f"Reason: agent_exception ({e}). "
+                f"Score={score} is NOT based on content quality. "
+                "User may receive inaccurate assessment."
+            )
+            return quality, score, True, "agent_exception"
 
     async def _do_scoring_agent_call(
         self,
@@ -1295,10 +1348,10 @@ class VerificationService:
             canvas_name: Canvas name for context
 
         Returns:
-            Tuple of (quality: str, score: float, degraded: bool)
+            Tuple of (quality: str, score: float, degraded: bool, degraded_reason: str | None)
 
         [Source: backend/app/services/agent_service.py - call_scoring pattern]
-        [Source: specs/data/scoring-response.schema.json]
+        [Source: docs/stories/31.A.8.story.md#AC-31.A.8.4]
         """
         # Call scoring-agent through agent_service if available
         if self._agent_service and hasattr(self._agent_service, "call_scoring"):
@@ -1356,15 +1409,19 @@ class VerificationService:
                         f"score={raw_score}, quality={quality}"
                     )
 
-                    return quality, raw_score, False
+                    return quality, raw_score, False, None
 
             except Exception as e:
                 logger.debug(f"Agent service scoring call failed: {e}")
 
         # Fallback to mock evaluation
-        logger.warning("No agent service available for scoring, using fallback (degraded mode)")
         quality, score = self._mock_evaluate_answer(user_answer)
-        return quality, score, True
+        logger.warning(
+            f"[DEGRADED SCORING] Using character-length mock for concept '{concept}'. "
+            f"Reason: agent_unavailable. Score={score} is NOT based on content quality. "
+            "User may receive inaccurate assessment."
+        )
+        return quality, score, True, "agent_unavailable"
 
     def _score_to_quality(self, score: float) -> str:
         """
@@ -1393,12 +1450,31 @@ class VerificationService:
 
     def _mock_evaluate_answer(self, user_answer: str) -> tuple:
         """
-        Fallback mock evaluation based on character length.
+        DEGRADED FALLBACK (Story 31.A.8): Character-length based scoring.
 
-        Used when:
-        - USE_MOCK_VERIFICATION is enabled
-        - Scoring-agent times out
-        - Agent service is unavailable
+        This method scores answers based SOLELY on character length.
+        It does NOT evaluate content quality, correctness, or understanding.
+
+        Scoring thresholds:
+        - >100 chars -> 90 ("excellent") -- regardless of content
+        - >50 chars  -> 70 ("good")
+        - >20 chars  -> 50 ("partial")
+        - <=20 chars -> 20 ("wrong")
+
+        This is used when:
+        1. USE_MOCK_VERIFICATION=true (dev/test mode)
+        2. AI scoring agent times out (VERIFICATION_AI_TIMEOUT exceeded)
+        3. AI scoring agent throws an exception
+        4. agent_service is not injected (DI failure or unavailable)
+
+        KNOWN ISSUE: A 101-character nonsense string scores higher than
+        a 19-character correct answer. This is by design as an emergency
+        fallback, not a quality assessment.
+
+        When this method is used, the caller MUST:
+        - Log a WARNING with [DEGRADED SCORING] prefix
+        - Set degraded=True and degraded_reason in the return value
+        - The API response will include degraded_warning for frontend display
 
         Args:
             user_answer: User's answer text

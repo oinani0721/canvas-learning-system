@@ -21,7 +21,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tests.conftest import simulate_async_delay
-
 from app.services.canvas_service import CanvasService
 
 
@@ -208,6 +207,47 @@ class TestSyncAllEdgesToNeo4j:
         assert result["total_edges"] == 4
         assert result["synced_count"] == 0
         assert result["skipped_count"] == 4
+
+
+class TestConcurrentSyncWithGather:
+    """AC-36.4.5: Verify sync_all_edges_to_neo4j uses asyncio.gather for concurrency."""
+
+    @pytest.mark.asyncio
+    async def test_sync_uses_asyncio_gather(
+        self, canvas_service_with_memory, mock_memory_client, tmp_path
+    ):
+        """AC-36.4.5: Verify asyncio.gather is called for concurrent edge sync."""
+        # Create canvas with 3 edges
+        canvas_data = {
+            "nodes": [
+                {"id": f"node-{i}", "type": "text", "text": f"N{i}", "x": i*100, "y": 0}
+                for i in range(4)
+            ],
+            "edges": [
+                {"id": f"edge-{i}", "fromNode": f"node-{i}", "toNode": f"node-{i+1}"}
+                for i in range(3)
+            ]
+        }
+        canvas_path = tmp_path / "gather_test.canvas"
+        canvas_path.write_text(json.dumps(canvas_data))
+
+        # Patch asyncio.gather to track that it's called
+        original_gather = asyncio.gather
+        gather_called = False
+        gather_task_count = 0
+
+        async def tracked_gather(*coros, **kwargs):
+            nonlocal gather_called, gather_task_count
+            gather_called = True
+            gather_task_count = len(coros)
+            return await original_gather(*coros, **kwargs)
+
+        with patch("app.services.canvas_service.asyncio.gather", side_effect=tracked_gather):
+            result = await canvas_service_with_memory.sync_all_edges_to_neo4j("gather_test")
+
+        assert gather_called, "asyncio.gather should be called for concurrent sync"
+        assert gather_task_count == 3, f"Expected 3 tasks in gather, got {gather_task_count}"
+        assert result["synced_count"] == 3
 
 
 class TestSyncEdgesEndpoint:

@@ -4,10 +4,11 @@
 **Epic ID**: EPIC-30
 **类型**: Brownfield Enhancement
 **优先级**: P0 (High)
-**状态**: Ready for Implementation
+**状态**: 16/24 Stories Done (67%), Gate: FAIL — 3 Deferred (30.17-30.19), 5 Pending (30.20-30.24), P0 覆盖率 80%
 **创建日期**: 2026-01-15
-**预计工时**: ~60小时
-**实施周期**: 4周
+**最后审查**: 2026-02-10 (对抗性审查)
+**预计工时**: ~105小时 (原60h + 修复45h)
+**实施周期**: 6周 (原4周 + 对抗性审查修复2周)
 
 ---
 
@@ -37,14 +38,18 @@
 
 ### 当前系统状态
 
+> **最后更新**: 2026-02-10 (对抗性审查后同步)
+
 | 组件 | 文件 | 行数 | 状态 |
 |------|------|------|------|
-| Neo4j客户端 | `backend/app/clients/neo4j_client.py` | 498 | JSON模拟 |
-| MemoryService | `backend/app/services/memory_service.py` | 380 | 完全实现 |
-| Memory API | `backend/app/api/v1/endpoints/memory.py` | 289 | 4端点完成 |
-| Graphiti客户端 | `src/agentic_rag/clients/graphiti_temporal_client.py` | 649 | 完全实现 |
-| MemoryQueryService | `src/services/MemoryQueryService.ts` | 624 | **未初始化** |
-| GraphitiAssociationService | `src/services/GraphitiAssociationService.ts` | 521 | **未初始化** |
+| Neo4j客户端 | `backend/app/clients/neo4j_client.py` | ~2011 | ✅ Bolt驱动 + JSON fallback |
+| MemoryService | `backend/app/services/memory_service.py` | ~1498 | ✅ 完全实现 (含双写/幂等/批量) |
+| Memory API | `backend/app/api/v1/endpoints/memory.py` | ~389 | ✅ 7端点完成 |
+| Health API | `backend/app/api/v1/endpoints/health.py` | ~1731 | ✅ Neo4j/Graphiti/LanceDB/Storage |
+| Agent映射 | `backend/app/core/agent_memory_mapping.py` | ~98 | ✅ 15个Agent映射 |
+| MemoryQueryService | `canvas-progress-tracker/obsidian-plugin/src/services/MemoryQueryService.ts` | 624 | ✅ 已初始化 (main.ts:560) |
+| GraphitiAssociationService | `canvas-progress-tracker/obsidian-plugin/src/services/GraphitiAssociationService.ts` | 521 | ✅ 已初始化 (main.ts:582) |
+| NodeColorChangeWatcher | `canvas-progress-tracker/obsidian-plugin/src/services/NodeColorChangeWatcher.ts` | ~595 | ✅ 已实现 (Story 30.6/30.9) |
 
 ### 三层记忆架构
 
@@ -132,7 +137,7 @@
 **目标**: 为14个Agent添加自动记忆写入触发
 
 **验收标准**:
-- AC-30.4.1: 14个Agent执行完成后自动调用`record_learning_episode()`
+- AC-30.4.1: 15个Agent执行完成后自动调用`record_learning_episode()`
 - AC-30.4.2: 异步非阻塞写入，不影响Agent响应时间
 - AC-30.4.3: 写入失败时静默降级，记录错误日志
 - AC-30.4.4: Agent映射表配置化（哪些Agent触发哪种记忆类型）
@@ -153,6 +158,9 @@
 | basic-decomposition | 基础拆解 | basic_decomposition |
 | question-decomposition | 问题拆解 | question_record |
 | canvas-orchestrator | 编排完成 | orchestration_event |
+| hint-generation | 提示生成 | hint_record |
+| review-board-agent-selector | 复习选择 | concept_reviewed |
+| graphiti-memory-agent | 图谱记忆 | concept_reviewed |
 
 **修改文件**:
 - `backend/app/services/agent_service.py` (添加触发逻辑)
@@ -238,6 +246,81 @@
 
 ---
 
+### Stories 30.9-30.16: 对抗性审查修复与测试补全
+
+> **来源**: 2026-02-09 对抗性审查发现 Stories 30.1-30.8 的功能缺陷和测试覆盖不足，
+> 后续创建 8 个修复/测试 Story 系统性补齐。
+
+#### Story 30.9: NodeColorChangeWatcher 数据完整性修复 [P1] ✅ Done
+
+**来源**: Story 30.6 QA 第二轮审查 (CONCERNS, 60/100) 发现 6 个缺陷
+**修复内容**: 启动噪声过滤、概念名称映射修正、颜色移除/节点删除追踪
+**预计工时**: 4小时
+
+---
+
+#### Story 30.10: 学习事件写入幂等性修复 [P0] ✅ Done
+
+**来源**: 对抗性审查发现 Graphiti 双写重复、内存列表无去重、episode_id 不确定
+**修复内容**: 确定性幂等键生成、内存去重、Graphiti 写入幂等保护
+**阻塞**: Story 30.11 依赖此 Story
+**预计工时**: 6小时
+
+---
+
+#### Story 30.11: 批量端点真批量改造 [P0] ✅ Done
+
+**来源**: 对抗性审查发现 `record_batch_learning_events()` 是伪批量 (50事件×200ms=10s，远超AC要求<500ms)
+**修复内容**: 用 `asyncio.gather()` 实现真并行写入
+**依赖**: Story 30.10
+**预计工时**: 8小时
+
+---
+
+#### Story 30.12: Agent 触发完整性补齐 [P0] ✅ Done
+
+**来源**: 对抗性审查发现 14 个 Agent 映射中仅 11 个有实际触发，3 个缺失
+**修复内容**: 补齐 hint-generation、comparison-table、memory-anchor 的触发调用
+**预计工时**: 4小时
+
+---
+
+#### Story 30.13: 批量性能 + 幂等性测试补全 [P0] ✅ Done
+
+**类型**: 测试 Story
+**覆盖**: 幂等性测试 (重复事件去重)、性能基准 (50事件<500ms)、部分失败恢复
+**测试数**: 11 tests
+**预计工时**: 4小时
+
+---
+
+#### Story 30.14: 14 个 Agent 触发集成测试 [P0] ✅ Done
+
+**类型**: 测试 Story
+**覆盖**: 参数化 Agent 触发验证、失败降级测试、映射完整性静态分析
+**测试数**: 19 tests (含 `@pytest.mark.parametrize` 14 agents)
+**预计工时**: 6小时
+
+---
+
+#### Story 30.15: 多学科隔离 + DI 完整性测试 [P0] ✅ Done
+
+**类型**: 测试 Story
+**覆盖**: group_id 查询隔离验证、dependencies.py 端到端 DI 链验证
+**测试数**: ~10 tests
+**预计工时**: 5小时
+
+---
+
+#### Story 30.16: 真实 Neo4j 集成 + 弹性恢复测试 [P1] ✅ Done
+
+**类型**: 测试 Story
+**覆盖**: Docker Neo4j 集成测试、断连→fallback→重连弹性路径、前端健康检查 E2E
+**测试数**: 18 tests
+**预计工时**: 8小时
+
+---
+
 ## Implementation Phases
 
 ```
@@ -256,6 +339,25 @@ Phase 3: 插件集成 [Week 3]
 
 Phase 4: 高级功能 [Week 4]
 └─ Story 30.8: 多学科隔离 [P2]
+
+Phase 5: 对抗性审查修复 [Week 5] (2026-02-09 追加)
+├─ Story 30.9: NodeColorChangeWatcher 数据完整性修复 [P1]
+├─ Story 30.10: 幂等性修复 [P0] (阻塞30.11)
+├─ Story 30.11: 批量真并行改造 [P0]
+└─ Story 30.12: Agent触发补齐 [P0] (可与30.10并行)
+
+Phase 6: 测试补全 [Week 5-6] (2026-02-09 追加)
+├─ Story 30.13: 批量性能+幂等性测试 [P0]
+├─ Story 30.14: Agent触发集成测试 [P0]
+├─ Story 30.15: 多学科隔离+DI完整性测试 [P0]
+└─ Story 30.16: 真实Neo4j+弹性恢复测试 [P1]
+
+Phase 7: 对抗性审查修复 [Week 7-8] (2026-02-10 BMad全流程审查追加)
+├─ Story 30.20: 核心功能测试补充 (30.6/30.7零覆盖修复) [P0]
+├─ Story 30.21: 真实环境集成测试套件 (Mock性能基准替代) [P0]
+├─ Story 30.22: Agent触发深度测试 (映射表→行为验证) [P1] (与30.23并行)
+├─ Story 30.23: CI流水线激活 + asyncio.sleep替换 [P1] (与30.22并行)
+└─ Story 30.24: 边界测试与防护加固 [P2]
 ```
 
 ---
@@ -270,20 +372,26 @@ Phase 4: 高级功能 [Week 4]
 | 数据迁移丢失 | 低 | 迁移前备份JSON文件 |
 | 事件风暴 | 中 | 500ms防抖 + 批量合并 |
 
-**回滚时间**: < 1分钟（设置`NEO4J_ENABLED=false`环境变量）
+**回滚方式**: 设置`NEO4J_ENABLED=false`环境变量（JSON fallback模式自动启用）
 
 ---
 
 ## Definition of Done
 
-- [ ] 所有8个Stories完成
-- [ ] 所有AC通过验证
-- [ ] 单元测试覆盖率 > 90%
-- [ ] 集成测试全部通过
-- [ ] 性能基准达标 (写入<200ms, 查询<100ms P95)
-- [ ] 健康检查端点返回3层系统状态
-- [ ] Obsidian状态栏显示记忆系统状态
-- [ ] 部署文档更新
+- [x] 16/19 Stories 完成 (30.1-30.16)
+- [ ] ❌ Gate Decision: FAIL — P0 覆盖率 82% (要求 100%), P1 覆盖率 74% (要求 ≥90%)
+- [x] 集成测试全部通过 (97+ tests across Stories 30.9-30.16)
+- [x] 性能基准达标 (批量50事件<500ms — Story 30.13 验证, **注意: Mock 环境**)
+- [x] 健康检查端点返回3层系统状态 (Story 30.3/30.16 验证)
+- [x] Obsidian插件记忆服务已初始化 (main.ts:560-586)
+- [ ] 🔵 Deferred: Story 30.17 — Priority 计算记忆降级透明化 (P1, 4h)
+- [ ] 🔵 Deferred: Story 30.18 — ApiClient Memory 查询方法补全 (P1, 6h)
+- [ ] 🔵 Deferred: Story 30.19 — SubjectMapping 学科映射配置 UI (P2, 6h)
+- [ ] ⚠️ 待修复 → Story 30.20: Story 30.6/30.7 零测试覆盖
+- [ ] ⚠️ 待修复 → Story 30.21: 性能基准需在真实 Neo4j 环境重新验证
+- [ ] ⚠️ 待修复 → Story 30.22: Agent 触发测试从映射表升级为行为验证
+- [ ] ⚠️ 待修复 → Story 30.23: CI 流水线提交 + asyncio.sleep 硬等待替换
+- [ ] ⚠️ 待修复 → Story 30.24: 边界测试 + shutdown 数据安全 + vault 验证退出码
 
 ---
 
@@ -294,20 +402,45 @@ Phase 4: 高级功能 [Week 4]
 | Neo4j客户端 | `backend/app/clients/neo4j_client.py` |
 | 记忆服务 | `backend/app/services/memory_service.py` |
 | Memory API | `backend/app/api/v1/endpoints/memory.py` |
-| Graphiti客户端 | `src/agentic_rag/clients/graphiti_temporal_client.py` |
+| Health API | `backend/app/api/v1/endpoints/health.py` |
+| Agent映射配置 | `backend/app/core/agent_memory_mapping.py` |
+| 依赖注入 | `backend/app/dependencies.py` |
 | 插件主文件 | `canvas-progress-tracker/obsidian-plugin/main.ts` |
-| 插件记忆服务 | `src/services/MemoryQueryService.ts` |
-| 插件关联服务 | `src/services/GraphitiAssociationService.ts` |
+| 插件记忆查询 | `canvas-progress-tracker/obsidian-plugin/src/services/MemoryQueryService.ts` |
+| 插件关联服务 | `canvas-progress-tracker/obsidian-plugin/src/services/GraphitiAssociationService.ts` |
+| 插件颜色监听 | `canvas-progress-tracker/obsidian-plugin/src/services/NodeColorChangeWatcher.ts` |
+| 插件优先级计算 | `canvas-progress-tracker/obsidian-plugin/src/services/PriorityCalculatorService.ts` |
+| 插件API客户端 | `canvas-progress-tracker/obsidian-plugin/src/api/ApiClient.ts` |
 
 ---
 
 ## Story Manager Handoff
 
-当准备实施时，请按以下顺序执行：
+### 已完成 (Phase 1-6)
 
-1. **Week 1**: Story 30.1 → Story 30.2 (顺序)
-2. **Week 2**: Story 30.3 + 30.4 + 30.5 (并行)
-3. **Week 3**: Story 30.7 → Story 30.6 (顺序)
-4. **Week 4**: Story 30.8
+1. **Week 1**: Story 30.1 → 30.2 (顺序) ✅
+2. **Week 2**: Story 30.3 + 30.4 + 30.5 (并行) ✅
+3. **Week 3**: Story 30.7 → 30.6 (顺序) ✅
+4. **Week 4**: Story 30.8 ✅
+5. **Week 5**: Story 30.9 + 30.10 → 30.11 + 30.12 (对抗性审查修复) ✅
+6. **Week 5-6**: Story 30.13 + 30.14 + 30.15 + 30.16 (测试补全) ✅
 
-使用 `/BMad:agents:dev` 或 `*create-brownfield-story` 开始实施具体Story。
+### 待实施 (Phase 7 — 对抗性审查 2026-02-10 BMad全流程审查)
+
+7. **Week 7**: Story 30.20 (核心测试补充 P0) → Story 30.21 (真实集成测试 P0)
+8. **Week 7-8**: Story 30.22 (Agent深度测试 P1) + 30.23 (CI流水线 P1) (并行)
+9. **Week 8**: Story 30.24 (边界测试 P2)
+
+### 已延迟 (Deferred)
+
+10. **待排期**: Story 30.17 (PriorityCalculatorService FSRS集成) + 30.18 (ApiClient补全) + 30.19 (SubjectMapping UI)
+
+---
+
+## 对抗性审查记录
+
+| 日期 | 审查类型 | 发现数 | 关键发现 | 后续行动 |
+|------|---------|--------|---------|---------|
+| 2026-02-09 | 代码对抗性审查 | 8 | 幂等性bug、伪批量性能、Agent触发不完整 | Stories 30.9-30.16 修复 |
+| 2026-02-10 | EPIC 文档对抗性审查 | 13 | 文档严重过时(8→16 Stories)、FSRS硬编码、ApiClient不完整 | Phase 0 文档修复 + Stories 30.17-30.19 计划 |
+| 2026-02-10 | BMad 全流程对抗性审查 | 17 | 完成率虚假(16/16→16/19)、Gate FAIL矛盾、Mock性能基准、已删除测试引用、零覆盖Story | Phase 0 文档修复(D1-D5) + Stories 30.20-30.24 规划 |

@@ -266,32 +266,19 @@ TaskManagerDep = Annotated[BackgroundTaskManager, Depends(get_task_manager)]
 # ReviewService Dependency (Chained: depends on Settings AND CanvasService)
 # =============================================================================
 
-# ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
-async def get_review_service(
-    canvas_service: CanvasServiceDep,
-    task_manager: TaskManagerDep,
-    settings: SettingsDep
-) -> AsyncGenerator[ReviewService, None]:
+# Story 38.9 AC2: Delegate to canonical singleton in services layer.
+# Previously created per-request instances — now uses shared singleton
+# with double-check lock (aligned with MemoryService pattern).
+async def get_review_service() -> ReviewService:
     """
-    Get ReviewService instance with automatic resource cleanup.
+    Get ReviewService singleton instance.
 
-    This is a chained dependency - it depends on CanvasService and TaskManager.
-    FastAPI will resolve the dependency chain automatically.
+    Story 38.9: Delegates to services.review_service.get_review_service()
+    which manages a singleton with async double-check lock. This ensures
+    dependencies.py and review.py endpoints resolve to the same instance.
 
-    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
-
-    Dependency Chain:
-        get_settings() → settings
-        get_canvas_service(settings) → canvas_service
-        get_task_manager() → task_manager
-        get_review_service(canvas_service, task_manager) → review_service
-
-    Args:
-        canvas_service: CanvasService instance (injected via Depends)
-        task_manager: BackgroundTaskManager instance (injected via Depends)
-
-    Yields:
-        ReviewService: Review and verification canvas service instance
+    Returns:
+        ReviewService: Singleton review service instance
 
     Example:
         ```python
@@ -303,48 +290,17 @@ async def get_review_service(
             return await service.generate_verification_canvas(...)
         ```
 
-    [Source: docs/stories/15.3.story.md#Dev-Notes - 示例3: 链式依赖]
-    [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#依赖注入设计]
+    [Source: docs/stories/38.9.story.md#AC2]
     """
-    # Story 32.8 AC-32.8.3 + AC-32.8.4: Unified FSRSManager factory
-    # Checks USE_FSRS setting and creates FSRSManager via single path
-    fsrs_manager = None
-    try:
-        from .services.review_service import create_fsrs_manager
-        fsrs_manager = create_fsrs_manager(settings)
-    except Exception as e:
-        logger.warning(f"FSRSManager DI creation failed, ReviewService will auto-create: {e}")
-
-    # Story 34.8 AC2: Explicitly inject graphiti_client (was previously missing)
-    # Uses get_graphiti_temporal_client() singleton — returns None if unavailable
-    graphiti_client = None
-    try:
-        graphiti_client = get_graphiti_temporal_client()
-        if graphiti_client:
-            logger.debug("GraphitiTemporalClient injected into ReviewService for history queries")
-        else:
-            logger.warning(
-                "Graphiti client not available for ReviewService, "
-                "history will use FSRS fallback"
-            )
-    except Exception as e:
-        logger.warning(f"Failed to get graphiti_client for ReviewService: {e}")
-
-    logger.debug("Creating ReviewService instance (chained dependency)")
-    service = ReviewService(
-        canvas_service=canvas_service,
-        task_manager=task_manager,
-        graphiti_client=graphiti_client,
-        fsrs_manager=fsrs_manager
-    )
-    try:
-        yield service
-    finally:
-        await service.cleanup()
-        logger.debug("ReviewService cleanup completed")
+    from .services.review_service import get_review_service as _get_rs_singleton
+    return await _get_rs_singleton()
 
 
-# Type alias for ReviewService dependency
+# Type alias for ReviewService dependency.
+# Note (Story 34.10 AC3): review.py endpoints do NOT use this Depends() alias.
+# They directly import _get_review_service_singleton because the endpoint's
+# try/except error handling needs the service instance inline, not via Depends().
+# This alias is retained for potential use by other routers.
 ReviewServiceDep = Annotated[ReviewService, Depends(get_review_service)]
 
 
@@ -532,7 +488,7 @@ def _get_rollback_service_dep():
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: chained dependencies)
 async def get_verification_service(
     settings: SettingsDep,
-    canvas_service: CanvasServiceDep  # P0 Fix: Inject CanvasService for concept extraction
+    canvas_service: CanvasServiceDep,
 ) -> AsyncGenerator[VerificationService, None]:
     """
     Get VerificationService instance with RAG context injection.
@@ -645,11 +601,11 @@ async def get_verification_service(
         rag_service=rag_service,
         cross_canvas_service=cross_canvas_service,
         textbook_context_service=textbook_service,
+        canvas_service=canvas_service,  # Code review fix: inject canvas_service
         graphiti_client=graphiti_client,  # Story 31.A.1: Enable question deduplication
         memory_service=memory_service,  # Story 31.5: Enable difficulty adaptation
         agent_service=agent_service,  # P0-2: Enable AI question generation and scoring
-        canvas_service=canvas_service,  # P0 Fix: Enable Canvas concept extraction
-        canvas_base_path=str(settings.canvas_base_path) if settings.canvas_base_path else None  # P0 Fix
+        canvas_base_path=settings.canvas_base_path  # Story 31.1 AC-31.1.1
     )
 
     try:
@@ -1055,49 +1011,85 @@ def get_agent_routing_engine() -> AgentRoutingEngine:
 AgentRoutingEngineDep = Annotated[AgentRoutingEngine, Depends(get_agent_routing_engine)]
 
 
-async def get_batch_orchestrator(
-    settings: SettingsDep,
-    agent_service: AgentServiceDep,
-    canvas_service: CanvasServiceDep,
-):
+# Story 33.11: Reusable async builder for batch processing singleton deps.
+# _ensure_async_deps() in intelligent_parallel.py delegates to this function
+# so that DI construction logic lives in ONE place (dependencies.py).
+async def build_batch_processing_deps():
     """
-    Get BatchOrchestrator instance with all dependencies.
+    Build singleton dependencies for batch processing endpoints.
 
-    EPIC-33 Story 33.6: Parallel execution orchestration.
+    Creates BatchOrchestrator, AgentService, and CanvasService as singletons
+    for use by the intelligent parallel processing endpoint layer.
 
-    Args:
-        settings: Application settings
-        agent_service: AgentService for agent calls
-        canvas_service: CanvasService for node content
+    NOTE: BatchOrchestrator MUST remain a singleton because
+    _cancel_requested is instance-level state shared between /confirm and /cancel.
 
-    Yields:
-        BatchOrchestrator: Orchestrator instance
+    Story 33.11 AC-33.11.2: Single source of truth for DI construction.
+
+    Returns:
+        tuple: (BatchOrchestrator, AgentService, CanvasService)
     """
     from .services.batch_orchestrator import BatchOrchestrator
 
+    settings = get_settings()
+
+    # 1. GeminiClient (same logic as get_agent_service)
+    gemini_client = None
+    if settings.AI_API_KEY:
+        try:
+            gemini_client = GeminiClient(
+                api_key=settings.AI_API_KEY,
+                model=settings.AI_MODEL_NAME,
+                base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
+            )
+        except Exception as e:
+            logger.error(f"Failed to create GeminiClient for batch processing: {e}")
+
+    # 2. CanvasService with memory_client (same logic as get_canvas_service)
+    canvas_base_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    cs_memory_client = None
+    try:
+        from .services.memory_service import get_memory_service as _get_memory_svc
+        cs_memory_client = await _get_memory_svc()
+    except Exception as e:
+        logger.warning(f"MemoryService not available for batch CanvasService: {e}")
+
+    canvas_service = CanvasService(
+        canvas_base_path=canvas_base_path,
+        memory_client=cs_memory_client,
+    )
+
+    # 3. AgentService (same logic as get_agent_service)
+    neo4j_client = get_neo4j_client_dep()
+    learning_memory_client = None
+    try:
+        from .clients.graphiti_client import get_learning_memory_client
+        learning_memory_client = get_learning_memory_client()
+    except Exception as e:
+        logger.warning(f"LearningMemoryClient not available for batch AgentService: {e}")
+
+    agent_service = AgentService(
+        gemini_client=gemini_client,
+        memory_client=learning_memory_client,
+        canvas_service=canvas_service,
+        neo4j_client=neo4j_client,
+    )
+
+    # 4. BatchOrchestrator (singleton-shared for cancel state)
     session_manager = get_session_manager()
     vault_path = str(settings.canvas_base_path) if settings.canvas_base_path else None
+    routing_engine = get_agent_routing_engine()
 
-    orchestrator = BatchOrchestrator(
+    batch_orchestrator = BatchOrchestrator(
         session_manager=session_manager,
         agent_service=agent_service,
         canvas_service=canvas_service,
         vault_path=vault_path,
+        routing_engine=routing_engine,
     )
 
-    logger.debug("BatchOrchestrator created with SessionManager, AgentService, CanvasService")
-    yield orchestrator
-
-
-# Type alias for BatchOrchestrator dependency
-from .services.batch_orchestrator import BatchOrchestrator as _BatchOrchestrator
-BatchOrchestratorDep = Annotated[_BatchOrchestrator, Depends(get_batch_orchestrator)]
-
-
-# NOTE: get_intelligent_parallel_service() and IntelligentParallelServiceDep
-# were dead code (never used by endpoints). Removed per AC-33.9.8.
-# The endpoint uses a singleton pattern with _ensure_async_deps() instead,
-# because BatchOrchestrator._cancel_requested requires a shared instance.
+    logger.info("Batch processing deps built via dependencies.py (single source of truth)")
+    return batch_orchestrator, agent_service, canvas_service
 
 
 # =============================================================================
@@ -1123,8 +1115,7 @@ __all__ = [
     "get_session_manager",  # EPIC-33
     "get_intelligent_grouping_service",  # EPIC-33
     "get_agent_routing_engine",  # EPIC-33
-    "get_batch_orchestrator",  # EPIC-33
-    # get_intelligent_parallel_service removed per AC-33.9.8 (dead code)
+    "build_batch_processing_deps",  # Story 33.11: DI consolidation
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -1141,6 +1132,6 @@ __all__ = [
     "SessionManagerDep",  # EPIC-33
     "IntelligentGroupingServiceDep",  # EPIC-33
     "AgentRoutingEngineDep",  # EPIC-33
-    "BatchOrchestratorDep",  # EPIC-33
+    # BatchOrchestratorDep removed (dead code, AC-33.9.8)
     # IntelligentParallelServiceDep removed per AC-33.9.8 (dead code)
 ]

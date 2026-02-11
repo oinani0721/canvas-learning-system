@@ -174,7 +174,7 @@ class TestAgentMemoryIntegration:
 
         # Make memory write slow
         async def slow_add_episode(memory):
-            await asyncio.sleep(0.3)
+            await simulate_async_delay(0.3)
             return True
 
         mock_memory_client.add_learning_episode = slow_add_episode

@@ -17,6 +17,8 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 import pytest
+
+from tests.conftest import simulate_async_delay
 from app.services.agent_service import AgentService
 
 
@@ -60,7 +62,7 @@ class MockLearningMemoryClient:
             raise Exception("Mock search failure")
 
         if self.delay > 0:
-            await asyncio.sleep(self.delay)
+            await simulate_async_delay(self.delay)
 
         return [
             MockLearningMemory(

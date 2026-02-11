@@ -17,6 +17,9 @@ import time
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+
+from tests.conftest import simulate_async_delay
+
 from app.clients.base_provider import (
     BaseProvider,
     NoHealthyProviderError,
@@ -379,7 +382,7 @@ class TestMultiProviderSwitchAsync:
         provider.health = ProviderHealth(status=ProviderStatus.HEALTHY)
 
         async def delayed_complete(*args, **kwargs):
-            await asyncio.sleep(0.1)  # 100ms delay
+            await simulate_async_delay(0.1)  # 100ms delay
             return ProviderResponse(
                 text="Delayed response",
                 model="test",
