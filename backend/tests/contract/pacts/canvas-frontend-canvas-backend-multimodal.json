@@ -1,0 +1,354 @@
+{
+  "consumer": {
+    "name": "Canvas-Frontend"
+  },
+  "provider": {
+    "name": "Canvas-Backend"
+  },
+  "interactions": [
+    {
+      "description": "a request to get multimodal service health",
+      "providerState": "multimodal service is running",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/health"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "status": "healthy",
+          "lancedb_connected": false,
+          "neo4j_connected": false,
+          "storage_path_writable": true,
+          "total_items": 0
+        },
+        "matchingRules": {
+          "$.body.status": {"match": "type"},
+          "$.body.lancedb_connected": {"match": "type"},
+          "$.body.neo4j_connected": {"match": "type"},
+          "$.body.storage_path_writable": {"match": "type"},
+          "$.body.total_items": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to list multimodal content (root)",
+      "providerState": "multimodal content exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [],
+          "total": 1
+        },
+        "matchingRules": {
+          "$.body.total": {"match": "type"},
+          "$.body.items": {"min": 0}
+        }
+      }
+    },
+    {
+      "description": "a request to list multimodal content with pagination",
+      "providerState": "multimodal content exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/list",
+        "query": "page=1&page_size=20"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [],
+          "pagination": {
+            "total": 1,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 1,
+            "has_next": false,
+            "has_prev": false
+          }
+        },
+        "matchingRules": {
+          "$.body.pagination.total": {"match": "type"},
+          "$.body.pagination.page": {"match": "type"},
+          "$.body.pagination.page_size": {"match": "type"},
+          "$.body.pagination.total_pages": {"match": "type"},
+          "$.body.items": {"min": 0}
+        }
+      }
+    },
+    {
+      "description": "a request to get multimodal content by ID",
+      "providerState": "multimodal content exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/550e8400-e29b-41d4-a716-446655440000"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "media_type": "image",
+          "file_path": "/path/to/image/test.png",
+          "related_concept_id": "concept-001",
+          "created_at": "2026-01-01T12:00:00"
+        },
+        "matchingRules": {
+          "$.body.id": {"match": "type"},
+          "$.body.media_type": {"match": "regex", "regex": "^(image|pdf|audio|video)$"},
+          "$.body.file_path": {"match": "type"},
+          "$.body.related_concept_id": {"match": "type"},
+          "$.body.created_at": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to get non-existent multimodal content",
+      "providerState": "multimodal content does not exist",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/00000000-0000-0000-0000-000000000000"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "detail": "Content not found: 00000000-0000-0000-0000-000000000000"
+        },
+        "matchingRules": {
+          "$.body.detail": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to update multimodal content metadata",
+      "providerState": "multimodal content exists",
+      "request": {
+        "method": "PUT",
+        "path": "/api/v1/multimodal/550e8400-e29b-41d4-a716-446655440000",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "description": "Updated description"
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "id": "550e8400-e29b-41d4-a716-446655440000",
+          "media_type": "image",
+          "file_path": "/path/to/test.png",
+          "related_concept_id": "concept-001",
+          "created_at": "2026-01-01T12:00:00"
+        },
+        "matchingRules": {
+          "$.body.id": {"match": "type"},
+          "$.body.media_type": {"match": "type"},
+          "$.body.created_at": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to delete multimodal content",
+      "providerState": "multimodal content exists",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/v1/multimodal/550e8400-e29b-41d4-a716-446655440000"
+      },
+      "response": {
+        "status": 204
+      }
+    },
+    {
+      "description": "a request to search multimodal content",
+      "providerState": "multimodal content exists with searchable descriptions",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/multimodal/search",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "query": "数学",
+          "top_k": 10,
+          "min_score": 0.5
+        }
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [],
+          "total": 0,
+          "query_processed": false,
+          "search_mode": "text"
+        },
+        "matchingRules": {
+          "$.body.total": {"match": "type"},
+          "$.body.query_processed": {"match": "type"},
+          "$.body.search_mode": {"match": "regex", "regex": "^(vector|text)$"},
+          "$.body.items": {"min": 0}
+        }
+      }
+    },
+    {
+      "description": "a request to get content by concept ID",
+      "providerState": "multimodal content linked to concept",
+      "request": {
+        "method": "GET",
+        "path": "/api/v1/multimodal/by-concept/concept-test-001"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "items": [],
+          "total": 0
+        },
+        "matchingRules": {
+          "$.body.total": {"match": "type"},
+          "$.body.items": {"min": 0}
+        }
+      }
+    },
+    {
+      "description": "a request to upload a file",
+      "providerState": "multimodal storage is ready",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/multimodal/upload",
+        "headers": {
+          "Content-Type": "multipart/form-data"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "content": {
+            "id": "some-uuid",
+            "media_type": "image",
+            "file_path": "/path/to/file.png",
+            "related_concept_id": "concept-001",
+            "created_at": "2026-01-01T12:00:00"
+          },
+          "message": "Content uploaded successfully",
+          "thumbnail_generated": false
+        },
+        "matchingRules": {
+          "$.body.content.id": {"match": "type"},
+          "$.body.content.media_type": {"match": "regex", "regex": "^(image|pdf|audio|video)$"},
+          "$.body.content.file_path": {"match": "type"},
+          "$.body.content.related_concept_id": {"match": "type"},
+          "$.body.content.created_at": {"match": "type"},
+          "$.body.message": {"match": "type"},
+          "$.body.thumbnail_generated": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to upload from URL",
+      "providerState": "multimodal storage is ready",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/multimodal/upload-url",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "url": "https://example.com/image.png",
+          "related_concept_id": "concept-001"
+        }
+      },
+      "response": {
+        "status": 201,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "content": {
+            "id": "some-uuid",
+            "media_type": "image",
+            "file_path": "/path/to/file.png",
+            "related_concept_id": "concept-001",
+            "created_at": "2026-01-01T12:00:00"
+          },
+          "message": "Content uploaded from URL successfully",
+          "thumbnail_generated": false
+        },
+        "matchingRules": {
+          "$.body.content.id": {"match": "type"},
+          "$.body.content.media_type": {"match": "type"},
+          "$.body.content.file_path": {"match": "type"},
+          "$.body.content.created_at": {"match": "type"},
+          "$.body.message": {"match": "type"},
+          "$.body.thumbnail_generated": {"match": "type"}
+        }
+      }
+    },
+    {
+      "description": "a request to search with empty query (validation error)",
+      "providerState": "multimodal storage is ready",
+      "request": {
+        "method": "POST",
+        "path": "/api/v1/multimodal/search",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "query": "   "
+        }
+      },
+      "response": {
+        "status": 422,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "detail": [
+            {
+              "loc": ["body", "query"],
+              "msg": "String should have at least 1 character",
+              "type": "string_too_short"
+            }
+          ]
+        },
+        "matchingRules": {
+          "$.body.detail": {"min": 1}
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "2.0.0"
+    }
+  }
+}
