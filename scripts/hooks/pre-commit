@@ -150,15 +150,16 @@ else
     PLUGIN_DIR="$REPO_ROOT/canvas-progress-tracker/obsidian-plugin"
 
     if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
-        echo -e "${RED}[Plugin Build]${NC} node_modules not found, skipping build."
-        echo -e "${YELLOW}[Plugin Build]${NC} Run: cd canvas-progress-tracker/obsidian-plugin && npm install"
-        ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        echo -e "${RED}[Plugin Build]${NC} node_modules not found! Cannot build plugin."
+        echo -e "${RED}[Plugin Build]${NC} Run: cd canvas-progress-tracker/obsidian-plugin && npm install"
+        echo -e "${RED}[Plugin Build]${NC} Commit blocked — plugin changes require build."
+        exit 1
     else
-        echo -e "${CYAN}[Plugin Build]${NC} Building plugin to vault..."
+        echo -e "${CYAN}[Plugin Build]${NC} Building + deploying plugin to vault..."
         cd "$PLUGIN_DIR"
 
-        if npm run build 2>&1; then
-            echo -e "${GREEN}[Plugin Build]${NC} Plugin compiled successfully."
+        if npm run deploy 2>&1; then
+            echo -e "${GREEN}[Plugin Build]${NC} Plugin compiled + synced (main.js, manifest.json, styles.css)."
 
             # 运行 verify 检查同步状态
             if npm run verify 2>&1; then
@@ -178,37 +179,43 @@ else
 fi
 
 # ============================================================
-# Section 3: Ghost File Detection
+# Section 3: Ghost File Detection (expanded)
 # ============================================================
-echo -e "${CYAN}[Ghost Files]${NC} Checking for untracked documentation..."
+echo -e "${CYAN}[Ghost Files]${NC} Checking for untracked project files..."
 
-GHOST_STORIES=$(git ls-files --others --exclude-standard -- "docs/stories/" 2>/dev/null || true)
-GHOST_EPICS=$(git ls-files --others --exclude-standard -- "docs/epics/" 2>/dev/null || true)
+# 检测所有关键目录中的未跟踪文件
+GHOST_DIRS=("docs/stories/" "docs/epics/" "backend/tests/" "backend/app/" "_bmad-output/" "specs/" "canvas-progress-tracker/obsidian-plugin/scripts/")
 GHOST_FILES=""
 
-if [ -n "$GHOST_STORIES" ]; then
-    GHOST_FILES="$GHOST_STORIES"
-fi
-if [ -n "$GHOST_EPICS" ]; then
-    if [ -n "$GHOST_FILES" ]; then
-        GHOST_FILES="$GHOST_FILES
-$GHOST_EPICS"
-    else
-        GHOST_FILES="$GHOST_EPICS"
+for dir in "${GHOST_DIRS[@]}"; do
+    if [ -d "$REPO_ROOT/$dir" ]; then
+        FOUND=$(git ls-files --others --exclude-standard -- "$dir" 2>/dev/null || true)
+        if [ -n "$FOUND" ]; then
+            if [ -n "$GHOST_FILES" ]; then
+                GHOST_FILES="$GHOST_FILES
+$FOUND"
+            else
+                GHOST_FILES="$FOUND"
+            fi
+        fi
     fi
-fi
+done
 
 if [ -n "$GHOST_FILES" ]; then
     GHOST_COUNT=$(echo "$GHOST_FILES" | wc -l | tr -d ' ')
-    echo -e "${RED}[Ghost Files]${NC} ⚠️  Found $GHOST_COUNT untracked documentation file(s):"
-    echo "$GHOST_FILES" | while read -r f; do
+    echo -e "${RED}[Ghost Files]${NC} ⚠️  Found $GHOST_COUNT untracked project file(s):"
+    echo "$GHOST_FILES" | head -20 | while read -r f; do
         echo -e "  ${YELLOW}??${NC} $f"
     done
+    if [ "$GHOST_COUNT" -gt 20 ]; then
+        echo -e "  ${YELLOW}...${NC} and $((GHOST_COUNT - 20)) more"
+    fi
     echo -e "${YELLOW}[Ghost Files]${NC} These files exist on disk but are NOT in git!"
     echo -e "${YELLOW}[Ghost Files]${NC} To track: git add <file>"
+    echo -e "${YELLOW}[Ghost Files]${NC} Scanned dirs: ${GHOST_DIRS[*]}"
     ISSUES_FOUND=$((ISSUES_FOUND + 1))
 else
-    echo -e "${GREEN}[Ghost Files]${NC} No untracked docs found."
+    echo -e "${GREEN}[Ghost Files]${NC} No untracked project files found."
 fi
 
 # ============================================================

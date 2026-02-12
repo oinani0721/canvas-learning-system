@@ -370,6 +370,31 @@
     <action if="definition-of-done validation fails">HALT - Address DoD failures before completing</action>
   </step>
 
+  <step n="9.5" goal="Version control — commit all story artifacts" tag="git-discipline">
+    <critical>This step ensures ALL files created during development are version-controlled.
+      Historical lesson: 154 files were left untracked for 7 days because git operations were
+      not part of the workflow. Production code, tests, and story docs were invisible to CI and reviewers.</critical>
+
+    <action>Run: git status --porcelain</action>
+    <action>Identify ALL untracked files (??) in project directories:
+      - docs/stories/ — story definitions
+      - backend/tests/ — test files
+      - backend/app/ — source code
+      - _bmad-output/ — review artifacts
+      - specs/ — API schemas
+      - canvas-progress-tracker/ — plugin files
+    </action>
+    <action>Run: git add for ALL files listed in the story's File List section</action>
+    <action>Run: git add for ALL newly created test files</action>
+    <action>Run: git add for the story document itself (docs/stories/{{story_key}}.story.md)</action>
+    <action>Compose a commit message following conventional commits:
+      feat/fix/test/docs(epic-N): brief description of the story implementation
+    </action>
+    <action>Run: git commit</action>
+    <action>Run: git status --porcelain | grep "^??" to verify no project files remain untracked</action>
+    <action if="untracked project files remain">Report to user: "⚠️ N untracked project files remain after commit"</action>
+  </step>
+
   <step n="10" goal="Completion communication and user support">
     <action>Execute the enhanced definition-of-done checklist using the validation framework</action>
     <action>Prepare a concise summary in Dev Agent Record → Completion Notes</action>
