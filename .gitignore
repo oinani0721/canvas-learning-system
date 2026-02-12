@@ -118,6 +118,7 @@ backend/data/fsrs_card_states.json
 backend/data/bug_log.jsonl
 backend/data/learning_memories.json
 backend/data/neo4j_memory.json
+backend/data/review_data.db
 backend/regression_results.txt
 backend/app/data/canvas_events_fallback.synced.*
 
