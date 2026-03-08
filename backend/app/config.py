@@ -446,6 +446,30 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Vault-wide Note Indexing Settings
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    VAULT_INDEX_ENABLED: bool = Field(
+        default=True,
+        description="Enable vault-wide .md note indexing to LanceDB."
+    )
+
+    VAULT_INDEX_SKIP_DIRS: str = Field(
+        default=".obsidian,.git,.trash,node_modules",
+        description="Comma-separated list of directories to skip during vault indexing."
+    )
+
+    VAULT_INDEX_CHUNK_SIZE: int = Field(
+        default=500,
+        description="Target chunk size in characters for .md note segmentation."
+    )
+
+    VAULT_INDEX_OVERLAP: int = Field(
+        default=50,
+        description="Overlap characters between chunks for .md note segmentation."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # FSRS Spaced Repetition Settings (Story 32.2)
     # ═══════════════════════════════════════════════════════════════════════════
 

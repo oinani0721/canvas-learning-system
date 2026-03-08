@@ -38,6 +38,15 @@ from .textbook_retriever import (
     textbook_retrieval_node,
 )
 
+# Vault Notes: vault-wide .md 笔记检索
+from .vault_notes_retriever import (
+    VaultNotesService,
+    VaultNotesRetrieverConfig,
+    VaultNotesRetrieverError,
+    VaultNotesRetrievalTimeout,
+    vault_notes_retrieval_node,
+)
+
 __all__ = [
     # Story 6.8: 多模态检索
     "MultimodalRetriever",
@@ -58,4 +67,10 @@ __all__ = [
     "CrossCanvasRetrieverError",
     "CrossCanvasRetrievalTimeout",
     "cross_canvas_retrieval_node",
+    # Vault Notes: .md 笔记检索
+    "VaultNotesService",
+    "VaultNotesRetrieverConfig",
+    "VaultNotesRetrieverError",
+    "VaultNotesRetrievalTimeout",
+    "vault_notes_retrieval_node",
 ]

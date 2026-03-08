@@ -5,6 +5,9 @@ mappings:
 - pattern: Physics 7A/**
   subject: physics7a
   category: physics
+- pattern: "**"
+  subject: cs188
+  category: cs188
 category_rules:
   math:
   - math*
@@ -12,9 +15,12 @@ category_rules:
   physics:
   - physics*
   - 物理*
+  cs188:
+  - CS188*
+  - cs188*
 defaults:
-  category: general
-  subject: general
+  category: cs188
+  subject: cs188
 skip_directories:
 - notes
 - templates
@@ -22,7 +28,4 @@ skip_directories:
 - .trash
 - .obsidian
 - .git
-- 笔记库
-- vault
-- Canvas
-- attachments
+- node_modules

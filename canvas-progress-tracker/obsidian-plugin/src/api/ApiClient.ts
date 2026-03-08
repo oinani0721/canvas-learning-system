@@ -1933,6 +1933,36 @@ export class ApiClient {
   getEstimatedTime(agentType: string): number {
     return ESTIMATED_TIME[agentType] ?? 30;
   }
+
+  // ===========================================================================
+  // AI Configuration Sync (Frontend → Backend Runtime Override)
+  // ===========================================================================
+
+  /**
+   * Push AI configuration to backend for runtime override.
+   *
+   * Updates the backend's in-memory Settings singleton so agent calls
+   * use the frontend-configured provider/model/key without server restart.
+   * Fire-and-forget: errors are logged but don't block settings save.
+   */
+  async updateAIConfig(config: {
+    ai_provider?: string;
+    ai_model_name?: string;
+    ai_api_key?: string;
+    ai_base_url?: string;
+  }): Promise<{ ai_provider: string; ai_model_name: string; ai_base_url: string; ai_api_key_set: boolean } | null> {
+    try {
+      return await this.request<{
+        ai_provider: string;
+        ai_model_name: string;
+        ai_base_url: string;
+        ai_api_key_set: boolean;
+      }>('POST', '/config/ai', config);
+    } catch (error) {
+      console.warn('Canvas Review System: Failed to sync AI config to backend:', error);
+      return null;
+    }
+  }
 }
 
 /**

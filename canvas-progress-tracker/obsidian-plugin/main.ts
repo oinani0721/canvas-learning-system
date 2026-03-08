@@ -2751,6 +2751,16 @@ export default class CanvasReviewPlugin extends Plugin {
 
         // Restart auto-sync with new interval
         this.setupAutoSync();
+
+        // Sync AI config to backend (fire-and-forget)
+        if (this.apiClient) {
+            this.apiClient.updateAIConfig({
+                ai_provider: this.settings.aiProvider,
+                ai_model_name: this.settings.aiModelName,
+                ai_api_key: this.settings.aiApiKey,
+                ai_base_url: this.settings.aiBaseUrl || '',
+            });
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════

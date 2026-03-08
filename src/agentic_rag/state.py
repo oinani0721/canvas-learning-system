@@ -93,6 +93,7 @@ class CanvasRAGState(MessagesState):
     # Story 23.4: 教材和跨Canvas检索结果
     textbook_results: Annotated[List[SearchResult], "教材上下文检索结果"]
     cross_canvas_results: Annotated[List[SearchResult], "跨Canvas关联检索结果"]
+    vault_notes_results: Annotated[List[SearchResult], "Vault .md 笔记检索结果"]
     fused_results: Annotated[List[SearchResult], "融合算法输出结果"]
     reranked_results: Annotated[List[SearchResult], "Reranking后的最终结果"]
 
@@ -130,5 +131,6 @@ class CanvasRAGState(MessagesState):
     # Story 23.4: 教材和跨Canvas检索延迟
     textbook_latency_ms: Annotated[Optional[float], "教材检索延迟 (ms)"]
     cross_canvas_latency_ms: Annotated[Optional[float], "跨Canvas检索延迟 (ms)"]
+    vault_notes_latency_ms: Annotated[Optional[float], "Vault笔记检索延迟 (ms)"]
     fusion_latency_ms: Annotated[Optional[float], "融合算法延迟 (ms)"]
     reranking_latency_ms: Annotated[Optional[float], "Reranking延迟 (ms)"]

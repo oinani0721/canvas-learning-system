@@ -439,6 +439,113 @@ async def batch_index_canvas(
 
 
 # =============================================================================
+# Vault-wide Note Indexing Endpoints
+# =============================================================================
+
+@metadata_router.post(
+    "/index/vault",
+    summary="Index all .md files in the vault to LanceDB",
+    operation_id="index_vault_notes",
+)
+async def index_vault_notes(
+    settings: SettingsDep,
+):
+    """
+    Scan all .md files in the vault and index them to LanceDB vault_notes table.
+
+    This enables RAG retrieval to reference vault markdown notes
+    when generating AI explanations.
+    """
+    start_time = time.perf_counter()
+
+    try:
+        lancedb_client = get_lancedb_client()
+
+        if lancedb_client is None:
+            return {
+                "success": False,
+                "message": "LanceDB client not available",
+                "chunk_count": 0,
+                "duration_ms": 0,
+            }
+
+        if not lancedb_client._initialized:
+            await lancedb_client.initialize()
+
+        vault_path = settings.canvas_base_path
+        skip_dirs_str = getattr(settings, 'VAULT_INDEX_SKIP_DIRS', '.obsidian,.git,.trash,node_modules')
+        skip_dirs = [d.strip() for d in skip_dirs_str.split(",")]
+        chunk_size = getattr(settings, 'VAULT_INDEX_CHUNK_SIZE', 500)
+        chunk_overlap = getattr(settings, 'VAULT_INDEX_OVERLAP', 50)
+
+        chunk_count = await lancedb_client.index_vault_notes(
+            vault_path=vault_path,
+            skip_dirs=skip_dirs,
+            table_name="vault_notes",
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+            subject="cs188"
+        )
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        logger.info(f"Vault indexing complete: {chunk_count} chunks, {duration_ms:.2f}ms")
+
+        return {
+            "success": True,
+            "chunk_count": chunk_count,
+            "vault_path": vault_path,
+            "duration_ms": round(duration_ms, 2),
+            "message": f"Indexed {chunk_count} chunks from vault .md files"
+        }
+
+    except Exception as e:
+        logger.error(f"Vault indexing failed: {e}")
+        return {
+            "success": False,
+            "chunk_count": 0,
+            "duration_ms": (time.perf_counter() - start_time) * 1000,
+            "message": str(e)
+        }
+
+
+@metadata_router.get(
+    "/index/vault/status",
+    summary="Get vault note indexing status",
+    operation_id="vault_index_status",
+)
+async def vault_index_status():
+    """Check the status of vault note indexing in LanceDB."""
+    try:
+        lancedb_client = get_lancedb_client()
+
+        if lancedb_client is None:
+            return {"indexed": False, "message": "LanceDB client not available"}
+
+        if not lancedb_client._initialized:
+            await lancedb_client.initialize()
+
+        # Check if vault_notes table exists and get count
+        if "vault_notes" in lancedb_client._tables_cache:
+            table = lancedb_client._tables_cache["vault_notes"]
+            count = len(table.to_pandas()) if hasattr(table, 'to_pandas') else 0
+            return {
+                "indexed": True,
+                "chunk_count": count,
+                "table_name": "vault_notes",
+            }
+        else:
+            return {
+                "indexed": False,
+                "chunk_count": 0,
+                "message": "vault_notes table not found. Call POST /index/vault first."
+            }
+
+    except Exception as e:
+        return {"indexed": False, "message": str(e)}
+
+
+# =============================================================================
 # Subject Mapping Configuration Endpoints
 # =============================================================================
 

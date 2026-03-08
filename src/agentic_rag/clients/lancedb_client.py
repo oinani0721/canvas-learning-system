@@ -60,6 +60,22 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 
+def _chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
+    """将长文本按字符数分块，支持重叠"""
+    if len(text) <= chunk_size:
+        return [text]
+
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        if chunk.strip():
+            chunks.append(chunk.strip())
+        start = end - overlap
+    return chunks if chunks else [text]
+
+
 class LanceDBClient:
     """
     LanceDB 向量数据库客户端
@@ -93,7 +109,7 @@ class LanceDBClient:
     """
 
     # 默认表名
-    DEFAULT_TABLES = ["canvas_explanations", "canvas_concepts", "canvas_nodes"]
+    DEFAULT_TABLES = ["canvas_explanations", "canvas_concepts", "canvas_nodes", "vault_notes"]
 
     # ✅ Story 23.2 AC 4: 默认嵌入维度 (all-MiniLM-L6-v2)
     DEFAULT_EMBEDDING_DIM = 384
@@ -382,6 +398,193 @@ class LanceDBClient:
             )
 
         return count
+
+    async def index_vault_notes(
+        self,
+        vault_path: str,
+        skip_dirs: Optional[List[str]] = None,
+        table_name: str = "vault_notes",
+        chunk_size: int = 500,
+        chunk_overlap: int = 50,
+        subject: Optional[str] = None
+    ) -> int:
+        """
+        扫描 vault 中所有 .md 文件，按 heading 分段索引到 LanceDB
+
+        Args:
+            vault_path: Vault 根目录路径
+            skip_dirs: 要跳过的目录列表
+            table_name: LanceDB 表名
+            chunk_size: 每段目标字符数
+            chunk_overlap: 段落重叠字符数
+            subject: 学科标识
+
+        Returns:
+            int: 索引的段落数量
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        await self._init_vectorizer()
+
+        if self._vectorizer is None:
+            if LOGURU_ENABLED:
+                logger.warning("Vectorizer not available, skipping index_vault_notes")
+            return 0
+
+        if skip_dirs is None:
+            skip_dirs = [".obsidian", ".git", ".trash", "node_modules"]
+
+        # 递归收集所有 .md 文件
+        md_files = []
+        for root, dirs, files in os.walk(vault_path):
+            # 跳过指定目录
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            for f in files:
+                if f.endswith(".md"):
+                    md_files.append(os.path.join(root, f))
+
+        if not md_files:
+            if LOGURU_ENABLED:
+                logger.info(f"No .md files found in {vault_path}")
+            return 0
+
+        # 按 heading 分段所有文件
+        all_chunks = []
+        for md_file in md_files:
+            try:
+                with open(md_file, 'r', encoding='utf-8') as fh:
+                    content = fh.read()
+            except Exception as e:
+                if LOGURU_ENABLED:
+                    logger.debug(f"Skipping {md_file}: {e}")
+                continue
+
+            if not content.strip():
+                continue
+
+            rel_path = os.path.relpath(md_file, vault_path).replace("\\", "/")
+            chunks = self._split_md_by_heading(content, rel_path, chunk_size, chunk_overlap)
+            all_chunks.extend(chunks)
+
+        if not all_chunks:
+            if LOGURU_ENABLED:
+                logger.info("No text chunks extracted from vault .md files")
+            return 0
+
+        # 批量向量化
+        texts = [c["content"] for c in all_chunks]
+        try:
+            vectorized = await self._vectorizer.batch_vectorize(texts)
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Batch vectorization failed for vault notes: {e}")
+            return 0
+
+        # 准备 LanceDB 文档
+        import hashlib
+        documents = []
+        for chunk, vec_result in zip(all_chunks, vectorized):
+            chunk_id = hashlib.md5(
+                f"{chunk['file_path']}:{chunk['heading']}:{chunk['content'][:100]}".encode()
+            ).hexdigest()
+
+            doc = {
+                "doc_id": f"vault_{chunk_id}",
+                "content": chunk["content"],
+                "vector": vec_result.vector,
+                "canvas_file": chunk["file_path"],  # 复用 canvas_file 字段存储文件路径
+                "node_id": "",
+                "node_type": "vault_note",
+                "color": "",
+                "x": 0,
+                "y": 0,
+                "subject": subject or "",
+                "timestamp": datetime.now().isoformat(),
+                "metadata_json": json.dumps({
+                    "file_path": chunk["file_path"],
+                    "heading": chunk["heading"],
+                    "source": "vault_note",
+                    "subject": subject,
+                }, ensure_ascii=False)
+            }
+            documents.append(doc)
+
+        # 写入 LanceDB（先清空旧表再写入，实现全量更新）
+        try:
+            if table_name in self._tables_cache:
+                # 删除旧表，重新创建
+                self._db.drop_table(table_name, ignore_missing=True)
+                del self._tables_cache[table_name]
+        except Exception:
+            pass
+
+        count = await self.add_documents(table_name, documents)
+
+        if LOGURU_ENABLED:
+            logger.info(
+                f"Indexed {count} chunks from {len(md_files)} .md files "
+                f"in vault {vault_path} to {table_name}"
+            )
+
+        return count
+
+    @staticmethod
+    def _split_md_by_heading(
+        content: str,
+        file_path: str,
+        chunk_size: int = 500,
+        chunk_overlap: int = 50
+    ) -> List[Dict[str, str]]:
+        """
+        按 Markdown heading 分段文本
+
+        Args:
+            content: Markdown 文件内容
+            file_path: 文件相对路径
+            chunk_size: 目标段落字符数
+            chunk_overlap: 段落重叠字符数
+
+        Returns:
+            List[Dict]: [{"file_path", "heading", "content"}]
+        """
+        import re
+        chunks = []
+        # 按 ## 或 # heading 分割
+        sections = re.split(r'^(#{1,4}\s+.+)$', content, flags=re.MULTILINE)
+
+        current_heading = file_path  # 文件名作为默认 heading
+        current_text = ""
+
+        for section in sections:
+            section = section.strip()
+            if not section:
+                continue
+
+            if re.match(r'^#{1,4}\s+', section):
+                # 保存前一段
+                if current_text.strip():
+                    for sub_chunk in _chunk_text(current_text.strip(), chunk_size, chunk_overlap):
+                        chunks.append({
+                            "file_path": file_path,
+                            "heading": current_heading,
+                            "content": sub_chunk,
+                        })
+                current_heading = section.lstrip('#').strip()
+                current_text = ""
+            else:
+                current_text += "\n" + section
+
+        # 保存最后一段
+        if current_text.strip():
+            for sub_chunk in _chunk_text(current_text.strip(), chunk_size, chunk_overlap):
+                chunks.append({
+                    "file_path": file_path,
+                    "heading": current_heading,
+                    "content": sub_chunk,
+                })
+
+        return chunks
 
     def _read_canvas_nodes(self, canvas_path: str) -> List[Dict[str, Any]]:
         """

@@ -15,6 +15,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
+from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.metadata import metadata_router  # ✅ Story 38.1
 from app.api.v1.endpoints.intelligent_parallel import (
@@ -44,6 +45,17 @@ router.include_router(
     responses={
         500: {"description": "Internal server error"}
     }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Config Routes (AI Configuration Runtime Override)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    config_router,
+    prefix="/config",
+    tags=["Config"],
+    responses={500: {"description": "Configuration error"}}
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -52,6 +52,7 @@ from agentic_rag.retrievers import (  # noqa: E402
     cross_canvas_retrieval_node,
     multimodal_retrieval_node,
     textbook_retrieval_node,
+    vault_notes_retrieval_node,
 )
 from agentic_rag.state import CanvasRAGState  # noqa: E402
 
@@ -79,20 +80,20 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     Returns:
         List[Send]: Send objects for parallel execution
     """
-    # ✅ Story 23.3 AC 2: 五路并行检索日志 (Story 23.4 扩展)
-    logger.debug("[fan_out_retrieval] Dispatching to 5 parallel retrieval nodes")
+    # 六路并行检索日志
+    logger.debug("[fan_out_retrieval] Dispatching to 6 parallel retrieval nodes")
 
-    # Story 23.4: Send to all 5 retrieval sources in parallel
-    # ✅ Verified from LangGraph Skill: Send pattern for parallel execution
+    # Send to all 6 retrieval sources in parallel
     sends = [
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
-        Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
-        Send("retrieve_textbook", state),     # Story 23.4: 教材上下文
-        Send("retrieve_cross_canvas", state), # Story 23.4: 跨Canvas关联
+        Send("retrieve_multimodal", state),    # Story 6.8: 多模态检索
+        Send("retrieve_textbook", state),       # Story 23.4: 教材上下文
+        Send("retrieve_cross_canvas", state),   # Story 23.4: 跨Canvas关联
+        Send("retrieve_vault_notes", state),    # Vault Notes: .md 笔记检索
     ]
 
-    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: all 5 retrieval nodes")
+    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: all 6 retrieval nodes")
     return sends
 
 
@@ -210,7 +211,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     - add_node, add_conditional_edges, add_edge
     - compile()
 
-    Graph Structure (Story 23.4 扩展 - 五路并行检索):
+    Graph Structure (六路并行检索):
     ```
     START
       ↓
@@ -219,9 +220,10 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
       ├──→ retrieve_lancedb (parallel)
       ├──→ retrieve_multimodal (parallel) [Story 6.8]
       ├──→ retrieve_textbook (parallel) [Story 23.4]
-      └──→ retrieve_cross_canvas (parallel) [Story 23.4]
+      ├──→ retrieve_cross_canvas (parallel) [Story 23.4]
+      └──→ retrieve_vault_notes (parallel) [Vault Notes]
            ↓ (converge)
-         fuse_results (5-source weighted fusion)
+         fuse_results (6-source weighted fusion)
            ↓
          rerank_results
            ↓
@@ -299,6 +301,17 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         )
     )
 
+    # Vault Notes: .md 笔记检索节点
+    builder.add_node(
+        "retrieve_vault_notes",
+        vault_notes_retrieval_node,
+        retry_policy=RetryPolicy(
+            retry_on=Exception,
+            max_attempts=2,
+            backoff_factor=1.5,
+        )
+    )
+
     # Processing nodes
     builder.add_node("fuse_results", fuse_results)
     builder.add_node("rerank_results", rerank_results)
@@ -329,6 +342,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_edge("retrieve_multimodal", "fuse_results")  # Story 6.8
     builder.add_edge("retrieve_textbook", "fuse_results")     # Story 23.4
     builder.add_edge("retrieve_cross_canvas", "fuse_results") # Story 23.4
+    builder.add_edge("retrieve_vault_notes", "fuse_results")  # Vault Notes
 
     # fuse_results → rerank_results
     builder.add_edge("fuse_results", "rerank_results")
