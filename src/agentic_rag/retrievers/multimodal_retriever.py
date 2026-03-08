@@ -695,8 +695,9 @@ async def _get_multimodal_lancedb_client() -> Optional["LanceDBClientProtocol"]:
     try:
         # Try to import and initialize LanceDBClient
         from agentic_rag.clients import LanceDBClient
+        from agentic_rag.config import LANCEDB_CONFIG
         _multimodal_lancedb_client = LanceDBClient(
-            db_path="~/.lancedb",
+            db_path=LANCEDB_CONFIG["db_path"],
             timeout_ms=2000,  # AC 6.8.4: 2秒超时
             batch_size=5,
             enable_fallback=True

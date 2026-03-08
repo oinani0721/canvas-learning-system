@@ -182,6 +182,9 @@ class LanceDBClient:
             # 缓存表信息
             await self._cache_tables()
 
+            # Pre-load embedding model to avoid cold-start timeout during search
+            await self._init_vectorizer()
+
             if LOGURU_ENABLED:
                 logger.info(
                     f"LanceDBClient initialized: path={self.db_path}, "

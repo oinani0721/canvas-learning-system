@@ -41,7 +41,7 @@ EMBEDDING_MODELS: Dict[str, int] = {
 
 # ✅ Story 23.2 AC 4: 向量维度和模型可配置
 LANCEDB_CONFIG: Dict[str, Any] = {
-    "db_path": os.environ.get("LANCEDB_PATH", "backend/data/lancedb"),
+    "db_path": os.environ.get("LANCEDB_PATH", "data/lancedb"),
     "table_name": os.environ.get("LANCEDB_TABLE", "canvas_nodes"),
     "embedding_model": os.environ.get(
         "LANCEDB_EMBEDDING_MODEL",

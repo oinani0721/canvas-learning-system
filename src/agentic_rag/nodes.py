@@ -97,8 +97,9 @@ async def _get_lancedb_client() -> LanceDBClient:
     """获取LanceDB客户端单例"""
     global _lancedb_client
     if _lancedb_client is None:
+        from agentic_rag.config import LANCEDB_CONFIG
         _lancedb_client = LanceDBClient(
-            db_path="~/.lancedb",
+            db_path=LANCEDB_CONFIG["db_path"],
             timeout_ms=400,  # Story 12.2 AC 2.3: P95 < 400ms
             batch_size=10,
             enable_fallback=True
@@ -275,11 +276,12 @@ async def retrieve_lancedb(
 
 # Story 23.4: 默认权重配置
 DEFAULT_SOURCE_WEIGHTS = {
-    "graphiti": 0.25,
-    "lancedb": 0.25,
-    "textbook": 0.20,
-    "cross_canvas": 0.15,
-    "multimodal": 0.15
+    "graphiti": 0.20,
+    "lancedb": 0.20,
+    "textbook": 0.15,
+    "cross_canvas": 0.10,
+    "multimodal": 0.15,
+    "vault_notes": 0.20,
 }
 
 
@@ -312,7 +314,7 @@ async def fuse_results(
     """
     start_time = time.perf_counter()
 
-    # Story 23.4: 获取5个数据源的结果
+    # Story 23.4: 获取6个数据源的结果
     graphiti_results = state.get("graphiti_results", [])
     lancedb_results = state.get("lancedb_results", [])
     # ✅ Story 23.3: 获取多模态结果
@@ -320,6 +322,8 @@ async def fuse_results(
     # Story 23.4: 获取教材和跨Canvas结果
     textbook_results = state.get("textbook_results", [])
     cross_canvas_results = state.get("cross_canvas_results", [])
+    # Vault-wide .md note results
+    vault_notes_results = state.get("vault_notes_results", [])
 
     # 获取配置 (Story 12.K.2: Safe config access)
     fusion_strategy = _safe_get_config(runtime, "fusion_strategy", "rrf")
@@ -329,13 +333,14 @@ async def fuse_results(
     # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
     graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
 
-    # 构建5源结果字典
+    # 构建6源结果字典
     all_source_results = {
         "graphiti": graphiti_results,
         "lancedb": lancedb_results,
         "multimodal": multimodal_results,
         "textbook": textbook_results,
-        "cross_canvas": cross_canvas_results
+        "cross_canvas": cross_canvas_results,
+        "vault_notes": vault_notes_results,
     }
 
     # ✅ Story 23.3: 节点入口日志

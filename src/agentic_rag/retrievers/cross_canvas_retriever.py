@@ -350,8 +350,9 @@ async def _get_cross_canvas_service() -> CrossCanvasService:
         # 导入LanceDB客户端
         try:
             from agentic_rag.clients import LanceDBClient
+            from agentic_rag.config import LANCEDB_CONFIG
             lancedb_client = LanceDBClient(
-                db_path="~/.lancedb",
+                db_path=LANCEDB_CONFIG["db_path"],
                 timeout_ms=400,
                 enable_fallback=True
             )

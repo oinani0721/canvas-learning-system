@@ -37,7 +37,7 @@ except ImportError:
     PILLOW_AVAILABLE = False
     Image = None
 
-from src.agentic_rag.models.multimodal_content import (
+from agentic_rag.models.multimodal_content import (
     MediaType,
     MultimodalContent,
     MultimodalMetadata,

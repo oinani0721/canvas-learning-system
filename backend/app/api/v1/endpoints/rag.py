@@ -233,6 +233,8 @@ async def rag_query(
         )
 
         # 转换结果格式 (Story 35.8: 含multimodal_results)
+        # Map LangGraph state keys → response format
+        reranked = result.get("reranked_results", result.get("results", []))
         return RAGQueryResponse(
             results=[
                 SearchResultItem(
@@ -241,7 +243,7 @@ async def rag_query(
                     score=r.get("score", 0.0),
                     metadata=r.get("metadata", {})
                 )
-                for r in result.get("results", [])
+                for r in reranked
             ],
             multimodal_results=[
                 MultimodalResultItem(
@@ -255,10 +257,30 @@ async def rag_query(
                 for mm in result.get("multimodal_results", [])
             ],
             quality_grade=result.get("quality_grade", "low"),
-            result_count=result.get("result_count", 0),
-            latency_ms=LatencyInfo(**result.get("latency_ms", {})),
-            total_latency_ms=result.get("total_latency_ms", 0.0),
-            metadata=RAGQueryMetadata(**result.get("metadata", {}))
+            result_count=len(reranked),
+            latency_ms=LatencyInfo(
+                graphiti=result.get("graphiti_latency_ms"),
+                lancedb=result.get("lancedb_latency_ms"),
+                multimodal=result.get("multimodal_latency_ms"),
+                fusion=result.get("fusion_latency_ms"),
+                reranking=result.get("reranking_latency_ms"),
+            ),
+            total_latency_ms=sum(
+                v for v in [
+                    result.get("graphiti_latency_ms", 0),
+                    result.get("lancedb_latency_ms", 0),
+                    result.get("multimodal_latency_ms", 0),
+                    result.get("fusion_latency_ms", 0),
+                    result.get("reranking_latency_ms", 0),
+                    result.get("vault_notes_latency_ms", 0),
+                ] if v
+            ),
+            metadata=RAGQueryMetadata(
+                query_rewritten=result.get("query_rewritten", False),
+                rewrite_count=result.get("rewrite_count", 0),
+                fusion_strategy=result.get("fusion_strategy"),
+                reranking_strategy=result.get("reranking_strategy"),
+            )
         )
 
     except RAGUnavailableError as e:
