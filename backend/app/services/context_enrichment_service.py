@@ -327,15 +327,15 @@ class ContextEnrichmentService:
     # Story 36.8 Task 3: Top 5 Knowledge Point Extraction
     # ═══════════════════════════════════════════════════════════════════════════════
 
-    # Story 36.8 AC2: Color priority scoring
-    # green(4) > purple(6) > yellow(3) > red(1) > others
+    # Story 36.8 AC2: Color priority scoring (canvas_utils.py authoritative)
+    # green(2) > purple(3) > yellow(6) > red(4) > gray(1)
     COLOR_PRIORITY_SCORES = {
-        "4": 4.0,  # Green - mastered, highest priority for reference
-        "2": 3.5,  # Orange - good understanding
-        "6": 3.0,  # Purple - partial understanding
-        "3": 2.0,  # Yellow - waiting for input
-        "1": 1.0,  # Red - not understood
-        "5": 1.5,  # Blue - misc
+        "2": 4.0,  # Green - mastered, highest priority for reference
+        "3": 3.0,  # Purple - partial understanding
+        "6": 2.5,  # Yellow - personal understanding area
+        "4": 1.5,  # Red - not understood
+        "1": 1.0,  # Gray - no special meaning
+        "5": 2.0,  # Blue - AI generated content
     }
 
     def _calculate_color_priority(self, color: str) -> float:
@@ -620,9 +620,9 @@ class ContextEnrichmentService:
         )
 
         # Filter out None and Exception results
-        valid_results = [
-            r for r in results
-            if r is not None and not isinstance(r, Exception)
+        valid_results: List[Dict[str, Any]] = [
+            r for r in results  # type: ignore[misc]
+            if r is not None and not isinstance(r, BaseException)
         ]
 
         struct_logger.debug(

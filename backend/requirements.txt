@@ -37,6 +37,8 @@ google-genai>=0.3.0
 langgraph>=0.2.0
 # ⚠️ CVE-2025-68664: >=0.3.81 required
 langchain-core>=0.3.81
+# React Agent: Gemini integration for create_react_agent
+langchain-google-genai>=2.0.0,<3.0.0
 
 # Vector Database (Story 12.2)
 # ✅ Verified from ADR-002: LanceDB selected for vector storage

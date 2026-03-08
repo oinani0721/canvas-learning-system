@@ -146,11 +146,27 @@ class VaultNotesService:
                 timeout=timeout_seconds
             )
 
-            # 添加来源标注
+            # 添加来源标注 + 解析 metadata_json
             for r in results:
                 if "metadata" not in r:
                     r["metadata"] = {}
                 r["metadata"]["source"] = "vault_note"
+
+                # Parse metadata_json for structured fields
+                metadata_json_str = r["metadata"].get("metadata_json")
+                if metadata_json_str and isinstance(metadata_json_str, str):
+                    try:
+                        import json
+                        parsed = json.loads(metadata_json_str)
+                        r["metadata"]["file_path"] = parsed.get("file_path")
+                        r["metadata"]["heading"] = parsed.get("heading")
+                        r["metadata"]["line_start"] = parsed.get("line_start")
+                        r["metadata"]["line_end"] = parsed.get("line_end")
+                        r["metadata"]["timestamp_start"] = parsed.get("timestamp_start")
+                        r["metadata"]["timestamp_end"] = parsed.get("timestamp_end")
+                        r["metadata"]["video_file"] = parsed.get("video_file")
+                    except (json.JSONDecodeError, TypeError):
+                        pass
 
             latency_ms = (time.perf_counter() - start_time) * 1000
 

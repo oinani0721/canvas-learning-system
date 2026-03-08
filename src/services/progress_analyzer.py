@@ -118,7 +118,7 @@ class ProgressAnalyzer:
     COLOR_RED = "4"      # 红色 - 完全不懂
     COLOR_PURPLE = "3"   # 紫色 - 半懂不懂
     COLOR_GREEN = "2"    # 绿色 - 通过/掌握
-    COLOR_YELLOW = "1"   # 黄色 - 用户回答区
+    COLOR_YELLOW = "6"   # 黄色 - 用户回答区 (与canvas_utils.py一致)
 
     # Trend thresholds
     IMPROVEMENT_THRESHOLD = 0.1  # > 10% improvement = improving

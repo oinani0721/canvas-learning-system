@@ -17,6 +17,7 @@ Created: 2025-01-22
 
 import json
 import math
+import os
 import sqlite3
 import uuid
 from datetime import datetime, timedelta
@@ -40,7 +41,7 @@ MAX_REVIEW_SCORE = 10
 DEFAULT_DB_PATH = "data/review_data.db"
 
 # 颜色代码(与Canvas系统保持一致)
-COLOR_RED = "1"      # 不理解
+COLOR_RED = "4"      # 不理解 (红色, 与canvas_utils.py一致)
 COLOR_GREEN = "2"    # 完全理解
 COLOR_PURPLE = "3"   # 似懂非懂
 COLOR_YELLOW = "6"   # 个人理解
@@ -446,7 +447,7 @@ class EbbinghausReviewScheduler:
         except sqlite3.Error as e:
             raise ValueError(f"数据库删除失败: {e}")
 
-    def get_all_review_schedules(self, canvas_file: str = None) -> List[Dict]:
+    def get_all_review_schedules(self, canvas_file: Optional[str] = None) -> List[Dict]:
         """获取所有复习计划
 
         Args:
@@ -528,7 +529,7 @@ class EbbinghausReviewScheduler:
             raise ValueError(f"数据库查询失败: {e}")
 
     def complete_review(self, schedule_id: str, score: int, confidence: int,
-                      time_minutes: int, notes: str = None) -> bool:
+                      time_minutes: int, notes: Optional[str] = None) -> bool:
         """完成复习并记录结果
 
         Args:
@@ -659,7 +660,7 @@ class EbbinghausReviewScheduler:
         except sqlite3.Error:
             pass  # 忽略统计更新失败
 
-    def backup_database(self, backup_path: str = None) -> str:
+    def backup_database(self, backup_path: Optional[str] = None) -> str:
         """备份数据库
 
         Args:

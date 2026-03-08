@@ -19,7 +19,7 @@ Version: 1.0.0
 Created: 2025-11-29
 """
 
-from typing import Annotated, Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence
 
 from langgraph.graph import MessagesState
 from typing_extensions import TypedDict
@@ -134,3 +134,71 @@ class CanvasRAGState(MessagesState):
     vault_notes_latency_ms: Annotated[Optional[float], "Vault笔记检索延迟 (ms)"]
     fusion_latency_ms: Annotated[Optional[float], "融合算法延迟 (ms)"]
     reranking_latency_ms: Annotated[Optional[float], "Reranking延迟 (ms)"]
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Phase 3: Agent RAG State — LLM-controlled retrieval + generation
+# [Source: Agent Architecture Upgrade Plan - Phase 3]
+#
+# Unlike CanvasRAGState (pipeline-oriented, 6-way parallel retrieval),
+# AgentRAGState is agent-oriented: the LLM decides what to search and
+# evaluates whether results are sufficient.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class AgentRAGState(MessagesState):
+    """
+    State for LLM-controlled Agentic RAG (Phase 3).
+
+    The LLM drives the retrieval process:
+    1. Analyzes user intent
+    2. Decides whether to search (and what to search for)
+    3. Evaluates retrieved document relevance
+    4. Rewrites queries if results are insufficient
+    5. Generates the final answer with citations
+
+    This coexists with CanvasRAGState — simple questions use Phase 2
+    function calling, complex questions use this full agent graph.
+    """
+
+    # ── Intent Analysis ──
+    user_intent: Annotated[Optional[str], "LLM分析的用户意图"]
+    has_specific_request: Annotated[bool, "用户是否有具体请求（如列出笔记）"]
+
+    # ── LLM-generated Search Queries ──
+    search_queries: Annotated[
+        List[str],
+        "LLM生成的搜索查询列表（可能多个角度）"
+    ]
+
+    # ── Retrieved Documents ──
+    retrieved_documents: Annotated[
+        List[SearchResult],
+        "当前迭代检索到的文档"
+    ]
+
+    # ── LLM Document Grading ──
+    document_grades: Annotated[
+        List[str],
+        "LLM对每个文档的相关性评分: relevant / irrelevant"
+    ]
+    relevant_documents: Annotated[
+        List[SearchResult],
+        "LLM判断为相关的文档子集"
+    ]
+
+    # ── Generation Control ──
+    retry_count: Annotated[int, "当前重试计数（最大3次）"]
+    generation_complete: Annotated[bool, "是否已完成回答生成"]
+
+    # ── Output ──
+    final_answer: Annotated[Optional[str], "LLM生成的最终回答"]
+    citations: Annotated[
+        List[Dict[str, Any]],
+        "引用列表: [{source, content_snippet, line_range}]"
+    ]
+
+    # ── Agent Configuration (passed at invocation) ──
+    agent_type: Annotated[Optional[str], "Agent类型（如oral-explanation）"]
+    user_prompt: Annotated[Optional[str], "原始用户prompt（JSON格式）"]
+    system_prompt: Annotated[Optional[str], "Agent系统prompt模板"]
+    pre_fetched_context: Annotated[Optional[str], "预检索的RAG上下文（Phase 1兼容）"]

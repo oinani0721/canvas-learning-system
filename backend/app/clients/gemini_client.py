@@ -27,7 +27,7 @@ import httpx
 # Pattern: "from google import genai"
 from google import genai
 
-from app.config import settings
+from app.config import get_settings, settings
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,6 @@ class GeminiClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: Optional[str] = None,
         prompt_path: Optional[str] = None,
         base_url: Optional[str] = None,
     ):
@@ -68,12 +67,14 @@ class GeminiClient:
 
         Args:
             api_key: API key (defaults to env GOOGLE_API_KEY or config)
-            model: Model to use (defaults to config GEMINI_MODEL)
             prompt_path: Path to agent prompt templates (defaults to config AGENT_PROMPT_PATH)
             base_url: Custom API base URL for OpenAI-compatible providers
 
         [Multi-Provider] When base_url is provided, the client uses OpenAI-compatible
         API calls instead of Google genai library.
+
+        Note: model is always read dynamically from Settings via the `model` property.
+        This ensures POST /config/ai changes take effect immediately without restart.
         """
         # Get API key from parameter, config, or environment
         self.api_key = api_key or getattr(settings, 'GOOGLE_API_KEY', None) or os.environ.get("GOOGLE_API_KEY", "")
@@ -93,7 +94,6 @@ class GeminiClient:
             self.client = genai.Client(api_key=self.api_key) if self.api_key else None
             self._http_client = None
 
-        self.model = model or getattr(settings, 'GEMINI_MODEL', 'gemini-2.5-flash')
         self.prompt_path = Path(prompt_path or settings.AGENT_PROMPT_PATH)
 
         # Cache for loaded prompt templates
@@ -101,6 +101,12 @@ class GeminiClient:
 
         logger.info(f"GeminiClient initialized with model={self.model}" +
                    (f", base_url={self.base_url}" if self.base_url else ""))
+
+    @property
+    def model(self) -> str:
+        """Always read model from Settings dynamically. Never cached at creation time."""
+        s = get_settings()
+        return getattr(s, 'AI_MODEL_NAME', None) or getattr(s, 'GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
 
     def _parse_prompt_template(self, content: str) -> AgentPromptTemplate:
         """
@@ -353,7 +359,19 @@ class GeminiClient:
         # Build system prompt with optional context
         system_prompt = template.system_prompt
         if context:
-            system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
+            context_instruction = (
+                "\n\n## Context Usage Rules\n"
+                "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
+                "**你必须遵守以下规则：**\n"
+                "1. **主动引用**：解释中涉及上下文材料时，用方括号标注来源，"
+                "格式如 [lecture 3.md:29-65 (## A* 搜索)]。\n"
+                "2. **相关资料列表**：如果上下文包含 `[Notes]` 来源，"
+                "在回答末尾添加 `## 相关资料` 小节，列出最多5条相关笔记来源。\n"
+                "3. **用户请求优先**：如果上下文中「用户之前的个人理解」包含具体请求"
+                "（如「列出笔记」「举例子」），必须直接回应该请求。\n"
+                "4. **不编造来源**：只引用上下文中实际存在的来源。\n"
+            )
+            system_prompt = f"{system_prompt}{context_instruction}\n## Additional Context\n{context}"
 
         # ✅ Story 12.C.2: 添加调试日志追踪最终发送给AI的内容
         # [Source: docs/plans/epic-12.C-agent-context-pollution-fix.md#Story-12.C.2]
@@ -392,6 +410,7 @@ class GeminiClient:
 
             # ✅ Verified from Context7:/googleapis/python-genai
             # Pattern: await client.aio.models.generate_content(model=..., contents=...)
+            assert self.client is not None
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=full_prompt,
@@ -400,9 +419,27 @@ class GeminiClient:
                 ),
             )
 
-            response_text = response.text or ""
+            # Diagnose empty responses (safety filters, blocked content, etc.)
+            try:
+                response_text = response.text or ""
+            except ValueError as e:
+                # response.text raises ValueError when blocked by safety filters
+                logger.error(
+                    f"Gemini response blocked for agent={agent_type}: {e}. "
+                    f"candidates={getattr(response, 'candidates', 'N/A')}, "
+                    f"prompt_feedback={getattr(response, 'prompt_feedback', 'N/A')}"
+                )
+                response_text = ""
 
-            logger.info(f"Gemini API call successful for agent={agent_type}")
+            if not response_text:
+                logger.warning(
+                    f"Gemini returned EMPTY response for agent={agent_type}. "
+                    f"candidates={getattr(response, 'candidates', 'N/A')}, "
+                    f"prompt_feedback={getattr(response, 'prompt_feedback', 'N/A')}, "
+                    f"model={self.model}"
+                )
+
+            logger.info(f"Gemini API call successful for agent={agent_type}, response_len={len(response_text)}")
 
             return {
                 "agent_type": agent_type,
@@ -460,7 +497,19 @@ class GeminiClient:
         # Build system prompt with optional context
         system_prompt = template.system_prompt
         if context:
-            system_prompt = f"{system_prompt}\n\n## Additional Context\n{context}"
+            context_instruction = (
+                "\n\n## Context Usage Rules\n"
+                "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
+                "**你必须遵守以下规则：**\n"
+                "1. **主动引用**：解释中涉及上下文材料时，用方括号标注来源，"
+                "格式如 [lecture 3.md:29-65 (## A* 搜索)]。\n"
+                "2. **相关资料列表**：如果上下文包含 `[Notes]` 来源，"
+                "在回答末尾添加 `## 相关资料` 小节，列出最多5条相关笔记来源。\n"
+                "3. **用户请求优先**：如果上下文中「用户之前的个人理解」包含具体请求"
+                "（如「列出笔记」「举例子」），必须直接回应该请求。\n"
+                "4. **不编造来源**：只引用上下文中实际存在的来源。\n"
+            )
+            system_prompt = f"{system_prompt}{context_instruction}\n## Additional Context\n{context}"
 
         # Build content parts for multimodal
         content_parts = []
@@ -545,6 +594,208 @@ class GeminiClient:
                 "input_tokens": getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
                 "output_tokens": getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
             },
+        }
+
+    async def call_agent_with_tools(
+        self,
+        agent_type: str,
+        user_prompt: str,
+        tool_declarations: "genai.types.Tool",
+        tool_executor: Any,
+        context: Optional[str] = None,
+        max_iterations: int = 3,
+        temperature: float = 0.7,
+        thinking_budget: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """
+        Call API with function calling support (Phase 2: LLM-controlled retrieval).
+
+        The LLM can actively search for information by requesting tool calls.
+        This method handles the multi-turn tool calling loop:
+        1. Send prompt to LLM with tool declarations
+        2. If LLM requests tool calls, execute them and send results back
+        3. Repeat until LLM produces a text response or max_iterations reached
+
+        Args:
+            agent_type: Agent type name (e.g., 'oral-explanation')
+            user_prompt: User's input prompt
+            tool_declarations: genai.types.Tool with function declarations
+            tool_executor: ToolExecutor instance to execute function calls
+            context: Optional pre-fetched context (RAG pipeline results)
+            max_iterations: Max tool call rounds (default: 3, prevents infinite loops)
+            temperature: Response temperature (0.0-1.0)
+
+        Returns:
+            Dict containing agent_type, response, model, usage, tool_calls_made
+
+        Raises:
+            RuntimeError: If API key not configured or not using Google genai
+        """
+        if not self.client:
+            raise RuntimeError(
+                "Gemini API client required for function calling. "
+                "OpenAI-compatible providers do not support this feature yet."
+            )
+
+        # Load agent prompt template
+        template = self.load_prompt_template(agent_type)
+
+        # Build system prompt with optional context
+        system_prompt = template.system_prompt
+        if context:
+            context_instruction = (
+                "\n\n## Context Usage Rules\n"
+                "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
+                "**你必须遵守以下规则：**\n"
+                "1. **主动引用**：解释中涉及上下文材料时，用方括号标注来源，"
+                "格式如 [lecture 3.md:29-65 (## A* 搜索)]。\n"
+                "2. **相关资料列表**：如果上下文包含 `[Notes]` 来源，"
+                "在回答末尾添加 `## 相关资料` 小节，列出最多5条相关笔记来源。\n"
+                "3. **用户请求优先**：如果上下文中「用户之前的个人理解」包含具体请求"
+                "（如「列出笔记」「举例子」），必须直接回应该请求。\n"
+                "4. **不编造来源**：只引用上下文中实际存在的来源。\n"
+            )
+            system_prompt = f"{system_prompt}{context_instruction}\n## Additional Context\n{context}"
+
+        # Tool-use instruction appended to system prompt
+        system_prompt += (
+            "\n\n## Available Tools\n"
+            "你可以使用以下工具主动搜索信息：\n"
+            "- `search_vault_notes`: 搜索笔记库中的相关内容\n"
+            "- `search_knowledge_graph`: 搜索知识图谱中的概念和历史记录\n"
+            "- `get_note_content`: 读取指定笔记的具体内容\n\n"
+            "**如果用户要求列出笔记或需要引用具体资料，请主动调用搜索工具获取信息。**\n"
+            "**当你已有足够信息时，直接生成回答即可，无需调用工具。**\n"
+        )
+
+        # Build initial contents for multi-turn conversation
+        full_prompt = f"{system_prompt}\n\n## User Request\n{user_prompt}"
+        contents = [
+            genai.types.Content(
+                role="user",
+                parts=[genai.types.Part.from_text(text=full_prompt)],
+            )
+        ]
+
+        tool_calls_log: List[Dict[str, Any]] = []
+        total_input_tokens = 0
+        total_output_tokens = 0
+        response = None  # Initialize to satisfy type checker
+
+        for iteration in range(max_iterations):
+            logger.info(
+                f"[Phase2] Tool calling iteration {iteration + 1}/{max_iterations} "
+                f"for agent={agent_type}"
+            )
+
+            # Call Gemini with tools (optional thinking tokens for deep reasoning)
+            gen_config = genai.types.GenerateContentConfig(
+                temperature=temperature,
+                tools=[tool_declarations],
+            )
+            if thinking_budget is not None:
+                try:
+                    gen_config.thinking_config = genai.types.ThinkingConfig(
+                        thinking_budget=thinking_budget
+                    )
+                except (AttributeError, TypeError):
+                    logger.debug("ThinkingConfig not available in this genai version")
+
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=contents,  # type: ignore[arg-type]
+                config=gen_config,
+            )
+
+            # Track usage
+            if hasattr(response, 'usage_metadata') and response.usage_metadata:
+                total_input_tokens += getattr(response.usage_metadata, 'prompt_token_count', 0)
+                total_output_tokens += getattr(response.usage_metadata, 'candidates_token_count', 0)
+
+            # Check for function calls in response
+            function_calls = response.function_calls
+            if not function_calls:
+                # No tool calls - LLM is done, extract text response
+                try:
+                    response_text = response.text or ""
+                except ValueError:
+                    response_text = ""
+
+                logger.info(
+                    f"[Phase2] Agent={agent_type} completed after {iteration + 1} iterations, "
+                    f"{len(tool_calls_log)} tool calls made, response_len={len(response_text)}"
+                )
+                return {
+                    "agent_type": agent_type,
+                    "response": response_text,
+                    "model": self.model,
+                    "usage": {
+                        "input_tokens": total_input_tokens,
+                        "output_tokens": total_output_tokens,
+                    },
+                    "tool_calls_made": tool_calls_log,
+                }
+
+            # Execute tool calls and build response
+            # Append model's function call content to history
+            if response.candidates is None:
+                break
+            model_content = response.candidates[0].content
+            contents.append(model_content)  # type: ignore[arg-type]
+
+            # Execute each function call and collect responses
+            function_response_parts = []
+            for fc in function_calls:
+                fc_name = fc.name
+                fc_args = dict(fc.args) if fc.args else {}
+                logger.info(f"[Phase2] Tool call: {fc_name}({fc_args})")
+
+                result = await tool_executor.execute(fc_name, fc_args)
+
+                tool_calls_log.append({
+                    "iteration": iteration + 1,
+                    "name": fc_name,
+                    "args": fc_args,
+                    "result_length": len(result),
+                })
+
+                function_response_parts.append(
+                    genai.types.Part.from_function_response(
+                        name=fc_name or "",
+                        response={"result": result},
+                    )
+                )
+
+            # Append tool responses to conversation
+            contents.append(
+                genai.types.Content(
+                    role="tool",
+                    parts=function_response_parts,
+                )
+            )
+
+        # Max iterations reached - extract whatever text we have
+        logger.warning(
+            f"[Phase2] Max iterations ({max_iterations}) reached for agent={agent_type}. "
+            f"Forcing text extraction."
+        )
+        if response is not None:
+            try:
+                response_text = response.text or ""
+            except (ValueError, AttributeError):
+                response_text = ""
+        else:
+            response_text = ""
+
+        return {
+            "agent_type": agent_type,
+            "response": response_text,
+            "model": self.model,
+            "usage": {
+                "input_tokens": total_input_tokens,
+                "output_tokens": total_output_tokens,
+            },
+            "tool_calls_made": tool_calls_log,
         }
 
     def is_configured(self) -> bool:

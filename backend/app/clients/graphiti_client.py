@@ -186,23 +186,24 @@ class GraphitiEdgeClient(GraphitiClientBase):
         query: str,
         canvas_path: Optional[str] = None,
         group_id: Optional[str] = None,
+        entity_types: Optional[List[str]] = None,
         limit: int = 10
     ) -> List[Dict[str, Any]]:
         """
         Search for nodes in the knowledge graph.
 
         Story 36.1 AC-36.1.1: Abstract interface implementation
+        Enhanced: supports entity_types filter for Claude Code compatibility
 
         Args:
             query: Search query string
             canvas_path: Optional Canvas file path filter
             group_id: Optional group_id filter for multi-subject isolation
+            entity_types: Optional list of entity types (e.g., ["Misconception", "ProblemTrap"])
             limit: Maximum number of results
 
         Returns:
             List of search results
-
-        [Source: docs/stories/36.1.story.md#AC-36.1.1]
         """
         if not self._initialized:
             await self.initialize()
@@ -220,28 +221,33 @@ class GraphitiEdgeClient(GraphitiClientBase):
                 where_clauses.append("n.group_id = $groupId")
                 params["groupId"] = group_id
 
+            if entity_types:
+                where_clauses.append("n.entity_type IN $entityTypes")
+                params["entityTypes"] = entity_types
+
             where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
 
+            # Search both :Node and :EntityNode labels for cross-system compatibility
             cypher_query = f"""
-            MATCH (n:Node)
+            MATCH (n)
             {where_clause}
-            WHERE n.text CONTAINS $query OR n.id CONTAINS $query
-            RETURN n.id as node_id, n.text as content, n.canvas_path as canvas_path,
-                   n.group_id as group_id
+            WHERE (n.text CONTAINS $query OR n.id CONTAINS $query
+                   OR n.name CONTAINS $query OR n.episode_body CONTAINS $query
+                   OR n.concept CONTAINS $query)
+            RETURN n.id as node_id, coalesce(n.text, n.episode_body) as content,
+                   n.canvas_path as canvas_path, n.group_id as group_id,
+                   n.entity_type as entity_type, n.name as name,
+                   n.source as source
             LIMIT $limit
             """
 
             results = await self._neo4j.run_query(cypher_query, **params)
 
-            # P1 Fix: Compute approximate relevance score instead of hardcoded 1.0
-            # Uses query coverage ratio: shorter content matching the query = higher relevance
             query_len = max(len(query), 1)
             scored_results = []
             for r in results:
                 content = r.get("content", "")
                 content_len = max(len(content), 1)
-                # Score: ratio of query length to content length (capped at 1.0)
-                # Exact match = 1.0, query is small part of long content = lower score
                 score = min(query_len / content_len, 1.0)
                 scored_results.append({
                     "doc_id": r.get("node_id", ""),
@@ -250,10 +256,12 @@ class GraphitiEdgeClient(GraphitiClientBase):
                     "metadata": {
                         "canvas_path": r.get("canvas_path"),
                         "group_id": r.get("group_id"),
+                        "entity_type": r.get("entity_type"),
+                        "name": r.get("name"),
+                        "source": r.get("source"),
                     }
                 })
 
-            # Sort by score descending for best results first
             scored_results.sort(key=lambda x: x["score"], reverse=True)
             return scored_results
 

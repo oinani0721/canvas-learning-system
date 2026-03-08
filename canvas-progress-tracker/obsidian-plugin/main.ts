@@ -867,7 +867,7 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在生成口语化解释... (预计25秒)');
                                 // Story 12.B.2: Pass real-time node content to backend
-                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                const result = await this.callAgentWithAbort<{ explanation?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/oral',
                                     {
@@ -879,6 +879,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Check for cancellation before success notice
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('口语化解释生成完成');
                             } catch (error) {
@@ -933,7 +937,7 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在生成四层次解释... (预计45秒)');
                                 // Story 12.B.2: Pass real-time node content to backend
-                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                const result = await this.callAgentWithAbort<{ explanation?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/four-level',
                                     {
@@ -945,6 +949,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Check for cancellation before success notice
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('四层次解释生成完成');
                             } catch (error) {
@@ -1358,7 +1366,7 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在生成澄清路径... (预计30秒)');
                                 // Story 12.B.2: Pass real-time node content to backend
-                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                const result = await this.callAgentWithAbort<{ explanation?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/clarification',
                                     {
@@ -1370,6 +1378,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Check for cancellation before success notice
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('澄清路径生成完成');
                             } catch (error) {
@@ -1405,7 +1417,7 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在生成例题教学... (预计35秒)');
                                 // Story 12.B.2: Pass real-time node content to backend
-                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                const result = await this.callAgentWithAbort<{ explanation?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/example',
                                     {
@@ -1417,6 +1429,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Check for cancellation before success notice
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('例题教学生成完成');
                             } catch (error) {
@@ -1452,7 +1468,7 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.F.6: Show estimated time
                                 new Notice('正在生成记忆锚点... (预计20秒)');
                                 // Story 12.B.2: Pass real-time node content to backend
-                                const result = await this.callAgentWithAbort<{ explanation?: string }>(
+                                const result = await this.callAgentWithAbort<{ explanation?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/memory',
                                     {
@@ -1464,6 +1480,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Check for cancellation before success notice
                                 if (result === null) {
                                     return; // Cancelled, skip success notice
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('记忆锚点生成完成');
                             } catch (error) {
@@ -1592,7 +1612,7 @@ export default class CanvasReviewPlugin extends Plugin {
                             try {
                                 new Notice('正在生成对比表... (预计30秒)');
                                 // Story 12.H.4: Use cancellable request with real-time node content
-                                const result = await this.callAgentWithAbort<{ comparison_table?: string }>(
+                                const result = await this.callAgentWithAbort<{ comparison_table?: string; created_nodes?: Array<any>; created_edges?: Array<any> }>(
                                     lockKey,
                                     '/agents/explain/comparison',
                                     {
@@ -1604,6 +1624,10 @@ export default class CanvasReviewPlugin extends Plugin {
                                 // Story 12.H.4 AC5: Cancelled request returns null, skip success notice
                                 if (result === null) {
                                     return;
+                                }
+                                // Write created nodes/edges to Canvas
+                                if (result.created_nodes && result.created_nodes.length > 0) {
+                                    await this.writeNodesToCanvas(context.filePath, result.created_nodes, result.created_edges);
                                 }
                                 new Notice('对比表生成完成');
                             } catch (error) {

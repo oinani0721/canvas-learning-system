@@ -301,11 +301,22 @@ class MemoryHealthResponse(BaseModel):
 # =============================================================================
 
 class MasteryLevel(str, Enum):
-    """Mastery level values for color changes."""
+    """Mastery level values for color changes.
+
+    Color mapping (Obsidian Canvas actual colors):
+      1 (Red)    → not_understood
+      2 (Orange) → learning
+      3 (Yellow) → learning
+      4 (Green)  → understood
+      5 (Cyan)   → mastered
+      6 (Purple) → not_understood
+    """
     not_understood = "not_understood"
     learning = "learning"
+    understood = "understood"
     mastered = "mastered"
-    pending_verification = "pending_verification"
+    # Backward compatibility alias
+    pending_verification = "understood"
 
 
 class ColorCode(str, Enum):
@@ -324,6 +335,8 @@ class BatchEventMetadata(BaseModel):
     new_color: Optional[ColorCode] = Field(None, description="变化后颜色代码")
     old_level: Optional[MasteryLevel] = Field(None, description="变化前掌握等级")
     new_level: Optional[MasteryLevel] = Field(None, description="变化后掌握等级")
+    concept: Optional[str] = Field(None, description="概念名称")
+    node_text: Optional[str] = Field(None, description="节点文本内容")
 
 
 class BatchEventItem(BaseModel):

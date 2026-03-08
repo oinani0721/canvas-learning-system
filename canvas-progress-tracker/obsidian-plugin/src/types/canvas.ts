@@ -34,12 +34,12 @@ export type CanvasColor = CanvasPresetColor | CanvasHexColor;
  * ✅ 已通过实际 Obsidian Canvas 渲染验证
  */
 export const CANVAS_COLORS: Record<CanvasPresetColor, string> = {
-  '1': 'Gray',    // 灰色 - 无特殊含义
-  '2': 'Green',   // 绿色 - 完全理解 (≥80分)
-  '3': 'Purple',  // 紫色 - 似懂非懂 (60-79分)
-  '4': 'Red',     // 红色 - 不理解 (<60分)
-  '5': 'Blue',    // 蓝色 - AI解释
-  '6': 'Yellow',  // 黄色 - 个人理解
+  '1': 'Red',     // 红色 - 不理解
+  '2': 'Orange',  // 橙色 - 部分理解
+  '3': 'Yellow',  // 黄色 - 个人理解
+  '4': 'Green',   // 绿色 - 做题误区 (ProblemTrap)
+  '5': 'Cyan',    // 青色 - 已掌握
+  '6': 'Purple',  // 紫色 - 知识点不理解 (Misconception)
 } as const;
 
 /**
@@ -48,11 +48,11 @@ export const CANVAS_COLORS: Record<CanvasPresetColor, string> = {
  * Project-specific color semantics for Canvas Learning System
  */
 export const LEARNING_COLORS = {
-  NOT_UNDERSTOOD: '4' as CanvasPresetColor,        // Red - 不理解 (<60分)
-  PARTIAL: '3' as CanvasPresetColor,               // Purple - 似懂非懂 (60-79分)
-  UNDERSTOOD: '2' as CanvasPresetColor,            // Green - 已理解 (≥80分)
-  PERSONAL_UNDERSTANDING: '6' as CanvasPresetColor, // Yellow - 个人理解 (颜色不变)
-  AI_EXPLANATION: '5' as CanvasPresetColor,        // Blue - AI解释节点 (评分后变色)
+  NOT_UNDERSTOOD: '1' as CanvasPresetColor,        // Red - 不理解
+  PARTIAL: '2' as CanvasPresetColor,               // Orange - 部分理解
+  UNDERSTOOD: '4' as CanvasPresetColor,            // Green - 已理解
+  PERSONAL_UNDERSTANDING: '3' as CanvasPresetColor, // Yellow - 个人理解
+  AI_EXPLANATION: '5' as CanvasPresetColor,        // Cyan - AI解释节点
 } as const;
 
 // ============================================================================

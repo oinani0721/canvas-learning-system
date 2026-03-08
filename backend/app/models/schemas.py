@@ -541,6 +541,8 @@ class ExplainResponse(BaseModel):
     """
     explanation: str = Field(..., description="Generated explanation")
     created_node_id: str = Field(..., description="Created explanation node ID")
+    created_nodes: List[dict] = Field(default_factory=list, description="Created canvas nodes")
+    created_edges: List[dict] = Field(default_factory=list, description="Created canvas edges")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

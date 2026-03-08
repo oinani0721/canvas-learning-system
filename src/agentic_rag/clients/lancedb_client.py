@@ -492,6 +492,22 @@ class LanceDBClient:
                 f"{chunk['file_path']}:{chunk['heading']}:{chunk['content'][:100]}".encode()
             ).hexdigest()
 
+            metadata = {
+                "file_path": chunk["file_path"],
+                "heading": chunk["heading"],
+                "line_start": chunk.get("line_start"),
+                "line_end": chunk.get("line_end"),
+                "source": "vault_note",
+                "subject": subject,
+            }
+
+            # Add timestamp info for video transcripts
+            if LanceDBClient._is_video_transcript(chunk["file_path"]):
+                ts_info = LanceDBClient._extract_timestamps_from_section(
+                    chunk["heading"], chunk["content"]
+                )
+                metadata.update(ts_info)
+
             doc = {
                 "doc_id": f"vault_{chunk_id}",
                 "content": chunk["content"],
@@ -504,12 +520,7 @@ class LanceDBClient:
                 "y": 0,
                 "subject": subject or "",
                 "timestamp": datetime.now().isoformat(),
-                "metadata_json": json.dumps({
-                    "file_path": chunk["file_path"],
-                    "heading": chunk["heading"],
-                    "source": "vault_note",
-                    "subject": subject,
-                }, ensure_ascii=False)
+                "metadata_json": json.dumps(metadata, ensure_ascii=False)
             }
             documents.append(doc)
 
@@ -524,11 +535,82 @@ class LanceDBClient:
 
         count = await self.add_documents(table_name, documents)
 
+        # Create FTS index for hybrid search
+        try:
+            tbl = self._db.open_table(table_name)
+            tbl.create_fts_index("content", replace=True)
+            if LOGURU_ENABLED:
+                logger.info(f"Created FTS index on '{table_name}.content'")
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.warning(f"FTS index creation failed (hybrid search unavailable): {e}")
+
         if LOGURU_ENABLED:
             logger.info(
                 f"Indexed {count} chunks from {len(md_files)} .md files "
                 f"in vault {vault_path} to {table_name}"
             )
+
+        return count
+
+    async def index_single_file(
+        self,
+        file_path: str,
+        table_name: str = "vault_notes",
+    ) -> int:
+        """
+        Index a single .md file into an existing table (incremental append).
+
+        Much faster than full index_vault_notes() for newly created files.
+
+        Args:
+            file_path: Absolute path to the .md file
+            table_name: Target table name
+
+        Returns:
+            Number of chunks indexed
+        """
+        import os
+        if not os.path.isfile(file_path):
+            if LOGURU_ENABLED:
+                logger.warning(f"File not found for indexing: {file_path}")
+            return 0
+
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"Failed to read file for indexing: {e}")
+            return 0
+
+        if not content.strip():
+            return 0
+
+        rel_path = os.path.basename(file_path)
+        chunks = self._split_md_by_heading(content, rel_path)
+
+        if not chunks:
+            return 0
+
+        documents = []
+        for chunk in chunks:
+            doc = {
+                "doc_id": f"{rel_path}:{chunk.get('heading', '')}",
+                "content": chunk["content"],
+                "metadata_json": json.dumps({
+                    "file_path": chunk.get("file_path", rel_path),
+                    "heading": chunk.get("heading", ""),
+                    "line_start": chunk.get("line_start", 0),
+                    "line_end": chunk.get("line_end", 0),
+                }, ensure_ascii=False),
+            }
+            documents.append(doc)
+
+        count = await self.add_documents(table_name, documents)
+
+        if LOGURU_ENABLED:
+            logger.info(f"Incrementally indexed {count} chunks from {rel_path}")
 
         return count
 
@@ -538,9 +620,9 @@ class LanceDBClient:
         file_path: str,
         chunk_size: int = 500,
         chunk_overlap: int = 50
-    ) -> List[Dict[str, str]]:
+    ) -> List[Dict[str, Any]]:
         """
-        按 Markdown heading 分段文本
+        按 Markdown heading 分段文本，追踪行号
 
         Args:
             content: Markdown 文件内容
@@ -549,45 +631,98 @@ class LanceDBClient:
             chunk_overlap: 段落重叠字符数
 
         Returns:
-            List[Dict]: [{"file_path", "heading", "content"}]
+            List[Dict]: [{"file_path", "heading", "content", "line_start", "line_end"}]
         """
         import re
+        heading_pattern = re.compile(r'^#{1,4}\s+(.+)$')
         chunks = []
-        # 按 ## 或 # heading 分割
-        sections = re.split(r'^(#{1,4}\s+.+)$', content, flags=re.MULTILINE)
+        lines = content.split('\n')
 
-        current_heading = file_path  # 文件名作为默认 heading
-        current_text = ""
+        current_heading = file_path  # filename as default heading
+        current_lines: List[str] = []
+        section_line_start = 1  # 1-indexed
 
-        for section in sections:
-            section = section.strip()
-            if not section:
-                continue
-
-            if re.match(r'^#{1,4}\s+', section):
-                # 保存前一段
-                if current_text.strip():
-                    for sub_chunk in _chunk_text(current_text.strip(), chunk_size, chunk_overlap):
-                        chunks.append({
-                            "file_path": file_path,
-                            "heading": current_heading,
-                            "content": sub_chunk,
-                        })
-                current_heading = section.lstrip('#').strip()
-                current_text = ""
-            else:
-                current_text += "\n" + section
-
-        # 保存最后一段
-        if current_text.strip():
-            for sub_chunk in _chunk_text(current_text.strip(), chunk_size, chunk_overlap):
+        def _flush_section(heading: str, section_lines: List[str], line_start: int, line_end: int):
+            text = '\n'.join(section_lines).strip()
+            if not text:
+                return
+            for sub_chunk in _chunk_text(text, chunk_size, chunk_overlap):
                 chunks.append({
                     "file_path": file_path,
-                    "heading": current_heading,
+                    "heading": heading,
                     "content": sub_chunk,
+                    "line_start": line_start,
+                    "line_end": line_end,
                 })
 
+        for line_idx, line in enumerate(lines):
+            line_num = line_idx + 1  # 1-indexed
+            match = heading_pattern.match(line)
+            if match:
+                # Flush previous section
+                if current_lines:
+                    _flush_section(current_heading, current_lines, section_line_start, line_num - 1)
+                current_heading = match.group(1).strip()
+                current_lines = []
+                section_line_start = line_num
+            else:
+                current_lines.append(line)
+
+        # Flush final section
+        if current_lines:
+            _flush_section(current_heading, current_lines, section_line_start, len(lines))
+
         return chunks
+
+    @staticmethod
+    def _is_video_transcript(file_path: str) -> bool:
+        """Check if a file path refers to a video transcript."""
+        return "/videos/" in file_path.replace("\\", "/")
+
+    @staticmethod
+    def _extract_timestamps_from_section(heading: str, content: str) -> Dict[str, Optional[str]]:
+        """
+        Extract video timestamps from a section heading and content.
+
+        Patterns:
+          1. [MM:SS]()-[MM:SS]() in heading (range)
+          2. [MM:SS]() in heading (single)
+          3. [MM:SS] inline in content (first and last)
+
+        Returns:
+            Dict with timestamp_start, timestamp_end, video_file keys
+        """
+        import re
+        result: Dict[str, Optional[str]] = {
+            "timestamp_start": None,
+            "timestamp_end": None,
+            "video_file": None,
+        }
+
+        # Pattern 1: Range in heading [MM:SS]()-[MM:SS]()
+        range_match = re.search(
+            r'\[(\d{1,2}:\d{2})\]\(\)[—–-]\[(\d{1,2}:\d{2})\]\(\)',
+            heading
+        )
+        if range_match:
+            result["timestamp_start"] = range_match.group(1)
+            result["timestamp_end"] = range_match.group(2)
+            return result
+
+        # Pattern 2: Single in heading [MM:SS]()
+        single_match = re.search(r'\[(\d{1,2}:\d{2})\]\(\)', heading)
+        if single_match:
+            result["timestamp_start"] = single_match.group(1)
+            return result
+
+        # Pattern 3: Inline [MM:SS] in content
+        inline_matches = re.findall(r'\[(\d{1,2}:\d{2})\]', content)
+        if inline_matches:
+            result["timestamp_start"] = inline_matches[0]
+            if len(inline_matches) > 1:
+                result["timestamp_end"] = inline_matches[-1]
+
+        return result
 
     def _read_canvas_nodes(self, canvas_path: str) -> List[Dict[str, Any]]:
         """
@@ -626,7 +761,8 @@ class LanceDBClient:
         canvas_file: Optional[str] = None,
         subject: Optional[str] = None,
         num_results: int = 10,
-        metric: str = "cosine"
+        metric: str = "cosine",
+        query_type: str = "vector",
     ) -> List[Dict[str, Any]]:
         """
         向量搜索
@@ -642,6 +778,7 @@ class LanceDBClient:
             subject: 学科标识(用于学科隔离过滤)
             num_results: 返回结果数量
             metric: 距离度量 ("cosine" 或 "L2")
+            query_type: 搜索类型 ("vector" 或 "hybrid"). hybrid使用向量+FTS+RRF融合
 
         Returns:
             List[SearchResult]: 标准化的搜索结果
@@ -663,7 +800,8 @@ class LanceDBClient:
                     canvas_file=canvas_file,
                     subject=subject,
                     num_results=num_results,
-                    metric=metric
+                    metric=metric,
+                    query_type=query_type,
                 ),
                 timeout=timeout_seconds
             )
@@ -715,7 +853,8 @@ class LanceDBClient:
         canvas_file: Optional[str],
         subject: Optional[str],
         num_results: int,
-        metric: str
+        metric: str,
+        query_type: str = "vector",
     ) -> List[Dict[str, Any]]:
         """内部搜索实现"""
         if self._db is None:
@@ -732,6 +871,31 @@ class LanceDBClient:
             if LOGURU_ENABLED:
                 logger.debug(f"Table {table_name} not found: {e}")
             return []
+
+        # Hybrid search: vector + FTS with RRF fusion
+        if query_type == "hybrid" and isinstance(query, str):
+            try:
+                search_query = table.search(query, query_type="hybrid").limit(num_results)
+
+                if canvas_file:
+                    search_query = search_query.where(
+                        f"canvas_file = '{canvas_file}'"
+                    )
+                if subject:
+                    search_query = search_query.where(
+                        f"subject = '{subject}'"
+                    )
+
+                raw_results = search_query.to_list()
+
+                return self._convert_to_search_results(
+                    raw_results,
+                    canvas_file=canvas_file
+                )
+            except Exception as e:
+                if LOGURU_ENABLED:
+                    logger.warning(f"Hybrid search failed, falling back to vector: {e}")
+                # Fall through to vector search
 
         # 获取查询向量
         query_vector = await self._get_query_vector(query)

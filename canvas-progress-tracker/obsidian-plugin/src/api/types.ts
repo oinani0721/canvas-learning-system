@@ -471,6 +471,8 @@ export interface ExplainRequest {
 export interface ExplainResponse {
   explanation: string;
   created_node_id: string;
+  created_nodes?: Array<{id: string; type: string; text?: string; x: number; y: number; width: number; height: number; color?: string}>;
+  created_edges?: Array<{id: string; fromNode: string; toNode: string; fromSide?: string; toSide?: string; label?: string; color?: string}>;
 }
 
 // =============================================================================

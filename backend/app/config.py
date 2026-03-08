@@ -268,8 +268,8 @@ class Settings(BaseSettings):
     )
 
     AI_MODEL_NAME: str = Field(
-        default="gemini-2.0-flash-exp",
-        description="AI model name (e.g., gemini-2.0-flash-exp, gpt-4o, claude-3-5-sonnet)"
+        default="gemini-3.1-flash-lite-preview",
+        description="AI model name (e.g., gemini-3.1-flash-lite-preview, gpt-4o, claude-3-5-sonnet)"
     )
 
     AI_BASE_URL: str = Field(
@@ -297,7 +297,7 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
 
     GEMINI_MODEL: str = Field(
-        default="gemini-2.0-flash-exp",
+        default="gemini-3.1-flash-lite-preview",
         description="[DEPRECATED] Use AI_MODEL_NAME instead"
     )
 

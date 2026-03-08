@@ -30,14 +30,14 @@ import { App, TFile, requestUrl } from 'obsidian';
  * [Source: tech-stack.md#颜色系统]
  */
 export enum ColorMasteryLevel {
-    /** Color "1" (red) - Concept not understood */
+    /** Color "1" (Red), "6" (Purple) - Not understood */
     NOT_UNDERSTOOD = 'not_understood',
-    /** Color "6" (yellow) - Currently learning */
+    /** Color "2" (Orange), "3" (Yellow) - Currently learning */
     LEARNING = 'learning',
-    /** Color "2" (green) - Concept mastered */
+    /** Color "4" (Green) - Understood */
+    UNDERSTOOD = 'understood',
+    /** Color "5" (Cyan) - Fully mastered */
     MASTERED = 'mastered',
-    /** Color "3" (purple) - Pending verification */
-    PENDING_VERIFICATION = 'pending_verification',
 }
 
 /**
@@ -474,22 +474,27 @@ export class NodeColorChangeWatcher {
      * [Source: AC-30.6.2 - 颜色映射规则]
      */
     private mapColorToLevel(color: string): ColorMasteryLevel {
+        // Obsidian Canvas actual colors: 1=Red 2=Orange 3=Yellow 4=Green 5=Cyan 6=Purple
         switch (color) {
             case '1':
-                // Red - 不理解/未通过
+                // Red - 不理解
                 return ColorMasteryLevel.NOT_UNDERSTOOD;
             case '2':
-                // Green - 完全理解/已通过
-                return ColorMasteryLevel.MASTERED;
-            case '3':
-                // Purple - 似懂非懂/待检验
-                return ColorMasteryLevel.PENDING_VERIFICATION;
-            case '6':
-                // Yellow - 个人理解输出区
+                // Orange - 部分理解/学习中
                 return ColorMasteryLevel.LEARNING;
+            case '3':
+                // Yellow - 学习中
+                return ColorMasteryLevel.LEARNING;
+            case '4':
+                // Green - 已理解
+                return ColorMasteryLevel.UNDERSTOOD;
+            case '5':
+                // Cyan - 完全掌握
+                return ColorMasteryLevel.MASTERED;
+            case '6':
+                // Purple - 不理解 (Misconception)
+                return ColorMasteryLevel.NOT_UNDERSTOOD;
             default:
-                // Colors 4 (cyan) and 5 (blue) not used in learning system
-                // Default to LEARNING for unknown colors
                 return ColorMasteryLevel.LEARNING;
         }
     }

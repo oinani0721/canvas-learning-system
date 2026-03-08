@@ -153,24 +153,29 @@ describe('NodeColorChangeWatcher', () => {
             expect(level).toBe(ColorMasteryLevel.NOT_UNDERSTOOD);
         });
 
-        it('should map green (2) to MASTERED', () => {
+        it('should map orange (2) to LEARNING', () => {
             const level = (watcher as any).mapColorToLevel('2');
-            expect(level).toBe(ColorMasteryLevel.MASTERED);
-        });
-
-        it('should map purple (3) to PENDING_VERIFICATION', () => {
-            const level = (watcher as any).mapColorToLevel('3');
-            expect(level).toBe(ColorMasteryLevel.PENDING_VERIFICATION);
-        });
-
-        it('should map yellow (6) to LEARNING', () => {
-            const level = (watcher as any).mapColorToLevel('6');
             expect(level).toBe(ColorMasteryLevel.LEARNING);
         });
 
-        it('should default to LEARNING for unknown colors (4, 5)', () => {
-            expect((watcher as any).mapColorToLevel('4')).toBe(ColorMasteryLevel.LEARNING);
-            expect((watcher as any).mapColorToLevel('5')).toBe(ColorMasteryLevel.LEARNING);
+        it('should map yellow (3) to LEARNING', () => {
+            const level = (watcher as any).mapColorToLevel('3');
+            expect(level).toBe(ColorMasteryLevel.LEARNING);
+        });
+
+        it('should map green (4) to UNDERSTOOD', () => {
+            const level = (watcher as any).mapColorToLevel('4');
+            expect(level).toBe(ColorMasteryLevel.UNDERSTOOD);
+        });
+
+        it('should map cyan (5) to MASTERED', () => {
+            const level = (watcher as any).mapColorToLevel('5');
+            expect(level).toBe(ColorMasteryLevel.MASTERED);
+        });
+
+        it('should map purple (6) to NOT_UNDERSTOOD', () => {
+            const level = (watcher as any).mapColorToLevel('6');
+            expect(level).toBe(ColorMasteryLevel.NOT_UNDERSTOOD);
         });
 
         it('should validate color codes correctly', () => {

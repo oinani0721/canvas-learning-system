@@ -457,6 +457,45 @@ async def get_node_from_canvas(
 RAG_TIMEOUT_SECONDS = 2.0  # AC4: RAG延迟 < 2s
 
 
+def _build_citation(metadata: Dict[str, Any]) -> str:
+    """
+    Build a citation string from RAG result metadata.
+
+    Output formats:
+      - "lecture 3.md:29-65 (## A* 搜索)"
+      - "lecture 3.md:29-65 (## A* 搜索) [02:27-04:48]"
+    """
+    file_path = metadata.get("file_path", "")
+    heading = metadata.get("heading", "")
+    line_start = metadata.get("line_start")
+    line_end = metadata.get("line_end")
+    ts_start = metadata.get("timestamp_start")
+    ts_end = metadata.get("timestamp_end")
+
+    if not file_path:
+        return ""
+
+    # Build base: file_path:line_start-line_end
+    citation = file_path
+    if line_start and line_end:
+        citation += f":{line_start}-{line_end}"
+    elif line_start:
+        citation += f":{line_start}"
+
+    # Add heading
+    if heading and heading != file_path:
+        citation += f" (## {heading})"
+
+    # Add timestamps
+    if ts_start:
+        if ts_end and ts_end != ts_start:
+            citation += f" [{ts_start}-{ts_end}]"
+        else:
+            citation += f" [{ts_start}]"
+
+    return citation
+
+
 def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
     """
     Format RAG results into a readable context string for Agent prompts.
@@ -490,6 +529,7 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
     source_labels = {
         "graphiti": "[Graph] 知识图谱关联",
         "lancedb": "[Vector] 语义相似内容",
+        "vault_notes": "[Notes] Vault 笔记",
         "multimodal": "[Media] 图表/公式",
         "textbook": "[Book] 教材参考",
         "cross_canvas": "[Canvas] 跨Canvas关联",
@@ -501,7 +541,10 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         for r in results[:3]:  # Limit to 3 results per source
             content = r.get("content", "")
             if content:
-                content_lines.append(f"  - {content[:200]}{'...' if len(content) > 200 else ''}")
+                # Add citation prefix for vault_notes source
+                citation = _build_citation(r) if source == "vault_notes" else ""
+                prefix = f"[{citation}] " if citation else ""
+                content_lines.append(f"  - {prefix}{content[:200]}{'...' if len(content) > 200 else ''}")
         if content_lines:
             sections.append(f"{label}:\n" + "\n".join(content_lines))
 
@@ -1198,6 +1241,8 @@ async def _call_explanation(
         return ExplainResponse(
             explanation=result.get("explanation", ""),
             created_node_id=result.get("created_node_id", ""),
+            created_nodes=result.get("created_nodes", []),
+            created_edges=result.get("created_edges", []),
         )
     except HTTPException:
         # Story 12.B.1: 已经是HTTPException，直接重新抛出
@@ -1496,7 +1541,7 @@ async def generate_verification_questions(
             canvas_name=request.canvas_name,
             node_id=request.node_id,
             content=enriched.target_content,
-            node_type=enriched.color or "red",
+            node_type=enriched.target_node.get("color", "") or "red",
             adjacent_context=enriched.enriched_context,
             source_x=enriched.x,
             source_y=enriched.y,

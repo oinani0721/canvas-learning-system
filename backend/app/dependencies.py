@@ -199,10 +199,10 @@ async def get_agent_service(
         try:
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL_NAME,
+                # model not passed — GeminiClient.model property reads Settings dynamically
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
             )
-            logger.info(f"GeminiClient created: model={settings.AI_MODEL_NAME}, "
+            logger.info(f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), "
                        f"provider={settings.AI_PROVIDER}")
         except Exception as e:
             logger.error(f"Failed to create GeminiClient: {e}")
@@ -578,7 +578,7 @@ async def get_verification_service(
         if settings.AI_API_KEY:
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL_NAME,
+                # model not passed — GeminiClient.model property reads Settings dynamically
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None
             )
         neo4j_client = get_neo4j_client_dep()
@@ -1044,7 +1044,6 @@ async def build_batch_processing_deps():
         try:
             gemini_client = GeminiClient(
                 api_key=settings.AI_API_KEY,
-                model=settings.AI_MODEL_NAME,
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
         except Exception as e:

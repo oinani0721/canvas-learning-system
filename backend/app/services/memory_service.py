@@ -65,6 +65,7 @@ from app.core.subject_config import (
 )
 # Story 36.9 AC-36.9.5: Import settings for ENABLE_GRAPHITI_JSON_DUAL_WRITE config flag
 from app.config import settings
+from app.services.graphiti_bridge_service import get_graphiti_bridge
 from app.core.failure_counters import (
     DUAL_WRITE_DEAD_LETTER_PATH,
     increment_dual_write_failures,
@@ -615,11 +616,53 @@ class MemoryService:
                     )
                 )
 
+            # Graphiti Bridge: Write entity-typed record for Claude Code compatibility
+            asyncio.create_task(
+                self._bridge_to_claude_graphiti(
+                    concept=concept,
+                    canvas_path=canvas_path,
+                    node_id=node_id,
+                    agent_feedback=agent_type,
+                    score=float(score) if score is not None else None,
+                    group_id=group_id,
+                )
+            )
+
             return episode_id
 
         except Exception as e:
             logger.error(f"Failed to record learning event: {e}")
             raise
+
+    async def _bridge_to_claude_graphiti(
+        self,
+        concept: str,
+        canvas_path: str,
+        node_id: str,
+        agent_feedback: Optional[str] = None,
+        score: Optional[float] = None,
+        group_id: str = "cs188",
+        node_color: Optional[str] = None,
+        node_text: Optional[str] = None,
+    ) -> None:
+        """Fire-and-forget bridge to Claude Code-compatible Graphiti format."""
+        try:
+            bridge = await get_graphiti_bridge(
+                neo4j_client=self._neo4j_client,
+                canvas_base_path=getattr(settings, 'canvas_base_path', None),
+            )
+            await bridge.bridge_to_claude_format(
+                concept=concept,
+                canvas_path=canvas_path,
+                node_id=node_id,
+                node_color=node_color,
+                node_text=node_text,
+                agent_feedback=agent_feedback,
+                score=score,
+                group_id=group_id,
+            )
+        except Exception as e:
+            logger.warning(f"Graphiti bridge failed (non-blocking): {e}")
 
     async def get_learning_history(
         self,
@@ -1214,6 +1257,24 @@ class MemoryService:
                         "timestamp": datetime.now().isoformat(),
                         "reason": err.get("error", "unknown"),
                     })
+
+        # ── Phase 2.5: Graphiti Bridge (fire-and-forget) ──
+        for record in valid_records:
+            p = record["payload"]
+            metadata = events[record["idx"]].get("metadata", {}) if record["idx"] < len(events) else {}
+            asyncio.create_task(
+                self._bridge_to_claude_graphiti(
+                    concept=p.get("concept", "unknown"),
+                    canvas_path=p["canvas_path"],
+                    node_id=p["node_id"],
+                    agent_feedback=p.get("agent_type"),
+                    node_color=metadata.get("new_color"),
+                    node_text=metadata.get("node_text"),
+                    group_id=build_group_id(
+                        extract_subject_from_canvas_path(p["canvas_path"])
+                    ),
+                )
+            )
 
         # ── Phase 3: 性能指标 (Story 30.11 AC-30.11.5) ──
         elapsed_ms = (time.monotonic() - batch_start) * 1000

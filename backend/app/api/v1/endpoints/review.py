@@ -341,7 +341,7 @@ def _get_difficulty_enhanced_question_text(
 
     Args:
         original_text: Original node text content
-        node_color: Node color code ("4"=red, "3"=purple)
+        node_color: Node color code ("4"=Red/不理解, "3"=Purple/似懂非懂)
         node_id: Node ID for difficulty lookup
         difficulty_map: Optional difficulty data map
 
@@ -364,7 +364,7 @@ def _get_difficulty_enhanced_question_text(
             return f"{forgetting_prefix}🟣 验证型：请详细描述 {original_text} 并举例说明"
 
     # No difficulty data: original color-based fallback
-    if node_color == "4":  # Red - breakthrough
+    if node_color == "4":  # Red (不理解) - breakthrough
         return f"🔴 突破型问题：请用自己的话解释 {original_text}"
     else:  # Purple - verification
         return f"🟣 检验型问题：请详细描述 {original_text}"
@@ -407,8 +407,8 @@ async def _generate_ai_questions(
             if not node_id:
                 continue
             content = node.get("text", "").strip()
-            color = node.get("color", "3")
-            node_type = "red" if color == "4" else "purple"
+            color = node.get("color", "6")
+            node_type = "green" if color == "4" else "purple"
 
             node_entry = {
                 "id": node_id,
@@ -519,9 +519,9 @@ def _extract_review_nodes(
     """
     Extract nodes for verification canvas based on PRD F8 + Story 4.1.
 
-    PRD Requirements (修复颜色代码 - docs/issues/canvas-layout-lessons-learned.md):
-    - 红色(color="4"): 不理解的内容 → 突破型问题
-    - 紫色(color="3"): 似懂非懂的内容 → 检验型问题
+    PRD Requirements (权威颜色: canvas_utils.py, plugin CSS remapped):
+    - 红色(color="4"): 不理解 → 检验型问题
+    - 紫色(color="3"): 似懂非懂 → 检验型问题
 
     Modes (v1.1.8):
     - fresh: 提取所有红色+紫色节点
@@ -535,9 +535,10 @@ def _extract_review_nodes(
         node_id_set = set(node_ids)
         return [n for n in source_nodes if n.get("id") in node_id_set]
 
-    # PRD F8: Extract RED (color="4") and PURPLE (color="3") nodes
-    # 修复: "4"才是红色, "1"是灰色 (docs/issues/canvas-layout-lessons-learned.md)
-    target_colors = {"4", "3"}  # Red=4, Purple=3
+    # Canvas colors (canvas_utils.py authoritative, plugin CSS remapped):
+    # 1=Gray, 2=Green, 3=Purple, 4=Red, 5=Blue, 6=Yellow
+    # Color 4 (Red) = 不理解, Color 3 (Purple) = 似懂非懂
+    target_colors = {"4", "3"}  # Red=不理解, Purple=似懂非懂
 
     # Filter text nodes with target colors
     all_target_nodes = [
@@ -550,7 +551,7 @@ def _extract_review_nodes(
         return all_target_nodes
 
     elif mode == "targeted":
-        # Targeted mode: 70% weak (red) + 30% partial (purple)
+        # Targeted mode: 70% red(不理解) + 30% purple(似懂非懂)
         red_nodes = [n for n in all_target_nodes if n.get("color") == "4"]
         purple_nodes = [n for n in all_target_nodes if n.get("color") == "3"]
 
@@ -812,7 +813,7 @@ async def generate_verification_canvas(
         )
 
     # Step 3: Extract nodes to review (PRD F8 + Story 4.1)
-    # ✅ FIXED: Now extracts RED (color="4") + PURPLE (color="3")
+    # ✅ FIXED: Now extracts GREEN (color="4") + PURPLE (color="6")
     # ✅ Story 24.1: Use mode from request (default: "fresh")
     source_nodes = canvas_data.get("nodes", [])
     review_mode = request.mode  # Now comes from GenerateReviewRequest schema
@@ -926,7 +927,7 @@ async def generate_verification_canvas(
             # Generate question text (PRD Story 4.2)
             # Priority: AI questions > QuestionGenerator templates > basic fallback
             original_text = source_node.get("text", "")
-            node_color = source_node.get("color", "3")
+            node_color = source_node.get("color", "6")
             source_id = source_node.get("id", "")
 
             if ai_questions and source_id and source_id in ai_questions:
@@ -967,7 +968,7 @@ async def generate_verification_canvas(
                 "width": node_width,
                 "height": answer_height,
                 "text": "",  # Blank for user to fill
-                "color": "6",  # Yellow - personal understanding area (修复: '6'=Yellow, '3'=Purple)
+                "color": "6",  # Purple - personal understanding area (Obsidian: '6'=Purple)
             }
             verification_nodes.append(answer_node)
 
