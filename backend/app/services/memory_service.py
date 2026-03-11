@@ -646,6 +646,15 @@ class MemoryService:
         node_text: Optional[str] = None,
     ) -> None:
         """Fire-and-forget bridge to Claude Code-compatible Graphiti format."""
+        # Fix F1: Infer color from score when not provided (single-event path)
+        # Uses same thresholds as scoring flow (agent_service.py:3157-3163)
+        if node_color is None and score is not None:
+            if score < 60:
+                node_color = "4"   # Red → 不理解
+            elif score < 80:
+                node_color = "3"   # Purple → 似懂非懂
+            # score >= 80 → understood, no entity type needed (bridge will skip)
+
         try:
             bridge = await get_graphiti_bridge(
                 neo4j_client=self._neo4j_client,

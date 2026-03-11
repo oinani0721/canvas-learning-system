@@ -86,6 +86,9 @@ import {
   CanvasIndexStatusResponse,
   CanvasIndexRequest,
   CanvasIndexResponse,
+  // Vault Notes Index Types
+  VaultIndexStatusResponse,
+  VaultIndexResponse,
   // Story 30.18: Memory API Query Types
   MemoryLearningHistoryResponse,
   LearningHistoryQuery,
@@ -1230,6 +1233,53 @@ export class ApiClient {
       'POST',
       '/canvas-meta/index',
       request
+    );
+  }
+
+  // ===========================================================================
+  // Vault Notes Index Methods
+  // ===========================================================================
+
+  /**
+   * Get vault notes index status in LanceDB
+   *
+   * @returns Vault index status with chunk count
+   */
+  async getVaultIndexStatus(): Promise<VaultIndexStatusResponse> {
+    return this.request<VaultIndexStatusResponse>(
+      'GET',
+      '/canvas-meta/index/vault/status'
+    );
+  }
+
+  /**
+   * Trigger full vault notes index (drop + rebuild)
+   *
+   * Scans all .md files in the vault and indexes them to LanceDB.
+   * This is a slow operation — use incremental for file-level updates.
+   *
+   * @returns Index result with chunk count
+   */
+  async indexVaultFull(): Promise<VaultIndexResponse> {
+    return this.request<VaultIndexResponse>(
+      'POST',
+      '/canvas-meta/index/vault'
+    );
+  }
+
+  /**
+   * Incrementally index specific .md files
+   *
+   * Much faster than full rebuild. Called by auto-index on file change.
+   *
+   * @param filePaths - File paths relative to vault root
+   * @returns Index result with chunks indexed
+   */
+  async indexVaultIncremental(filePaths: string[]): Promise<VaultIndexResponse> {
+    return this.request<VaultIndexResponse>(
+      'POST',
+      '/canvas-meta/index/vault/incremental',
+      { file_paths: filePaths }
     );
   }
 

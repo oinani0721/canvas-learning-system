@@ -85,6 +85,26 @@ ENTITY_TYPES: Dict[str, dict] = {
             "权重: {weight} | 常见问题: {common_issues}"
         ),
     },
+    "MasteryUpdate": {
+        "name_prefix": "MasteryUpdate",
+        "source_description": "mastery-update-record",
+        "keywords": set(),
+        "body_template": (
+            "[Topic: {topic}] 概念: {concept} | "
+            "Grade: {grade} | p_mastery: {p_mastery} | "
+            "effective: {effective} | level: {level}"
+        ),
+    },
+    "SelfAssessment": {
+        "name_prefix": "SelfAssessment",
+        "source_description": "self-assessment-record",
+        "keywords": set(),
+        "body_template": (
+            "[Topic: {topic}] 概念: {concept} | "
+            "颜色: {color} | 自评值: {value} | "
+            "AI评分: {ai_score}"
+        ),
+    },
     "ColorTransition": {
         "name_prefix": "ColorTransition",
         "source_description": "color-transition-record",

@@ -19,7 +19,8 @@
  * - Simplified toggle debouncing
  */
 
-import { Notice, requestUrl, RequestUrlResponse } from 'obsidian';
+import { Notice } from 'obsidian';
+import * as http from 'http';
 import { spawn, ChildProcess, exec } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -104,30 +105,23 @@ export class BackendProcessManager {
      */
     async isRunning(): Promise<boolean> {
         try {
-            // Use 127.0.0.1 for local connection (0.0.0.0 is for binding, not connecting)
             const connectHost = this.config.host === '0.0.0.0' ? '127.0.0.1' : this.config.host;
+            const url = `http://${connectHost}:${this.config.port}/api/v1/health`;
 
-            // Create timeout promise (requestUrl doesn't support AbortController)
-            // FIX-4.14: Increased from 2s to 5s for better reliability
-            const timeoutPromise = new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error('Health check timeout')), 5000)
-            );
+            return await new Promise<boolean>((resolve) => {
+                const timer = setTimeout(() => resolve(false), 5000);
 
-            const requestPromise = requestUrl({
-                url: `http://${connectHost}:${this.config.port}/api/v1/health`,
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json',
-                },
-                throw: false, // Don't throw on non-2xx status codes
+                const req = http.get(url, (res) => {
+                    clearTimeout(timer);
+                    resolve(res.statusCode !== undefined && res.statusCode >= 200 && res.statusCode < 300);
+                    res.resume(); // Consume response to free memory
+                });
+
+                req.on('error', () => {
+                    clearTimeout(timer);
+                    resolve(false);
+                });
             });
-
-            const response: RequestUrlResponse = await Promise.race([
-                requestPromise,
-                timeoutPromise,
-            ]);
-
-            return response.status >= 200 && response.status < 300;
         } catch {
             return false;
         }
@@ -145,41 +139,38 @@ export class BackendProcessManager {
      */
     async isRunningWithRetries(maxRetries = 3, timeout = 3000): Promise<boolean> {
         const connectHost = this.config.host === '0.0.0.0' ? '127.0.0.1' : this.config.host;
+        const url = `http://${connectHost}:${this.config.port}/api/v1/health`;
 
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
                 this.addLog(`Health check attempt ${attempt}/${maxRetries}...`);
 
-                const timeoutPromise = new Promise<never>((_, reject) =>
-                    setTimeout(() => reject(new Error('Health check timeout')), timeout)
-                );
-
-                const requestPromise = requestUrl({
-                    url: `http://${connectHost}:${this.config.port}/api/v1/health`,
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                    },
-                    throw: false,
+                const ok = await new Promise<boolean>((resolve) => {
+                    const timer = setTimeout(() => resolve(false), timeout);
+                    const req = http.get(url, (res) => {
+                        clearTimeout(timer);
+                        const status = res.statusCode ?? 0;
+                        if (status >= 200 && status < 300) {
+                            this.addLog(`Health check succeeded on attempt ${attempt}`);
+                            resolve(true);
+                        } else {
+                            this.addLog(`Health check returned status ${status}`);
+                            resolve(false);
+                        }
+                        res.resume();
+                    });
+                    req.on('error', () => {
+                        clearTimeout(timer);
+                        resolve(false);
+                    });
                 });
 
-                const response: RequestUrlResponse = await Promise.race([
-                    requestPromise,
-                    timeoutPromise,
-                ]);
-
-                if (response.status >= 200 && response.status < 300) {
-                    this.addLog(`Health check succeeded on attempt ${attempt}`);
-                    return true;
-                }
-
-                this.addLog(`Health check returned status ${response.status}`);
+                if (ok) return true;
             } catch (error) {
                 const msg = error instanceof Error ? error.message : 'Unknown error';
                 this.addLog(`Health check attempt ${attempt} failed: ${msg}`);
             }
 
-            // Wait before retry (except on last attempt)
             if (attempt < maxRetries) {
                 await this.sleep(1000);
             }
@@ -208,8 +199,25 @@ export class BackendProcessManager {
             }
         }
 
-        // First, try to find Python using 'where' command on Windows
-        // This is the most reliable way to get the full path
+        // PRIORITY: Check project virtual environment FIRST
+        // The venv has all project dependencies (uvicorn, FastAPI, etc.)
+        // System Python (via 'where') typically does NOT have these packages
+        const venvCandidates: string[] = [
+            path.join(this.config.backendPath, '.venv', 'Scripts', 'python.exe'),
+            path.join(this.config.backendPath, 'venv', 'Scripts', 'python.exe'),
+            path.join(this.config.backendPath, '.venv', 'bin', 'python'),
+            path.join(this.config.backendPath, 'venv', 'bin', 'python'),
+        ];
+
+        for (const venvPython of venvCandidates) {
+            if (await this.isPythonValid(venvPython)) {
+                this.resolvedPythonPath = venvPython;
+                this.addLog(`Found Python in venv: ${venvPython}`);
+                return venvPython;
+            }
+        }
+
+        // Fallback: try system Python via 'where' command
         if (process.platform === 'win32') {
             const wherePython = await this.findPythonWithWhere();
             if (wherePython) {
@@ -219,15 +227,8 @@ export class BackendProcessManager {
             }
         }
 
-        // Search candidates in order of preference
-        const candidates: string[] = [
-            // Windows virtual environments
-            path.join(this.config.backendPath, '.venv', 'Scripts', 'python.exe'),
-            path.join(this.config.backendPath, 'venv', 'Scripts', 'python.exe'),
-            // Unix virtual environments
-            path.join(this.config.backendPath, '.venv', 'bin', 'python'),
-            path.join(this.config.backendPath, 'venv', 'bin', 'python'),
-        ];
+        // Search other system Python candidates
+        const candidates: string[] = [];
 
         // Add common Windows Python installation paths
         if (process.platform === 'win32') {

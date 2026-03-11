@@ -24,17 +24,24 @@ const prod = (process.argv[2] === 'production');
 //
 // CI-safe: 在 GitHub Actions 中 vault 路径不存在，
 // 通过 VAULT_PLUGIN_DIR 环境变量或 CI 检测自动回退到本地输出
-const defaultVaultDir = path.join(__dirname, '..', '..', '笔记库', '.obsidian', 'plugins', 'canvas-review-system');
-const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
-const vaultPluginDir = process.env.VAULT_PLUGIN_DIR || defaultVaultDir;
+//
+// Vault 路径候选列表（按优先级），第一个存在的会被使用
+import { homedir } from "os";
+const vaultCandidates = [
+  process.env.VAULT_PLUGIN_DIR,
+  path.join(homedir(), 'Desktop', 'spring course 2026', 'CS188', '.obsidian', 'plugins', 'canvas-review-system'),
+  path.join(__dirname, '..', '..', '笔记库', '.obsidian', 'plugins', 'canvas-review-system'),
+].filter(Boolean);
 
-const vaultExists = fs.existsSync(vaultPluginDir);
-const outfile = vaultExists
+const isCI = process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true';
+const vaultPluginDir = vaultCandidates.find(d => fs.existsSync(d));
+
+const outfile = vaultPluginDir
   ? path.join(vaultPluginDir, 'main.js')
   : path.join(__dirname, 'main.js');
 
-if (!vaultExists && !isCI) {
-  console.warn(`\n⚠️  Vault path not found: ${vaultPluginDir}`);
+if (!vaultPluginDir && !isCI) {
+  console.warn(`\n⚠️  No vault path found. Tried:\n${vaultCandidates.map(d => `    - ${d}`).join('\n')}`);
   console.warn(`    Output will go to: ${outfile}`);
   console.warn(`    Run 'npm run deploy:sync' after vault is available.\n`);
 }

@@ -21,6 +21,8 @@ import {
     CanvasTextNode,
     CanvasPresetColor,
     isTextNode,
+    isFileNode,
+    getNodeContent,
 } from '../types/canvas';
 import { ApiClient } from '../api/ApiClient';
 import { safeJSONParse, formatCanvasJSON } from '../utils/canvas-helpers';
@@ -43,6 +45,8 @@ export interface ScoringCheckResult {
     questionNodeId?: string;
     /** Question node color */
     questionNodeColor?: CanvasNodeColor;
+    /** Source material content (text or ![[image]] embed for file nodes) */
+    sourceContent?: string;
     /** Reason for the result */
     reason: string;
 }
@@ -249,7 +253,7 @@ export class ScoringCheckpointService {
 
         let scoringResult: ScoringResult;
         try {
-            scoringResult = await this.callScoringAPI(context, checkResult.yellowContent || '');
+            scoringResult = await this.callScoringAPI(context, checkResult.yellowContent || '', checkResult.sourceContent);
         } catch (error) {
             console.error('[Story 2.8] Scoring failed:', error);
             new Notice('自动评分失败，继续执行原操作');
@@ -404,6 +408,12 @@ export class ScoringCheckpointService {
             color: sourceNode.color,
         } : 'not found');
 
+        // Extract source material content (handles text + file/image nodes)
+        const sourceContent = sourceNode ? getNodeContent(sourceNode) : undefined;
+        if (sourceContent) {
+            console.log(`[Story 2.8 DEBUG] Source content (${sourceNode!.type}): ${sourceContent.substring(0, 80)}...`);
+        }
+
         // 所有检查通过 - 需要评分
         return {
             needsScoring: true,
@@ -411,6 +421,7 @@ export class ScoringCheckpointService {
             questionNodeColor: sourceNode?.color as CanvasNodeColor,
             yellowNodeId: targetNode.id,  // 黄色节点ID (即用户点击的节点)
             yellowContent: content,       // 黄色节点内容 (用户的理解)
+            sourceContent,                // 源材料内容 (可能含 ![[image.png]] 引用)
             reason: '检测到已填写的个人理解，需要评分',
         };
     }
@@ -537,18 +548,25 @@ export class ScoringCheckpointService {
      * @param yellowContent - Yellow node content to score
      * @returns Scoring result
      */
-    async callScoringAPI(context: MenuContext, yellowContent: string): Promise<ScoringResult> {
+    async callScoringAPI(context: MenuContext, yellowContent: string, sourceContent?: string): Promise<ScoringResult> {
         const canvasName = this.extractCanvasFileName(context.filePath);
 
-        console.log(`[Story 2.8] Calling scoring API with content (${yellowContent.length} chars)`);
+        // Combine student understanding + source material (may contain ![[image.png]] refs)
+        let combinedContent = yellowContent;
+        if (sourceContent) {
+            combinedContent = `${yellowContent}\n\n---\n[Source Material / 题目原文]\n${sourceContent}`;
+            console.log(`[Story 2.8] Scoring with source material (${sourceContent.length} chars, type=${sourceContent.startsWith('![[') ? 'embed' : 'text'})`);
+        }
+
+        console.log(`[Story 2.8] Calling scoring API with content (${combinedContent.length} chars)`);
 
         // ✅ Verified from ApiClient.scoreUnderstanding (Story 13.3)
-        // ✅ Story 2.8: Pass yellowContent as node_content for real-time scoring
+        // ✅ Story 2.8: Pass combined content as node_content for real-time scoring
         // API returns 0-10 per dimension, 0-40 total. We scale to 0-25 per dimension, 0-100 total.
         const response = await this.apiClient.scoreUnderstanding({
             canvas_name: canvasName,
             node_ids: context.nodeId ? [context.nodeId] : [],
-            node_content: yellowContent,  // Story 2.8: Pass actual yellow node content
+            node_content: combinedContent,  // Student understanding + source material (with image refs)
         });
 
         // Parse response

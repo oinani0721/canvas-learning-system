@@ -163,8 +163,15 @@ def main():
     }
 
     if use_reload:
-        # Watch .py files (default) + .env for config changes
-        uvicorn_kwargs["reload_includes"] = ["*.py", ".env"]
+        # Watch all relevant directories (not just backend/)
+        project_root = str(backend_dir.parent)
+        uvicorn_kwargs["reload_dirs"] = [
+            str(backend_dir),                          # backend/app/**/*.py
+            str(backend_dir.parent / "src"),            # src/ (agentic_rag, ebbinghaus, etc.)
+            str(backend_dir.parent / ".claude" / "agents"),  # agent prompt templates
+        ]
+        # Watch .py + .env + .md (agent templates)
+        uvicorn_kwargs["reload_includes"] = ["*.py", ".env", "*.md"]
 
     # Run the server
     uvicorn.run("app.main:app", **uvicorn_kwargs)

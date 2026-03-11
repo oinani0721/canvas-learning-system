@@ -896,18 +896,29 @@ export class ContextMenuManager {
       }
 
       if (filePath) {
-        const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
-        if (abstractFile instanceof TFile) {
-          try {
-            // Use cachedRead for better performance
-            nodeContent = await this.app.vault.cachedRead(abstractFile);
-          } catch (error) {
-            console.error(`[Story 12.F.3] Failed to read FILE node: ${filePath}`, error);
-            nodeContent = undefined;
-          }
+        // Check if file is an image/binary — don't read binary, use embed syntax instead
+        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
+        const lowerPath = filePath.toLowerCase();
+        const isImage = IMAGE_EXTS.some(ext => lowerPath.endsWith(ext));
+
+        if (isImage) {
+          // Image file: use ![[embed]] syntax so backend MarkdownImageExtractor can resolve it
+          nodeContent = `![[${filePath}]]`;
+          console.log(`[Story 12.F.3] Image file node: using embed syntax for ${filePath}`);
         } else {
-          console.warn(`[Story 12.F.3] File not found in vault: ${filePath}`);
-          nodeContent = undefined;
+          const abstractFile = this.app.vault.getAbstractFileByPath(filePath);
+          if (abstractFile instanceof TFile) {
+            try {
+              // Use cachedRead for text files (md, pdf, etc.)
+              nodeContent = await this.app.vault.cachedRead(abstractFile);
+            } catch (error) {
+              console.error(`[Story 12.F.3] Failed to read FILE node: ${filePath}`, error);
+              nodeContent = `![[${filePath}]]`;  // Fallback to embed syntax
+            }
+          } else {
+            console.warn(`[Story 12.F.3] File not found in vault: ${filePath}`);
+            nodeContent = `![[${filePath}]]`;  // Fallback to embed syntax
+          }
         }
       }
     } else if (nodeInfo.nodeData?.text !== undefined) {

@@ -545,6 +545,93 @@ async def vault_index_status():
         return {"indexed": False, "message": str(e)}
 
 
+@metadata_router.post(
+    "/index/vault/incremental",
+    summary="Incrementally index specific .md files to LanceDB",
+    operation_id="index_vault_incremental",
+)
+async def index_vault_incremental(
+    request: dict,
+    settings: SettingsDep,
+):
+    """
+    Incrementally index a list of .md files into the existing vault_notes table.
+
+    Much faster than full rebuild — only processes the specified files.
+    Designed to be called by the Obsidian plugin when files are modified.
+
+    Request body: { "file_paths": ["path/to/note.md", ...] }
+    file_paths are relative to the vault root.
+    """
+    start_time = time.perf_counter()
+    file_paths = request.get("file_paths", [])
+
+    if not file_paths:
+        return {
+            "success": False,
+            "message": "No file_paths provided",
+            "chunks_indexed": 0,
+            "files_processed": 0,
+            "duration_ms": 0,
+        }
+
+    try:
+        lancedb_client = get_lancedb_client()
+        if lancedb_client is None:
+            return {
+                "success": False,
+                "message": "LanceDB client not available",
+                "chunks_indexed": 0,
+                "files_processed": 0,
+                "duration_ms": 0,
+            }
+
+        if not lancedb_client._initialized:
+            await lancedb_client.initialize()
+
+        vault_path = settings.canvas_base_path
+        total_chunks = 0
+        files_ok = 0
+
+        for rel_path in file_paths:
+            import os
+            abs_path = os.path.join(vault_path, rel_path)
+            if not os.path.isfile(abs_path):
+                logger.warning(f"Incremental index: file not found: {abs_path}")
+                continue
+            count = await lancedb_client.index_single_file(
+                file_path=abs_path,
+                table_name="vault_notes",
+            )
+            total_chunks += count
+            files_ok += 1
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+        logger.info(
+            f"Incremental vault index: {files_ok}/{len(file_paths)} files, "
+            f"{total_chunks} chunks, {duration_ms:.2f}ms"
+        )
+
+        return {
+            "success": True,
+            "chunks_indexed": total_chunks,
+            "files_processed": files_ok,
+            "files_requested": len(file_paths),
+            "duration_ms": round(duration_ms, 2),
+            "message": f"Indexed {total_chunks} chunks from {files_ok} files",
+        }
+
+    except Exception as e:
+        logger.error(f"Incremental vault indexing failed: {e}")
+        return {
+            "success": False,
+            "chunks_indexed": 0,
+            "files_processed": 0,
+            "duration_ms": (time.perf_counter() - start_time) * 1000,
+            "message": str(e),
+        }
+
+
 # =============================================================================
 # Subject Mapping Configuration Endpoints
 # =============================================================================

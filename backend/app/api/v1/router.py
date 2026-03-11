@@ -28,6 +28,7 @@ from app.api.v1.endpoints.multimodal import multimodal_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.mastery import mastery_router
 from app.api.v1.endpoints.textbook import textbook_router
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
@@ -250,5 +251,19 @@ router.include_router(
     responses={
         404: {"description": "Node or canvas not found"},
         500: {"description": "Agent execution error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Mastery Proficiency Routes (BKT + FSRS Hybrid)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    mastery_router,
+    tags=["Mastery"],
+    responses={
+        400: {"description": "Invalid grade or level"},
+        404: {"description": "Concept not found"},
+        500: {"description": "Mastery engine error"}
     }
 )

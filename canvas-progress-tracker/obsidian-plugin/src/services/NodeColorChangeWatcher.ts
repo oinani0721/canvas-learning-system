@@ -559,6 +559,9 @@ export class NodeColorChangeWatcher {
                     ),
                 ]);
                 this.log(`Flushed chunk ${Math.floor(i / BATCH_SIZE) + 1} (${chunk.length} events) to memory API`);
+
+                // Mastery self-assess: send color changes as implicit self-assessment signals
+                this.postMasterySelfAssess(chunk);
             } catch (error) {
                 // Silent degradation - log but don't throw
                 // [Source: ADR-0004 - 失败时静默降级，记录错误日志]
@@ -609,6 +612,47 @@ export class NodeColorChangeWatcher {
             return new RegExp(`^${regexStr}$`, 'i').test(path);
         } catch {
             return false;
+        }
+    }
+
+    // ========================================================================
+    // Private Methods - Mastery Self-Assessment Integration
+    // ========================================================================
+
+    /**
+     * Send color changes to mastery self-assess API (fire-and-forget).
+     * Uses nodeId (Canvas UUID) as concept_id to align with score_node().
+     * Triggers 'mastery-updated' workspace event for Dashboard auto-refresh.
+     */
+    private async postMasterySelfAssess(events: ColorChangeEvent[]): Promise<void> {
+        let anySuccess = false;
+        for (const event of events) {
+            if (event.eventType !== 'color_changed' || !event.newColor) {
+                continue;
+            }
+            // Use nodeId (Canvas UUID) as concept_id — matches score_node() in agent_service.py
+            const conceptId = event.nodeId;
+            if (!conceptId) continue;
+
+            // Extract display name from node text (first line, max 50 chars)
+            const name = (event.nodeText || '').split('\n')[0].replace(/^#+\s*/, '').substring(0, 50).trim();
+
+            try {
+                await requestUrl({
+                    url: `${this.settings.apiBaseUrl}/mastery/${encodeURIComponent(conceptId)}/self-assess`,
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ color: event.newColor, name }),
+                });
+                this.log(`Mastery self-assess: ${conceptId} (${name}) -> color ${event.newColor}`);
+                anySuccess = true;
+            } catch {
+                // Silent degradation - mastery self-assess is non-critical
+            }
+        }
+        // Trigger Dashboard auto-refresh after batch completes
+        if (anySuccess) {
+            this.app.workspace.trigger('mastery-updated' as any);
         }
     }
 

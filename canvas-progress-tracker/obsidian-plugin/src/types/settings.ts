@@ -101,6 +101,14 @@ export interface PluginSettings {
      */
     logLevel: 'none' | 'error' | 'warn' | 'info' | 'debug';
 
+    /**
+     * Backend directory path (absolute)
+     * Used by BackendProcessManager to auto-start the backend server.
+     * Leave empty to skip auto-start (connect to manually started backend instead).
+     * @default ''
+     */
+    backendPath: string;
+
     // ========== Storage Settings ==========
     /**
      * Canvas learning system data storage path
@@ -446,6 +454,8 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     retryCount: 3,
     enableCache: true,
     logLevel: 'info',
+
+    backendPath: '',
 
     // Storage Settings
     dataPath: '',

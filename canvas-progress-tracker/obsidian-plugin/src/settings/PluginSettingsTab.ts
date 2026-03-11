@@ -212,6 +212,7 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         // Backend Status Display
         const backendManager = this.plugin.backendManager;
         const currentStatus = backendManager?.getStatus() || 'stopped';
+        const hasBackendManager = !!backendManager;
         const statusEmoji: Record<string, string> = {
             'stopped': '⏹️',
             'starting': '⏳',
@@ -232,20 +233,22 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
         const urlMatch = apiUrl.match(/:(\d+)/);
         const port = urlMatch ? urlMatch[1] : '8000';
 
+        const statusDesc = hasBackendManager
+            ? `${statusEmoji[currentStatus]} ${statusText[currentStatus]} (端口: ${port})`
+            : `⏹️ 已停止 (端口: ${port}) — 后端目录未配置，请手动启动后端或在上方设置后端目录路径`;
+
         new Setting(container)
             .setName('服务状态')
-            .setDesc(`${statusEmoji[currentStatus]} ${statusText[currentStatus]} (端口: ${port})`)
+            .setDesc(statusDesc)
             .addButton(button => {
                 const isRunning = currentStatus === 'running';
                 button
                     .setButtonText(isRunning ? '停止' : '启动')
                     .setIcon(isRunning ? 'square' : 'play')
                     .setCta()
+                    .setDisabled(!hasBackendManager)
                     .onClick(async () => {
-                        if (!backendManager) {
-                            new Notice('后端管理器未初始化');
-                            return;
-                        }
+                        if (!backendManager) return;
                         button.setDisabled(true);
                         button.setButtonText(isRunning ? '停止中...' : '启动中...');
                         try {
@@ -266,11 +269,9 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             .addButton(button => button
                 .setButtonText('重启')
                 .setIcon('refresh-cw')
+                .setDisabled(!hasBackendManager)
                 .onClick(async () => {
-                    if (!backendManager) {
-                        new Notice('后端管理器未初始化');
-                        return;
-                    }
+                    if (!backendManager) return;
                     button.setDisabled(true);
                     button.setButtonText('重启中...');
                     try {
@@ -292,11 +293,9 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
             .addButton(button => button
                 .setButtonText('查看日志')
                 .setIcon('file-text')
+                .setDisabled(!hasBackendManager)
                 .onClick(() => {
-                    if (!backendManager) {
-                        new Notice('后端管理器未初始化');
-                        return;
-                    }
+                    if (!backendManager) return;
                     const logs = backendManager.getOutputLog();
                     if (logs.length === 0) {
                         new Notice('暂无日志');
@@ -320,6 +319,18 @@ export class CanvasReviewSettingsTab extends PluginSettingTab {
                 .setValue(settings.claudeCodeUrl)
                 .onChange(async (value) => {
                     settings.claudeCodeUrl = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Backend Path
+        new Setting(container)
+            .setName('后端目录路径')
+            .setDesc('后端服务目录的绝对路径（用于自动启动）。留空则跳过自动启动，需手动启动后端。')
+            .addText(text => text
+                .setPlaceholder('C:\\path\\to\\backend')
+                .setValue(settings.backendPath || '')
+                .onChange(async (value) => {
+                    settings.backendPath = value;
                     await this.plugin.saveSettings();
                 }));
 

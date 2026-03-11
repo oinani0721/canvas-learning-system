@@ -17,7 +17,12 @@ import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncGenerator
+
+# Load .env BEFORE any other app imports so os.getenv() works everywhere
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / ".env")
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: FastAPI CORSMiddleware)
 from fastapi import FastAPI, Request, WebSocket

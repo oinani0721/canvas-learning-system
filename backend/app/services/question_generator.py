@@ -58,7 +58,8 @@ class QuestionGenerator:
     def generate_questions(
         self,
         node: Dict,
-        question_type: Optional[QuestionType] = None
+        question_type: Optional[QuestionType] = None,
+        effective_proficiency: Optional[float] = None,
     ) -> List[str]:
         """
         Generate 1-2 verification questions for a single node.
@@ -66,6 +67,7 @@ class QuestionGenerator:
         Args:
             node: Canvas node dict with 'text' and 'color' fields
             question_type: Optional override for question type
+            effective_proficiency: Optional mastery proficiency (0.0-1.0), overrides color-based heuristic
 
         Returns:
             List of 1-2 question strings
@@ -84,10 +86,17 @@ class QuestionGenerator:
         # Extract core concept from content
         concept = self._extract_concept(content)
 
-        # Determine question type based on color if not specified
-        # Color codes (Obsidian Canvas actual): "4"=red, "3"=purple, "2"=green, "6"=yellow
+        # Determine question type: mastery proficiency (preferred) > color (fallback)
         if question_type is None:
-            if color == "4":  # Red - not understood (修复: 4才是红色)
+            if effective_proficiency is not None:
+                # Mastery-aware: use proficiency thresholds
+                if effective_proficiency < 0.40:
+                    question_type = "breakthrough"  # Shaky
+                elif effective_proficiency < 0.70:
+                    question_type = "verification"  # Developing
+                else:
+                    question_type = "application"   # Proficient/Mastered
+            elif color == "4":  # Red - not understood
                 question_type = "breakthrough"
             elif color == "3":  # Purple - partial understanding
                 question_type = "verification"

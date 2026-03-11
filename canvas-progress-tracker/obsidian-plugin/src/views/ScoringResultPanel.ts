@@ -658,6 +658,7 @@ export class ScoringResultPanel extends Modal {
                     await this.apiClient.decomposeBasic({
                         canvas_name: result.canvasName,
                         node_id: result.nodeId,
+                        node_content: result.nodeText,
                     });
                     new Notice('✅ 基础拆解完成，已添加到Canvas');
                     break;
@@ -666,6 +667,7 @@ export class ScoringResultPanel extends Modal {
                     await this.apiClient.explainOral({
                         canvas_name: result.canvasName,
                         node_id: result.nodeId,
+                        node_content: result.nodeText,
                     });
                     new Notice('✅ 口语化解释完成，已添加到Canvas');
                     break;
@@ -674,6 +676,7 @@ export class ScoringResultPanel extends Modal {
                     await this.apiClient.explainClarification({
                         canvas_name: result.canvasName,
                         node_id: result.nodeId,
+                        node_content: result.nodeText,
                     });
                     new Notice('✅ 澄清路径完成，已添加到Canvas');
                     break;
@@ -682,6 +685,7 @@ export class ScoringResultPanel extends Modal {
                     await this.apiClient.explainMemory({
                         canvas_name: result.canvasName,
                         node_id: result.nodeId,
+                        node_content: result.nodeText,
                     });
                     new Notice('✅ 记忆锚点完成，已添加到Canvas');
                     break;

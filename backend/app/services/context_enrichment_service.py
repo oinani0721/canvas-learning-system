@@ -74,7 +74,17 @@ def get_node_content(node: dict, vault_path: str) -> str:
             struct_logger.warning("file_node_missing_path", node_id=node_id)
             return ""
 
-        # Construct absolute path
+        # Check if file is a binary/image file — return embed syntax instead of reading
+        IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'}
+        file_ext = Path(file_path).suffix.lower()
+        if file_ext in IMAGE_EXTENSIONS:
+            struct_logger.debug(
+                "image_file_node_embed", node_id=node_id, file_path=file_path
+            )
+            subpath = node.get("subpath", "")
+            return f"![[{file_path}{subpath}]]"
+
+        # Construct absolute path for text-based files (md, pdf, etc.)
         # [Source: ADR-001 - file paths are relative to vault root]
         abs_path = Path(vault_path) / file_path
         struct_logger.debug(
@@ -114,6 +124,136 @@ def get_node_content(node: dict, vault_path: str) -> str:
             "unknown_node_type", node_id=node_id, node_type=node_type
         )
         return ""
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round 4 Step 1: Wikilink extraction and resolution
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_WIKILINK_PATTERN = re.compile(r'!?\[\[([^\]]+)\]\]')
+_IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp', '.mp4', '.mp3', '.wav', '.pdf'}
+_WIKILINK_EXCLUDED_PATTERNS = ("-explanations/", "/chunks/", "解释-", "四层次解释-")
+
+
+def _extract_heading_section(content: str, heading: str, max_length: int = 500) -> str:
+    """Extract a section under a specific heading from markdown content."""
+    lines = content.splitlines()
+    capture = False
+    captured = []
+    heading_lower = heading.lower().strip()
+
+    for line in lines:
+        h_match = re.match(r'^(#{1,6})\s+(.+)', line)
+        if h_match:
+            h_text = h_match.group(2).strip().lower()
+            if h_text == heading_lower:
+                capture = True
+                continue
+            elif capture:
+                # Hit next heading at same or higher level — stop
+                break
+        if capture:
+            captured.append(line)
+
+    result = "\n".join(captured).strip()
+    if len(result) > max_length:
+        result = result[:max_length] + "..."
+    return result
+
+
+def extract_and_resolve_wikilinks(
+    text: str,
+    vault_path: str,
+    max_links: int = 5,
+    max_content_length: int = 500,
+) -> List[Dict[str, Any]]:
+    """Extract [[wikilinks]] from text and resolve their content.
+
+    Parses NoteName#Heading|DisplayText format, reads resolved files,
+    and extracts heading sections when specified.
+
+    Args:
+        text: Source text containing wikilinks
+        vault_path: Absolute path to Obsidian vault root
+        max_links: Maximum number of links to resolve
+        max_content_length: Max characters per resolved content
+
+    Returns:
+        List of dicts with keys: link, file_path, heading, content, resolved
+    """
+    vault = Path(vault_path)
+    results: List[Dict[str, Any]] = []
+    seen_links: Set[str] = set()
+
+    for match in _WIKILINK_PATTERN.finditer(text):
+        if len(results) >= max_links:
+            break
+
+        full_match = match.group(0)
+        # Skip embeds of images/media
+        if full_match.startswith("!"):
+            inner = match.group(1)
+            ext = Path(inner.split("#")[0].split("|")[0].strip()).suffix.lower()
+            if ext in _IMAGE_EXTENSIONS:
+                continue
+
+        inner = match.group(1)
+        # Parse: NoteName#Heading|DisplayText
+        display = None
+        if "|" in inner:
+            inner, display = inner.rsplit("|", 1)
+        heading = None
+        if "#" in inner:
+            file_ref, heading = inner.split("#", 1)
+        else:
+            file_ref = inner
+
+        file_ref = file_ref.strip()
+        if not file_ref:
+            continue
+
+        # Deduplicate
+        link_key = f"{file_ref}#{heading}" if heading else file_ref
+        if link_key in seen_links:
+            continue
+        seen_links.add(link_key)
+
+        # Filter excluded patterns
+        if any(p in file_ref for p in _WIKILINK_EXCLUDED_PATTERNS):
+            continue
+
+        # Resolve file path (try as-is, then with .md suffix)
+        resolved_path = None
+        for candidate in [vault / file_ref, vault / f"{file_ref}.md"]:
+            if candidate.exists() and candidate.is_file():
+                resolved_path = candidate
+                break
+
+        entry: Dict[str, Any] = {
+            "link": full_match,
+            "file_path": file_ref,
+            "heading": heading,
+            "content": "",
+            "resolved": False,
+        }
+
+        if resolved_path:
+            try:
+                file_content = resolved_path.read_text(encoding="utf-8")
+                if heading:
+                    section = _extract_heading_section(file_content, heading, max_content_length)
+                    entry["content"] = section if section else file_content[:max_content_length]
+                else:
+                    entry["content"] = file_content[:max_content_length]
+                    if len(file_content) > max_content_length:
+                        entry["content"] += "..."
+                entry["resolved"] = True
+            except Exception as e:
+                logger.debug(f"Wikilink resolution failed for {file_ref}: {e}")
+
+        results.append(entry)
+
+    return results
 
 
 @dataclass
@@ -194,6 +334,10 @@ class EnrichedContext:
     # Story 12.A.3: Graphiti relations
     graphiti_relations: Optional[List[Dict]] = None
     has_graphiti_refs: bool = False
+
+    # Round 4 Step 2: Wikilink references from target node text
+    wikilink_context: Optional[str] = None
+    has_wikilink_refs: bool = False
 
     # Story 12.E.5-fix: Source file path for file type nodes
     # When target node is a "file" type, this stores the absolute path to the MD file
@@ -873,12 +1017,36 @@ class ContextEnrichmentService:
         if graphiti_context_str:
             enriched_context = f"{enriched_context}\n\n{graphiti_context_str}"
 
+        # 11. Round 4 Step 2: Resolve wikilinks in target node text
+        wikilink_context_str = None
+        has_wikilink_refs = False
+        if target_content and vault_path:
+            try:
+                wikilink_results = extract_and_resolve_wikilinks(
+                    target_content, vault_path
+                )
+                resolved = [w for w in wikilink_results if w["resolved"]]
+                if resolved:
+                    has_wikilink_refs = True
+                    parts = ["--- 引用内容 (Wikilink References) ---"]
+                    for w in resolved:
+                        htag = f"#{w['heading']}" if w.get("heading") else ""
+                        parts.append(f"[wikilink|{w['file_path']}{htag}] {w['content']}")
+                    wikilink_context_str = "\n\n".join(parts)
+                    enriched_context = f"{enriched_context}\n\n{wikilink_context_str}"
+                    logger.debug(
+                        f"Resolved {len(resolved)} wikilinks from target node {node_id}"
+                    )
+            except Exception as e:
+                logger.warning(f"Wikilink resolution failed for {node_id}: {e}")
+
         logger.debug(
             f"Enriched context for {node_id}: "
             f"{len(adjacent_nodes)} adjacent nodes found, "
             f"textbook_refs={has_textbook_refs}, "
             f"cross_canvas_refs={has_cross_canvas_refs}, "
             f"graphiti_refs={has_graphiti_refs}, "
+            f"wikilink_refs={has_wikilink_refs}, "
             f"incoming={len(incoming_edges)}, outgoing={len(outgoing_edges)}, "
             f"siblings={len(sibling_nodes_list)}"
         )
@@ -912,6 +1080,9 @@ class ContextEnrichmentService:
             # Story 12.A.3: Graphiti relations
             graphiti_relations=graphiti_relations_list,
             has_graphiti_refs=has_graphiti_refs,
+            # Round 4 Step 2: Wikilink references
+            wikilink_context=wikilink_context_str,
+            has_wikilink_refs=has_wikilink_refs,
         )
 
     def _find_adjacent_nodes(

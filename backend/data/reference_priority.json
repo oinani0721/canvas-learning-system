@@ -1,0 +1,14 @@
+{
+  "_comment": "引用优先级配置 — 权重越高越优先显示。修改后重启后端生效。",
+  "source_priorities": [
+    {"pattern": "videos/lectures/**",        "weight": 1.5, "label": "讲义笔记"},
+    {"pattern": "videos/discussions/**",     "weight": 1.4, "label": "讨论笔记"},
+    {"pattern": "videos/exam_prep/**",       "weight": 1.3, "label": "EP笔记"},
+    {"pattern": "videos/review_sessions/**", "weight": 1.2, "label": "RS笔记"},
+    {"pattern": "past_exams/**",             "weight": 1.1, "label": "真题"},
+    {"pattern": "lectures/**",               "weight": 1.1, "label": "讲义PDF"},
+    {"pattern": "discussions/**",            "weight": 1.1, "label": "讨论PDF"},
+    {"pattern": "*-explanations/**",         "weight": 0.5, "label": "AI生成解释"}
+  ],
+  "max_references": 5
+}

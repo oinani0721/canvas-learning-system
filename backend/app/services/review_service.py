@@ -548,18 +548,51 @@ class ReviewService:
         )
 
         # Get all eligible concepts from canvas
+        # Mastery-aware: color filter kept as fallback; mastery engine provides
+        # more nuanced filtering via effective_proficiency < 0.70
         if include_colors is None:
-            include_colors = ["3", "4"]  # Default: purple and red
+            include_colors = ["3", "4"]  # Default fallback: purple and red
 
         # Load canvas data to get nodes
         canvas_data = await self.canvas_service.get_canvas(source_canvas_name)
         all_nodes = canvas_data.get("nodes", [])
 
-        # Filter by colors
+        # Filter by colors (baseline)
         eligible_nodes = [
             node for node in all_nodes
             if node.get("type") == "text" and node.get("color") in include_colors
         ]
+
+        # === Mastery enrichment (Phase 1.5) ===
+        # Expand eligible_nodes with mastery-weak concepts not caught by color filter
+        mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
+        try:
+            from app.services.mastery_engine import MasteryEngine, load_mastery_config
+            from app.services.mastery_store import MasteryStore
+            from app.clients.neo4j_client import get_neo4j_client
+
+            m_engine = MasteryEngine(load_mastery_config())
+            m_store = MasteryStore(get_neo4j_client())
+            all_mastery = await m_store.get_all_concepts(group_id="cs188")
+            review_candidates = m_engine.get_review_candidates(all_mastery)
+
+            # Build name -> proficiency lookup for question_generator
+            mastery_lookup = {c.name: m_engine.effective_proficiency(c) for c in all_mastery}
+
+            # Add mastery-weak concepts that aren't already in eligible_nodes
+            eligible_ids = {n.get("id") for n in eligible_nodes}
+            candidate_names = {c.name for c in review_candidates}
+            for node in all_nodes:
+                if (node.get("type") == "text"
+                        and node.get("id") not in eligible_ids
+                        and (node.get("text", "")[:50].strip() in candidate_names)):
+                    eligible_nodes.append(node)
+                    eligible_ids.add(node.get("id"))
+
+            logger.info(f"Mastery enrichment: {len(review_candidates)} weak concepts, "
+                        f"{len(eligible_nodes)} total eligible after enrichment")
+        except Exception as e:
+            logger.debug(f"Mastery enrichment skipped (non-blocking): {e}")
 
         weak_concepts_data = []
         weight_config = {"weak_weight": weak_weight, "mastered_weight": mastered_weight, "applied": False}

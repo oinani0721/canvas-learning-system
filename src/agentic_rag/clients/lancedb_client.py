@@ -125,7 +125,7 @@ class LanceDBClient:
         self,
         db_path: str = "data/lancedb",  # ✅ Story 38.1 Fix: 从 backend/ 目录运行时路径正确
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
-        embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2",
+        embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         timeout_ms: int = 400,
         batch_size: int = 100,
         enable_fallback: bool = True
@@ -499,6 +499,7 @@ class LanceDBClient:
                 "line_end": chunk.get("line_end"),
                 "source": "vault_note",
                 "subject": subject,
+                "source_type": "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note",
             }
 
             # Add timestamp info for video transcripts
@@ -526,10 +527,9 @@ class LanceDBClient:
 
         # 写入 LanceDB（先清空旧表再写入，实现全量更新）
         try:
-            if table_name in self._tables_cache:
-                # 删除旧表，重新创建
-                self._db.drop_table(table_name, ignore_missing=True)
-                del self._tables_cache[table_name]
+            # Always drop — cache may not have it but disk does
+            self._db.drop_table(table_name, ignore_missing=True)
+            self._tables_cache.pop(table_name, None)
         except Exception:
             pass
 
@@ -557,20 +557,25 @@ class LanceDBClient:
         self,
         file_path: str,
         table_name: str = "vault_notes",
+        subject: str = "",
     ) -> int:
         """
         Index a single .md file into an existing table (incremental append).
 
-        Much faster than full index_vault_notes() for newly created files.
+        Generates vectors and uses the full vault_notes schema so documents
+        are discoverable by vector search and schema-compatible with the table.
 
         Args:
             file_path: Absolute path to the .md file
             table_name: Target table name
+            subject: Optional subject tag
 
         Returns:
             Number of chunks indexed
         """
+        import hashlib
         import os
+
         if not os.path.isfile(file_path):
             if LOGURU_ENABLED:
                 logger.warning(f"File not found for indexing: {file_path}")
@@ -593,17 +598,62 @@ class LanceDBClient:
         if not chunks:
             return 0
 
+        # Initialize vectorizer for embedding generation
+        await self._init_vectorizer()
+        if not self._vectorizer:
+            if LOGURU_ENABLED:
+                logger.error("Vectorizer not available, cannot index single file")
+            return 0
+
+        # Batch vectorize all chunks
+        texts = [c["content"] for c in chunks]
+        vectorized = await self._vectorizer.batch_vectorize(texts)
+
+        if len(vectorized) != len(chunks):
+            if LOGURU_ENABLED:
+                logger.error(f"Vectorization mismatch: {len(chunks)} chunks vs {len(vectorized)} vectors")
+            return 0
+
+        # Build documents with full schema (matching index_vault_notes)
         documents = []
-        for chunk in chunks:
+        for chunk, vec_result in zip(chunks, vectorized):
+            if not vec_result.vector:
+                continue
+
+            chunk_id = hashlib.md5(
+                f"{chunk['file_path']}:{chunk.get('heading', '')}:{chunk['content'][:100]}".encode()
+            ).hexdigest()
+
+            metadata = {
+                "file_path": chunk.get("file_path", rel_path),
+                "heading": chunk.get("heading", ""),
+                "line_start": chunk.get("line_start", 0),
+                "line_end": chunk.get("line_end", 0),
+                "source": "vault_note",
+                "subject": subject,
+                "source_type": "video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note",
+            }
+
+            # Add timestamp info for video transcripts
+            if LanceDBClient._is_video_transcript(file_path):
+                ts_info = LanceDBClient._extract_timestamps_from_section(
+                    chunk.get("heading", ""), chunk["content"]
+                )
+                metadata.update(ts_info)
+
             doc = {
-                "doc_id": f"{rel_path}:{chunk.get('heading', '')}",
+                "doc_id": f"vault_{chunk_id}",
                 "content": chunk["content"],
-                "metadata_json": json.dumps({
-                    "file_path": chunk.get("file_path", rel_path),
-                    "heading": chunk.get("heading", ""),
-                    "line_start": chunk.get("line_start", 0),
-                    "line_end": chunk.get("line_end", 0),
-                }, ensure_ascii=False),
+                "vector": vec_result.vector,
+                "canvas_file": chunk.get("file_path", rel_path),
+                "node_id": "",
+                "node_type": "vault_note",
+                "color": "",
+                "x": 0,
+                "y": 0,
+                "subject": subject or "",
+                "timestamp": datetime.now().isoformat(),
+                "metadata_json": json.dumps(metadata, ensure_ascii=False),
             }
             documents.append(doc)
 
@@ -872,30 +922,48 @@ class LanceDBClient:
                 logger.debug(f"Table {table_name} not found: {e}")
             return []
 
-        # Hybrid search: vector + FTS with RRF fusion
+        # Hybrid search: manual vector + FTS with RRF fusion
+        # We can't use table.search(query, query_type="hybrid") because the table
+        # has no registered embedding function (vectors are pre-computed externally).
+        # Instead, we manually run both searches and fuse with RRF.
         if query_type == "hybrid" and isinstance(query, str):
+            query_vector = await self._get_query_vector(query)
+
+            vector_results = []
+            fts_results = []
+
+            # Vector search branch
+            if query_vector is not None:
+                try:
+                    vq = table.search(query_vector).limit(num_results * 2)
+                    if canvas_file:
+                        vq = vq.where(f"canvas_file = '{canvas_file}'")
+                    if subject:
+                        vq = vq.where(f"subject = '{subject}'")
+                    vector_results = vq.to_list()
+                except Exception as e:
+                    if LOGURU_ENABLED:
+                        logger.debug(f"Hybrid vector branch failed: {e}")
+
+            # FTS search branch
             try:
-                search_query = table.search(query, query_type="hybrid").limit(num_results)
-
+                fq = table.search(query, query_type="fts").limit(num_results * 2)
                 if canvas_file:
-                    search_query = search_query.where(
-                        f"canvas_file = '{canvas_file}'"
-                    )
+                    fq = fq.where(f"canvas_file = '{canvas_file}'")
                 if subject:
-                    search_query = search_query.where(
-                        f"subject = '{subject}'"
-                    )
-
-                raw_results = search_query.to_list()
-
-                return self._convert_to_search_results(
-                    raw_results,
-                    canvas_file=canvas_file
-                )
+                    fq = fq.where(f"subject = '{subject}'")
+                fts_results = fq.to_list()
             except Exception as e:
                 if LOGURU_ENABLED:
-                    logger.warning(f"Hybrid search failed, falling back to vector: {e}")
-                # Fall through to vector search
+                    logger.debug(f"Hybrid FTS branch failed: {e}")
+
+            # RRF fusion
+            if vector_results or fts_results:
+                raw_results = self._rrf_fuse(vector_results, fts_results, num_results)
+                return self._convert_to_search_results(
+                    raw_results, canvas_file=canvas_file
+                )
+            # If both branches failed, fall through to pure vector search
 
         # 获取查询向量
         query_vector = await self._get_query_vector(query)
@@ -981,6 +1049,33 @@ class LanceDBClient:
             if LOGURU_ENABLED:
                 logger.error(f"Embedding failed: {e}")
             return None
+
+    @staticmethod
+    def _rrf_fuse(
+        vector_results: List[Dict],
+        fts_results: List[Dict],
+        limit: int,
+        k: int = 60,
+    ) -> List[Dict]:
+        """Reciprocal Rank Fusion — merge vector and FTS results."""
+        scores: Dict[str, float] = {}
+        doc_map: Dict[str, Dict] = {}
+        for rank, r in enumerate(vector_results):
+            doc_id = r.get("doc_id", f"v_{rank}")
+            scores[doc_id] = scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
+            doc_map[doc_id] = r
+        for rank, r in enumerate(fts_results):
+            doc_id = r.get("doc_id", f"f_{rank}")
+            scores[doc_id] = scores.get(doc_id, 0) + 1.0 / (k + rank + 1)
+            if doc_id not in doc_map:
+                doc_map[doc_id] = r
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)[:limit]
+        results = []
+        for doc_id, score in ranked:
+            doc = doc_map[doc_id].copy()
+            doc["_distance"] = 1.0 - score  # convert to distance-like format
+            results.append(doc)
+        return results
 
     def _convert_to_search_results(
         self,
@@ -1082,16 +1177,33 @@ class LanceDBClient:
             # 准备数据
             data = []
             for doc in documents:
+                # canvas_file: check top-level first (index_vault_notes),
+                # then metadata dict (legacy callers)
+                canvas_file = (
+                    doc.get("canvas_file")
+                    or doc.get("metadata", {}).get("canvas_file", "")
+                    or ""
+                )
+
                 lance_doc = {
                     "doc_id": doc.get("doc_id"),
                     "content": doc.get("content", ""),
                     "vector": doc.get("vector") or doc.get("embedding"),
-                    "canvas_file": doc.get("metadata", {}).get("canvas_file", ""),
-                    "timestamp": datetime.now().isoformat(),
+                    "canvas_file": canvas_file,
+                    "timestamp": doc.get("timestamp") or datetime.now().isoformat(),
                 }
 
-                # 添加metadata_json
-                if "metadata" in doc:
+                # Passthrough extra fields (node_id, node_type, color, x, y, subject, etc.)
+                # so that index_vault_notes / index_single_file schema is preserved
+                for key in ("node_id", "node_type", "color", "x", "y", "subject"):
+                    if key in doc:
+                        lance_doc[key] = doc[key]
+
+                # metadata_json: use top-level if present (index_vault_notes),
+                # else serialize metadata dict
+                if doc.get("metadata_json"):
+                    lance_doc["metadata_json"] = doc["metadata_json"]
+                elif "metadata" in doc:
                     import json
                     lance_doc["metadata_json"] = json.dumps(
                         doc["metadata"],

@@ -23,6 +23,7 @@ import type CanvasReviewPlugin from '../../main';
 import type {
     CanvasMetadataResponse,
     CanvasIndexStatusResponse,
+    VaultIndexStatusResponse,
 } from '../api/types';
 
 export const VIEW_TYPE_CANVAS_INFO = 'canvas-info-view';
@@ -48,6 +49,8 @@ interface CanvasInfoState {
     indexStatus: CanvasIndexStatusResponse | null;
     lastUpdated: Date | null;
     isIndexing: boolean;
+    vaultIndexStatus: VaultIndexStatusResponse | null;
+    isVaultIndexing: boolean;
 }
 
 const DEFAULT_STATE: CanvasInfoState = {
@@ -58,6 +61,8 @@ const DEFAULT_STATE: CanvasInfoState = {
     indexStatus: null,
     lastUpdated: null,
     isIndexing: false,
+    vaultIndexStatus: null,
+    isVaultIndexing: false,
 };
 
 // =========================================================================
@@ -145,10 +150,11 @@ export class CanvasInfoView extends ItemView {
                 throw new Error('API 客户端未初始化');
             }
 
-            // Fetch metadata and index status in parallel
-            const [metadata, indexStatus] = await Promise.all([
+            // Fetch metadata, canvas index status, and vault index status in parallel
+            const [metadata, indexStatus, vaultIndexStatus] = await Promise.all([
                 apiClient.getCanvasMetadata(canvasPath),
                 apiClient.getCanvasIndexStatus(canvasPath),
+                apiClient.getVaultIndexStatus().catch(() => null),
             ]);
 
             this.state = {
@@ -156,6 +162,7 @@ export class CanvasInfoView extends ItemView {
                 loading: false,
                 metadata,
                 indexStatus,
+                vaultIndexStatus,
                 lastUpdated: new Date(),
             };
         } catch (error) {
@@ -210,6 +217,41 @@ export class CanvasInfoView extends ItemView {
     }
 
     /**
+     * Trigger full vault notes re-indexing
+     */
+    async reindexVault(): Promise<void> {
+        if (this.state.isVaultIndexing) return;
+
+        this.state = { ...this.state, isVaultIndexing: true };
+        this.render();
+
+        try {
+            const apiClient = this.plugin.getApiClient();
+            if (!apiClient) {
+                throw new Error('API 客户端未初始化');
+            }
+
+            const result = await apiClient.indexVaultFull();
+
+            if (result.success) {
+                const count = result.chunk_count ?? 0;
+                new Notice(`Vault 索引成功: ${count} 个文本块`);
+                // Refresh vault index status
+                const vaultIndexStatus = await apiClient.getVaultIndexStatus().catch(() => null);
+                this.state = { ...this.state, vaultIndexStatus };
+            } else {
+                new Notice(`Vault 索引失败: ${result.message || '未知错误'}`);
+            }
+        } catch (error) {
+            console.error('[CanvasInfoView] Failed to index vault:', error);
+            new Notice(`Vault 索引失败: ${error instanceof Error ? error.message : '未知错误'}`);
+        } finally {
+            this.state = { ...this.state, isVaultIndexing: false };
+            this.render();
+        }
+    }
+
+    /**
      * Render the view
      */
     private render(): void {
@@ -258,6 +300,7 @@ export class CanvasInfoView extends ItemView {
         // Content sections
         this.renderMetadataSection();
         this.renderIndexSection();
+        this.renderVaultIndexSection();
     }
 
     /**
@@ -339,6 +382,51 @@ export class CanvasInfoView extends ItemView {
         if (indexStatus.last_indexed) {
             const date = new Date(indexStatus.last_indexed);
             this.createInfoRow(grid, '更新时间', date.toLocaleString('zh-CN'), 'clock');
+        }
+    }
+
+    /**
+     * Render vault notes index section
+     */
+    private renderVaultIndexSection(): void {
+        const section = this.contentEl.createDiv({ cls: 'canvas-info-section' });
+
+        const titleRow = section.createDiv({ cls: 'canvas-info-section-title-row' });
+        titleRow.createEl('h4', { text: '📚 Vault 笔记索引', cls: 'canvas-info-section-title' });
+
+        // Full re-index button
+        const reindexBtn = titleRow.createEl('button', {
+            cls: 'canvas-info-reindex-btn',
+            text: this.state.isVaultIndexing ? '索引中...' : '🔄 全量索引',
+        });
+        reindexBtn.disabled = this.state.isVaultIndexing;
+        reindexBtn.addEventListener('click', () => this.reindexVault());
+
+        const vaultStatus = this.state.vaultIndexStatus;
+        if (!vaultStatus) {
+            section.createDiv({ text: '无法获取 Vault 索引状态', cls: 'canvas-info-empty-text' });
+            return;
+        }
+
+        const grid = section.createDiv({ cls: 'canvas-info-grid' });
+
+        // Indexed status
+        const statusText = vaultStatus.indexed ? '✅ 已索引' : '❌ 未索引';
+        const statusClass = vaultStatus.indexed ? 'canvas-info-status-indexed' : 'canvas-info-status-not-indexed';
+        const statusRow = this.createInfoRow(grid, '状态', statusText);
+        statusRow.addClass(statusClass);
+
+        // Chunk count
+        if (vaultStatus.indexed) {
+            this.createInfoRow(grid, '文本块数', vaultStatus.chunk_count.toString(), 'hash');
+        }
+
+        // Hint text
+        if (!vaultStatus.indexed) {
+            section.createDiv({
+                text: '点击"全量索引"初始化笔记搜索。之后 .md 文件变更将自动增量索引。',
+                cls: 'canvas-info-hint-text',
+            });
         }
     }
 

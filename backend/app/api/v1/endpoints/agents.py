@@ -516,13 +516,26 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
 
     sections = []
 
-    # Group results by source type
+    # Group results by source type, splitting vault_notes by source_type (note vs video)
     source_groups: Dict[str, List[Dict[str, Any]]] = {}
     for result in rag_results:
         source = result.get("source", "unknown")
-        if source not in source_groups:
-            source_groups[source] = []
-        source_groups[source].append(result)
+        # Split vault_notes into note vs video_transcript sub-groups
+        if source == "vault_notes":
+            meta_json_str = result.get("metadata_json") or result.get("metadata", {}).get("metadata_json", "")
+            source_type = "note"
+            if meta_json_str and isinstance(meta_json_str, str):
+                try:
+                    import json as _json
+                    source_type = _json.loads(meta_json_str).get("source_type", "note")
+                except (ValueError, TypeError):
+                    pass
+            key = "vault_notes_video" if source_type == "video_transcript" else "vault_notes"
+        else:
+            key = source
+        if key not in source_groups:
+            source_groups[key] = []
+        source_groups[key].append(result)
 
     # Format each source group
     # [Source: Story 12.I.2 - Remove emoji to fix Windows GBK encoding issue]
@@ -530,6 +543,7 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         "graphiti": "[Graph] 知识图谱关联",
         "lancedb": "[Vector] 语义相似内容",
         "vault_notes": "[Notes] Vault 笔记",
+        "vault_notes_video": "[Video] 视频字幕",
         "multimodal": "[Media] 图表/公式",
         "textbook": "[Book] 教材参考",
         "cross_canvas": "[Canvas] 跨Canvas关联",
@@ -541,8 +555,8 @@ def format_rag_for_agent(rag_results: List[Dict[str, Any]]) -> str:
         for r in results[:3]:  # Limit to 3 results per source
             content = r.get("content", "")
             if content:
-                # Add citation prefix for vault_notes source
-                citation = _build_citation(r) if source == "vault_notes" else ""
+                # Add citation prefix for vault_notes and video sources
+                citation = _build_citation(r) if source in ("vault_notes", "vault_notes_video") else ""
                 prefix = f"[{citation}] " if citation else ""
                 content_lines.append(f"  - {prefix}{content[:200]}{'...' if len(content) > 200 else ''}")
         if content_lines:
@@ -981,12 +995,33 @@ async def score_understanding(
         node_contents = {request.node_ids[0]: request.node_content}
         logger.info(f"[Story 2.8] Using provided node_content ({len(request.node_content)} chars)")
 
+    # ═══ Image extraction for scoring (mirrors explanation pipeline) ═══
+    images: List[Dict[str, Any]] = []
+    if request.node_content:
+        try:
+            image_extractor = MarkdownImageExtractor()
+            image_refs = image_extractor.extract_all(request.node_content)
+            if image_refs:
+                logger.info(f"[Score] Found {len(image_refs)} image refs in node_content")
+                vault_path = Path(canvas_service.canvas_base_path)
+                canvas_file_path = vault_path / f"{request.canvas_name}.canvas"
+                canvas_dir = canvas_file_path.parent if canvas_file_path.exists() else vault_path
+                resolved_refs = await image_extractor.resolve_paths(
+                    image_refs, vault_path=vault_path, canvas_dir=canvas_dir
+                )
+                images = await _load_images_for_agent(resolved_refs)
+                logger.info(f"[Score] Loaded {len(images)} images for scoring agent")
+        except Exception as img_err:
+            logger.warning(f"[Score] Image extraction failed, continuing without images: {img_err}")
+            images = []
+
     try:
         result = await agent_service.score_node(
             canvas_name=request.canvas_name,
             node_ids=request.node_ids,
             node_contents=node_contents,  # Story 2.8: Pass content from plugin
             rag_context=rag_context,  # Story 12.A.2: RAG context injection
+            images=images if images else None,  # Multimodal: pass extracted images
         )
 
         # 转换为响应模型

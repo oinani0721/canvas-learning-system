@@ -5856,3 +5856,267 @@
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Mastery Dashboard (BKT + FSRS Hybrid Proficiency)
+   Uses Obsidian native CSS variables for theme compatibility
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.mastery-dashboard-container {
+    padding: var(--size-4-3);
+    font-size: var(--font-ui-small);
+    overflow-y: auto;
+}
+
+/* Header */
+.mastery-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--size-4-3);
+    padding-bottom: var(--size-4-2);
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.mastery-header__title {
+    font-size: var(--font-ui-medium);
+    font-weight: var(--font-semibold);
+    color: var(--text-normal);
+}
+
+.mastery-header__refresh {
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: var(--size-2-2);
+    border-radius: var(--radius-s);
+}
+
+.mastery-header__refresh:hover {
+    color: var(--text-normal);
+    background: var(--background-modifier-hover);
+}
+
+/* Loading / Empty */
+.mastery-loading,
+.mastery-empty {
+    color: var(--text-muted);
+    text-align: center;
+    padding: var(--size-4-8) var(--size-4-3);
+}
+
+.mastery-refresh-btn {
+    margin-top: var(--size-4-3);
+    padding: var(--size-2-3) var(--size-4-4);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+}
+
+/* Topic Tree */
+.mastery-tree {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-2-1);
+}
+
+.mastery-topic {
+    border-radius: var(--radius-s);
+}
+
+.mastery-topic__header {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+    padding: var(--size-2-3) var(--size-4-2);
+    cursor: pointer;
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+    flex-wrap: wrap;
+}
+
+.mastery-topic__header:hover {
+    background: var(--background-modifier-hover);
+}
+
+.mastery-topic__toggle {
+    color: var(--text-muted);
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+}
+
+.mastery-topic__name {
+    font-weight: var(--font-semibold);
+    color: var(--text-normal);
+}
+
+.mastery-topic__weight {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+}
+
+.mastery-topic__prof {
+    margin-left: auto;
+    font-weight: var(--font-semibold);
+    font-size: var(--font-ui-smaller);
+}
+
+/* Concept Rows */
+.mastery-topic__concepts {
+    padding-left: var(--size-4-4);
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.mastery-concept {
+    display: flex;
+    align-items: center;
+    gap: var(--size-2-2);
+    padding: var(--size-2-2) var(--size-4-2);
+    border-radius: var(--radius-s);
+    flex-wrap: wrap;
+}
+
+.mastery-concept:hover {
+    background: var(--background-modifier-hover);
+}
+
+.mastery-concept__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.mastery-concept__name {
+    color: var(--text-normal);
+    flex: 1;
+    min-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mastery-concept__prof {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    width: 32px;
+    text-align: right;
+    flex-shrink: 0;
+}
+
+/* Level Label (clickable for override) */
+.mastery-concept__label {
+    font-size: var(--font-ui-smaller);
+    padding: 1px var(--size-2-2);
+    border-radius: var(--radius-s);
+    cursor: pointer;
+    flex-shrink: 0;
+    border: 1px solid transparent;
+}
+
+.mastery-concept__label:hover {
+    border-color: var(--background-modifier-border);
+    background: var(--background-modifier-hover);
+}
+
+.mastery-concept__label--not_assessed { color: #6c757d; }
+.mastery-concept__label--shaky { color: #dc3545; }
+.mastery-concept__label--developing { color: #fd7e14; }
+.mastery-concept__label--proficient { color: #0d6efd; }
+.mastery-concept__label--mastered { color: #198754; }
+
+/* Override Pin + Verified Check */
+.mastery-concept__pin,
+.mastery-concept__verified {
+    flex-shrink: 0;
+    font-size: var(--font-ui-smaller);
+}
+
+.mastery-concept__pin {
+    cursor: help;
+}
+
+.mastery-concept__verified {
+    color: #198754;
+    font-weight: bold;
+}
+
+/* Dual Values Row */
+.mastery-concept__dual {
+    width: 100%;
+    padding-left: calc(8px + var(--size-2-2) + var(--size-4-4));
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+}
+
+.mastery-concept__dual-ai {
+    color: var(--text-faint);
+}
+
+.mastery-concept__dual-self {
+    color: var(--text-accent);
+}
+
+.mastery-concept__dual-override {
+    color: var(--text-warning);
+}
+
+/* SVG Progress Bar */
+.mastery-progress {
+    width: 48px;
+    height: 6px;
+    flex-shrink: 0;
+}
+
+.mastery-progress__svg {
+    width: 100%;
+    height: 100%;
+}
+
+/* Topic-level progress bar */
+.mastery-topic__header .mastery-progress {
+    width: 60px;
+}
+
+/* Footer */
+.mastery-footer {
+    margin-top: var(--size-4-4);
+    padding-top: var(--size-4-3);
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.mastery-footer__overall {
+    text-align: center;
+    font-size: var(--font-ui-medium);
+    margin-bottom: var(--size-4-2);
+}
+
+.mastery-footer__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+    justify-content: center;
+    margin-bottom: var(--size-2-2);
+}
+
+.mastery-legend__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+}
+
+.mastery-legend__dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    display: inline-block;
+}
+
+.mastery-footer__symbols {
+    text-align: center;
+    font-size: var(--font-ui-smaller);
+    color: var(--text-faint);
+}

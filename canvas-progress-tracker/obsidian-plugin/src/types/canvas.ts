@@ -300,6 +300,48 @@ export function isGroupNode(node: CanvasNode): node is CanvasGroupNode {
   return node.type === 'group';
 }
 
+// ============================================================================
+// Content Extraction Utilities
+// ============================================================================
+
+/** Image file extensions recognized by the system */
+const IMAGE_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
+
+/**
+ * Check if a file path points to an image
+ */
+export function isImageFile(filePath: string): boolean {
+    const lower = filePath.toLowerCase();
+    return IMAGE_EXTENSIONS.some(ext => lower.endsWith(ext));
+}
+
+/**
+ * Extract displayable content from any canvas node type.
+ *
+ * - text node  → node.text
+ * - file node (image) → `![[filename]]` embed syntax (backend MarkdownImageExtractor resolves it)
+ * - file node (md/pdf) → `![[filename]]` embed syntax
+ * - link node  → node.url
+ * - group node → node.label or empty
+ */
+export function getNodeContent(node: CanvasNode): string {
+    switch (node.type) {
+        case 'text':
+            return (node as CanvasTextNode).text || '';
+        case 'file': {
+            const fileNode = node as CanvasFileNode;
+            const subpath = fileNode.subpath ? fileNode.subpath : '';
+            return `![[${fileNode.file}${subpath}]]`;
+        }
+        case 'link':
+            return (node as CanvasLinkNode).url || '';
+        case 'group':
+            return (node as CanvasGroupNode).label || '';
+        default:
+            return '';
+    }
+}
+
 /**
  * Type guard for preset color
  */

@@ -1,0 +1,23 @@
+{
+  "override_lambda": 0.1,
+  "self_assess_weight_cap": 0.5,
+  "override_weight_cap": 0.8,
+  "mastery_thresholds": {
+    "shaky": 0.40,
+    "developing": 0.70,
+    "proficient": 0.90
+  },
+  "mastered_fluent_min": 2,
+  "bkt_defaults_by_difficulty": {
+    "easy": { "P_L0": 0.30, "P_T": 0.30, "P_G": 0.25, "P_S": 0.05 },
+    "medium": { "P_L0": 0.10, "P_T": 0.20, "P_G": 0.20, "P_S": 0.10 },
+    "hard": { "P_L0": 0.05, "P_T": 0.15, "P_G": 0.15, "P_S": 0.15 }
+  },
+  "topic_exam_weights": {
+    "Search": 23,
+    "CSPs": 17,
+    "RL": 16,
+    "Game Trees": 15,
+    "MDPs": 14
+  }
+}

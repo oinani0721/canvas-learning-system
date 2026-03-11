@@ -335,6 +335,8 @@ export interface CanvasResponse {
 export interface DecomposeRequest {
   canvas_name: string;
   node_id: string;
+  /** Real-time node content from plugin for image analysis pipeline */
+  node_content?: string;
 }
 
 /**
@@ -1363,6 +1365,54 @@ export interface CanvasIndexResponse {
   subject?: string;
   /** Category used for indexing */
   category?: string;
+}
+
+// ===========================================================================
+// Vault Notes Index Types
+// ===========================================================================
+
+/**
+ * Response from vault index status endpoint
+ * @source GET /api/v1/canvas-meta/index/vault/status
+ */
+export interface VaultIndexStatusResponse {
+  /** Whether the vault_notes table exists */
+  indexed: boolean;
+  /** Number of chunks in vault_notes table */
+  chunk_count: number;
+  /** Table name in LanceDB */
+  table_name?: string;
+  /** Status message (when not indexed) */
+  message?: string;
+}
+
+/**
+ * Response from vault full/incremental index endpoint
+ * @source POST /api/v1/canvas-meta/index/vault
+ * @source POST /api/v1/canvas-meta/index/vault/incremental
+ */
+export interface VaultIndexResponse {
+  /** Whether indexing was successful */
+  success: boolean;
+  /** Number of chunks indexed */
+  chunk_count?: number;
+  /** Number of chunks indexed (incremental) */
+  chunks_indexed?: number;
+  /** Number of files processed (incremental) */
+  files_processed?: number;
+  /** Duration in milliseconds */
+  duration_ms?: number;
+  /** Result message */
+  message?: string;
+}
+
+/**
+ * Request body for incremental vault index
+ * @source POST /api/v1/canvas-meta/index/vault/incremental
+ */
+export interface VaultIncrementalIndexRequest {
+  /** File paths relative to vault root */
+  file_paths: string[];
 }
 
 // ===========================================================================

@@ -43,6 +43,30 @@ class AgentPromptTemplate:
     output_format: Optional[str] = None
 
 
+def _get_thinking_config(model_name: str, budget: Optional[int]) -> Optional[Dict[str, Any]]:
+    """Return the correct thinking config params based on Gemini model version.
+
+    - Gemini 2.5: uses thinking_budget (int)
+    - Gemini 3.x: uses thinking_level ("low" | "medium")
+    - Gemini 2.0 and others: no thinking support
+    """
+    if budget is None:
+        return None
+    normalized = model_name.lower()
+    if "gemini-2.5" in normalized:
+        return {"thinking_budget": budget}
+    elif "gemini-3" in normalized:
+        if budget == 0:
+            return None  # disabled
+        elif budget == -1 or budget > 512:
+            return {"thinking_level": "medium"}
+        else:
+            # 0 < budget <= 512
+            return {"thinking_level": "low"}
+    # Gemini 2.0 etc. — no thinking support
+    return None
+
+
 class GeminiClient:
     """
     Async client for Gemini API calls.
@@ -319,6 +343,7 @@ class GeminiClient:
         user_prompt: str,
         context: Optional[str] = None,
         temperature: float = 0.7,
+        thinking_budget: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Call API with an agent prompt template.
@@ -411,12 +436,20 @@ class GeminiClient:
             # ✅ Verified from Context7:/googleapis/python-genai
             # Pattern: await client.aio.models.generate_content(model=..., contents=...)
             assert self.client is not None
+            gen_config = genai.types.GenerateContentConfig(
+                temperature=temperature,
+            )
+            if thinking_budget is not None:
+                config_params = _get_thinking_config(self.model, thinking_budget)
+                if config_params:
+                    try:
+                        gen_config.thinking_config = genai.types.ThinkingConfig(**config_params)
+                    except (AttributeError, TypeError):
+                        pass
             response = await self.client.aio.models.generate_content(
                 model=self.model,
                 contents=full_prompt,
-                config=genai.types.GenerateContentConfig(
-                    temperature=temperature,
-                ),
+                config=gen_config,
             )
 
             # Diagnose empty responses (safety filters, blocked content, etc.)
@@ -694,12 +727,12 @@ class GeminiClient:
                 tools=[tool_declarations],
             )
             if thinking_budget is not None:
-                try:
-                    gen_config.thinking_config = genai.types.ThinkingConfig(
-                        thinking_budget=thinking_budget
-                    )
-                except (AttributeError, TypeError):
-                    logger.debug("ThinkingConfig not available in this genai version")
+                config_params = _get_thinking_config(self.model, thinking_budget)
+                if config_params:
+                    try:
+                        gen_config.thinking_config = genai.types.ThinkingConfig(**config_params)
+                    except (AttributeError, TypeError) as e:
+                        logger.debug(f"ThinkingConfig not available: {e}")
 
             response = await self.client.aio.models.generate_content(
                 model=self.model,

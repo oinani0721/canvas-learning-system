@@ -165,6 +165,7 @@ class VaultNotesService:
                         r["metadata"]["timestamp_start"] = parsed.get("timestamp_start")
                         r["metadata"]["timestamp_end"] = parsed.get("timestamp_end")
                         r["metadata"]["video_file"] = parsed.get("video_file")
+                        r["metadata"]["source_type"] = parsed.get("source_type", "note")
                     except (json.JSONDecodeError, TypeError):
                         pass
 

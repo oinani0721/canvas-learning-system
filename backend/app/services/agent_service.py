@@ -196,6 +196,256 @@ class AgentResult:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Context Filtering: remove explanation file references from React Agent context
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _filter_explanation_refs(context: str) -> str:
+    """Remove explanation file content from context to prevent the LLM
+    from citing old AI-generated explanations instead of using search tools.
+
+    Filters out context blocks that reference '-explanations/' paths,
+    which are generated explanation files (not original lecture notes).
+    """
+    import re
+
+    lines = context.split("\n")
+    filtered = []
+    skip_block = False
+
+    for line in lines:
+        # Detect explanation file references in context blocks
+        if "-explanations/" in line or "解释-" in line:
+            skip_block = True
+            continue
+        # Reset skip on new section headers
+        if skip_block and (line.startswith("[") and "]" in line[:50]):
+            # New context block header like [child|explains] or [目标节点]
+            if "-explanations/" not in line:
+                skip_block = False
+        if not skip_block:
+            filtered.append(line)
+
+    return "\n".join(filtered)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Round 4 Step 3a: JSON extraction from LLM text responses
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _extract_json_from_text(text: str) -> Optional[Dict]:
+    """Extract JSON from LLM response text that may contain preamble or markdown.
+
+    Handles:
+    - ```json ... ``` wrapped JSON
+    - JSON preceded by explanatory text
+    - Raw JSON strings
+    """
+    if not text or not isinstance(text, str):
+        return None
+
+    text = text.strip()
+
+    # Try 1: Direct JSON parse
+    try:
+        return json.loads(text)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Try 2: Extract from ```json ... ``` block
+    json_block = re.search(r'```(?:json|JSON)?\s*\n([\s\S]*?)\n```', text)
+    if json_block:
+        try:
+            return json.loads(json_block.group(1).strip())
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    # Try 3: Find first { ... } block (greedy from first { to last })
+    first_brace = text.find("{")
+    last_brace = text.rfind("}")
+    if first_brace != -1 and last_brace > first_brace:
+        try:
+            return json.loads(text[first_brace:last_brace + 1])
+        except (json.JSONDecodeError, ValueError):
+            pass
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Reference Post-Processing: ensure wikilink format in final output
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _convert_refs_to_wikilinks(text: str) -> str:
+    """Convert various reference formats to Obsidian [[wikilinks]] in the
+    '## 相关资料' section. Handles formats like:
+    - [file.md > heading]  →  [[file#heading|heading]]
+    - [file.md]            →  [[file]]
+    - (file.md#heading)    →  [[file#heading|heading]]
+    - Already wikilinked [[...]] → kept as-is
+    """
+    import re
+
+    # Find the "## 相关资料" section (or similar headings)
+    ref_match = re.search(r'(##\s*(?:相关资料|参考资料|References|相关笔记).*)', text, re.DOTALL)
+    if not ref_match:
+        return text
+
+    before = text[:ref_match.start()]
+    ref_section = ref_match.group(1)
+
+    def _to_wikilink(path: str, heading: str = "") -> str:
+        """Convert a path + optional heading to wikilink format."""
+        path = path.strip()
+        if path.endswith(".md"):
+            path = path[:-3]
+        if heading and heading.strip():
+            heading = heading.strip()
+            return f"[[{path}#{heading}|{heading}]]"
+        # Extract display name from path (last segment)
+        display = path.rsplit("/", 1)[-1] if "/" in path else path
+        return f"[[{path}|{display}]]"
+
+    # Pattern 1: [path > heading] (not already [[]])
+    def _convert_bracket_ref(m: re.Match) -> str:
+        inner = m.group(1).strip()
+        if inner.startswith("["):
+            return m.group(0)
+        # Skip markdown links like [text](url)
+        if m.end() < len(ref_section) and ref_section[m.end():m.end()+1] == "(":
+            return m.group(0)
+        if " > " in inner:
+            path, heading = inner.rsplit(" > ", 1)
+            return _to_wikilink(path, heading)
+        elif "#" in inner and "/" in inner:
+            # Already has path#heading format
+            path, heading = inner.split("#", 1)
+            return _to_wikilink(path, heading)
+        elif "/" in inner and inner.count("/") >= 1:
+            # Looks like a file path
+            return _to_wikilink(inner)
+        else:
+            return m.group(0)  # Don't convert non-path brackets
+
+    ref_section = re.sub(
+        r'(?<!\[)\[([^\[\]]+)\](?!\])',
+        _convert_bracket_ref,
+        ref_section
+    )
+
+    # Pattern 2: bare paths in list items like "- videos/lectures/foo.md"
+    # Convert to wikilinks if they look like vault paths
+    def _convert_bare_path(m: re.Match) -> str:
+        prefix = m.group(1)  # "- " or "* "
+        path = m.group(2)
+        heading = m.group(4) or ""
+        return f"{prefix}{_to_wikilink(path, heading)}"
+
+    ref_section = re.sub(
+        r'^([-*]\s+)((?:videos|past_exams|lectures|discussions)/[^\s#\]]+\.md)(#(\S+))?',
+        _convert_bare_path,
+        ref_section,
+        flags=re.MULTILINE,
+    )
+
+    return before + ref_section
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# R2b: Programmatic reference building from tool results
+# [Source: Round 2 Deep Fix — R2 wikilink fabrication fix]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_references_from_tools(tool_results: List[Dict]) -> str:
+    """Build ## 相关资料 section from actual tool search results.
+
+    Instead of trusting the LLM to generate accurate wikilinks, this
+    function extracts real references from the search tool outputs
+    (Obsidian CLI, vault notes, knowledge graph) and builds a reliable
+    references section.
+
+    R3: Added path filtering (_EXCLUDED_PATTERNS) and source priority sorting.
+    """
+    _EXCLUDED_PATTERNS = ("-explanations/", "/chunks/", "解释-", "四层次解释-")
+
+    refs: List[Tuple[str, str]] = []  # (wikilink_or_label, snippet)
+    seen: set = set()
+
+    for tr in tool_results:
+        name = tr.get("name", "")
+        content = tr.get("content", "")
+        if not content or not isinstance(content, str):
+            continue
+
+        if name in ("search_obsidian_cli", "search_vault_notes"):
+            # Extract wikilinks from formatted search results
+            for match in re.finditer(r'\[\[([^\]]+)\]\]', content):
+                wikilink = match.group(0)  # e.g. [[Note Name#Heading|Display]]
+                if wikilink in seen:
+                    continue
+                seen.add(wikilink)
+
+                # Filter out low-quality references
+                inner = match.group(1)
+                ref_path = inner.split("#")[0].split("|")[0].strip()
+                if any(p in ref_path for p in _EXCLUDED_PATTERNS):
+                    continue
+
+                # Get a content snippet (next non-empty line after the wikilink)
+                pos = match.end()
+                snippet_lines = content[pos:pos + 300].strip().split('\n')
+                snippet = next(
+                    (line.strip() for line in snippet_lines
+                     if line.strip() and not line.strip().startswith('###')
+                     and not line.strip().startswith('---')),
+                    ""
+                )
+                if snippet and len(snippet) > 100:
+                    snippet = snippet[:100] + "..."
+                refs.append((wikilink, snippet))
+
+        elif name == "search_knowledge_graph":
+            # Extract entity citations (Misconception/ProblemTrap/etc.)
+            for match in re.finditer(
+                r'\[(Misconception|ProblemTrap|LogicalFallacy|GuidedThinking):\s*([^\]]+)\]',
+                content,
+            ):
+                entity_type, entity_name = match.group(1), match.group(2).strip()
+                label = f"[{entity_type}: {entity_name}]"
+                if label not in seen:
+                    seen.add(label)
+                    refs.append((label, ""))
+
+    if not refs:
+        return "\n\n## 相关资料\n暂无相关笔记引用"
+
+    # Sort by source priority (lectures > discussions > others > KG)
+    from fnmatch import fnmatch
+    from app.core.reference_config import get_source_priorities, get_max_references
+    priorities = get_source_priorities()
+
+    def _ref_weight(wikilink: str) -> float:
+        if not wikilink.startswith("[["):
+            return 0.5  # KG entities sort lower
+        inner = wikilink.strip("[]").split("#")[0].split("|")[0]
+        path_for_match = inner + ".md" if not inner.endswith((".md", ".pdf")) else inner
+        for p in priorities:
+            if fnmatch(path_for_match, p["pattern"]):
+                return p["weight"]
+        return 1.0
+
+    refs.sort(key=lambda r: _ref_weight(r[0]), reverse=True)
+
+    max_refs = get_max_references()
+    lines = ["\n\n## 相关资料"]
+    for ref_link, snippet in refs[:max_refs]:
+        if snippet:
+            lines.append(f"- {ref_link}: {snippet}")
+        else:
+            lines.append(f"- {ref_link}")
+    return "\n".join(lines)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Story 21.3: 多重fallback文本提取和友好错误处理
 # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1208,7 +1458,7 @@ class AgentService:
     # Phase 4: React Agent (create_react_agent with 4 tools)
     # ═══════════════════════════════════════════════════════════════════════════════
 
-    def _init_react_agent(self) -> bool:
+    async def _init_react_agent(self) -> bool:
         """Lazy-initialize React Agent tools with existing client singletons."""
         if self._react_agent_initialized:
             return True
@@ -1224,10 +1474,16 @@ class AgentService:
 
             lancedb_client = None
             graphiti_client = None
+
+            # LanceDB: create client with configured path and initialize
             try:
-                lancedb_client = LanceDBClient.get_instance()  # type: ignore[attr-defined]
-            except Exception:
-                logger.debug("Phase 4: LanceDB client not available")
+                lancedb_path = getattr(settings, 'LANCEDB_PATH', 'data/lancedb')
+                lancedb_client = LanceDBClient(db_path=lancedb_path)
+                await lancedb_client.initialize()
+                logger.debug(f"Phase 4: LanceDB client created and initialized at {lancedb_path}")
+            except Exception as e:
+                logger.debug(f"Phase 4: LanceDB client not available: {e}")
+
             try:
                 graphiti_client = GraphitiClient.get_instance()  # type: ignore[attr-defined]
             except Exception:
@@ -1259,8 +1515,16 @@ class AgentService:
         agent_type: str,
         user_prompt: str,
         context: Optional[str] = None,
-    ) -> Dict[str, Any]:
-        """Run the React Agent for a given agent type."""
+        gather_only: bool = False,
+    ) -> AgentResult:
+        """Run the React Agent for a given agent type. Returns AgentResult.
+
+        Args:
+            gather_only: When True, agent only collects context (search + KG)
+                         without generating final explanation. Used in two-phase
+                         multimodal mode where Phase 4b (Vision) generates output.
+        [Source: Phase 2.5 — gather_only for two-phase multimodal]
+        """
         from app.services.react_agent import run_react_agent
 
         if not self._gemini_client:
@@ -1270,34 +1534,231 @@ class AgentService:
         template = self._gemini_client.load_prompt_template(agent_type)
         system_prompt = template.system_prompt
 
-        # Inject context if available
+        # Tool usage mandate — ensure LLM actually uses search tools
+        tool_instruction = (
+            "\n\n## 工具使用规则 (MANDATORY)\n"
+            "你拥有搜索工具，**必须在生成解释前使用**：\n"
+            "\n### 搜索策略\n"
+            "1. **优先使用 search_obsidian_cli**: 这是主搜索工具，精确匹配且速度快。"
+            "结果不足(<3条)时再用 search_vault_notes 做语义补充。\n"
+            "2. **必须搜索 2 次以上**: 先用宽泛主题词搜索（如 `A* search`、`MDP`），"
+            "再用具体子概念补充搜索（如 `admissible heuristic`）。\n"
+            "3. **搜索词要简短**: 用 2-4 个英文关键词，不要用长句或中文翻译。"
+            "好: `value iteration convergence`。坏: `价值迭代的收敛性证明方法`。\n"
+            "\n### 引用规则\n"
+            "4. **引用真实来源**: `## 相关资料` 中只列搜索工具实际返回的来源，**禁止编造**。\n"
+            "5. **引用 3-5 个来源**: 从搜索结果中挑选 3-5 个最相关的来源列入相关资料。\n"
+            "6. **直接复制 wikilink**: 搜索结果中每条已包含 `[[文件名#标题|显示文本]]` 格式，"
+            "**直接复制粘贴**到你的回答中，不要自己构造或修改 wikilink。\n"
+            "7. **优先引用讲义和讨论**: 搜索结果中 score 最高的通常是讲义/讨论笔记（已加权），"
+            "优先引用这些而非 AI 生成的解释文件。\n"
+            "8. **禁止引用解释文件**: 路径含 `-explanations/` 的文件是 AI 生成的旧解释，"
+            "**不得作为引用来源**。即使在 Additional Context 中看到这类文件，也不要引用。\n"
+            "9. **上下文 ≠ 引用来源**: Additional Context 中的内容仅供你理解主题背景，"
+            "**不要直接引用 Context 中的内容**。引用必须来自搜索工具返回的结果。\n"
+            "\n### 其他工具\n"
+            "8. **按需深入**: 如果某笔记高度相关，调用 `get_note_content` 获取完整内容。\n"
+            "9. **笔记探索**: 找到相关文件后，用 `get_note_outline` 了解结构，用 `find_backlinks` 发现关联。\n"
+            "10. **知识图谱**: 需要了解学生历史误解时，用 `search_knowledge_graph` 查询 Misconception/ProblemTrap。\n"
+            "11. **学生误解记录**: 发现学生明显误解时调用 `record_learning_memory` 记录。\n"
+            "\n### Wikilink 追踪与多轮工具使用\n"
+            "12. **用户引用追踪 (MANDATORY)**: 如果 user_understanding 或 Background Context 中包含 "
+            "[[笔记名]] 格式的 wikilink，**必须调用 get_note_content 读取该笔记**。"
+            "用户引用的笔记是他理解的来源，你需要读取原文才能判断用户是否真正理解。\n"
+            "13. **先读后答**: 遇到不确定的概念时，先搜索并阅读相关笔记，"
+            "确认自己理解正确后再生成解释。不要依赖模型记忆中可能过时的知识。\n"
+            "14. **多轮工具调用**: 不要试图在一次搜索中找到所有信息。"
+            "分多轮搜索：第一轮找关键笔记 → 第二轮读内容 → 第三轮补充搜索。"
+            "工具调用上限已提高到 10 轮，请充分利用。\n"
+        )
+        system_prompt = f"{system_prompt}{tool_instruction}"
+
+        # Inject context if available — filter out explanation files first
         if context:
-            context_instruction = (
-                "\n\n## Context Usage Rules\n"
-                "下方的「Additional Context」包含了与当前内容相关的检索结果。\n\n"
-                "**你必须遵守以下规则：**\n"
-                "1. **主动引用**：解释中涉及上下文材料时，用方括号标注来源。\n"
-                "2. **相关资料列表**：在回答末尾添加 `## 相关资料` 小节。\n"
-                "3. **用户请求优先**：如果上下文包含具体请求，必须直接回应。\n"
-                "4. **不编造来源**：只引用上下文中实际存在的来源。\n"
+            # Remove explanation file content from context to prevent LLM
+            # from citing old AI-generated explanations instead of searching
+            # for lecture/discussion notes via tools.
+            filtered_context = _filter_explanation_refs(context)
+
+            if filtered_context.strip():
+                context_instruction = (
+                    "\n\n## Background Context (仅供理解，不可引用)\n"
+                    "下方内容是当前节点的邻居节点信息，帮助你理解教学上下文。\n\n"
+                    "**重要规则：**\n"
+                    "1. 此上下文仅供你理解主题背景，**不能作为引用来源**。\n"
+                    "2. `## 相关资料` 中的引用必须来自 `search_vault_notes` 工具返回的结果。\n"
+                    "3. 如果上下文包含学生的个人理解，据此调整你的解释深度。\n"
+                )
+                system_prompt = f"{system_prompt}{context_instruction}\n## Background Context\n{filtered_context}"
+
+        # Phase 2.5: gather_only mode — instruct agent to only collect context
+        if gather_only:
+            system_prompt += (
+                "\n\n## 特殊模式：上下文收集\n"
+                "当前请求包含图片，你的任务是**仅收集相关参考资料**。\n"
+                "1. 搜索相关笔记（search_obsidian_cli）\n"
+                "2. 查询学生历史误解（search_knowledge_graph）\n"
+                "3. 将找到的资料整理输出，保留完整引用（wikilink + 内容摘要）\n"
+                "4. **不需要生成最终解释**（下一阶段由 Vision 模型处理图片+你的资料）\n"
             )
-            system_prompt = f"{system_prompt}{context_instruction}\n## Additional Context\n{context}"
 
-        # Get thinking budget for this agent type
-        thinking_budget = THINKING_BUDGETS.get(agent_type)
+        # Phase 2.5: Preload learning memories — don't rely on LLM calling search_knowledge_graph
+        if not DISABLE_CONTEXT_ENRICHMENT:
+            try:
+                # Fix B3: Extract topic from JSON prompt instead of passing raw JSON
+                memory_query = self._extract_topic_for_memory(user_prompt) if user_prompt else ""
+                memory_context = await self._get_learning_memories(content=memory_query)
+                if memory_context:
+                    context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
+                    logger.debug("[Phase2.5] Preloaded learning memories into React Agent context")
+            except Exception as e:
+                logger.warning(f"[Phase2.5] Memory preload failed for React Agent: {e}")
 
-        # Get API key and model
+        # NOTE: thinking_budget disabled for React Agent — Gemini's thinking mode
+        # requires thought_signature in function call responses, which
+        # langchain-google-genai does not yet support. Thinking is still used
+        # in standard (non-tool) calls via gemini_client.py.
+        thinking_budget = None
+
+        # Get API key; override model for React Agent — flash-lite lacks
+        # reliable tool calling, so we use gemini-2.5-flash for agentic tasks
         api_key = self._gemini_client.api_key
-        model_name = self._gemini_client.model
+        model_name = os.getenv("REACT_AGENT_MODEL", "gemini-2.5-flash")
 
-        return await run_react_agent(
+        raw = await run_react_agent(
             agent_type=agent_type,
             user_prompt=user_prompt,
             system_prompt=system_prompt,
             model_name=model_name,
             api_key=api_key,
             thinking_budget=thinking_budget,
+            recursion_limit=10,
         )
+
+        # Wrap dict into AgentResult so callers can use result.data["response"]
+        return AgentResult(
+            agent_type=AgentType.ORAL_EXPLANATION,  # placeholder, not critical
+            success=True,
+            data=raw,
+        )
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Round 4 Step 3d: React Agent for Scoring
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    async def _run_react_agent_for_scoring(
+        self,
+        json_prompt: str,
+        context: Optional[str] = None,
+    ) -> AgentResult:
+        """Run React Agent for scoring with search tools and JSON-only output.
+
+        The scoring agent gets SCORING_TOOLS (search only, no recording) and
+        must return valid JSON. Falls back to AgentResult(success=False) if
+        JSON extraction fails, triggering the caller to use direct Gemini.
+        """
+        from app.services.react_agent import run_react_agent, SCORING_TOOLS
+
+        if not self._gemini_client:
+            raise RuntimeError("GeminiClient required for React Agent scoring")
+
+        # Load scoring agent template
+        template = self._gemini_client.load_prompt_template("scoring-agent")
+        system_prompt = template.system_prompt
+
+        # Scoring-specific tool instruction
+        tool_instruction = (
+            "\n\n## 工具使用规则 (Scoring Agent)\n"
+            "你拥有搜索工具来辅助评分判断：\n"
+            "1. **Wikilink 引用追踪**: 如果 user_understanding 中包含 [[笔记名]]，"
+            "使用 `get_note_content` 读取引用内容，评估学生是否真正理解。\n"
+            "2. **补充参考**: 搜索相关笔记确认准确性判断。\n"
+            "3. **学生历史**: 用 `search_knowledge_graph` 查询 Misconception/ProblemTrap。\n"
+            "4. **JSON-only 输出**: 所有工具调用必须在最终输出前完成。"
+            "最终输出**只返回 JSON**，不包含额外文本或 markdown 代码块。\n"
+        )
+        system_prompt = f"{system_prompt}{tool_instruction}"
+
+        # Inject context (filtered)
+        if context:
+            filtered_context = _filter_explanation_refs(context)
+            if filtered_context.strip():
+                system_prompt = f"{system_prompt}\n\n## Scoring Context\n{filtered_context}"
+
+        # Preload learning memories
+        if not DISABLE_CONTEXT_ENRICHMENT:
+            try:
+                memory_query = self._extract_topic_for_memory(json_prompt) if json_prompt else ""
+                memory_context = await self._get_learning_memories(content=memory_query)
+                if memory_context:
+                    system_prompt = f"{system_prompt}\n\n## 学习历史记忆\n{memory_context}"
+            except Exception as e:
+                logger.warning(f"[Score-React] Memory preload failed: {e}")
+
+        api_key = self._gemini_client.api_key
+        model_name = os.getenv("REACT_AGENT_MODEL", "gemini-2.5-flash")
+
+        raw = await run_react_agent(
+            agent_type="scoring-agent",
+            user_prompt=json_prompt,
+            system_prompt=system_prompt,
+            model_name=model_name,
+            api_key=api_key,
+            thinking_budget=None,
+            recursion_limit=10,
+            tools=SCORING_TOOLS,
+        )
+
+        # Extract JSON from response
+        response_text = raw.get("response", "") if isinstance(raw, dict) else ""
+        parsed = _extract_json_from_text(response_text)
+
+        if parsed and "total_score" in parsed:
+            logger.info(
+                f"[Score-React] Success: total_score={parsed.get('total_score')}, "
+                f"tool_calls={len(raw.get('tool_calls_made', []))}"
+            )
+            return AgentResult(
+                agent_type=AgentType.SCORING_AGENT,
+                success=True,
+                data=parsed,
+            )
+
+        logger.warning(
+            f"[Score-React] Failed to extract valid JSON. "
+            f"Response preview: {response_text[:200]}"
+        )
+        return AgentResult(
+            agent_type=AgentType.SCORING_AGENT,
+            success=False,
+            error="React Agent did not return valid scoring JSON",
+        )
+
+    # ═══════════════════════════════════════════════════════════════════════════════
+    # Phase 2.5: Two-Phase Multimodal Helpers
+    # ═══════════════════════════════════════════════════════════════════════════════
+
+    def _extract_react_context(self, react_result: AgentResult, original_context: Optional[str] = None) -> str:
+        """Extract gathered context from React Agent result for Vision phase.
+
+        In two-phase multimodal mode, Phase 4a (React Agent) searches notes and
+        knowledge graph. This method extracts that gathered context to pass into
+        Phase 4b (Vision call with images).
+
+        [Source: Phase 2.5 — Two-Phase Multimodal]
+        """
+        parts = []
+        if original_context:
+            parts.append(original_context)
+        if react_result.success and react_result.data:
+            data = react_result.data
+            response = data.get("response", "") if isinstance(data, dict) else ""
+            if response:
+                # Truncate if excessively long to avoid token bloat in vision call
+                if len(response) > 3000:
+                    response = response[:3000] + "\n...(truncated)"
+                parts.append(f"## 搜索收集的参考资料\n{response}")
+        return "\n\n".join(parts) if parts else (original_context or "")
 
     # ═══════════════════════════════════════════════════════════════════════════════
     # Color Transition Recording (Graphiti knowledge graph)
@@ -1379,6 +1840,30 @@ class AgentService:
     # [Source: docs/stories/story-12.A.4-memory-injection.md]
     # [Source: docs/stories/36.7.story.md - Neo4j数据源]
     # ═══════════════════════════════════════════════════════════════════════════════
+
+    @staticmethod
+    def _extract_topic_for_memory(prompt: str) -> str:
+        """Extract topic/concept from JSON prompt for memory query.
+
+        Fix B3: The memory preload points pass raw JSON prompts (like
+        {"material_content": "...", "topic": "Alpha-Beta Pruning"}) to
+        _get_learning_memories(). The CONTAINS query then tries to match
+        JSON syntax against EntityNode name/text, which almost never works.
+
+        This helper extracts the meaningful topic/concept keywords.
+        """
+        try:
+            data = json.loads(prompt)
+            # Priority: topic > concept > question_text > material_content[:100]
+            topic = (
+                data.get("topic", "")
+                or data.get("concept", "")
+                or data.get("question_text", "")
+                or (data.get("material_content", "") or "")[:100]
+            )
+            return topic if topic else prompt[:200]
+        except (json.JSONDecodeError, ValueError, AttributeError):
+            return prompt[:200]
 
     async def _get_learning_memories(
         self,
@@ -1498,28 +1983,29 @@ class AgentService:
         if not self._neo4j_client:
             return ""
 
-        # Story 36.7: Cypher query with relevance ordering (AC3)
-        # Searches both LearningMemory and EntityNode labels for cross-system compatibility
+        # Story 36.7: Cypher query aligned to actual EntityNode properties
+        # Fix G1: removed non-existent fields (m.content, m.relevance, m.concept, m.timestamp, m.user_understanding)
+        # Fix B3: Use toLower() for case-insensitive matching
         cypher_query = """
-        MATCH (m)
-        WHERE (m:LearningMemory OR m:EntityNode)
-          AND (m.content CONTAINS $query_text
-               OR m.episode_body CONTAINS $query_text
-               OR m.name CONTAINS $query_text)
+        MATCH (m:EntityNode)
+        WHERE m.group_id = 'cs188'
+          AND (toLower(m.text) CONTAINS toLower($query_text)
+               OR toLower(m.episode_body) CONTAINS toLower($query_text)
+               OR toLower(m.name) CONTAINS toLower($query_text))
         """
 
         # Add canvas filter if provided
         if canvas_name:
             cypher_query += " AND (m.canvas_name = $canvas_name OR m.canvas_path CONTAINS $canvas_name)"
 
-        # Story 36.7 AC3: ORDER BY relevance DESC LIMIT 5
+        # Fix G1: ORDER BY updated_at only (m.relevance doesn't exist on EntityNode)
         cypher_query += """
-        RETURN coalesce(m.concept, m.name) AS concept,
-               coalesce(m.timestamp, m.created_at) AS timestamp,
-               m.relevance AS relevance,
-               m.score AS score,
-               coalesce(m.user_understanding, m.episode_body) AS user_understanding
-        ORDER BY m.relevance DESC, m.updated_at DESC
+        RETURN m.name AS concept,
+               m.created_at AS timestamp,
+               m.entity_type AS entity_type,
+               m.source_description AS source_description,
+               m.episode_body AS user_understanding
+        ORDER BY m.updated_at DESC
         LIMIT 5
         """
 
@@ -1563,8 +2049,8 @@ class AgentService:
         for m in memories:
             concept = m.get("concept", "Unknown")
             timestamp = m.get("timestamp", "")
-            relevance = m.get("relevance", 0.0)
-            score = m.get("score")
+            entity_type = m.get("entity_type", "")
+            source_desc = m.get("source_description", "")
 
             # Format timestamp if present
             if timestamp:
@@ -1580,13 +2066,14 @@ class AgentService:
             else:
                 timestamp_str = "N/A"
 
-            # Format relevance as percentage
-            relevance_str = f"{relevance * 100:.0f}%" if isinstance(relevance, (int, float)) else "N/A"
+            # Format entity type tag
+            type_tag = f"[{entity_type}]" if entity_type else ""
 
-            # Format score
-            score_str = str(score) if score is not None else "N/A"
+            # Format understanding snippet (300 chars to preserve problem context for Canvas Agent)
+            understanding = m.get("user_understanding", "")
+            snippet = (understanding[:300] + "...") if understanding and len(understanding) > 300 else (understanding or "")
 
-            lines.append(f"- [{timestamp_str}] {concept}: 相关度{relevance_str}, 评分{score_str}")
+            lines.append(f"- [{timestamp_str}] {type_tag} {concept}: {snippet}")
 
         return "\n".join(lines)
 
@@ -1652,6 +2139,15 @@ class AgentService:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
             logger.error(f"[FIX-Canvas-Write] FAILED: Could not write nodes to canvas {canvas_name}: {e}")
             return False
+
+    # Thinking budget per agent type (None = disabled, -1 = dynamic)
+    AGENT_THINKING_BUDGETS: Dict[str, Optional[int]] = {
+        "scoring-agent": -1,
+        "deep-decomposition": -1,
+        "clarification-path": 1024,
+        "four-level-explanation": 1024,
+        "example-teaching": 512,
+    }
 
     async def _call_gemini_api(
         self,
@@ -1753,11 +2249,13 @@ class AgentService:
             )
 
         try:
+            thinking_budget = self.AGENT_THINKING_BUDGETS.get(agent_type.value)
             result = await self._gemini_client.call_agent(
                 agent_type=agent_type.value,
                 user_prompt=prompt,
                 context=enriched_context if enriched_context else None,
-                temperature=0.7
+                temperature=0.7,
+                thinking_budget=thinking_budget,
             )
 
             # ✅ FIX: Parse AI response JSON from string
@@ -2003,7 +2501,9 @@ class AgentService:
         agent_type: AgentType,
         prompt: str,
         timeout: Optional[float] = None,
-        context: Optional[str] = None
+        context: Optional[str] = None,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None,
     ) -> AgentResult:
         """
         Call a single agent with concurrency control.
@@ -2036,11 +2536,11 @@ class AgentService:
             try:
                 if timeout:
                     data = await asyncio.wait_for(
-                        self._call_gemini_api(agent_type, prompt, context),
+                        self._call_gemini_api(agent_type, prompt, context, canvas_name=canvas_name, node_id=node_id),
                         timeout=timeout
                     )
                 else:
-                    data = await self._call_gemini_api(agent_type, prompt, context)
+                    data = await self._call_gemini_api(agent_type, prompt, context, canvas_name=canvas_name, node_id=node_id)
 
                 duration_ms = (datetime.now() - start_time).total_seconds() * 1000
                 return AgentResult(
@@ -2378,7 +2878,21 @@ class AgentService:
             AgentResult with the response
 
         [Source: FIX-2.1 实现Claude Vision多模态支持]
+        [Source: Phase 2.5 — memory safety net for multimodal path]
         """
+        # Phase 2.5: Preload learning memories for multimodal path (safety net)
+        # call_agent_with_images() previously had NO memory injection, unlike call_agent().
+        if not DISABLE_CONTEXT_ENRICHMENT:
+            try:
+                # Fix B3: Extract topic from JSON prompt instead of passing raw JSON
+                memory_query = self._extract_topic_for_memory(prompt) if prompt else ""
+                memory_context = await self._get_learning_memories(content=memory_query)
+                if memory_context:
+                    context = f"{context}\n\n{memory_context}" if context else memory_context
+                    logger.debug("[Phase2.5] Injected learning memories into multimodal context")
+            except Exception as e:
+                logger.warning(f"[Phase2.5] Memory preload failed for multimodal: {e}")
+
         start_time = datetime.now()
         async with self._semaphore:
             self._active_calls += 1
@@ -2509,7 +3023,10 @@ class AgentService:
         node_content: str,
         user_understanding: str,
         context: Optional[str] = None,  # Story 12.A.2: RAG context support
-        question_text: Optional[str] = None
+        question_text: Optional[str] = None,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None,
+        images: Optional[List[Dict[str, Any]]] = None,  # Multimodal: extracted images
     ) -> AgentResult:
         """
         Call scoring agent.
@@ -2534,8 +3051,43 @@ class AgentService:
 
         logger.debug("[Story 12.B.3] Constructed JSON prompt for scoring agent")
 
-        # Initial scoring call
-        initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context)
+        # Phase 2.5: Preload memories for multimodal scoring path
+        # The non-image path gets memories via call_agent() → _call_gemini_api(),
+        # but the image path goes to call_agent_with_images() which now also has
+        # its own safety net. This pre-enrichment ensures scoring context is rich.
+        if images and len(images) > 0 and not DISABLE_CONTEXT_ENRICHMENT:
+            try:
+                # Fix B3: Extract topic — scoring uses user_understanding, not JSON
+                memory_query = self._extract_topic_for_memory(user_understanding) if user_understanding else ""
+                memory_context = await self._get_learning_memories(content=memory_query)
+                if memory_context:
+                    context = f"{context}\n\n{memory_context}" if context else memory_context
+                    logger.debug("[Phase2.5] Preloaded memories for multimodal scoring")
+            except Exception:
+                pass  # Non-blocking
+
+        # Initial scoring call — use multimodal path when images are available
+        if images and len(images) > 0:
+            logger.info(f"[Score] Calling scoring agent with {len(images)} images (multimodal)")
+            initial_result = await self.call_agent_with_images(
+                AgentType.SCORING_AGENT, json_prompt, images=images, context=context
+            )
+        elif ENABLE_REACT_AGENT and self._gemini_client and not getattr(self._gemini_client, 'base_url', None):
+            # Round 4 Step 3e: Use React Agent for scoring (tool-augmented)
+            if await self._init_react_agent():
+                try:
+                    initial_result = await self._run_react_agent_for_scoring(json_prompt, context=context)
+                    if not initial_result.success:
+                        logger.info("[Score] React Agent fallback → direct Gemini")
+                        initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+                except Exception as e:
+                    logger.warning(f"[Score] React Agent failed: {e}. Fallback to direct.")
+                    initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+            else:
+                initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
+        else:
+            # canvas_name/node_id enable memory injection in _call_gemini_api
+            initial_result = await self.call_agent(AgentType.SCORING_AGENT, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
 
         # Self-reflection for boundary scores (60-89): improves accuracy from 78.6% to 97.1%
         if (
@@ -2558,7 +3110,10 @@ class AgentService:
                         f"重新给出最终评分。"
                     ),
                 }, ensure_ascii=False, indent=2)
-                refined = await self.call_agent(AgentType.SCORING_AGENT, reflection_prompt, context=context)
+                if images and len(images) > 0:
+                    refined = await self.call_agent_with_images(AgentType.SCORING_AGENT, reflection_prompt, images=images, context=context)
+                else:
+                    refined = await self.call_agent(AgentType.SCORING_AGENT, reflection_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
                 if refined.success:
                     return refined
 
@@ -2570,7 +3125,9 @@ class AgentService:
         explanation_type: str = "oral",
         context: Optional[str] = None,
         images: Optional[List[Dict[str, Any]]] = None,
-        user_understanding: Optional[str] = None
+        user_understanding: Optional[str] = None,
+        canvas_name: Optional[str] = None,
+        node_id: Optional[str] = None,
     ) -> AgentResult:
         """
         Call explanation agent with optional multimodal support.
@@ -2607,14 +3164,33 @@ class AgentService:
 
         # ✅ Story 12.B.3: Construct JSON-formatted prompt for agent templates
         # Agent templates expect JSON input with material_content, topic, etc.
-        topic = self._extract_topic_from_content(content)
+
+        # ✅ FIX: Detect pure image embed content (e.g., "![[image.png]]")
+        # When content is only an image embed reference, the text is meaningless for LLM.
+        # Replace with a descriptive instruction so LLM knows to analyze the attached image.
+        import re as _re
+        _IMAGE_EMBED_ONLY = _re.compile(
+            r'^\s*!\[\[.+?\.(png|jpg|jpeg|gif|bmp|svg|webp)(\|[^\]]*?)?\]\]\s*$', _re.IGNORECASE
+        )
+        is_image_only_content = bool(images) and bool(_IMAGE_EMBED_ONLY.match(content))
+        if is_image_only_content:
+            logger.info(f"[Image-Fix] Content is pure image embed: {content[:80]}. Rewriting prompt for multimodal analysis.")
+            material_content = (
+                "请仔细分析附带的图片内容。图片可能包含题目、公式、图表、算法伪代码或概念解释。\n"
+                "请基于图片中的实际内容进行分析和解释。"
+            )
+            topic = "图片内容分析"
+        else:
+            material_content = content
+
+        topic = topic if is_image_only_content else self._extract_topic_from_content(content)
 
         # ✅ Story 12.E.1: comparison-table Agent expects 'concepts' array, not 'concept' string
         # [Source: .claude/agents/comparison-table.md:14-21 - Agent expects concepts array]
         if agent_type == AgentType.COMPARISON_TABLE:
             concepts = self._extract_comparison_concepts(content, topic)
             json_prompt = json.dumps({
-                "material_content": content,
+                "material_content": material_content,
                 "topic": topic,
                 "concepts": concepts,  # ✅ Array for comparison-table Agent
                 "user_understanding": user_understanding
@@ -2623,7 +3199,7 @@ class AgentService:
         else:
             # Other agents use 'concept' string (backward compatibility)
             json_prompt = json.dumps({
-                "material_content": content,
+                "material_content": material_content,
                 "topic": topic,
                 "concept": topic,  # Some agents use 'concept' instead of 'topic'
                 "user_understanding": user_understanding
@@ -2645,29 +3221,73 @@ class AgentService:
         )
         logger.debug(f"[Story 12.B.3] Constructed JSON prompt for {agent_type.value}: topic={topic}")
 
-        # ✅ FIX-2.1: Use multimodal call if images are provided
+        # ═══════════════════════════════════════════════════════════════════════
+        # Phase 4: React Agent (BEFORE images check — fixes Phase 2.5 bypass)
+        # React Agent searches notes + KG. For multimodal: two-phase pipeline.
+        # [Source: Phase 2.5 — Agent Dual Bypass Fix]
+        # ═══════════════════════════════════════════════════════════════════════
+        if ENABLE_REACT_AGENT and self._gemini_client and not self._gemini_client.base_url:
+            if await self._init_react_agent():
+                if images and len(images) > 0:
+                    # Two-phase multimodal: React Agent gathers context → Vision generates
+                    logger.info(f"[Phase4-MM] Two-phase multimodal for {agent_type.value} with {len(images)} images")
+
+                    # R1 Fix: Pre-inject memory into context BEFORE React Agent
+                    # so it survives the two-phase handoff to Vision.
+                    # (_run_react_agent injects memory into its own local context,
+                    # but that doesn't propagate back to the caller's context variable)
+                    if not DISABLE_CONTEXT_ENRICHMENT:
+                        try:
+                            memory_query = self._extract_topic_for_memory(json_prompt)
+                            memory_context = await self._get_learning_memories(content=memory_query)
+                            if memory_context:
+                                context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
+                                logger.debug("[R1-Fix] Pre-injected memory before two-phase pipeline")
+                        except Exception as e:
+                            logger.warning(f"[R1-Fix] Memory pre-injection failed: {e}")
+
+                    try:
+                        react_result = await self._run_react_agent(
+                            agent_type.value, json_prompt, context=context, gather_only=True
+                        )
+                        react_context = self._extract_react_context(react_result, context)
+                        logger.info(f"[Phase4-MM] Phase 4a complete. React context: {len(react_context)} chars")
+                        vision_result = await self.call_agent_with_images(
+                            agent_type, json_prompt, images=images, context=react_context
+                        )
+                        # R2: Propagate tool_results from React phase to Vision result
+                        # so generate_explanation() can build programmatic references
+                        if (react_result.data and isinstance(react_result.data, dict)
+                                and react_result.data.get("tool_results")):
+                            if vision_result.data and isinstance(vision_result.data, dict):
+                                vision_result.data["tool_results"] = react_result.data["tool_results"]
+                            elif vision_result.data is None:
+                                vision_result.data = {"tool_results": react_result.data["tool_results"]}
+                        return vision_result
+                    except Exception as e:
+                        logger.warning(
+                            f"[Phase4-MM] Two-phase failed: {e}. Direct vision fallback."
+                        )
+                        # Fall through to direct vision call below
+                else:
+                    # Text-only: standard React Agent
+                    logger.info(f"[Phase4] Using React Agent for {agent_type.value}")
+                    try:
+                        return await self._run_react_agent(  # type: ignore[return-value]
+                            agent_type.value, json_prompt, context=context
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"[Phase4] React Agent failed for {agent_type.value}: {e}. "
+                            f"Falling back to Phase 3/2/standard call."
+                        )
+
+        # ✅ FIX-2.1: Direct multimodal fallback (React Agent disabled or failed)
         if images and len(images) > 0:
-            logger.info(f"Calling {agent_type.value} with {len(images)} images")
+            logger.info(f"Calling {agent_type.value} with {len(images)} images (direct fallback)")
             return await self.call_agent_with_images(
                 agent_type, json_prompt, images=images, context=context
             )
-
-        # ═══════════════════════════════════════════════════════════════════════
-        # Phase 4: React Agent (create_react_agent with autonomous retrieval)
-        # Takes precedence over Phase 2/3 when enabled.
-        # ═══════════════════════════════════════════════════════════════════════
-        if ENABLE_REACT_AGENT and self._gemini_client and not self._gemini_client.base_url:
-            if self._init_react_agent():
-                logger.info(f"[Phase4] Using React Agent for {agent_type.value}")
-                try:
-                    return await self._run_react_agent(  # type: ignore[return-value]
-                        agent_type.value, json_prompt, context=context
-                    )
-                except Exception as e:
-                    logger.warning(
-                        f"[Phase4] React Agent failed for {agent_type.value}: {e}. "
-                        f"Falling back to Phase 3/2/standard call."
-                    )
 
         # ═══════════════════════════════════════════════════════════════════════
         # Phase 3: LangGraph Agent Graph (Adaptive + Corrective RAG)
@@ -2706,7 +3326,7 @@ class AgentService:
                 # Fall through to standard call on any error
 
         # ✅ FIX-1.1: Pass context to call_agent for adjacent node enrichment
-        return await self.call_agent(agent_type, json_prompt, context=context)
+        return await self.call_agent(agent_type, json_prompt, context=context, canvas_name=canvas_name, node_id=node_id)
 
     async def decompose_basic(
         self,
@@ -2933,7 +3553,8 @@ class AgentService:
         canvas_name: str,
         node_ids: List[str],
         node_contents: Optional[Dict[str, str]] = None,
-        rag_context: Optional[str] = None  # Story 12.A.2: RAG context injection
+        rag_context: Optional[str] = None,  # Story 12.A.2: RAG context injection
+        images: Optional[List[Dict[str, Any]]] = None,  # Multimodal: extracted images
     ) -> Dict[str, Any]:
         """
         Score multiple nodes' understanding.
@@ -2964,7 +3585,23 @@ class AgentService:
 
             # Call scoring for each node
             # Story 12.A.2: Pass rag_context to call_scoring
-            result = await self.call_scoring("", content, context=rag_context)
+            # Fix B: Inject mastery level into scoring context
+            scoring_context = rag_context or ""
+            try:
+                from app.services.mastery_engine import MasteryEngine, load_mastery_config
+                from app.services.mastery_store import MasteryStore
+                from app.clients.neo4j_client import get_neo4j_client
+                _m_engine = MasteryEngine(load_mastery_config())
+                _m_store = MasteryStore(get_neo4j_client())
+                _m_concept = await _m_store.get_concept(node_id, group_id="cs188")
+                if _m_concept and _m_concept.interaction_count > 0:
+                    _eff = _m_engine.effective_proficiency(_m_concept)
+                    _label = _m_engine.mastery_label(_m_concept)
+                    mastery_ctx = f"\n\n[学生掌握度] {_label} ({_eff:.0%}), 交互次数: {_m_concept.interaction_count}"
+                    scoring_context = f"{scoring_context}{mastery_ctx}" if scoring_context else mastery_ctx
+            except Exception:
+                pass  # Non-blocking: mastery context is optional for scoring
+            result = await self.call_scoring("", content, context=scoring_context, canvas_name=canvas_name, node_id=node_id, images=images)
 
             # Debug: Log Agent response for troubleshooting
             logger.info(f"[Story 2.8] Scoring Agent response: success={result.success}, data_keys={list(result.data.keys()) if result.data else 'None'}")
@@ -3011,6 +3648,29 @@ class AgentService:
             else:
                 accuracy = imagery = completeness = originality = 0.0
 
+            # Mastery engine update (BKT + FSRS hybrid)
+            mastery_data = {}
+            try:
+                from app.services.mastery_engine import MasteryEngine, load_mastery_config
+                from app.services.mastery_store import MasteryStore
+                from app.clients.neo4j_client import get_neo4j_client
+                from memory.temporal.fsrs_manager import get_rating_from_score
+
+                grade = get_rating_from_score(total_score)
+                concept_id = node_id  # Use node_id as concept_id
+                engine = MasteryEngine(load_mastery_config())
+                store = MasteryStore(get_neo4j_client())
+                concept = await store.get_or_create_concept(
+                    concept_id,
+                    topic=self._extract_topic_from_content(content) if content else "Unknown",
+                    name=content[:50] if content else "Unknown",
+                )
+                concept = engine.update_on_interaction(concept, grade)
+                await store.save_concept(concept)
+                mastery_data = engine.concept_to_response(concept)
+            except Exception as mastery_err:
+                logger.warning(f"Mastery update failed (non-blocking): {mastery_err}")
+
             scores.append({
                 "node_id": node_id,
                 "accuracy": accuracy,
@@ -3018,9 +3678,10 @@ class AgentService:
                 "completeness": completeness,
                 "originality": originality,
                 "total": total_score,
-                "new_color": new_color,
+                "new_color": new_color,  # Kept for backward compat; plugin should use mastery_data
                 "feedback": feedback,  # Story 2.8: Pass feedback to frontend
                 "color_action": color_action,  # Story 2.8: Pass color_action to frontend
+                "mastery": mastery_data,  # Mastery proficiency data for Sidebar
             })
 
             # Record learning episode (Story 30.4: fire-and-forget pattern)
@@ -3035,13 +3696,16 @@ class AgentService:
             )
 
             # Record color transition to Graphiti knowledge graph
-            # Detect old_color from canvas if possible, default to "4" (red)
+            # Fix F4: Use read_canvas() to find old_color (get_node() doesn't exist)
             old_color = "4"  # Default assumption: node was red before scoring
             if self._canvas_service:
                 try:
-                    node_data = await self._canvas_service.get_node(canvas_name, node_id)
-                    if node_data:
-                        old_color = node_data.get("color", "4")
+                    canvas_data = await self._canvas_service.read_canvas(canvas_name)
+                    if canvas_data and "nodes" in canvas_data:
+                        for node in canvas_data["nodes"]:
+                            if node.get("id") == node_id:
+                                old_color = node.get("color", "4")
+                                break
                 except Exception:
                     pass  # Use default
 
@@ -3316,12 +3980,34 @@ class AgentService:
         )
         result = await self.call_explanation(
             content, explanation_type, context=enhanced_context, images=images,
-            user_understanding=user_understanding  # ✅ Story 12.E.2: Pass to JSON field
+            user_understanding=user_understanding,  # ✅ Story 12.E.2: Pass to JSON field
+            canvas_name=canvas_name, node_id=node_id,  # Fix D: Memory context threading
         )
 
         # ✅ Story 21.3: Use multi-fallback extraction with friendly error handling
         # [Source: docs/prd/EPIC-21-AGENT-E2E-FLOW-FIX.md#story-21-3]
         explanation_text, extraction_success = extract_explanation_text(result.data)
+
+        # Post-process: ensure references are Obsidian wikilinks
+        if explanation_text:
+            explanation_text = _convert_refs_to_wikilinks(explanation_text)
+
+            # R2c Fix: Replace LLM-fabricated references with programmatic ones
+            # built from actual tool search results
+            tool_results = []
+            if result.data and isinstance(result.data, dict):
+                tool_results = result.data.get("tool_results", [])
+            if tool_results:
+                # Strip LLM's potentially fabricated ## 相关资料 section
+                explanation_text = re.sub(
+                    r'\n+##\s*(?:相关资料|参考资料|References).*$',
+                    '',
+                    explanation_text,
+                    flags=re.DOTALL,
+                )
+                # Append programmatic references from real search results
+                explanation_text += _build_references_from_tools(tool_results)
+                logger.debug(f"[R2c-Fix] Replaced LLM refs with programmatic refs from {len(tool_results)} tool results")
 
         if not extraction_success or not explanation_text:
             logger.error(
@@ -3412,6 +4098,10 @@ class AgentService:
                     f.write(f"# 四层次解释\n\n{explanation_text}")
                 logger.info(f"[FIX-4.8] Created SINGLE four-level explanation file: {explain_file_path}")
 
+                # Round 4 Fix E2: Do NOT index explanation files to vault_notes —
+                # they pollute search results and cause circular references.
+                # Explanation files are still stored on disk as Canvas file nodes.
+
                 # Create file type node (green for explanation)
                 created_nodes.append({
                     "id": explain_node_id,
@@ -3491,14 +4181,8 @@ class AgentService:
                     f.write(f"# {explanation_type.title()} 解释\n\n{explanation_text}")
                 logger.info(f"[FIX-4.3] Created explanation file: {explain_file_path}")
 
-                # Trigger incremental LanceDB indexing (fix: .md files invisible to search)
-                try:
-                    from src.agentic_rag.clients.lancedb_client import LanceDBClient
-                    ldb = LanceDBClient.get_instance()  # type: ignore[attr-defined]
-                    asyncio.create_task(ldb.index_single_file(explain_full_path, "vault_notes"))
-                    logger.debug(f"Triggered incremental index for {explain_file_path}")
-                except Exception as idx_err:
-                    logger.debug(f"Incremental indexing skipped: {idx_err}")
+                # Round 4 Fix E2: Do NOT index explanation files to vault_notes —
+                # they pollute search results and cause circular references.
 
                 # Create file type node
                 created_nodes.append({

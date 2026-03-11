@@ -31,6 +31,7 @@ import { ReviewDashboardView, VIEW_TYPE_REVIEW_DASHBOARD } from './src/views/Rev
 import { ProgressTrackerView, VIEW_TYPE_PROGRESS_TRACKER } from './src/views/ProgressTrackerView';
 import { CrossCanvasSidebarView, VIEW_TYPE_CROSS_CANVAS_SIDEBAR } from './src/views/CrossCanvasSidebar';
 import { CanvasInfoView, VIEW_TYPE_CANVAS_INFO } from './src/views/CanvasInfoView';
+import { MasteryDashboardView, VIEW_TYPE_MASTERY_DASHBOARD } from './src/views/MasteryDashboardView';
 import { CrossCanvasModal, createCrossCanvasModal } from './src/modals/CrossCanvasModal';
 import type { CrossCanvasAssociation } from './src/types/UITypes';
 import { NotificationService, createNotificationService } from './src/services/NotificationService';
@@ -255,6 +256,11 @@ export default class CanvasReviewPlugin extends Plugin {
 
     /** Story 30.6: Canvas auto-index debounce timers */
     private indexDebounceTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+
+    /** Vault notes auto-index: dirty set of changed .md file paths */
+    private vaultIndexDirtySet: Set<string> = new Set();
+    /** Vault notes auto-index: debounce timer */
+    private vaultIndexDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
     /**
      * Get API Client instance (Story 38.1)
@@ -543,6 +549,17 @@ export default class CanvasReviewPlugin extends Plugin {
                 this.app.vault.on('modify', (file) => {
                     if (file instanceof TFile && file.extension === 'canvas') {
                         this.debouncedIndexCanvas(file);
+                    }
+                })
+            );
+
+            // Vault notes auto-index: watch .md file changes via metadataCache
+            // metadataCache.on('changed') fires after Obsidian finishes parsing,
+            // more reliable than vault.on('modify') for content-based indexing.
+            this.registerEvent(
+                this.app.metadataCache.on('changed', (file) => {
+                    if (file.extension === 'md') {
+                        this.debouncedIndexVaultNote(file.path);
                     }
                 })
             );
@@ -1000,6 +1017,8 @@ export default class CanvasReviewPlugin extends Plugin {
                                     return; // Cancelled, skip success notice
                                 }
                                 new Notice(`评分完成: ${result.scores?.length || 0} 个节点已评分`);
+                                // Trigger Dashboard auto-refresh after scoring
+                                this.app.workspace.trigger('mastery-updated' as any);
                             } catch (error) {
                                 // @source Story 21.5.5 - 增强错误处理
                                 this.handleAgentError(error, 'score_understanding', () =>
@@ -1709,11 +1728,29 @@ export default class CanvasReviewPlugin extends Plugin {
             const urlMatch = apiUrl.match(/:(\d+)/);
             const port = urlMatch ? parseInt(urlMatch[1], 10) : 8000;
 
-            // Get backend path relative to vault
-            // FIX: Removed extra "Canvas/" - backend is at ../backend, not ../Canvas/backend
-            const vaultPath = (this.app.vault.adapter as any).basePath || '';
-            const backendPath = `${vaultPath}/../backend`;
+            // Get backend path from settings, or fall back to relative path
+            const configuredPath = this.settings.backendPath?.trim();
+            let backendPath: string;
+            if (configuredPath) {
+                backendPath = configuredPath;
+            } else {
+                const vaultPath = (this.app.vault.adapter as any).basePath || '';
+                backendPath = `${vaultPath}/../backend`;
+            }
 
+            // Skip auto-start if backend path doesn't exist
+            const fs = require('fs');
+            const path = require('path');
+            const resolvedBackendPath = path.resolve(backendPath);
+            if (!fs.existsSync(resolvedBackendPath)) {
+                if (this.settings.debugMode) {
+                    console.log(
+                        `Canvas Review System: Backend directory not found at ${resolvedBackendPath}, ` +
+                        `skipping auto-start. Set backendPath in plugin settings or start backend manually.`
+                    );
+                }
+                // Don't throw — plugin works fine connecting to manually started backend
+            } else {
             this.backendManager = createBackendProcessManager(backendPath, {
                 onStatusChange: (status: BackendStatus, message?: string) => {
                     this.backendStatus = status;
@@ -1746,6 +1783,7 @@ export default class CanvasReviewPlugin extends Plugin {
                 console.log('Canvas Review System: BackendProcessManager initialized');
                 console.log(`Canvas Review System: Backend configured for port ${port}`);
             }
+            } // end else (backend path exists)
         } catch (error) {
             console.error('Canvas Review System: Failed to initialize BackendProcessManager:', error);
         }
@@ -1782,6 +1820,38 @@ export default class CanvasReviewPlugin extends Plugin {
         }, 5000);
 
         this.indexDebounceTimers.set(file.path, timer);
+    }
+
+    /**
+     * Vault notes auto-index: accumulate changed .md paths in dirty set,
+     * then batch-send to backend after 3s debounce window.
+     */
+    private debouncedIndexVaultNote(filePath: string): void {
+        this.vaultIndexDirtySet.add(filePath);
+
+        if (this.vaultIndexDebounceTimer) {
+            clearTimeout(this.vaultIndexDebounceTimer);
+        }
+
+        this.vaultIndexDebounceTimer = setTimeout(async () => {
+            this.vaultIndexDebounceTimer = null;
+            const paths = [...this.vaultIndexDirtySet];
+            this.vaultIndexDirtySet.clear();
+
+            if (!this.apiClient || paths.length === 0) return;
+
+            try {
+                const result = await this.apiClient.indexVaultIncremental(paths);
+                if (this.settings.debugMode) {
+                    console.log(
+                        `Canvas Review System: Vault auto-indexed ${result.files_processed ?? 0} files, ` +
+                        `${result.chunks_indexed ?? 0} chunks`
+                    );
+                }
+            } catch (e) {
+                console.warn('Canvas Review System: Vault auto-index failed:', e);
+            }
+        }, 3000);
     }
 
     private async cleanupManagers(): Promise<void> {
@@ -1902,6 +1972,12 @@ export default class CanvasReviewPlugin extends Plugin {
             (leaf) => new CanvasInfoView(leaf, this)
         );
 
+        // Register Mastery Dashboard View (BKT + FSRS hybrid proficiency)
+        this.registerView(
+            VIEW_TYPE_MASTERY_DASHBOARD,
+            (leaf) => new MasteryDashboardView(leaf, this)
+        );
+
         if (this.settings.debugMode) {
             console.log('Canvas Review System: Views registered');
         }
@@ -1950,6 +2026,15 @@ export default class CanvasReviewPlugin extends Plugin {
                     return true;
                 }
                 return false;
+            }
+        });
+
+        // Register "Show Mastery Dashboard" command (BKT + FSRS proficiency)
+        this.addCommand({
+            id: 'show-mastery-dashboard',
+            name: 'Show Mastery Dashboard (掌握度仪表板)',
+            callback: async () => {
+                await this.showMasteryDashboard();
             }
         });
 
@@ -2169,7 +2254,7 @@ export default class CanvasReviewPlugin extends Plugin {
             icon: 'play',
             callback: async () => {
                 if (!this.backendManager) {
-                    new Notice('后端管理器未初始化');
+                    new Notice('后端管理器未初始化，请在设置中配置后端目录路径');
                     return;
                 }
                 const currentStatus = this.backendManager.getStatus();
@@ -2192,7 +2277,7 @@ export default class CanvasReviewPlugin extends Plugin {
             icon: 'play',
             callback: async () => {
                 if (!this.backendManager) {
-                    new Notice('后端管理器未初始化');
+                    new Notice('后端管理器未初始化，请在设置中配置后端目录路径');
                     return;
                 }
                 const status = this.backendManager.getStatus();
@@ -2212,7 +2297,7 @@ export default class CanvasReviewPlugin extends Plugin {
             icon: 'square',
             callback: async () => {
                 if (!this.backendManager) {
-                    new Notice('后端管理器未初始化');
+                    new Notice('后端管理器未初始化，请在设置中配置后端目录路径');
                     return;
                 }
                 const status = this.backendManager.getStatus();
@@ -2232,7 +2317,7 @@ export default class CanvasReviewPlugin extends Plugin {
             icon: 'info',
             callback: () => {
                 if (!this.backendManager) {
-                    new Notice('后端管理器未初始化');
+                    new Notice('后端管理器未初始化，请在设置中配置后端目录路径');
                     return;
                 }
                 const status = this.backendManager.getStatus();
@@ -2295,6 +2380,27 @@ export default class CanvasReviewPlugin extends Plugin {
         if (leaf) {
             await leaf.setViewState({
                 type: VIEW_TYPE_REVIEW_DASHBOARD,
+                active: true,
+            });
+            workspace.revealLeaf(leaf);
+        }
+    }
+
+    /**
+     * Show Mastery Dashboard view (BKT + FSRS hybrid proficiency).
+     * Opens in right split, reuses existing if already open.
+     */
+    private async showMasteryDashboard(): Promise<void> {
+        const { workspace } = this.app;
+        const existingLeaves = workspace.getLeavesOfType(VIEW_TYPE_MASTERY_DASHBOARD);
+        if (existingLeaves.length > 0) {
+            workspace.revealLeaf(existingLeaves[0]);
+            return;
+        }
+        const leaf = workspace.getRightLeaf(false);
+        if (leaf) {
+            await leaf.setViewState({
+                type: VIEW_TYPE_MASTERY_DASHBOARD,
                 active: true,
             });
             workspace.revealLeaf(leaf);
