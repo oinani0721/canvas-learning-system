@@ -1,0 +1,26 @@
+{
+  "include": [
+    "backend/app",
+    "src",
+    "tests"
+  ],
+  "exclude": [
+    "backend/.venv",
+    "**/__pycache__",
+    "**/node_modules",
+    "**/.git"
+  ],
+  "pythonVersion": "3.14",
+  "pythonPlatform": "All",
+  "venvPath": "backend",
+  "venv": ".venv",
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "reportMissingTypeStubs": false,
+  "reportUnusedImport": true,
+  "reportUnusedVariable": true,
+  "reportUnusedFunction": "warning",
+  "reportDuplicateImport": true,
+  "reportUnnecessaryIsInstance": "warning",
+  "reportUnnecessaryTypeIgnoreComment": "warning"
+}

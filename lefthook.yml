@@ -84,13 +84,32 @@ pre-commit:
           echo "[Ghost Files] No untracked docs found."
         fi
 
-    # --- Python lint: Check staged Python files ---
+    # --- Python lint: ruff lint + format check on staged files ---
     python-lint:
-      glob: "backend/**/*.py"
+      glob: "{backend,src}/**/*.py"
       run: |
-        echo "[Python] Checking syntax..."
-        python -m py_compile {staged_files} 2>&1 || exit 1
-        echo "[Python] Syntax OK."
+        echo "[Python] Running ruff lint..."
+        ruff check {staged_files} 2>&1 || exit 1
+        echo "[Python] Lint OK."
+        echo "[Python] Checking format..."
+        ruff format --check {staged_files} 2>&1 || {
+          echo "[Python] Format check FAILED! Fix: ruff format {staged_files}"
+          exit 1
+        }
+        echo "[Python] Format OK."
+
+    # --- Python typecheck: pyright on staged files ---
+    python-typecheck:
+      glob: "{backend,src}/**/*.py"
+      run: |
+        echo "[Python] Running pyright type check..."
+        pyright {staged_files} 2>&1
+        PYRIGHT_EXIT=$?
+        if [ $PYRIGHT_EXIT -ne 0 ]; then
+          echo "[Python] Type errors found! Review and fix before committing."
+          echo "[Python] Hint: Some errors may be pre-existing. Focus on YOUR changes."
+        fi
+        echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
 
     # --- TypeScript typecheck: Check plugin types ---
     ts-typecheck:

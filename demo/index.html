@@ -1,0 +1,2541 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Learning System - Obsidian Plugin Demo</title>
+<style>
+/* ===== Catppuccin Mocha ===== */
+:root {
+  --bg: #1e1e2e;
+  --surface: #181825;
+  --overlay: #11111b;
+  --border: #313244;
+  --text: #cdd6f4;
+  --subtext: #a6adc8;
+  --muted: #585b70;
+  --blue: #89b4fa;
+  --green: #a6e3a1;
+  --yellow: #f9e2af;
+  --red: #f38ba8;
+  --purple: #cba6f7;
+  --teal: #94e2d5;
+  --cyan: #89dceb;
+  --orange: #fab387;
+  --pink: #f5c2e7;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ===== Obsidian-like Title Bar ===== */
+.title-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  font-size: 12px;
+  z-index: 50;
+}
+.title-bar .vault-name { color: var(--muted); }
+.title-bar .sep { color: var(--muted); font-size: 10px; }
+.title-bar .canvas-name { color: var(--text); font-weight: 600; }
+.title-bar .plugin-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #94e2d515;
+  color: var(--teal);
+  font-size: 10px;
+  font-weight: 600;
+}
+.title-bar .title-btn {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--subtext);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.title-bar .title-btn:hover { background: var(--border); color: var(--text); }
+
+/* ===== Main Layout ===== */
+.workspace {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* ===== Canvas Area ===== */
+.canvas-container {
+  flex: 1;
+  position: relative;
+  background: var(--overlay);
+  overflow: hidden;
+  cursor: grab;
+}
+.canvas-container.panning { cursor: grabbing; }
+
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, #313244 1px, transparent 1px);
+  background-size: 24px 24px;
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+.canvas-viewport {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+}
+
+.canvas-svg {
+  position: absolute;
+  top: 0; left: 0;
+  width: 4000px;
+  height: 3000px;
+  pointer-events: none;
+}
+
+/* ===== Canvas Nodes (Obsidian-style text cards) ===== */
+.c-node {
+  position: absolute;
+  border-radius: 6px;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+  font-size: 12px;
+  line-height: 1.6;
+  min-width: 180px;
+  max-width: 320px;
+  /* overflow NOT hidden here — conn-dots need to extend outside */
+  background: var(--surface);
+}
+.c-node:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.c-node.selected {
+  box-shadow: 0 0 0 2px #89b4fa, 0 4px 20px rgba(137,180,250,0.25);
+}
+.c-node.highlight-exam {
+  animation: examPulse 1.5s ease infinite;
+}
+@keyframes examPulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--yellow), 0 0 8px rgba(249,226,175,0.2); }
+  50% { box-shadow: 0 0 0 3px var(--yellow), 0 0 16px rgba(249,226,175,0.4); }
+}
+.c-node .node-header {
+  padding: 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border-bottom: 1px solid #313244;
+  border-radius: 6px 6px 0 0;  /* Round top since .c-node no longer clips */
+}
+.c-node .node-badge {
+  font-size: 9px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
+.c-node .node-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.c-node .node-body {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--subtext);
+  line-height: 1.6;
+  max-height: 120px;
+  overflow: hidden;  /* Text overflow clipping moved here from .c-node */
+  user-select: text;
+  cursor: text;
+}
+.c-node .node-body::selection { background: #89b4fa40; }
+.c-node .node-body *::selection { background: #89b4fa40; }
+.c-node .node-body p { margin: 0 0 4px 0; }
+.c-node .node-body strong { color: var(--text); }
+.c-node .node-footer {
+  padding: 4px 10px 6px;
+  font-size: 9px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-top: 1px solid #31324440;
+}
+/* Connection dots (hover-to-connect, Obsidian style) */
+.c-node .conn-dot {
+  position: absolute;
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: var(--purple);
+  border: 2px solid var(--bg);
+  opacity: 0;
+  transition: opacity 0.15s;
+  cursor: crosshair;
+  z-index: 5;
+  pointer-events: none;  /* Disabled by default — won't steal clicks from node drag */
+}
+.c-node:hover .conn-dot { opacity: 0.5; pointer-events: auto; }
+.c-node .conn-dot:hover { opacity: 1; }
+.c-node .conn-dot.top    { top: -5px;   left: calc(50% - 5px); }
+.c-node .conn-dot.bottom { bottom: -5px; left: calc(50% - 5px); }
+.c-node .conn-dot.left   { left: -5px;  top: calc(50% - 5px); }
+.c-node .conn-dot.right  { right: -5px; top: calc(50% - 5px); }
+
+/* Edge label pills */
+.edge-label {
+  position: absolute;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #181825;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid #31324480;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.edge-label:hover {
+  border-color: var(--red);
+  background: #f38ba820;
+}
+
+/* Drag-to-connect preview line */
+.conn-drag-line {
+  pointer-events: none;
+  stroke: var(--purple);
+  stroke-width: 2;
+  fill: none;
+  opacity: 0.6;
+}
+/* Color legend */
+.color-legend {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background: #181825ee;
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10px;
+  color: #cdd6f4;
+  border: 1px solid #313244;
+  z-index: 20;
+}
+.color-legend .legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.color-legend .legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+/* ===== Canvas Floating Toolbar ===== */
+.canvas-toolbar {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  z-index: 10;
+}
+.toolbar-btn {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--subtext);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.toolbar-btn:hover { background: var(--border); color: var(--text); }
+.toolbar-btn.active { background: #89b4fa20; color: var(--blue); }
+
+/* Zoom indicator */
+.zoom-indicator {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface);
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  z-index: 10;
+}
+
+/* ===== Right Panel ===== */
+.right-panel {
+  width: 400px;
+  min-width: 400px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+/* Panel Header */
+.panel-header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.panel-header .top-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-header .node-title {
+  font-size: 14px;
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.type-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.progress-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.5s;
+}
+.mastery-text {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* Panel Mode Tabs */
+.mode-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.mode-tab {
+  flex: 1;
+  padding: 8px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s;
+}
+.mode-tab:hover { color: var(--subtext); }
+.mode-tab.active { color: var(--text); border-bottom-color: var(--blue); }
+
+/* Chat Thread */
+.chat-thread {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.chat-thread::-webkit-scrollbar { width: 4px; }
+.chat-thread::-webkit-scrollbar-track { background: transparent; }
+.chat-thread::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Messages */
+.msg {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 11px;
+  line-height: 1.6;
+  animation: fadeIn 0.3s ease;
+}
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.msg.user { background: #89b4fa10; border: 1px solid #89b4fa25; }
+.msg.ai { background: var(--overlay); border: 1px solid var(--border); }
+.msg .label { font-size: 9px; font-weight: 600; margin-bottom: 3px; }
+.msg p { margin-top: 6px; }
+.msg strong { color: var(--text); }
+
+/* Bi-directional links */
+.wikilink {
+  color: var(--blue);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.wikilink:hover { text-decoration-style: solid; }
+
+/* Note Reference Card */
+.note-ref {
+  background: var(--overlay);
+  border-left: 3px solid var(--blue);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.note-ref:hover { background: #89b4fa08; }
+.note-ref .path { color: var(--blue); font-weight: 600; }
+.note-ref .preview { color: var(--muted); margin-top: 2px; line-height: 1.5; }
+.note-ref .jump { color: var(--blue); font-size: 9px; margin-top: 4px; display: inline-block; }
+
+/* Selection Overlay (text select -> "put on canvas") */
+.sel-overlay {
+  background: #89b4fa15;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  padding: 8px 12px;
+  display: none;
+  z-index: 10;
+}
+.sel-overlay.visible { display: block; animation: fadeIn 0.15s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+.sel-overlay .sel-text { font-size: 10px; color: var(--blue); margin-bottom: 6px; font-weight: 500; }
+
+/* Score Card */
+.score-card {
+  background: var(--overlay);
+  border: 1px solid #cba6f730;
+  border-radius: 8px;
+  padding: 10px;
+  display: none;
+}
+.score-card.visible { display: block; }
+.score-total { font-size: 24px; font-weight: 700; color: var(--purple); }
+.score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; font-size: 10px; color: var(--subtext); }
+.score-grid span { font-weight: 600; color: var(--text); }
+
+/* Self Assessment Bar */
+.self-assess {
+  display: flex;
+  gap: 4px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.assess-btn {
+  flex: 1;
+  padding: 6px 2px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.assess-btn:hover { border-color: var(--blue); color: var(--text); }
+.assess-btn.on { border-color: var(--blue); background: #89b4fa12; color: var(--text); }
+
+/* Chat Input Area */
+.chat-input {
+  padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.chips { display: flex; gap: 3px; margin-bottom: 5px; flex-wrap: wrap; }
+.chip {
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-size: 9px;
+  background: var(--border);
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover { background: #89b4fa20; color: var(--blue); }
+.input-row { display: flex; gap: 6px; align-items: center; }
+.input-row input {
+  flex: 1;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+  font-family: var(--font);
+}
+.input-row input:focus { border-color: var(--blue); }
+.input-row input::placeholder { color: var(--muted); }
+.persist-hint { font-size: 8px; color: var(--muted); margin-top: 3px; }
+
+/* Agent recommendation tooltip */
+.agent-recommend {
+  background: var(--overlay);
+  border: 1px solid var(--cyan);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 10px;
+  color: var(--cyan);
+  margin-bottom: 6px;
+  display: none;
+  animation: fadeIn 0.2s ease;
+}
+.agent-recommend.visible { display: block; }
+.agent-recommend .rec-title { font-weight: 600; margin-bottom: 2px; }
+.agent-recommend .rec-cmd {
+  display: inline-block;
+  padding: 1px 6px;
+  background: #89dceb15;
+  border-radius: 4px;
+  color: var(--cyan);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Buttons */
+.btn {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+  font-family: var(--font);
+}
+.btn-primary { background: var(--blue); color: var(--overlay); }
+.btn-primary:hover { filter: brightness(1.1); }
+.btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+.btn-ghost:hover { color: var(--subtext); background: var(--border); }
+.btn-teal { background: #94e2d520; color: var(--teal); border: 1px solid #94e2d540; }
+.btn-teal:hover { background: #94e2d530; }
+.btn-yellow { background: #f9e2af20; color: var(--yellow); border: 1px solid #f9e2af40; }
+.btn-yellow:hover { background: #f9e2af30; }
+
+/* Exam question card */
+.q-card {
+  background: var(--overlay);
+  border: 1px solid #f9e2af30;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+.q-card .q-label { font-size: 9px; font-weight: 600; color: var(--yellow); margin-bottom: 4px; }
+
+/* Misconception */
+.misconception {
+  background: #fab38710;
+  border: 1px solid var(--orange);
+  border-radius: 8px;
+  padding: 10px;
+  display: none;
+}
+.misconception.visible { display: block; }
+
+/* Exam result */
+.exam-result {
+  background: #cba6f708;
+  border: 1px solid #cba6f730;
+  border-radius: 8px;
+  padding: 10px;
+  display: none;
+}
+.exam-result.visible { display: block; }
+
+/* Node alert (new node from canvas) */
+.node-alert {
+  background: #a6e3a108;
+  border: 1px solid #a6e3a130;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: none;
+}
+.node-alert.visible { display: block; }
+
+/* Image preview area */
+.img-preview {
+  background: var(--overlay);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+.img-preview .img-icon { font-size: 36px; margin-bottom: 6px; }
+
+/* OCR status */
+.ocr-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #a6e3a108;
+  border: 1px solid #a6e3a130;
+  border-radius: 6px;
+  font-size: 10px;
+  color: var(--green);
+}
+
+/* PDF info card */
+.pdf-info {
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.pdf-info .pdf-icon { font-size: 28px; }
+
+/* PDF progress bar */
+.pdf-progress {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-top: 6px;
+}
+.pdf-progress .pdf-progress-fill {
+  height: 100%;
+  background: var(--orange);
+  border-radius: 3px;
+  animation: pdfParsing 3s ease-in-out infinite;
+  width: 25%;
+}
+@keyframes pdfParsing {
+  0% { width: 25%; }
+  50% { width: 65%; }
+  100% { width: 25%; }
+}
+
+/* Extracted text preview */
+.extract-preview {
+  background: var(--overlay);
+  border-left: 3px solid var(--purple);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 10px;
+  font-size: 10px;
+  color: var(--subtext);
+  line-height: 1.5;
+}
+
+/* Empty state */
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 12px;
+  gap: 8px;
+}
+.empty-state .icon { font-size: 36px; opacity: 0.4; }
+
+/* ===== Paste Detection Popup ===== */
+.paste-popup {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 20px;
+  width: 300px;
+  z-index: 100;
+  display: none;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  animation: popIn 0.2s ease;
+}
+@keyframes popIn { from { opacity:0; transform:translate(-50%,-50%) scale(0.9); } to { opacity:1; transform:translate(-50%,-50%) scale(1); } }
+.paste-popup.visible { display: block; }
+.paste-header { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.paste-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.paste-content {
+  background: var(--overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 10px;
+  color: var(--subtext);
+  line-height: 1.5;
+  max-height: 80px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.paste-recommend {
+  font-size: 10px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+/* ===== Skill Manager Panel ===== */
+.skill-manager {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  max-height: 500px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  z-index: 300;
+  display: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+  overflow: hidden;
+  animation: popIn 0.2s ease;
+}
+.skill-manager.visible { display: block; }
+.skill-manager-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.skill-manager-header h3 { font-size: 14px; font-weight: 600; }
+.skill-search {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.skill-search input {
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+  font-family: var(--font);
+}
+.skill-search input:focus { border-color: var(--blue); }
+.skill-list {
+  padding: 8px 0;
+  overflow-y: auto;
+  max-height: 320px;
+}
+.skill-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.skill-item:hover { background: var(--border); }
+.skill-item .skill-info { flex: 1; min-width: 0; }
+.skill-item .skill-name { font-size: 11px; font-weight: 600; color: var(--text); }
+.skill-item .skill-desc { font-size: 9px; color: var(--muted); margin-top: 1px; }
+/* Toggle switch */
+.toggle {
+  width: 36px;
+  height: 20px;
+  border-radius: 10px;
+  background: var(--border);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+.toggle.on { background: var(--green); }
+.toggle::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  transition: transform 0.2s;
+}
+.toggle.on::after { transform: translateX(16px); }
+.skill-footer {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* ===== Settings Modal ===== */
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 500;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+.settings-overlay.visible { display: flex; }
+.settings-modal {
+  width: 680px;
+  max-width: 90vw;
+  max-height: 80vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  display: flex;
+  overflow: hidden;
+  animation: popIn 0.2s ease;
+}
+.settings-sidebar {
+  width: 180px;
+  background: var(--overlay);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  flex-shrink: 0;
+}
+.settings-sidebar .stab {
+  padding: 8px 16px;
+  font-size: 11px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 0.15s;
+  border-left: 2px solid transparent;
+}
+.settings-sidebar .stab:hover { color: var(--subtext); background: #1e1e2e40; }
+.settings-sidebar .stab.active { color: var(--text); border-left-color: var(--blue); background: #89b4fa08; }
+.settings-body {
+  flex: 1;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+.settings-body h3 { font-size: 14px; font-weight: 600; margin-bottom: 16px; }
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid #31324440;
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-label { font-size: 11px; color: var(--text); }
+.setting-hint { font-size: 9px; color: var(--muted); margin-top: 2px; }
+.setting-control select, .setting-control input[type="number"] {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 11px;
+  outline: none;
+  font-family: var(--font);
+}
+.setting-control select:focus, .setting-control input[type="number"]:focus { border-color: var(--blue); }
+/* Slider */
+.slider-group { display: flex; align-items: center; gap: 8px; }
+.slider-group input[type="range"] {
+  -webkit-appearance: none;
+  width: 120px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+}
+.slider-group input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--blue);
+  cursor: pointer;
+}
+.slider-val { font-size: 11px; color: var(--blue); font-weight: 600; min-width: 30px; }
+.settings-footer {
+  padding: 12px 24px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ===== Modal backdrop ===== */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 200;
+  display: none;
+}
+.modal-backdrop.visible { display: block; }
+
+/* ===== Toast ===== */
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(60px);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 11px;
+  z-index: 9999;
+  transition: transform 0.3s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ===== Utility ===== */
+.selectable { user-select: text; cursor: text; }
+.selectable::selection { background: #89b4fa40; }
+.hidden { display: none !important; }
+.mt-2 { margin-top: 2px; }
+.mt-4 { margin-top: 4px; }
+.mt-6 { margin-top: 6px; }
+.mt-8 { margin-top: 8px; }
+.mb-4 { margin-bottom: 4px; }
+.flex-row { display: flex; align-items: center; gap: 4px; }
+.text-xs { font-size: 9px; }
+.text-sm { font-size: 10px; }
+.text-muted { color: var(--muted); }
+.text-blue { color: var(--blue); }
+.text-red { color: var(--red); }
+.text-purple { color: var(--purple); }
+.text-yellow { color: var(--yellow); }
+.text-green { color: var(--green); }
+.text-teal { color: var(--teal); }
+.text-cyan { color: var(--cyan); }
+.text-orange { color: var(--orange); }
+.text-pink { color: var(--pink); }
+.fw-600 { font-weight: 600; }
+
+textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--overlay);
+  color: var(--text);
+  font-size: 11px;
+  font-family: var(--font);
+  resize: vertical;
+  outline: none;
+}
+textarea:focus { border-color: var(--blue); }
+</style>
+</head>
+<body>
+
+<!-- ===== Obsidian-like Title Bar ===== -->
+<div class="title-bar">
+  <span class="vault-name">CS188-Vault</span>
+  <span class="sep">/</span>
+  <span class="canvas-name">概率论复习.canvas</span>
+  <span class="sep">|</span>
+  <button class="title-btn" onclick="openSettings()">设置</button>
+  <span class="plugin-badge">Canvas Learning System v0.1</span>
+</div>
+
+<!-- ===== Main Workspace ===== -->
+<div class="workspace">
+
+  <!-- ===== LEFT: Canvas ===== -->
+  <div class="canvas-container" id="canvasContainer">
+    <div class="canvas-grid" id="canvasGrid"></div>
+
+    <div class="canvas-viewport" id="canvasViewport">
+      <svg class="canvas-svg" id="canvasSvg"></svg>
+      <!-- Nodes injected by JS -->
+    </div>
+
+    <!-- Paste Detection Popup -->
+    <div class="paste-popup" id="pastePopup">
+      <div class="paste-header">📋 检测到粘贴内容</div>
+      <div class="paste-type" id="pasteType" style="background:#89b4fa20; color:var(--blue);">文本</div>
+      <div class="paste-content" id="pasteContent">贝叶斯定理的直觉理解：想象你是一名医生，患者检测为阳性...</div>
+      <div class="paste-recommend" id="pasteRecommend">推荐：创建文本学习节点，自动关联到当前选中概念</div>
+      <div class="flex-row" style="gap:6px;">
+        <button class="btn btn-primary" onclick="createNodeFromPaste()">创建节点</button>
+        <button class="btn btn-ghost" onclick="closePastePopup()">取消</button>
+      </div>
+    </div>
+
+    <!-- Floating Toolbar -->
+    <div class="canvas-toolbar">
+      <button class="toolbar-btn active" title="选择">🖱 选择</button>
+      <button class="toolbar-btn" title="添加节点" onclick="showToast('拖拽添加新节点，或粘贴内容自动创建')">+ 节点</button>
+      <button class="toolbar-btn" title="添加连线" onclick="showToast('点击两个节点建立关联')">🔗 连线</button>
+      <button class="toolbar-btn" title="考察模式" onclick="selectNode('medical')">📝 考察</button>
+      <button class="toolbar-btn" title="Skill 管理" onclick="openSkillManager()">⚙ Skills</button>
+    </div>
+
+    <div class="zoom-indicator" id="zoomIndicator">100%</div>
+
+    <!-- Color Legend -->
+    <div class="color-legend">
+      <div style="font-weight:700; margin-bottom:2px;">节点状态</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f38ba8; border-radius:1px; width:4px; height:14px;"></div> 不理解</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#cba6f7; border-radius:1px; width:4px; height:14px;"></div> 概念不清</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#89dceb; border-radius:1px; width:4px; height:14px;"></div> AI解释中</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a6e3a1; border-radius:1px; width:4px; height:14px;"></div> 已掌握</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f9e2af; border-radius:1px; width:4px; height:14px;"></div> 考察题</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#fab387; border-radius:1px; width:4px; height:14px;"></div> 材料/PDF</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#f5c2e7; border-radius:1px; width:4px; height:14px;"></div> 图片节点</div>
+    </div>
+  </div>
+
+  <!-- ===== RIGHT: Dashboard Panel ===== -->
+  <div class="right-panel" id="rightPanel">
+
+    <!-- Panel Header -->
+    <div class="panel-header" id="panelHeader">
+      <div class="top-row">
+        <span class="node-title" id="pTitle">贝叶斯定理</span>
+        <span class="type-badge" id="pBadge" style="background:#f38ba820;color:var(--red);">🔴 不理解</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="pProgress" style="width:25%;background:var(--red);"></div>
+      </div>
+      <div class="mastery-text" id="pMastery">精通度 25% · Level 1 · 下次复习：3月15日</div>
+    </div>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs" id="modeTabs">
+      <div class="mode-tab active" data-mode="learn" onclick="switchMode('learn')">📖 学习</div>
+      <div class="mode-tab" data-mode="exam" onclick="switchMode('exam')">📝 考察</div>
+    </div>
+
+    <!-- Global Selection Overlay (floats above chat) -->
+    <div class="sel-overlay" id="selOverlay" style="margin:0 14px;">
+      <div class="sel-text" id="selText">✦ 选中的文本</div>
+      <div class="flex-row" style="gap:6px;">
+        <button class="btn btn-primary" onclick="doPlaceOnCanvas()">放到白板 →</button>
+        <button class="btn btn-ghost" onclick="hideSel()">取消</button>
+      </div>
+    </div>
+
+    <!-- ===== LEARN MODE ===== -->
+    <div id="modeLearn" class="mode-content" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="chat-thread" id="learnChat">
+        <!-- Populated by JS based on selected node -->
+      </div>
+
+      <!-- Self Assessment -->
+      <div class="self-assess" id="selfAssess">
+        <button class="assess-btn" onclick="assess(0,this)">😵 不懂</button>
+        <button class="assess-btn" onclick="assess(1,this)">🤔 有点懂</button>
+        <button class="assess-btn" onclick="assess(2,this)">😊 基本懂</button>
+        <button class="assess-btn" onclick="assess(3,this)">💪 完全懂</button>
+      </div>
+
+      <!-- Agent Recommend -->
+      <div class="agent-recommend" id="agentRecommend" style="margin:0 14px;">
+        <div class="rec-title">💡 推荐 Agent</div>
+        <span class="rec-cmd" id="recCmd" onclick="applyRecommend()"></span>
+        <span class="text-xs text-muted" id="recReason" style="margin-left:4px;"></span>
+      </div>
+
+      <!-- Chat Input -->
+      <div class="chat-input" id="chatInput">
+        <div class="chips" id="chips">
+          <span class="chip" onclick="insertCmd('/basic-decompose')">/basic-decompose</span>
+          <span class="chip" onclick="insertCmd('/four-level')">/four-level</span>
+          <span class="chip" onclick="insertCmd('/oral-explain')">/oral-explain</span>
+          <span class="chip" onclick="insertCmd('/compare')">/compare</span>
+          <span class="chip" onclick="insertCmd('/example-teach')">/example-teach</span>
+        </div>
+        <div class="input-row">
+          <input id="learnInput" placeholder="输入问题或 /command..." onkeydown="if(event.key==='Enter')sendMsg()" oninput="onInputChange(this.value)">
+          <button class="btn btn-primary" onclick="sendMsg()">发送</button>
+        </div>
+        <div class="persist-hint" id="persistHint">💾 对话自动保存到 {canvas}-threads/bayes.json</div>
+      </div>
+    </div>
+
+    <!-- ===== EXAM MODE ===== -->
+    <div id="modeExam" class="mode-content" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="chat-thread" id="examChat">
+        <div class="q-card">
+          <div class="q-label">📋 考察题 #1（基于对话历史生成）</div>
+          某种疾病发病率为 0.1%，检测灵敏度 99%，假阳性率 5%。<br><br>
+          <strong>问：检测阳性后，实际患病概率是多少？请用贝叶斯定理计算并解释为何结果"反直觉"。</strong>
+          <div class="mt-4 text-xs text-muted">💡 提示：回想 Q3 的讨论</div>
+        </div>
+
+        <div style="margin-top:8px;">
+          <textarea id="examAnswer" placeholder="写下你的回答..."></textarea>
+          <div class="flex-row mt-4" style="gap:6px;">
+            <button class="btn btn-primary" onclick="submitExam()">提交回答</button>
+            <button class="btn btn-ghost" onclick="showToast('跳过此题')">跳过</button>
+          </div>
+        </div>
+
+        <!-- Misconception warning -->
+        <div class="misconception" id="misconception">
+          <div class="text-xs text-orange fw-600">⚠️ 思维误区检测</div>
+          <div class="mt-4 text-xs" style="color:var(--subtext); line-height:1.6;">
+            你将 P(B|A) 和 P(A|B) 混淆了。P(B|A) 是"患病时检测阳性的概率"（灵敏度），P(A|B) 是"阳性时实际患病的概率"（后验概率），两者方向相反。这是贝叶斯推理中最常见的思维误区。
+          </div>
+          <div class="flex-row mt-6" style="gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-yellow" onclick="showToast('已生成针对 P(B|A) vs P(A|B) 混淆的强化题')">针对此误区出题</button>
+            <button class="btn btn-teal" onclick="openExamCanvas()">🧪 打开检验白板 →</button>
+          </div>
+          <div class="mt-4 text-xs text-muted">在白板上整理疑问，建立概念间的逻辑关联</div>
+        </div>
+
+        <!-- Exam result -->
+        <div class="exam-result" id="examResult">
+          <div class="flex-row">
+            <span style="font-size:22px;font-weight:700;color:var(--purple);">68</span>
+            <span class="text-xs text-purple fw-600">/100</span>
+            <span style="margin-left:10px;font-size:10px;color:var(--subtext);">考察评分</span>
+          </div>
+          <div class="score-grid mt-6">
+            <div>准确性 <span>15</span>/25</div>
+            <div>推理过程 <span>18</span>/25</div>
+            <div>完整性 <span>17</span>/25</div>
+            <div>表达清晰 <span>18</span>/25</div>
+          </div>
+          <div class="mt-6 text-xs text-green">📈 FSRS 已更新 · Rating: Good · 精通度 55%→62% · 下次复习：3月18日</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== IMAGE MODE ===== -->
+    <div id="modeImage" class="mode-content" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="chat-thread" id="imageChat">
+        <div class="img-preview">
+          <div class="img-icon">📸</div>
+          <div>教材截图 - 贝叶斯公式推导</div>
+          <div class="text-xs text-muted mt-4">800 x 600 · PNG · 245 KB</div>
+        </div>
+        <div class="ocr-status">
+          <span>✅</span> Gemini OCR 已完成 · 提取 326 字
+        </div>
+        <div class="extract-preview">
+          <div class="text-xs text-purple fw-600 mb-4">📄 提取文本预览</div>
+          定理 5.2（贝叶斯定理）设 B₁, B₂, ..., Bₙ 是样本空间 S 的一个划分，且 P(Bᵢ) > 0，对任意事件 A 且 P(A) > 0，有：<br><br>
+          P(Bᵢ|A) = P(A|Bᵢ)P(Bᵢ) / Σⱼ P(A|Bⱼ)P(Bⱼ)<br><br>
+          其中 P(Bᵢ) 为先验概率，P(Bᵢ|A) 为后验概率...
+        </div>
+        <div class="msg user mt-6">
+          <div class="label text-blue">/four-level</div>
+          请用四个层次解释这个推导过程
+        </div>
+        <div class="msg ai">
+          <div class="label text-cyan">🤖 AI 四层解释（four-level）</div>
+          <div class="selectable">
+            <p><strong>🎯 一句话版</strong>：贝叶斯定理就是"根据新证据更新你的判断"的数学公式。</p>
+            <p><strong>📖 教科书版</strong>：在已知各原因的先验概率和似然函数的条件下，利用全概率公式作为归一化因子，计算给定观测结果后各原因的后验概率。</p>
+            <p><strong>🔬 直觉版</strong>：想象你有一个"信念调节旋钮"。每当你看到新证据，贝叶斯定理告诉你应该把旋钮往哪边转、转多少。参考 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.2')">[[概率论/Ch5.2]]</span> 的图示。</p>
+            <p><strong>🧪 技术细节版</strong>：P(Bᵢ|A) ∝ P(A|Bᵢ)P(Bᵢ) 中，P(A|Bᵢ) 衡量了假设 Bᵢ 对观测 A 的"解释力"，P(Bᵢ) 是先验信念，分母 Σ P(A|Bⱼ)P(Bⱼ) 保证所有后验之和为 1。</p>
+          </div>
+        </div>
+      </div>
+      <div class="self-assess" id="imageAssess">
+        <button class="assess-btn" onclick="assess(0,this)">😵 不懂</button>
+        <button class="assess-btn" onclick="assess(1,this)">🤔 有点懂</button>
+        <button class="assess-btn" onclick="assess(2,this)">😊 基本懂</button>
+        <button class="assess-btn" onclick="assess(3,this)">💪 完全懂</button>
+      </div>
+      <div class="chat-input">
+        <div class="chips">
+          <span class="chip" onclick="insertCmd('/four-level')">/four-level</span>
+          <span class="chip" onclick="insertCmd('/oral-explain')">/oral-explain</span>
+          <span class="chip" onclick="insertCmd('/compare')">/compare</span>
+        </div>
+        <div class="input-row">
+          <input id="imageInput" placeholder="输入问题或 /command..." onkeydown="if(event.key==='Enter')sendMsg()">
+          <button class="btn btn-primary" onclick="sendMsg()">发送</button>
+        </div>
+        <div class="persist-hint">💾 对话自动保存到 {canvas}-threads/image-bayes-formula.json</div>
+      </div>
+    </div>
+
+    <!-- ===== PDF MODE ===== -->
+    <div id="modePdf" class="mode-content" style="display:none;flex-direction:column;flex:1;overflow:hidden;">
+      <div class="chat-thread" id="pdfChat">
+        <div class="pdf-info">
+          <div class="flex-row" style="gap:10px;">
+            <span class="pdf-icon">📄</span>
+            <div>
+              <div class="text-sm fw-600">Lecture5-概率论.pdf</div>
+              <div class="text-xs text-muted mt-2">12 页 · 2.3 MB · 上传于 3月10日</div>
+            </div>
+          </div>
+        </div>
+        <div style="background:#fab38710;border:1px solid #fab38730;border-radius:6px;padding:8px 10px;">
+          <div class="text-xs text-orange fw-600">⏳ 解析中... 第 3/12 页</div>
+          <div class="pdf-progress mt-4">
+            <div class="pdf-progress-fill"></div>
+          </div>
+          <div class="text-xs text-muted mt-4">正在使用 Gemini 提取文本和公式...</div>
+        </div>
+        <div class="extract-preview mt-6">
+          <div class="text-xs text-orange fw-600 mb-4">📑 已提取段落（第 1-3 页）</div>
+          <strong>5.1 条件概率</strong><br>
+          给定事件 B 已经发生的条件下，事件 A 发生的概率称为条件概率，记作 P(A|B)...<br><br>
+          <strong>5.2 贝叶斯定理</strong><br>
+          设 B₁, B₂, ..., Bₙ 为完备事件组，则对任意事件 A...<br><br>
+          <strong>5.3 全概率公式</strong><br>
+          P(A) = Σᵢ P(A|Bᵢ)P(Bᵢ)，这是贝叶斯定理的基础...
+        </div>
+        <div class="msg user mt-6">
+          <div class="label text-blue">/basic-decompose</div>
+          帮我拆解这份 lecture 的核心知识点
+        </div>
+        <div class="msg ai">
+          <div class="label text-cyan">🤖 AI 拆解（basic-decompose）</div>
+          <div class="selectable">
+            <p>这份 Lecture 5 可以拆解为 4 个核心知识点：</p>
+            <p><strong>1. 条件概率</strong> — 事件依赖关系的基础定义<br>
+            <span style="color:var(--subtext)">见 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.1')">[[概率论/Ch5.1]]</span></span></p>
+            <p><strong>2. 全概率公式</strong> — 从"原因到结果"的正向推理<br>
+            <span style="color:var(--subtext)">这是贝叶斯定理的分母部分</span></p>
+            <p><strong>3. 贝叶斯定理</strong> — 从"结果到原因"的逆向推理<br>
+            <span style="color:var(--subtext)">见 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.2')">[[概率论/Ch5.2]]</span></span></p>
+            <p><strong>4. 独立性</strong> — 当条件概率等于无条件概率时<br>
+            <span style="color:var(--subtext)">P(A|B) = P(A) 意味着 B 不影响 A 的判断</span></p>
+          </div>
+        </div>
+      </div>
+      <div class="self-assess">
+        <button class="assess-btn" onclick="assess(0,this)">😵 不懂</button>
+        <button class="assess-btn" onclick="assess(1,this)">🤔 有点懂</button>
+        <button class="assess-btn" onclick="assess(2,this)">😊 基本懂</button>
+        <button class="assess-btn" onclick="assess(3,this)">💪 完全懂</button>
+      </div>
+      <div class="chat-input">
+        <div class="chips">
+          <span class="chip" onclick="insertCmd('/basic-decompose')">/basic-decompose</span>
+          <span class="chip" onclick="insertCmd('/four-level')">/four-level</span>
+          <span class="chip" onclick="insertCmd('/example-teach')">/example-teach</span>
+        </div>
+        <div class="input-row">
+          <input id="pdfInput" placeholder="输入问题或 /command..." onkeydown="if(event.key==='Enter')sendMsg()">
+          <button class="btn btn-primary" onclick="sendMsg()">发送</button>
+        </div>
+        <div class="persist-hint">💾 对话自动保存到 {canvas}-threads/pdf-lecture5.json</div>
+      </div>
+    </div>
+
+    <!-- ===== EMPTY STATE ===== -->
+    <div id="modeEmpty" class="mode-content" style="display:none; flex:1;">
+      <div class="empty-state">
+        <div class="icon">🎯</div>
+        <div>点击画布上的节点</div>
+        <div style="font-size:10px;">查看对话历史和学习进度</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== Skill Manager ===== -->
+<div class="modal-backdrop" id="skillBackdrop" onclick="closeSkillManager()"></div>
+<div class="skill-manager" id="skillManager">
+  <div class="skill-manager-header">
+    <h3>⚙ Skill Manager</h3>
+    <button class="btn btn-ghost" onclick="closeSkillManager()" style="font-size:14px;padding:2px 6px;">✕</button>
+  </div>
+  <div class="skill-search">
+    <input placeholder="搜索技能..." oninput="filterSkills(this.value)">
+  </div>
+  <div class="skill-list" id="skillList">
+    <!-- Populated by JS -->
+  </div>
+  <div class="skill-footer" id="skillFooter">已加载 5/8 个技能</div>
+</div>
+
+<!-- ===== Settings Modal ===== -->
+<div class="settings-overlay" id="settingsOverlay" onclick="if(event.target===this)closeSettings()">
+  <div class="settings-modal">
+    <div class="settings-sidebar" id="settingsSidebar">
+      <div class="stab active" data-stab="ai" onclick="switchSettingsTab('ai')">🤖 AI 模型配置</div>
+      <div class="stab" data-stab="engine" onclick="switchSettingsTab('engine')">⚙ 学习引擎</div>
+      <div class="stab" data-stab="index" onclick="switchSettingsTab('index')">📇 笔记索引</div>
+      <div class="stab" data-stab="ui" onclick="switchSettingsTab('ui')">🎨 界面显示</div>
+      <div class="stab" data-stab="skills" onclick="switchSettingsTab('skills')">🧩 Agent 技能</div>
+      <div class="stab" data-stab="advanced" onclick="switchSettingsTab('advanced')">🔧 高级选项</div>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;">
+      <div class="settings-body" id="settingsBody">
+        <!-- Populated by JS -->
+      </div>
+      <div class="settings-footer">
+        <button class="btn btn-ghost" onclick="showToast('已恢复默认设置');closeSettings()">恢复默认</button>
+        <button class="btn btn-primary" onclick="showToast('✅ 设置已保存');closeSettings()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Node Data =====
+const nodeData = {
+  bayes: {
+    title: '贝叶斯定理',
+    badge: '🔴 不理解', badgeStyle: 'background:#f38ba820;color:var(--red)',
+    borderColor: '#f38ba8', fillColor: '#f38ba8',
+    glowColor: '#f38ba840',
+    progress: 25, progressColor: 'var(--red)',
+    mastery: '精通度 25% · Level 1 · 下次复习：3月15日',
+    x: 380, y: 180, w: 260,
+    type: 'text',
+    content: 'P(A|B) = P(B|A)·P(A) / P(B)\n\n描述条件概率之间的关系——在已知证据 B 的情况下，更新对假设 A 的判断。我不理解为什么分母是 P(B) 全概率。',
+    meta: '💬 5条对话 · 精通 25%',
+    panelMode: 'learn'
+  },
+  prior: {
+    title: '先验概率 vs 后验概率',
+    badge: '🟣 概念不清', badgeStyle: 'background:#cba6f720;color:var(--purple)',
+    borderColor: '#cba6f7', fillColor: '#cba6f7',
+    glowColor: '#cba6f740',
+    progress: 40, progressColor: 'var(--purple)',
+    mastery: '精通度 40% · Level 2 · 下次复习：3月14日',
+    x: 60, y: 30, w: 240,
+    type: 'text',
+    content: '先验概率 P(A) 代表"还没做检测时的初始判断"，后验概率 P(A|B) 代表"拿到检测结果后的更新判断"。\n\n这两个概念的区别到底是什么？后验是怎么从先验"更新"来的？',
+    meta: '💬 3条对话 · 精通 40%',
+    panelMode: 'learn'
+  },
+  likelihood: {
+    title: '似然函数 P(B|A)',
+    badge: '🟣 概念不清', badgeStyle: 'background:#cba6f720;color:var(--purple)',
+    borderColor: '#cba6f7', fillColor: '#cba6f7',
+    glowColor: '#cba6f740',
+    progress: 35, progressColor: 'var(--purple)',
+    mastery: '精通度 35% · Level 1 · 下次复习：3月15日',
+    x: 700, y: 20, w: 250,
+    type: 'text',
+    content: 'P(B|A) 即似然函数——在假设为真时，观察到当前证据的概率。\n\n这是连接先验和后验的桥梁。但 P(B|A) 和 P(A|B) 到底有什么本质区别？方向反了意味着什么？',
+    meta: '💬 2条对话 · 精通 35%',
+    panelMode: 'learn'
+  },
+  falsepos: {
+    title: '假阳性率与后验概率',
+    badge: '🔵 AI解释中', badgeStyle: 'background:#89dceb20;color:var(--cyan)',
+    borderColor: '#89dceb', fillColor: '#89dceb',
+    glowColor: '#89dceb40',
+    progress: 20, progressColor: 'var(--cyan)',
+    mastery: '精通度 20% · 新节点 · 来自检验白板',
+    x: 100, y: 400, w: 260,
+    type: 'text',
+    content: '当发病率极低时（如 0.1%），即使检测准确率 99%，阳性结果的实际患病概率可能远低于预期。\n\n这就是基率谬误的典型案例。为什么 99% 准确率还会错得这么离谱？',
+    meta: '💬 1条对话 · 📎 Ch5.2',
+    panelMode: 'learn'
+  },
+  medical: {
+    title: '医学检测应用题',
+    badge: '📝 考察题', badgeStyle: 'background:#f9e2af20;color:var(--yellow)',
+    borderColor: '#f9e2af', fillColor: '#f9e2af',
+    glowColor: '#f9e2af40',
+    progress: 55, progressColor: 'var(--yellow)',
+    mastery: '精通度 55% · 第3次考察 · 难度：中等',
+    x: 580, y: 400, w: 260,
+    type: 'exam',
+    content: '某疾病发病率 0.1%，检测灵敏度 99%，特异度 95%。\n\n问：一个人检测为阳性，他实际患病的概率是多少？请用贝叶斯定理求解。',
+    meta: '📝 考察中 · 精通 55%',
+    panelMode: 'exam'
+  },
+  cond: {
+    title: '条件概率 P(A|B)',
+    badge: '🟢 已掌握', badgeStyle: 'background:#a6e3a120;color:var(--green)',
+    borderColor: '#a6e3a1', fillColor: '#a6e3a1',
+    glowColor: '#a6e3a140',
+    progress: 85, progressColor: 'var(--green)',
+    mastery: '精通度 85% · Level 4 · 下次复习：3月25日',
+    x: 740, y: 240, w: 220,
+    type: 'text',
+    content: 'P(A|B) = P(A∩B) / P(B)\n\n在事件 B 已经发生的条件下，事件 A 发生的概率。关键：缩小了样本空间。',
+    meta: '💬 4条对话 · 精通 85%',
+    panelMode: 'learn'
+  },
+  imageNode: {
+    title: '教材截图-贝叶斯公式推导',
+    badge: '🖼 图片节点', badgeStyle: 'background:#f5c2e720;color:var(--pink)',
+    borderColor: '#f5c2e7', fillColor: '#f5c2e7',
+    glowColor: '#f5c2e740',
+    progress: 30, progressColor: 'var(--pink)',
+    mastery: '精通度 30% · OCR 已完成 · 326 字提取',
+    x: 50, y: 220, w: 230,
+    type: 'image',
+    content: '[OCR 提取] 定理5.2 设 B₁,B₂,...,Bₙ 是样本空间的一个划分，且 P(Bᵢ)>0，则对任一事件 A，P(A)>0，有 P(Bᵢ|A) = P(A|Bᵢ)P(Bᵢ) / Σ P(A|Bⱼ)P(Bⱼ)',
+    meta: '📸 OCR完成 · 326字',
+    panelMode: 'image'
+  },
+  pdfNode: {
+    title: 'Lecture5-概率论.pdf',
+    badge: '📄 PDF节点', badgeStyle: 'background:#fab38720;color:var(--orange)',
+    borderColor: '#fab387', fillColor: '#fab387',
+    glowColor: '#fab38740',
+    progress: 15, progressColor: 'var(--orange)',
+    mastery: '精通度 15% · 解析中 · 3/12 页',
+    x: 420, y: 480, w: 220,
+    type: 'pdf',
+    content: 'Chapter 5: 贝叶斯定理与全概率公式\n\n5.1 条件概率回顾\n5.2 贝叶斯公式\n5.3 应用实例：医学检测',
+    meta: '📄 解析中 3/12页',
+    panelMode: 'pdf'
+  }
+};
+
+const connections = [
+  ['bayes', 'prior',      '#fab387', '分解为'],
+  ['bayes', 'likelihood', '#fab387', '分解为'],
+  ['bayes', 'falsepos',   '#89dceb', '解释了'],
+  ['bayes', 'medical',    '#f9e2af', '考察'],
+  ['bayes', 'cond',       '#fab387', '分解为'],
+  ['bayes', 'imageNode',  '#f5c2e7', '参考'],
+  ['likelihood', 'cond',  '#89dceb', '解释了'],
+  ['falsepos', 'medical', '#cba6f7', '追问自'],
+  ['bayes', 'pdfNode',    '#fab387', '来源']
+];
+
+let currentNode = 'bayes';
+let currentMode = 'learn';
+
+// Chat content per node (for text nodes without dedicated modes)
+const chatContent = {
+  bayes: function() {
+    return `
+      <div class="note-ref" onclick="showToast('↗ 跳转到 概率论/Ch5-贝叶斯定理.md > 5.2')">
+        <div class="path">📎 概率论/Ch5-贝叶斯定理.md > 5.2 贝叶斯公式</div>
+        <div class="preview">P(A|B) = P(B|A)·P(A) / P(B)，描述条件概率之间的关系...</div>
+        <span class="jump">↗ 点击跳转到笔记</span>
+      </div>
+      <div class="msg user">
+        <div class="label text-blue">/basic-decompose</div>
+        帮我拆解贝叶斯定理，我不理解这个公式的含义和应用场景
+      </div>
+      <div class="msg ai" id="aiResp">
+        <div class="label text-cyan">🤖 AI 拆解（basic-decompose）</div>
+        <div class="selectable" id="aiText">
+          <p>贝叶斯定理可以拆解为 3 个核心子问题：</p>
+          <p><strong>Q1. 先验概率 vs 后验概率</strong><br>
+          <span style="color:var(--subtext)">先验概率 P(A) 代表"还没做检测时的初始判断"，后验概率 P(A|B) 代表"拿到检测结果后的更新判断"。参考 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.2')">[[概率论/Ch5.2]]</span> 中的定义。</span></p>
+          <p><strong>Q2. 似然函数的作用</strong><br>
+          <span style="color:var(--subtext)">P(B|A) 即似然函数——在假设为真时，观察到当前证据的概率。这是连接先验和后验的桥梁。详见 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.3')">[[概率论/Ch5.3]]</span>。</span></p>
+          <p><strong>Q3. 为什么假阳性率会让后验概率"反直觉"</strong><br>
+          <span style="color:var(--subtext)">当发病率极低时（如 0.1%），即使检测准确率 99%，阳性结果的实际患病概率可能远低于预期。这就是 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 统计学/基率谬误')">[[统计学/基率谬误]]</span> 的典型案例。</span></p>
+        </div>
+      </div>
+      <div class="score-card" id="scoreCard">
+        <div class="flex-row">
+          <span class="score-total" id="sTotal">72</span>
+          <span class="text-xs text-purple fw-600">/100</span>
+          <span style="margin-left:10px;font-size:10px;color:var(--subtext)">AI 评分反馈</span>
+        </div>
+        <div class="score-grid mt-6">
+          <div>准确性 <span id="s0">20</span>/25</div>
+          <div>画面感 <span id="s1">18</span>/25</div>
+          <div>完整性 <span id="s2">16</span>/25</div>
+          <div>创意性 <span id="s3">18</span>/25</div>
+        </div>
+        <div class="mt-6 text-xs" style="color:var(--subtext)">
+          💡 先验/后验解释清晰，但似然函数描述不够准确。建议阅读 Q2 相关笔记。
+        </div>
+        <div class="mt-4 text-xs text-green" id="sFsrs">
+          📈 FSRS 已更新 · 精通度 25%→40% · 下次复习：3月16日
+        </div>
+      </div>
+    `;
+  },
+  prior: function() {
+    return `
+      <div class="note-ref" onclick="showToast('↗ 跳转到 概率论/Ch5-贝叶斯定理.md > 5.1')">
+        <div class="path">📎 概率论/Ch5-贝叶斯定理.md > 5.1 先验与后验</div>
+        <div class="preview">先验概率是在观察数据之前对参数的初始信念...</div>
+        <span class="jump">↗ 点击跳转到笔记</span>
+      </div>
+      <div class="msg user">
+        <div class="label text-blue">/compare</div>
+        对比先验概率和后验概率
+      </div>
+      <div class="msg ai">
+        <div class="label text-cyan">🤖 AI 对比表（compare）</div>
+        <div class="selectable">
+          <p><strong>先验概率 P(A)</strong></p>
+          <p style="color:var(--subtext)">• 来源：已有知识/历史数据<br>• 时机：观察证据<strong>之前</strong><br>• 特点：可以是主观的<br>• 例子：某疾病的发病率 0.1%</p>
+          <p><strong>后验概率 P(A|B)</strong></p>
+          <p style="color:var(--subtext)">• 来源：先验 + 新证据<br>• 时机：观察证据<strong>之后</strong><br>• 特点：是先验的"更新版"<br>• 例子：检测阳性后的患病概率</p>
+          <p style="color:var(--subtext)">核心关系：后验 ∝ 似然 × 先验。详见 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 概率论/Ch5.2')">[[概率论/Ch5.2]]</span></p>
+        </div>
+      </div>
+    `;
+  },
+  likelihood: function() {
+    return `
+      <div class="note-ref" onclick="showToast('↗ 跳转到 概率论/Ch5-贝叶斯定理.md > 5.3')">
+        <div class="path">📎 概率论/Ch5-贝叶斯定理.md > 5.3 似然函数</div>
+        <div class="preview">似然函数 L(θ|x) = P(x|θ) 描述在给定参数下观测数据的可能性...</div>
+        <span class="jump">↗ 点击跳转到笔记</span>
+      </div>
+      <div class="msg user">
+        <div class="label text-blue">/oral-explain</div>
+        用口语化的方式解释似然函数
+      </div>
+      <div class="msg ai">
+        <div class="label text-cyan">🤖 AI 口语化解释（oral-explain）</div>
+        <div class="selectable">
+          <p>简单说，似然函数就是回答这个问题：</p>
+          <p><strong>"如果某个假设是对的，那我看到当前这些数据的可能性有多大？"</strong></p>
+          <p style="color:var(--subtext)">举个例子：你抛了 10 次硬币，出现 7 次正面。<br>
+          如果硬币是公平的（P=0.5），看到 7/10 正面的概率约 11.7%<br>
+          如果硬币偏向正面（P=0.7），看到 7/10 正面的概率约 26.7%</p>
+          <p style="color:var(--subtext)">所以 P=0.7 的似然值更高——数据更"支持"这个假设。</p>
+        </div>
+      </div>
+    `;
+  },
+  falsepos: function() {
+    return `
+      <div class="note-ref" onclick="showToast('↗ 跳转到 概率论/Ch5-贝叶斯定理.md > 5.2')">
+        <div class="path">📎 概率论/Ch5-贝叶斯定理.md > 5.2.3 假阳性悖论</div>
+        <div class="preview">当基础发病率极低时，假阳性率对后验概率的影响远超直觉...</div>
+        <span class="jump">↗ 点击跳转到笔记</span>
+      </div>
+      <div class="msg ai">
+        <div class="label text-cyan">🤖 AI 正在解释...</div>
+        <div class="selectable">
+          <p>假阳性率让贝叶斯推理变得"反直觉"的关键在于 <strong>基率</strong>（base rate）。</p>
+          <p style="color:var(--subtext)">想象一个城市有 100,000 人，某种罕见病的发病率是 0.1%：<br>
+          • 实际患病：100 人<br>
+          • 未患病：99,900 人<br><br>
+          用 99% 灵敏度、5% 假阳性率的检测：<br>
+          • 患病且阳性：99 人<br>
+          • 未患病但阳性：4,995 人<br><br>
+          所以阳性结果中，真正患病的只有 99/(99+4,995) ≈ <strong>1.94%</strong></p>
+          <p>这就是 <span class="wikilink" onclick="showToast('↗ 跳转到笔记 统计学/基率谬误')">[[统计学/基率谬误]]</span>——我们的直觉忽略了"大多数人本来就没病"这个事实。</p>
+        </div>
+      </div>
+    `;
+  },
+  cond: function() {
+    return `
+      <div class="note-ref" onclick="showToast('↗ 跳转到 概率论/Ch5-贝叶斯定理.md > 5.1')">
+        <div class="path">📎 概率论/Ch5-贝叶斯定理.md > 5.1 条件概率</div>
+        <div class="preview">P(A|B) = P(A∩B)/P(B)，表示在 B 发生条件下 A 发生的概率...</div>
+        <span class="jump">↗ 点击跳转到笔记</span>
+      </div>
+      <div class="msg user">
+        <div class="label text-blue">/example-teach</div>
+        用例题教我条件概率
+      </div>
+      <div class="msg ai">
+        <div class="label text-cyan">🤖 AI 例题教学（example-teach）</div>
+        <div class="selectable">
+          <p><strong>📋 例题</strong>：一副标准扑克牌（52张），已知抽到的是红色牌（红心/方块，共26张），求抽到红心 A 的概率。</p>
+          <p><strong>📝 解析</strong></p>
+          <p style="color:var(--subtext)">• 事件 A：抽到红心 A<br>
+          • 事件 B：抽到红色牌<br>
+          • P(A∩B) = 1/52（红心 A 既是红心也是红色）<br>
+          • P(B) = 26/52 = 1/2<br>
+          • P(A|B) = P(A∩B)/P(B) = (1/52)/(1/2) = 1/26</p>
+          <p><strong>💡 直觉检验</strong>：26张红色牌中只有 1 张红心 A，所以概率确实是 1/26 ✓</p>
+        </div>
+      </div>
+      <div style="background:#a6e3a108;border:1px solid #a6e3a130;border-radius:8px;padding:8px 10px;">
+        <div class="text-xs text-green fw-600">🎉 已掌握！</div>
+        <div class="text-xs text-muted mt-2">连续 3 次考察评分 > 80 · 进入长期记忆复习周期</div>
+      </div>
+    `;
+  }
+};
+
+// ===== Skills Data =====
+const skills = [
+  { id: 'basic-decompose', name: 'basic-decompose', desc: '基础拆解 — 将复杂概念分解为子问题', on: true },
+  { id: 'four-level', name: 'four-level', desc: '四层次解释 — 从简单到深入逐层展开', on: true },
+  { id: 'oral-explain', name: 'oral-explain', desc: '口语化解释 — 用生活化语言重新表述', on: true },
+  { id: 'compare', name: 'compare', desc: '概念对比表 — 生成结构化对比分析', on: true },
+  { id: 'example-teach', name: 'example-teach', desc: '例题教学 — 通过具体例题辅助理解', on: true },
+  { id: 'deep-decompose', name: 'deep-decompose', desc: '深度拆解 — 递归分解到最小知识单元', on: false },
+  { id: 'memory-anchor', name: 'memory-anchor', desc: '记忆锚点 — 生成助记口诀和联想', on: false },
+  { id: 'verify-question', name: 'verify-question', desc: '检验问题 — 生成自测题检验理解', on: false }
+];
+
+// ===== Settings Tab Content =====
+const settingsTabs = {
+  ai: `
+    <h3>🤖 AI 模型配置</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">Primary Model</div><div class="setting-hint">用于对话和解释的主要模型</div></div>
+      <div class="setting-control"><select><option selected>gemini-2.0-flash</option><option>gemini-2.0-pro</option><option>gpt-4o</option><option>claude-3.5-sonnet</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Thinking Model</div><div class="setting-hint">用于深度推理和考察评估的模型</div></div>
+      <div class="setting-control"><select><option selected>gemini-2.0-flash-thinking</option><option>o1-mini</option><option>claude-3.5-sonnet</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Temperature</div><div class="setting-hint">创造性程度 (0=精确, 1=创造)</div></div>
+      <div class="setting-control"><div class="slider-group"><input type="range" min="0" max="100" value="70" oninput="this.nextElementSibling.textContent=this.value/100"><span class="slider-val">0.7</span></div></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Max Tokens</div><div class="setting-hint">单次回复最大长度</div></div>
+      <div class="setting-control"><input type="number" value="4096" style="width:80px;"></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">OCR Model</div><div class="setting-hint">图片/PDF 文字提取模型</div></div>
+      <div class="setting-control"><select><option selected>gemini-2.0-flash (vision)</option><option>gpt-4o-vision</option></select></div>
+    </div>
+  `,
+  engine: `
+    <h3>⚙ 学习引擎</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">FSRS 算法版本</div><div class="setting-hint">间隔重复调度算法</div></div>
+      <div class="setting-control"><select><option selected>FSRS-5 (最新)</option><option>FSRS-4.5</option><option>SM-2 (经典)</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">期望记忆保持率</div><div class="setting-hint">复习调度的目标保持率</div></div>
+      <div class="setting-control"><div class="slider-group"><input type="range" min="80" max="99" value="90" oninput="this.nextElementSibling.textContent=this.value+'%'"><span class="slider-val">90%</span></div></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">精通度阈值</div><div class="setting-hint">达到此分数视为"已掌握"</div></div>
+      <div class="setting-control"><div class="slider-group"><input type="range" min="60" max="95" value="80" oninput="this.nextElementSibling.textContent=this.value"><span class="slider-val">80</span></div></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">自动考察</div><div class="setting-hint">学习对话后自动生成考察题</div></div>
+      <div class="setting-control"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+  `,
+  index: `
+    <h3>📇 笔记索引</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">索引范围</div><div class="setting-hint">选择要索引的 Vault 文件夹</div></div>
+      <div class="setting-control"><select><option selected>整个 Vault</option><option>仅当前文件夹</option><option>自定义路径</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">排除文件夹</div><div class="setting-hint">不纳入索引的路径</div></div>
+      <div class="setting-control" style="font-size:10px;color:var(--muted);">.obsidian, templates</div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">索引状态</div><div class="setting-hint">当前索引进度</div></div>
+      <div class="setting-control" style="font-size:10px;color:var(--green);">✅ 已索引 128 篇笔记</div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">Embedding 模型</div><div class="setting-hint">用于语义检索的向量模型</div></div>
+      <div class="setting-control"><select><option selected>bge-m3 (多语言)</option><option>text-embedding-3-small</option></select></div>
+    </div>
+  `,
+  ui: `
+    <h3>🎨 界面显示</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">节点显示风格</div></div>
+      <div class="setting-control"><select><option selected>紧凑</option><option>标准</option><option>详细</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">连线显示</div></div>
+      <div class="setting-control"><select><option selected>虚线</option><option>实线</option><option>曲线</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">精通度颜色编码</div></div>
+      <div class="setting-control"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">动画效果</div></div>
+      <div class="setting-control"><div class="toggle on" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+  `,
+  skills: `
+    <h3>🧩 Agent 技能</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">技能加载策略</div><div class="setting-hint">控制何时加载 Agent 技能</div></div>
+      <div class="setting-control"><select><option selected>按需加载</option><option>全部预加载</option></select></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">自定义技能路径</div><div class="setting-hint">自定义 .skill.md 文件目录</div></div>
+      <div class="setting-control" style="font-size:10px;color:var(--muted);">skills/</div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">技能编辑器</div></div>
+      <div class="setting-control"><button class="btn btn-ghost" onclick="closeSettings();openSkillManager()">打开 Skill Manager</button></div>
+    </div>
+  `,
+  advanced: `
+    <h3>🔧 高级选项</h3>
+    <div class="setting-row">
+      <div><div class="setting-label">Debug 模式</div><div class="setting-hint">显示 API 请求/响应详情</div></div>
+      <div class="setting-control"><div class="toggle" onclick="this.classList.toggle('on')"></div></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">对话历史导出</div></div>
+      <div class="setting-control"><button class="btn btn-ghost" onclick="showToast('导出为 JSON...')">导出</button></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">清除缓存</div><div class="setting-hint">清除所有本地缓存数据</div></div>
+      <div class="setting-control"><button class="btn btn-ghost" style="color:var(--red);border-color:var(--red);" onclick="showToast('缓存已清除')">清除</button></div>
+    </div>
+    <div class="setting-row">
+      <div><div class="setting-label">版本</div></div>
+      <div class="setting-control" style="font-size:10px;color:var(--muted);">v0.1.0-alpha</div>
+    </div>
+  `
+};
+
+// ===== Initialization =====
+function init() {
+  createCanvasNodes();
+  drawLines();
+  selectNode('bayes');
+  renderSkillList();
+  switchSettingsTab('ai');
+  setupCanvasInteraction();
+  setupPasteDetection();
+  setupTextSelection();
+}
+
+// ===== Create Canvas Nodes (Obsidian-style text cards) =====
+function createCanvasNodes() {
+  const vp = document.getElementById('canvasViewport');
+  Object.entries(nodeData).forEach(([id, nd]) => {
+    const el = document.createElement('div');
+    el.className = 'c-node';
+    el.id = 'node-' + id;
+    el.dataset.id = id;
+    // Colored left border accent + dark card bg
+    el.style.cssText = `left:${nd.x}px; top:${nd.y}px; width:${nd.w}px; border-left: 4px solid ${nd.borderColor};`;
+
+    // Format content: replace \n with <br> for display
+    const contentHtml = (nd.content || nd.title).replace(/\n/g, '<br>');
+
+    el.innerHTML = `
+      <div class="node-header">
+        <span class="node-title">${nd.title}</span>
+        <span class="node-badge" style="${nd.badgeStyle}">${nd.badge}</span>
+      </div>
+      <div class="node-body">${contentHtml}</div>
+      <div class="node-footer"><span>${nd.meta}</span></div>
+    `;
+
+    // Connection dots (Obsidian-style hover-to-connect)
+    ['top','bottom','left','right'].forEach(side => {
+      const dot = document.createElement('div');
+      dot.className = 'conn-dot ' + side;
+      dot.addEventListener('mousedown', function(e) { startConnDrag(e, id, side); });
+      el.appendChild(dot);
+    });
+
+    el.addEventListener('mousedown', function(e) { onNodeMouseDown(e, el, id); });
+    vp.appendChild(el);
+  });
+}
+
+// ===== Node Selection =====
+function selectNode(id) {
+  if (!nodeData[id]) return;
+  currentNode = id;
+  const nd = nodeData[id];
+
+  // Update canvas node selection
+  document.querySelectorAll('.c-node').forEach(n => {
+    n.classList.remove('selected');
+    n.classList.remove('highlight-exam');
+  });
+  const nodeEl = document.getElementById('node-' + id);
+  if (nodeEl) nodeEl.classList.add('selected');
+
+  // Update panel header
+  document.getElementById('pTitle').textContent = nd.title;
+  document.getElementById('pBadge').textContent = nd.badge;
+  document.getElementById('pBadge').style.cssText = nd.badgeStyle;
+  document.getElementById('pProgress').style.width = nd.progress + '%';
+  document.getElementById('pProgress').style.background = nd.progressColor;
+  document.getElementById('pMastery').textContent = nd.mastery;
+  document.getElementById('persistHint').textContent = '💾 对话自动保存到 {canvas}-threads/' + id + '.json';
+
+  // Show appropriate mode
+  hideAllModes();
+  if (nd.panelMode === 'exam') {
+    switchMode('exam');
+  } else if (nd.panelMode === 'image') {
+    showImageMode();
+  } else if (nd.panelMode === 'pdf') {
+    showPdfMode();
+  } else {
+    switchMode('learn');
+    loadChatContent(id);
+  }
+
+  drawLines();
+}
+
+function hideAllModes() {
+  document.querySelectorAll('.mode-content').forEach(c => c.style.display = 'none');
+}
+
+function showImageMode() {
+  hideAllModes();
+  document.getElementById('modeImage').style.display = 'flex';
+  // Update tabs
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.mode-tab[data-mode="learn"]').classList.add('active');
+}
+
+function showPdfMode() {
+  hideAllModes();
+  document.getElementById('modePdf').style.display = 'flex';
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.mode-tab[data-mode="learn"]').classList.add('active');
+}
+
+function loadChatContent(id) {
+  const chat = document.getElementById('learnChat');
+  if (chatContent[id]) {
+    chat.innerHTML = chatContent[id]();
+    setupTextSelection();
+  } else {
+    chat.innerHTML = `
+      <div class="empty-state" style="flex:1;">
+        <div class="icon" style="font-size:24px;">💬</div>
+        <div style="font-size:11px;color:var(--muted);">开始和 AI 讨论「${nodeData[id].title}」</div>
+        <div style="font-size:9px;color:var(--muted);">使用 /command 或直接输入问题</div>
+      </div>
+    `;
+  }
+}
+
+// ===== Mode Switching =====
+function switchMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.querySelector(`.mode-tab[data-mode="${mode}"]`);
+  if (tab) tab.classList.add('active');
+
+  hideAllModes();
+  if (mode === 'learn') {
+    document.getElementById('modeLearn').style.display = 'flex';
+  } else if (mode === 'exam') {
+    document.getElementById('modeExam').style.display = 'flex';
+  }
+}
+
+// ===== Text Selection -> "放到白板" =====
+function setupTextSelection() {
+  // Listen on the entire app — covers both right panel (.selectable) and canvas (.node-body)
+  const app = document.querySelector('.app');
+  if (!app || app._selectionBound) return;
+  app._selectionBound = true;
+  app.addEventListener('mouseup', function(e) {
+    // Only trigger if inside .selectable (right panel) or .node-body (canvas nodes)
+    if (!e.target.closest('.selectable') && !e.target.closest('.node-body')) return;
+    setTimeout(function() {
+      const sel = window.getSelection().toString().trim();
+      if (sel.length > 5) {
+        _lastSelection = sel;  // Save full selection before any clearing
+        const overlay = document.getElementById('selOverlay');
+        if (overlay) {
+          document.getElementById('selText').textContent = '✦ 选中："' + sel.substring(0, 60) + (sel.length > 60 ? '...' : '') + '"';
+          overlay.classList.add('visible');
+        }
+      }
+    }, 10);
+  });
+}
+
+function hideSel() {
+  const overlay = document.getElementById('selOverlay');
+  if (overlay) overlay.classList.remove('visible');
+  window.getSelection().removeAllRanges();
+}
+
+let newNodeCount = 0;
+let _lastSelection = '';  // Save selection before hideSel clears it
+
+function doPlaceOnCanvas() {
+  // _lastSelection was saved when overlay became visible
+  const sel = _lastSelection || '选中内容';
+  hideSel();
+  newNodeCount++;
+  const id = 'new' + newNodeCount;
+  const x = nodeData[currentNode].x + (Math.random() - 0.5) * 150 + 80;
+  const y = nodeData[currentNode].y + 200 + Math.random() * 40;
+
+  // Use full selected text as node content
+  addDynamicNode(id, '❓ 新疑问', sel, '#94e2d5', x, y);
+  // No auto-connection — user creates connections manually (Obsidian Canvas style)
+  drawLines();
+  showToast('✅ 已创建新节点到白板！');
+  _lastSelection = '';
+}
+
+function addDynamicNode(id, badge, text, color, x, y) {
+  const vp = document.getElementById('canvasViewport');
+  const el = document.createElement('div');
+  el.className = 'c-node';
+  el.id = 'node-' + id;
+  el.dataset.id = id;
+  el.style.cssText = `left:${x}px; top:${y}px; width:240px; border-left: 4px solid ${color};`;
+
+  const safeText = escapeHtml(text);
+  const contentHtml = safeText.replace(/\n/g, '<br>');
+  el.innerHTML = `
+    <div class="node-header">
+      <span class="node-title">${escapeHtml(text.substring(0, 30))}</span>
+      <span class="node-badge" style="background:${color}20;color:${color};">${escapeHtml(badge)}</span>
+    </div>
+    <div class="node-body">${contentHtml}</div>
+    <div class="node-footer"><span>💬 新建</span></div>
+  `;
+  // Connection dots (Obsidian-style hover-to-connect)
+  ['top','bottom','left','right'].forEach(side => {
+    const dot = document.createElement('div');
+    dot.className = 'conn-dot ' + side;
+    dot.addEventListener('mousedown', function(e) { startConnDrag(e, id, side); });
+    el.appendChild(dot);
+  });
+
+  el.addEventListener('mousedown', function(e) { onNodeMouseDown(e, el, id); });
+  vp.appendChild(el);
+
+  nodeData[id] = {
+    title: text.substring(0, 30), badge: badge, badgeStyle: `background:${color}20;color:${color}`,
+    borderColor: color, fillColor: color,
+    glowColor: color + '40',
+    progress: 0, progressColor: color,
+    mastery: '新节点 · 等待学习',
+    x: x, y: y, w: 240,
+    type: 'text', content: text, meta: '💬 新建',
+    panelMode: 'learn'
+  };
+}
+
+// ===== Self Assessment =====
+function assess(level, btn) {
+  document.querySelectorAll('.assess-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+
+  const scores = [
+    { t: 35, d: [8,10,9,8], m: 30, c: 'var(--red)', l: 'Again' },
+    { t: 58, d: [14,15,14,15], m: 40, c: 'var(--orange)', l: 'Hard' },
+    { t: 72, d: [20,18,16,18], m: 55, c: 'var(--yellow)', l: 'Good' },
+    { t: 91, d: [24,22,23,22], m: 75, c: 'var(--green)', l: 'Easy' }
+  ];
+  const s = scores[level];
+
+  // Update score card if it exists (bayes node)
+  const scoreCard = document.getElementById('scoreCard');
+  if (scoreCard) {
+    document.getElementById('sTotal').textContent = s.t;
+    document.getElementById('s0').textContent = s.d[0];
+    document.getElementById('s1').textContent = s.d[1];
+    document.getElementById('s2').textContent = s.d[2];
+    document.getElementById('s3').textContent = s.d[3];
+    document.getElementById('sFsrs').textContent = '📈 FSRS 已更新 · 精通度→' + s.m + '% · 下次复习：3月16日';
+    scoreCard.classList.add('visible');
+  }
+
+  // Update header progress
+  document.getElementById('pProgress').style.width = s.m + '%';
+  document.getElementById('pProgress').style.background = s.c;
+  document.getElementById('pMastery').textContent = '精通度 ' + s.m + '% · Rating: ' + s.l + ' · FSRS 已更新';
+
+  // Update node on canvas — change left border color based on assessment
+  const nodeEl = document.getElementById('node-' + currentNode);
+  if (nodeEl) {
+    const accentColors = ['#f38ba8', '#fab387', '#f9e2af', '#a6e3a1'];
+    const badgeTexts = ['🔴 不理解', '🟠 部分理解', '🟡 基本理解', '🟢 已掌握'];
+    const badgeStyles = [
+      'background:#f38ba820;color:#f38ba8', 'background:#fab38720;color:#fab387',
+      'background:#f9e2af20;color:#f9e2af', 'background:#a6e3a120;color:#a6e3a1'
+    ];
+    nodeEl.style.borderLeftColor = accentColors[level];
+    const badge = nodeEl.querySelector('.node-badge');
+    if (badge) { badge.textContent = badgeTexts[level]; badge.style.cssText = badgeStyles[level]; }
+    if (nodeData[currentNode]) {
+      nodeData[currentNode].borderColor = accentColors[level];
+      nodeData[currentNode].fillColor = accentColors[level];
+    }
+  }
+
+  // Scroll to show the card
+  const chat = document.getElementById('learnChat');
+  if (chat) setTimeout(() => chat.scrollTo({ top: 99999, behavior: 'smooth' }), 100);
+
+  showToast('📈 FSRS 评分：' + s.l + ' · 精通度更新为 ' + s.m + '%');
+}
+
+// ===== Send Message =====
+function sendMsg() {
+  const inputIds = ['learnInput', 'imageInput', 'pdfInput'];
+  let input = null;
+  for (const id of inputIds) {
+    const el = document.getElementById(id);
+    if (el && el.offsetParent !== null) { input = el; break; }
+  }
+  if (!input) return;
+
+  const text = input.value.trim();
+  if (!text) return;
+
+  // Find visible chat thread
+  const chatIds = ['learnChat', 'imageChat', 'pdfChat'];
+  let chat = null;
+  for (const id of chatIds) {
+    const el = document.getElementById(id);
+    if (el && el.offsetParent !== null) { chat = el; break; }
+  }
+  if (!chat) return;
+
+  const userMsg = document.createElement('div');
+  userMsg.className = 'msg user';
+  const isCmd = text.startsWith('/');
+  userMsg.innerHTML = `<div class="label text-blue">${isCmd ? text.split(' ')[0] : '✍ 我'}</div>${escapeHtml(isCmd ? text.substring(text.indexOf(' ') + 1) || text : text)}`;
+  chat.appendChild(userMsg);
+  input.value = '';
+  hideAgentRecommend();
+
+  setTimeout(() => {
+    const aiMsg = document.createElement('div');
+    aiMsg.className = 'msg ai';
+    let response = '这是模拟的 AI 回复。在真实系统中会调用对应 Agent 技能生成解释，并检索笔记库中的相关内容片段。';
+    if (text.includes('/oral-explain')) {
+      response = '简单来说，这个概念就像...... 想象你在日常生活中遇到的一个场景。AI 会根据当前节点的内容，用生活化的语言重新解释，让复杂概念变得容易理解。';
+    } else if (text.includes('/four-level')) {
+      response = '<p><strong>🎯 一句话版</strong>：用一句话概括核心含义。</p><p><strong>📖 教科书版</strong>：标准学术定义。</p><p><strong>🔬 直觉版</strong>：用类比和直觉解释。</p><p><strong>🧪 技术细节版</strong>：深入数学推导和技术细节。</p>';
+    } else if (text.includes('/compare')) {
+      response = 'AI 将为你生成结构化的概念对比表，帮助你理清相似概念之间的区别和联系。';
+    } else if (text.includes('/basic-decompose')) {
+      response = 'AI 将把这个概念拆解为 3-5 个核心子问题，逐个击破。每个子问题都可以"放到白板"创建独立节点深入学习。';
+    } else if (text.includes('/example-teach')) {
+      response = 'AI 将用一道具体的例题来教你这个概念，包含题目、解析步骤和直觉检验。';
+    }
+    aiMsg.innerHTML = `<div class="label text-cyan">🤖 AI</div><div class="selectable">${response}</div>`;
+    chat.appendChild(aiMsg);
+    chat.scrollTo({ top: 99999, behavior: 'smooth' });
+  }, 600);
+}
+
+function insertCmd(cmd) {
+  const input = document.getElementById('learnInput');
+  if (input) {
+    input.value = cmd + ' ';
+    input.focus();
+    onInputChange(input.value);
+  }
+}
+
+// ===== Agent Recommendation (Dm4pS) =====
+function onInputChange(value) {
+  const rec = document.getElementById('agentRecommend');
+  const recCmd = document.getElementById('recCmd');
+  const recReason = document.getElementById('recReason');
+
+  if (!value || value.length < 2) {
+    hideAgentRecommend();
+    return;
+  }
+
+  if (value.startsWith('/')) {
+    hideAgentRecommend();
+    return;
+  }
+
+  const nd = nodeData[currentNode];
+  if (nd && nd.type === 'image') {
+    recCmd.textContent = '/four-level';
+    recReason.textContent = '图片节点推荐多层次解释';
+    rec.classList.add('visible');
+  } else if (value.length > 30) {
+    recCmd.textContent = '/basic-decompose';
+    recReason.textContent = '长文本推荐拆解分析';
+    rec.classList.add('visible');
+  } else {
+    recCmd.textContent = '/oral-explain';
+    recReason.textContent = '短文本推荐口语化解释';
+    rec.classList.add('visible');
+  }
+}
+
+function hideAgentRecommend() {
+  document.getElementById('agentRecommend').classList.remove('visible');
+}
+
+function applyRecommend() {
+  const cmd = document.getElementById('recCmd').textContent;
+  const input = document.getElementById('learnInput');
+  const currentText = input.value;
+  input.value = cmd + ' ' + currentText;
+  input.focus();
+  hideAgentRecommend();
+}
+
+// ===== Exam =====
+function submitExam() {
+  const a = document.getElementById('examAnswer').value.trim();
+  if (!a) { showToast('请先写下回答'); return; }
+  const chat = document.getElementById('examChat');
+
+  setTimeout(() => {
+    document.getElementById('misconception').classList.add('visible');
+    chat.scrollTo({ top: 99999, behavior: 'smooth' });
+  }, 500);
+
+  setTimeout(() => {
+    document.getElementById('examResult').classList.add('visible');
+    chat.scrollTo({ top: 99999, behavior: 'smooth' });
+  }, 1200);
+}
+
+function openExamCanvas() {
+  // Highlight related nodes on canvas
+  const relatedNodes = ['falsepos', 'prior', 'bayes'];
+  relatedNodes.forEach(id => {
+    const el = document.getElementById('node-' + id);
+    if (el) el.classList.add('highlight-exam');
+  });
+
+  selectNode('falsepos');
+  showToast('🧪 检验白板 — 已高亮相关概念节点，在画布上建立逻辑关联');
+
+  // Remove highlight after 4 seconds
+  setTimeout(() => {
+    document.querySelectorAll('.c-node').forEach(n => n.classList.remove('highlight-exam'));
+  }, 4000);
+}
+
+// ===== Paste Detection (qH6hD + eo9nv) =====
+function setupPasteDetection() {
+  const container = document.getElementById('canvasContainer');
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+      // Only show paste popup if canvas area is focused/visible
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+
+      e.preventDefault();
+      showPastePopup();
+    }
+  });
+}
+
+let pasteTypeIndex = 0;
+const pasteTypes = [
+  {
+    type: '文本',
+    style: 'background:#89b4fa20;color:var(--blue)',
+    content: '贝叶斯定理的直觉理解：想象你是一名医生，患者检测为阳性，但这并不意味着患者一定有病...',
+    recommend: '推荐：创建文本学习节点，自动关联到当前选中概念'
+  },
+  {
+    type: 'URL',
+    style: 'background:#a6e3a120;color:var(--green)',
+    content: 'https://en.wikipedia.org/wiki/Bayes%27_theorem',
+    recommend: '推荐：提取页面内容，创建参考链接节点'
+  },
+  {
+    type: '图片',
+    style: 'background:#f5c2e720;color:var(--pink)',
+    content: '📸 已检测到剪贴板图片 (PNG, 800x600)',
+    recommend: '推荐：创建图片节点，自动 OCR 提取文字'
+  }
+];
+
+function showPastePopup() {
+  const popup = document.getElementById('pastePopup');
+  const pt = pasteTypes[pasteTypeIndex % pasteTypes.length];
+  pasteTypeIndex++;
+
+  document.getElementById('pasteType').textContent = pt.type;
+  document.getElementById('pasteType').style.cssText = pt.style;
+  document.getElementById('pasteContent').textContent = pt.content;
+  document.getElementById('pasteRecommend').textContent = pt.recommend;
+  popup.classList.add('visible');
+}
+
+function closePastePopup() {
+  document.getElementById('pastePopup').classList.remove('visible');
+}
+
+function createNodeFromPaste() {
+  closePastePopup();
+  newNodeCount++;
+  const id = 'paste' + newNodeCount;
+  const x = 300 + Math.random() * 200;
+  const y = 300 + Math.random() * 100;
+
+  const pt = pasteTypes[(pasteTypeIndex - 1) % pasteTypes.length];
+  let badge, color;
+  if (pt.type === 'URL') {
+    badge = '🔗 参考链接'; color = '#a6e3a1';
+  } else if (pt.type === '图片') {
+    badge = '🖼 图片节点'; color = '#f5c2e7';
+  } else {
+    badge = '📝 粘贴文本'; color = '#89b4fa';
+  }
+
+  addDynamicNode(id, badge, pt.content.substring(0, 30) + '...', color, x, y);
+  // No auto-connection — user creates connections manually (Obsidian Canvas style)
+  drawLines();
+  showToast('✅ 已从粘贴内容创建节点');
+}
+
+// ===== Skill Manager (ZSkLK) =====
+function openSkillManager() {
+  document.getElementById('skillBackdrop').classList.add('visible');
+  document.getElementById('skillManager').classList.add('visible');
+}
+
+function closeSkillManager() {
+  document.getElementById('skillBackdrop').classList.remove('visible');
+  document.getElementById('skillManager').classList.remove('visible');
+}
+
+function renderSkillList(filter) {
+  const list = document.getElementById('skillList');
+  const filtered = filter
+    ? skills.filter(s => s.name.includes(filter) || s.desc.includes(filter))
+    : skills;
+
+  list.innerHTML = filtered.map(s => `
+    <div class="skill-item" data-skill="${s.id}">
+      <div class="skill-info">
+        <div class="skill-name">${s.name}</div>
+        <div class="skill-desc">${s.desc}</div>
+      </div>
+      <div class="toggle ${s.on ? 'on' : ''}" onclick="toggleSkill('${s.id}', this, event)"></div>
+    </div>
+  `).join('');
+
+  updateSkillCount();
+}
+
+function toggleSkill(id, el, e) {
+  e.stopPropagation();
+  const skill = skills.find(s => s.id === id);
+  if (skill) {
+    skill.on = !skill.on;
+    el.classList.toggle('on');
+    updateSkillCount();
+    showToast(skill.on ? `✅ 已启用 ${skill.name}` : `❌ 已禁用 ${skill.name}`);
+  }
+}
+
+function updateSkillCount() {
+  const onCount = skills.filter(s => s.on).length;
+  document.getElementById('skillFooter').textContent = `已加载 ${onCount}/${skills.length} 个技能`;
+}
+
+function filterSkills(q) {
+  renderSkillList(q.toLowerCase());
+}
+
+// ===== Settings (t1dUm) =====
+function openSettings() {
+  document.getElementById('settingsOverlay').classList.add('visible');
+}
+
+function closeSettings() {
+  document.getElementById('settingsOverlay').classList.remove('visible');
+}
+
+function switchSettingsTab(tab) {
+  document.querySelectorAll('.settings-sidebar .stab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.stab[data-stab="${tab}"]`).classList.add('active');
+  document.getElementById('settingsBody').innerHTML = settingsTabs[tab] || '<h3>Coming soon...</h3>';
+}
+
+// ===== SVG Connection Lines + Label Pills =====
+function drawLines() {
+  const svg = document.getElementById('canvasSvg');
+  // Remove old label pills
+  document.querySelectorAll('.edge-label').forEach(el => el.remove());
+  const vp = document.getElementById('canvasViewport');
+
+  let paths = '';
+  connections.forEach(([from, to, color, label]) => {
+    const fEl = document.getElementById('node-' + from);
+    const tEl = document.getElementById('node-' + to);
+    if (!fEl || !tEl) return;
+
+    const fx = fEl.offsetLeft + fEl.offsetWidth / 2;
+    const fy = fEl.offsetTop + fEl.offsetHeight / 2;
+    const tx = tEl.offsetLeft + tEl.offsetWidth / 2;
+    const ty = tEl.offsetTop + tEl.offsetHeight / 2;
+
+    // Cubic bezier for smooth curved connections
+    const dx = Math.abs(tx - fx) * 0.35;
+    const cpx1 = fx + (tx > fx ? dx : -dx);
+    const cpx2 = tx + (fx > tx ? dx : -dx);
+
+    paths += `<path d="M${fx},${fy} C${cpx1},${fy} ${cpx2},${ty} ${tx},${ty}" stroke="${color || '#585b70'}" stroke-width="2" fill="none" opacity="0.8"/>`;
+
+    // Add label pill at midpoint — clickable for delete
+    if (label) {
+      const midX = (fx + tx) / 2;
+      const midY = (fy + ty) / 2;
+      const pill = document.createElement('div');
+      pill.className = 'edge-label';
+      pill.style.cssText = `left:${midX}px; top:${midY}px; color:${color};`;
+      pill.textContent = label;
+      pill.title = '点击删除连线';
+      pill.addEventListener('click', function() { deleteConnection(from, to); });
+      vp.appendChild(pill);
+    }
+  });
+  svg.innerHTML = paths;
+}
+
+function deleteConnection(from, to) {
+  const idx = connections.findIndex(c => c[0] === from && c[1] === to);
+  if (idx === -1) return;
+  connections.splice(idx, 1);
+  drawLines();
+  showToast('🗑️ 已删除连线');
+}
+
+// ===== Manual Connection Drag (Obsidian-style) =====
+let connDrag = { active: false, fromId: null, fromSide: null };
+
+function startConnDrag(e, fromId, side) {
+  e.stopPropagation();
+  e.preventDefault();
+  connDrag = { active: true, fromId, fromSide: side };
+
+  const svg = document.getElementById('canvasSvg');
+  const vp = document.getElementById('canvasViewport');
+  const fromEl = document.getElementById('node-' + fromId);
+  const rect = vp.getBoundingClientRect();
+
+  function onMove(ev) {
+    if (!connDrag.active) return;
+    const mx = (ev.clientX - rect.left - panX) / scale;
+    const my = (ev.clientY - rect.top - panY) / scale;
+    const fx = fromEl.offsetLeft + fromEl.offsetWidth / 2;
+    const fy = fromEl.offsetTop + fromEl.offsetHeight / 2;
+    // Draw preview bezier from source node center to mouse position
+    const dx = Math.abs(mx - fx) * 0.35;
+    const cpx1 = fx + (mx > fx ? dx : -dx);
+    const cpx2 = mx + (fx > mx ? dx : -dx);
+    const existing = svg.innerHTML.replace(/<path class="conn-drag-line"[^/]*\/>/g, '');
+    svg.innerHTML = existing + `<path class="conn-drag-line" d="M${fx},${fy} C${cpx1},${fy} ${cpx2},${my} ${mx},${my}"/>`;
+  }
+
+  function onUp(ev) {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    if (!connDrag.active) return;
+    connDrag.active = false;
+
+    // Remove preview line
+    svg.innerHTML = svg.innerHTML.replace(/<path class="conn-drag-line"[^/]*\/>/g, '');
+
+    // Hit-test: find target node under mouse
+    const mx = ev.clientX, my = ev.clientY;
+    const allNodes = document.querySelectorAll('.c-node');
+    let targetId = null;
+    allNodes.forEach(n => {
+      const r = n.getBoundingClientRect();
+      if (mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
+        targetId = n.dataset.id;
+      }
+    });
+
+    if (targetId && targetId !== fromId) {
+      // Check no duplicate
+      const exists = connections.some(c => c[0] === fromId && c[1] === targetId);
+      if (!exists) {
+        const label = prompt('连线标签（可留空）：') || '';
+        connections.push([fromId, targetId, '#585b70', label]);
+        drawLines();
+        showToast('✅ 已创建连线');
+      }
+    }
+    drawLines(); // Redraw to clean up
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// ===== Toast =====
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+function escapeHtml(t) {
+  const d = document.createElement('div');
+  d.textContent = t;
+  return d.innerHTML;
+}
+
+// ===== Canvas Pan & Zoom =====
+let panX = 0, panY = 0, scale = 1;
+let isPanning = false, panStartX = 0, panStartY = 0;
+
+function setupCanvasInteraction() {
+  const container = document.getElementById('canvasContainer');
+  const viewport = document.getElementById('canvasViewport');
+
+  // Pan on empty canvas
+  container.addEventListener('mousedown', function(e) {
+    if (e.target === container || e.target.id === 'canvasGrid') {
+      isPanning = true;
+      panStartX = e.clientX - panX;
+      panStartY = e.clientY - panY;
+      container.classList.add('panning');
+      e.preventDefault();
+    }
+  });
+
+  window.addEventListener('mousemove', function(e) {
+    if (isPanning) {
+      panX = e.clientX - panStartX;
+      panY = e.clientY - panStartY;
+      applyTransform();
+    }
+    if (dragState.node) {
+      const dx = (e.clientX - dragState.startX) / scale;
+      const dy = (e.clientY - dragState.startY) / scale;
+      dragState.node.style.left = (dragState.origX + dx) + 'px';
+      dragState.node.style.top = (dragState.origY + dy) + 'px';
+
+      // Update stored position
+      const id = dragState.node.dataset.id;
+      if (nodeData[id]) {
+        nodeData[id].x = dragState.origX + dx;
+        nodeData[id].y = dragState.origY + dy;
+      }
+
+      dragState.moved = true;
+      drawLines();
+    }
+  });
+
+  window.addEventListener('mouseup', function() {
+    if (isPanning) {
+      isPanning = false;
+      container.classList.remove('panning');
+    }
+    if (dragState.node) {
+      dragState.node.style.zIndex = '';
+      if (!dragState.moved) {
+        // It was a click, not a drag
+        selectNode(dragState.nodeId);
+      }
+      dragState.node = null;
+    }
+  });
+
+  // Zoom
+  container.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    const rect = container.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+
+    const oldScale = scale;
+    const delta = e.deltaY > 0 ? 0.92 : 1.08;
+    scale = Math.min(2, Math.max(0.3, scale * delta));
+
+    panX = mx - (mx - panX) * (scale / oldScale);
+    panY = my - (my - panY) * (scale / oldScale);
+
+    applyTransform();
+  }, { passive: false });
+}
+
+function applyTransform() {
+  const viewport = document.getElementById('canvasViewport');
+  viewport.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+  document.getElementById('zoomIndicator').textContent = Math.round(scale * 100) + '%';
+}
+
+// ===== Node Drag =====
+const dragState = { node: null, nodeId: null, startX: 0, startY: 0, origX: 0, origY: 0, moved: false };
+
+function onNodeMouseDown(e, el, id) {
+  if (e.button !== 0) return;
+
+  // If clicking a connection dot, let startConnDrag handle it
+  if (e.target.closest('.conn-dot')) return;
+
+  // If clicking inside .node-body, allow text selection instead of drag
+  if (e.target.closest('.node-body')) {
+    e.stopPropagation();  // Prevent canvas pan
+    // Don't start drag — let browser handle text selection
+    // But still select the node in the panel on click (not drag)
+    selectNode(id);
+    return;
+  }
+
+  e.stopPropagation();
+  dragState.node = el;
+  dragState.nodeId = id;
+  dragState.startX = e.clientX;
+  dragState.startY = e.clientY;
+  dragState.origX = parseInt(el.style.left) || 0;
+  dragState.origY = parseInt(el.style.top) || 0;
+  dragState.moved = false;
+  el.style.zIndex = '10';
+}
+
+// ===== Start =====
+init();
+applyTransform();
+window.addEventListener('resize', drawLines);
+</script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Canvas Learning System — 交互原型</title>
+<script src="https://unpkg.com/cytoscape@3.28.1/dist/cytoscape.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; display: flex; height: 100vh; background: #1e1e2e; color: #cdd6f4; }
+
+  /* Canvas Area */
+  #canvas-area { flex: 1; position: relative; }
+  #cy { width: 100%; height: 100%; }
+  #canvas-hint { position: absolute; top: 12px; left: 12px; background: rgba(30,30,46,0.85); padding: 8px 14px; border-radius: 8px; font-size: 12px; color: #7f849c; pointer-events: none; }
+  #canvas-hint kbd { background: #313244; padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+
+  /* Right Panel */
+  #panel { width: 380px; background: #181825; border-left: 1px solid #313244; display: flex; flex-direction: column; transition: transform 0.25s; overflow-y: auto; }
+  #panel.hidden { transform: translateX(100%); width: 0; border: none; }
+  #panel-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: #585b70; font-size: 14px; }
+
+  /* Panel Sections */
+  .panel-header { padding: 16px; border-bottom: 1px solid #313244; }
+  .panel-header h2 { font-size: 16px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+  .node-color-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+  .status-label { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .mastery-bar { height: 6px; background: #313244; border-radius: 3px; margin-top: 8px; }
+  .mastery-fill { height: 100%; border-radius: 3px; transition: width 0.4s; }
+
+  .panel-section { padding: 12px 16px; border-bottom: 1px solid #313244; }
+  .panel-section h3 { font-size: 13px; color: #a6adc8; margin-bottom: 8px; cursor: pointer; user-select: none; }
+  .panel-section h3::before { content: '▾ '; font-size: 10px; }
+  .panel-section.collapsed h3::before { content: '▸ '; }
+  .panel-section.collapsed .section-body { display: none; }
+
+  /* Connected Nodes */
+  .connected-node { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; margin-bottom: 4px; cursor: pointer; font-size: 13px; }
+  .connected-node:hover { background: #313244; }
+  .edge-label { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #45475a; color: #bac2de; white-space: nowrap; }
+
+  /* Timeline */
+  .timeline-item { position: relative; padding: 8px 8px 8px 24px; margin-bottom: 4px; font-size: 12px; border-left: 2px solid #45475a; margin-left: 8px; }
+  .timeline-item::before { content: ''; position: absolute; left: -5px; top: 12px; width: 8px; height: 8px; border-radius: 50%; background: #45475a; }
+  .timeline-item.question::before { background: #f38ba8; }
+  .timeline-item.answer::before { background: #89dceb; }
+  .timeline-item.note::before { background: #a6e3a1; }
+  .timeline-date { color: #585b70; font-size: 10px; }
+  .timeline-text { margin-top: 2px; color: #cdd6f4; }
+
+  /* Personal Notes */
+  #personal-notes { width: 100%; min-height: 80px; background: #1e1e2e; border: 1px solid #45475a; border-radius: 6px; color: #cdd6f4; padding: 8px; font-size: 13px; resize: vertical; font-family: inherit; }
+  #personal-notes:focus { outline: none; border-color: #89b4fa; }
+
+  /* Quick Actions */
+  .actions-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .action-btn { padding: 10px; border: 1px solid #45475a; border-radius: 8px; background: #1e1e2e; color: #cdd6f4; cursor: pointer; font-size: 13px; text-align: center; transition: all 0.15s; }
+  .action-btn:hover { background: #313244; border-color: #89b4fa; }
+  .action-btn .icon { font-size: 18px; display: block; margin-bottom: 4px; }
+  .action-btn.decompose:hover { border-color: #fab387; }
+  .action-btn.explain:hover { border-color: #89dceb; }
+  .action-btn.followup:hover { border-color: #cba6f7; }
+  .action-btn.supplement:hover { border-color: #a6e3a1; }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #313244; color: #cdd6f4; padding: 10px 20px; border-radius: 8px; font-size: 13px; z-index: 100; opacity: 0; transition: opacity 0.3s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* Color mapping */
+  .color-red { background: #f38ba8; color: #1e1e2e; }
+  .color-purple { background: #cba6f7; color: #1e1e2e; }
+  .color-green { background: #a6e3a1; color: #1e1e2e; }
+  .color-cyan { background: #89dceb; color: #1e1e2e; }
+  .color-yellow { background: #f9e2af; color: #1e1e2e; }
+  .color-orange { background: #fab387; color: #1e1e2e; }
+  .dot-red { background: #f38ba8; }
+  .dot-purple { background: #cba6f7; }
+  .dot-green { background: #a6e3a1; }
+  .dot-cyan { background: #89dceb; }
+  .dot-yellow { background: #f9e2af; }
+  .dot-orange { background: #fab387; }
+</style>
+</head>
+<body>
+
+<div id="canvas-area">
+  <div id="cy"></div>
+  <div id="canvas-hint">
+    点击节点查看 Dashboard · 用 Quick Action 生成新节点 · 滚轮缩放 · 拖拽平移
+  </div>
+</div>
+
+<div id="panel">
+  <div id="panel-placeholder">← 点击画布上的节点</div>
+  <div id="panel-content" style="display:none;">
+    <!-- Header -->
+    <div class="panel-header">
+      <h2><span class="node-color-dot" id="ph-dot"></span><span id="ph-title"></span></h2>
+      <span class="status-label" id="ph-status"></span>
+      <div class="mastery-bar"><div class="mastery-fill" id="ph-mastery"></div></div>
+      <div style="font-size:11px;color:#585b70;margin-top:4px;" id="ph-mastery-text"></div>
+    </div>
+
+    <!-- Connected Nodes -->
+    <div class="panel-section" id="sec-connected">
+      <h3>关联节点</h3>
+      <div class="section-body" id="connected-list"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="panel-section" id="sec-timeline">
+      <h3>交互历史</h3>
+      <div class="section-body" id="timeline-list"></div>
+    </div>
+
+    <!-- Personal Notes -->
+    <div class="panel-section" id="sec-notes">
+      <h3>个人理解笔记</h3>
+      <div class="section-body">
+        <textarea id="personal-notes" placeholder="写下你对这个概念的理解..."></textarea>
+      </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="panel-section" id="sec-actions">
+      <h3>Quick Actions</h3>
+      <div class="section-body">
+        <div class="actions-grid">
+          <button class="action-btn decompose" onclick="doAction('decompose')"><span class="icon">🔀</span>拆解</button>
+          <button class="action-btn explain" onclick="doAction('explain')"><span class="icon">💡</span>解释</button>
+          <button class="action-btn followup" onclick="doAction('followup')"><span class="icon">❓</span>追问</button>
+          <button class="action-btn supplement" onclick="doAction('supplement')"><span class="icon">➕</span>补充</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== Data Model ==========
+const COLOR_MAP = {
+  red:    { bg: '#f38ba8', label: '不理解',      labelClass: 'color-red',    dotClass: 'dot-red' },
+  purple: { bg: '#cba6f7', label: '概念不理解',  labelClass: 'color-purple', dotClass: 'dot-purple' },
+  green:  { bg: '#a6e3a1', label: '做题误区',    labelClass: 'color-green',  dotClass: 'dot-green' },
+  cyan:   { bg: '#89dceb', label: 'AI解释',      labelClass: 'color-cyan',   dotClass: 'dot-cyan' },
+  yellow: { bg: '#f9e2af', label: '部分理解',    labelClass: 'color-yellow', dotClass: 'dot-yellow' },
+  orange: { bg: '#fab387', label: '已掌握',      labelClass: 'color-orange', dotClass: 'dot-orange' },
+};
+
+const EDGE_TYPES = {
+  decompose:  { label: '分解为', color: '#fab387' },
+  explain:    { label: '解释了', color: '#89dceb' },
+  followup:   { label: '追问自', color: '#cba6f7' },
+  supplement: { label: '补充了', color: '#a6e3a1' },
+  related:    { label: '相关于', color: '#585b70' },
+};
+
+// Node metadata (simulated DB)
+const nodeMeta = {
+  'n1': {
+    title: '贝叶斯定理', color: 'red', mastery: 25,
+    notes: '好像和条件概率有关，但公式的直觉意义不太懂...',
+    timeline: [
+      { type: 'question', date: '03-10 14:20', text: '贝叶斯定理的核心思想是什么？' },
+      { type: 'answer',   date: '03-10 14:21', text: 'AI: 贝叶斯定理描述了在获得新证据后如何更新先验信念...' },
+      { type: 'note',     date: '03-10 14:25', text: '我的理解：用新证据"修正"原来的判断' },
+      { type: 'question', date: '03-11 09:10', text: '为什么先验概率选得不同，结果差异这么大？' },
+    ]
+  },
+  'n2': {
+    title: '先验概率 vs 后验概率', color: 'purple', mastery: 15,
+    notes: '',
+    timeline: [
+      { type: 'question', date: '03-10 14:30', text: '先验和后验到底哪个是"之前"哪个是"之后"？' },
+      { type: 'answer',   date: '03-10 14:31', text: 'AI: 先验=看到数据之前的信念，后验=看到数据之后更新的信念...' },
+    ]
+  },
+  'n3': {
+    title: '条件概率 P(A|B)', color: 'purple', mastery: 40,
+    notes: '就是"已知B发生的情况下A发生的概率"，但怎么和贝叶斯联系？',
+    timeline: [
+      { type: 'question', date: '03-10 15:00', text: '条件概率和联合概率的关系？' },
+      { type: 'answer',   date: '03-10 15:01', text: 'AI: P(A|B) = P(A∩B)/P(B)，这就是条件概率的定义...' },
+      { type: 'note',     date: '03-10 15:05', text: '原来 P(A|B) 就是把"B已经发生"当作新的样本空间' },
+    ]
+  },
+  'n4': {
+    title: '医学检测直觉解释', color: 'cyan', mastery: 80,
+    notes: '',
+    timeline: [
+      { type: 'answer', date: '03-10 14:22', text: 'AI: 假设一种病的发病率1%，检测准确率99%。如果你检测阳性，你真正得病的概率只有50%...' },
+      { type: 'note',   date: '03-10 14:28', text: '这个例子太好了！base rate neglect 就是忽略先验概率' },
+    ]
+  },
+  'n5': {
+    title: '为什么先验概率影响这么大？', color: 'red', mastery: 10,
+    notes: '',
+    timeline: [
+      { type: 'question', date: '03-11 09:15', text: '直觉上99%准确率应该就是99%吧？为什么先验把结果拉到50%？' },
+    ]
+  },
+};
+
+// Initial graph data
+const elements = [
+  // Nodes
+  { data: { id: 'n1', label: '贝叶斯定理', nodeColor: 'red' }, position: { x: 400, y: 300 } },
+  { data: { id: 'n2', label: '先验 vs 后验概率', nodeColor: 'purple' }, position: { x: 200, y: 150 } },
+  { data: { id: 'n3', label: '条件概率 P(A|B)', nodeColor: 'purple' }, position: { x: 600, y: 150 } },
+  { data: { id: 'n4', label: '医学检测直觉解释', nodeColor: 'cyan' }, position: { x: 250, y: 470 } },
+  { data: { id: 'n5', label: '为什么先验影响这么大？', nodeColor: 'red' }, position: { x: 550, y: 470 } },
+  // Edges
+  { data: { id: 'e1', source: 'n1', target: 'n2', edgeType: 'decompose', label: '分解为' } },
+  { data: { id: 'e2', source: 'n1', target: 'n3', edgeType: 'decompose', label: '分解为' } },
+  { data: { id: 'e3', source: 'n4', target: 'n1', edgeType: 'explain', label: '解释了' } },
+  { data: { id: 'e4', source: 'n5', target: 'n2', edgeType: 'followup', label: '追问自' } },
+];
+
+// ========== Cytoscape Init ==========
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: elements,
+  style: [
+    {
+      selector: 'node',
+      style: {
+        'label': 'data(label)',
+        'text-wrap': 'wrap',
+        'text-max-width': '140px',
+        'font-size': '13px',
+        'color': '#cdd6f4',
+        'text-valign': 'center',
+        'text-halign': 'center',
+        'background-color': function(ele) { return COLOR_MAP[ele.data('nodeColor')]?.bg || '#585b70'; },
+        'width': 160,
+        'height': 70,
+        'shape': 'roundrectangle',
+        'border-width': 2,
+        'border-color': function(ele) { return COLOR_MAP[ele.data('nodeColor')]?.bg || '#585b70'; },
+        'text-outline-color': 'rgba(0,0,0,0.6)',
+        'text-outline-width': 2,
+        'padding': '10px',
+      }
+    },
+    {
+      selector: 'node:selected',
+      style: {
+        'border-width': 3,
+        'border-color': '#f5e0dc',
+        'overlay-color': '#f5e0dc',
+        'overlay-opacity': 0.1,
+      }
+    },
+    {
+      selector: 'edge',
+      style: {
+        'width': 2,
+        'line-color': function(ele) { return EDGE_TYPES[ele.data('edgeType')]?.color || '#585b70'; },
+        'target-arrow-color': function(ele) { return EDGE_TYPES[ele.data('edgeType')]?.color || '#585b70'; },
+        'target-arrow-shape': 'triangle',
+        'curve-style': 'bezier',
+        'label': 'data(label)',
+        'font-size': '11px',
+        'color': function(ele) { return EDGE_TYPES[ele.data('edgeType')]?.color || '#585b70'; },
+        'text-background-color': '#1e1e2e',
+        'text-background-opacity': 0.85,
+        'text-background-padding': '3px',
+        'text-rotation': 'autorotate',
+      }
+    },
+    {
+      selector: 'edge:selected',
+      style: {
+        'width': 3,
+        'line-color': '#f5e0dc',
+      }
+    },
+    {
+      selector: '.new-node-anim',
+      style: {
+        'opacity': 0,
+      }
+    }
+  ],
+  layout: { name: 'preset' },
+  minZoom: 0.3,
+  maxZoom: 3,
+  wheelSensitivity: 0.3,
+});
+
+// ========== Panel Logic ==========
+let selectedNodeId = null;
+let nodeCounter = 5;
+
+function showPanel(nodeId) {
+  selectedNodeId = nodeId;
+  const meta = nodeMeta[nodeId];
+  if (!meta) return;
+
+  document.getElementById('panel-placeholder').style.display = 'none';
+  document.getElementById('panel-content').style.display = 'block';
+
+  const cm = COLOR_MAP[meta.color];
+  document.getElementById('ph-dot').className = 'node-color-dot ' + cm.dotClass;
+  document.getElementById('ph-title').textContent = meta.title;
+
+  const statusEl = document.getElementById('ph-status');
+  statusEl.textContent = cm.label;
+  statusEl.className = 'status-label ' + cm.labelClass;
+
+  document.getElementById('ph-mastery').style.width = meta.mastery + '%';
+  document.getElementById('ph-mastery').style.background = cm.bg;
+  document.getElementById('ph-mastery-text').textContent = '精通度 ' + meta.mastery + '% · 下次复习：明天 14:00';
+
+  // Connected nodes
+  const connList = document.getElementById('connected-list');
+  connList.innerHTML = '';
+  const node = cy.getElementById(nodeId);
+  node.connectedEdges().forEach(edge => {
+    const otherId = edge.source().id() === nodeId ? edge.target().id() : edge.source().id();
+    const otherMeta = nodeMeta[otherId];
+    if (!otherMeta) return;
+    const otherCm = COLOR_MAP[otherMeta.color];
+    const dir = edge.source().id() === nodeId ? '→' : '←';
+    const div = document.createElement('div');
+    div.className = 'connected-node';
+    div.innerHTML = `<span class="node-color-dot ${otherCm.dotClass}"></span>
+      <span class="edge-label">${dir} ${edge.data('label')}</span>
+      <span style="flex:1;">${otherMeta.title}</span>`;
+    div.onclick = () => { cy.getElementById(otherId).select(); showPanel(otherId); };
+    connList.appendChild(div);
+  });
+
+  // Timeline
+  const tlList = document.getElementById('timeline-list');
+  tlList.innerHTML = '';
+  meta.timeline.forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'timeline-item ' + item.type;
+    div.innerHTML = `<div class="timeline-date">${item.date}</div><div class="timeline-text">${item.text}</div>`;
+    tlList.appendChild(div);
+  });
+
+  // Notes
+  document.getElementById('personal-notes').value = meta.notes;
+}
+
+function hidePanel() {
+  selectedNodeId = null;
+  document.getElementById('panel-placeholder').style.display = 'flex';
+  document.getElementById('panel-content').style.display = 'none';
+}
+
+// Save notes on change
+document.getElementById('personal-notes').addEventListener('input', (e) => {
+  if (selectedNodeId && nodeMeta[selectedNodeId]) {
+    nodeMeta[selectedNodeId].notes = e.target.value;
+  }
+});
+
+// Toggle section collapse
+document.querySelectorAll('.panel-section h3').forEach(h3 => {
+  h3.addEventListener('click', () => {
+    h3.parentElement.classList.toggle('collapsed');
+  });
+});
+
+// ========== Cytoscape Events ==========
+cy.on('tap', 'node', (evt) => {
+  showPanel(evt.target.id());
+});
+
+cy.on('tap', (evt) => {
+  if (evt.target === cy) hidePanel();
+});
+
+// ========== Quick Actions ==========
+const ACTION_TEMPLATES = {
+  decompose: {
+    nodes: [
+      { suffix: '子概念 A', color: 'purple' },
+      { suffix: '子概念 B', color: 'purple' },
+    ],
+    edgeType: 'decompose',
+    edgeDirection: 'from-parent', // parent → child
+  },
+  explain: {
+    nodes: [
+      { suffix: 'AI 解释', color: 'cyan' },
+    ],
+    edgeType: 'explain',
+    edgeDirection: 'to-parent', // child → parent
+  },
+  followup: {
+    nodes: [
+      { suffix: '追问', color: 'red' },
+    ],
+    edgeType: 'followup',
+    edgeDirection: 'to-parent',
+  },
+  supplement: {
+    nodes: [
+      { suffix: '补充说明', color: 'cyan' },
+    ],
+    edgeType: 'supplement',
+    edgeDirection: 'to-parent',
+  },
+};
+
+function doAction(actionType) {
+  if (!selectedNodeId) return;
+  const template = ACTION_TEMPLATES[actionType];
+  const parentNode = cy.getElementById(selectedNodeId);
+  const parentPos = parentNode.position();
+  const parentMeta = nodeMeta[selectedNodeId];
+
+  const edgeInfo = EDGE_TYPES[template.edgeType];
+  const newNodes = [];
+
+  template.nodes.forEach((tpl, i) => {
+    nodeCounter++;
+    const newId = 'n' + nodeCounter;
+    const angle = (template.nodes.length === 1) ? Math.PI / 2 : (Math.PI / 4 + i * Math.PI / 2);
+    const dist = 200;
+    const offsetX = (actionType === 'decompose') ? (i === 0 ? -180 : 180) : (Math.random() * 120 - 60);
+    const offsetY = dist;
+
+    const newTitle = parentMeta.title + ' → ' + tpl.suffix;
+
+    // Add to Cytoscape
+    const addedNode = cy.add({
+      data: { id: newId, label: newTitle, nodeColor: tpl.color },
+      position: { x: parentPos.x + offsetX, y: parentPos.y + offsetY },
+      classes: 'new-node-anim',
+    });
+
+    // Add edge
+    const edgeId = 'e' + Date.now() + '_' + i;
+    if (template.edgeDirection === 'from-parent') {
+      cy.add({ data: { id: edgeId, source: selectedNodeId, target: newId, edgeType: template.edgeType, label: edgeInfo.label } });
+    } else {
+      cy.add({ data: { id: edgeId, source: newId, target: selectedNodeId, edgeType: template.edgeType, label: edgeInfo.label } });
+    }
+
+    // Add metadata
+    nodeMeta[newId] = {
+      title: newTitle,
+      color: tpl.color,
+      mastery: 0,
+      notes: '',
+      timeline: [
+        { type: actionType === 'followup' ? 'question' : 'answer', date: new Date().toLocaleDateString('zh-CN', {month:'2-digit', day:'2-digit'}) + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'}), text: `从「${parentMeta.title}」${edgeInfo.label}` },
+      ],
+    };
+
+    // Animate in
+    setTimeout(() => { addedNode.removeClass('new-node-anim'); addedNode.animate({ style: { opacity: 1 } }, { duration: 400 }); }, 50);
+
+    newNodes.push(newId);
+  });
+
+  // Update parent timeline
+  parentMeta.timeline.push({
+    type: 'answer',
+    date: new Date().toLocaleDateString('zh-CN', {month:'2-digit', day:'2-digit'}) + ' ' + new Date().toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'}),
+    text: `触发「${edgeInfo.label}」→ 生成 ${newNodes.length} 个新节点`,
+  });
+
+  // Refresh panel
+  showPanel(selectedNodeId);
+  showToast(`✨ 已生成 ${newNodes.length} 个新节点（${edgeInfo.label}）`);
+}
+
+// ========== Toast ==========
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2000);
+}
+
+// ========== Init: fit view ==========
+cy.fit(undefined, 50);
+</script>
+</body>
+</html>
