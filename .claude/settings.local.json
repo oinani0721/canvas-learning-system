@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__query-docs",
+      "mcp__graphiti__get_status",
+      "mcp__graphiti__add_memory",
+      "mcp__sequential-thinking__sequentialthinking",
+      "mcp__graphiti__search_memory_facts",
+      "mcp__graphiti__search_nodes",
+      "mcp__graphiti-canvas__get_status",
+      "mcp__graphiti-canvas__add_memory",
+      "mcp__graphiti-canvas__search_memory_facts",
+      "mcp__graphiti-canvas__search_nodes",
+      "mcp__graphiti-canvas__get_episodes"
+    ]
+  },
+  "outputStyle": "Learning"
+}

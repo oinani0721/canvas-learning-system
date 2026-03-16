@@ -1,18 +1,24 @@
 ---
-stepsCompleted: [1, 2, 3]
+stepsCompleted: [1, 2, 3, 'review']
 inputDocuments: []
 session_topic: 'Canvas Learning System 记忆系统 2 深入 — 学习情况跟踪'
 session_goals: 'Graphiti 实体关系设计、理解程度量化、Agent 生成闭环、FSRS 协作、出题机制、Claude Code 记忆同步'
 selected_approach: 'ai-recommended'
-techniques_used: ['Question Storming', 'Five Whys + Assumption Reversal', 'Cross-Pollination', 'Deep Explore (社区/论文验证)', 'Morphological Analysis']
+techniques_used: ['Question Storming', 'Five Whys + Assumption Reversal', 'Cross-Pollination', 'Deep Explore (社区/论文验证)', 'Morphological Analysis', 'Adversarial Review (独立验证 session)', 'Code Quality Audit']
 ideas_generated: []
 context_file: ''
+review_status: 'completed'
+review_date: '2026-03-14'
+review_agents: 7
+review_papers: '70+'
+decisions_total: 11
+decisions_pending_verification: 4
 ---
 
 # Brainstorming Session Results
 
 **Facilitator:** ROG
-**Date:** 2026-03-11 ~ 2026-03-13（跨 3 session 完成）
+**Date:** 2026-03-11 ~ 2026-03-14（跨 4 session 完成，含独立验证 session）
 
 ## Session Overview
 
@@ -30,11 +36,11 @@ context_file: ''
 
 _已有上下文（来自 Graphiti 搜索和代码探索）：_
 - Graphiti canvas-dev 中无学习跟踪相关记录，已有知识均为检索管道（bge-m3、混合搜索、chunking）
-- FSRS 已实现于 `src/memory/temporal/fsrs_manager.py`，使用 py-fsrs，有 score→rating 转换，但与主流程断开
-- Graphiti Bridge Service 定义了 Misconception/ProblemTrap/GuidedThinking 等实体类型
-- LearningMemoryClient 以 JSON 存储学习 episodes
-- 15 个 Agent 类型，React Agent 模式，Gemini 驱动
-- Context Enrichment 存在但默认禁用
+- FSRS 已实现于 `src/memory/temporal/fsrs_manager.py`，使用 py-fsrs，有 score→rating 转换，**已连通** ReviewService/MasteryEngine/AgentService
+- Graphiti Bridge Service 定义了 Misconception/ProblemTrap/GuidedThinking 等实体类型，**真实实现**
+- LearningMemoryClient 以 JSON 存储学习 episodes，**需 schema 扩展**
+- 11+ 个 Agent 端点，React Agent 模式，Gemini 驱动，**全部真实实现**（纠正：非 mock）
+- Context Enrichment **已默认启用**（2025-12-24 修复）
 
 ---
 
@@ -421,3 +427,185 @@ _已有上下文（来自 Graphiti 搜索和代码探索）：_
 - 刁难：2 个 session 同时写入不同决策到同一文件 + 第 3 个 session 立即读取，读到的内容是否一致
 
 **退出条件：如果并发数据丢失率 > 5%，必须引入 CRDT 或至少 MVCC**
+
+---
+
+## 用户方向确认（2026-03-14）
+
+审查提出 3 个方向性问题，用户决定：
+
+| 问题 | 用户决定 | 说明 |
+|------|---------|------|
+| Phase 0 是否同时建最小依赖图 | **是** | 20-50 个核心概念，LLM 生成 + 人工修正 |
+| 弱点诊断精细度 | **保持 5 类** | 不降级为 3 类，但退出条件 AC3.1 生效（准确率 < 60% 强制降级） |
+| AI 评分校验方式 | **方案 A 双 AI** | 两个不同模型系列交叉校验（如 Gemini + Claude） |
+
+---
+
+## 根本遗漏补充（2026-03-14 Review Session 发现）
+
+### 补充 1：Observer 输出协议 — 标准化"学习事件"
+
+**问题**：Observer 观察对话后往三个系统写什么格式的数据未定义。
+
+**确认方案**：Observer 每次观察输出标准化"学习事件"对象：
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| `concept_id` | 涉及的概念 | "gradient_descent" |
+| `weakness_type` | 5 类弱点之一（或 null） | "reasoning_error" |
+| `mastery_delta` | 掌握度变化量 | +0.15 |
+| `fsrs_rating` | FSRS 4 档评级 | 3 (Good) |
+| `evidence` | 判断依据摘要 | "学生混淆了学习率和步长" |
+| `timestamp` | 时间戳 | 2026-03-14T10:30:00Z |
+
+此事件同时写入 Graphiti（弱点画像）、FSRS（复习卡状态）、mastery 向量。
+
+**验证**：内部 schema 足够，无需遵循 xAPI 标准（未来需互操作时加映射层）。
+
+### 补充 2：编排器角色 — Context Builder 兼任
+
+**问题**：FSRS + Graphiti + 策略适配器三系统无协调者。
+
+**确认方案**：Context Builder 兼任编排器。每次对话前：
+1. 查 Graphiti → 获取弱点画像
+2. 查 FSRS → 获取到期复习卡
+3. 汇总注入 Agent prompt → Agent 据此回复
+
+不新建独立模块。与主流 Plan-then-Execute 架构一致（Anthropic 官方推荐模式）。
+
+**延迟缓解**：Graphiti 弱点查询做会话级缓存 + FSRS 到期卡片每日批量预计算。
+
+### 补充 3：Phase 精确边界与前置条件
+
+**问题**：检验白板是否在 Phase 0 内，差 3-5 倍工作量。
+
+**确认方案**：
+
+| 阶段 | 交付物 | 完成条件 | 验证目标 |
+|------|--------|---------|---------|
+| **Phase 0** | 纯对话闭环 + 最小依赖图 + 冷启动诊断 | ~20 次有效对话 OR 覆盖概念图 60%（预计 2-3 周，前提每天使用） | AI 是否比普通聊天机器人更懂你 |
+| **Phase 0.5** | 基础检验 + 单 AI 评分 + 评分回传 | 1-2 周 | 出题是否能针对弱点 |
+| **Phase 1** | 完整检验白板 + 双 AI + 渐隐 + 校准 + 画布 UI | 3-4 周 | 检验体验是否有效帮助学习 |
+
+**Phase 0 前置条件（必须在 Phase 0 启动前完成）：**
+1. **冷启动诊断**：新学生首次使用出 5-8 道快速诊断题 → 写入 Graphiti 初始弱点画像（CLST 框架 2025 验证）
+2. **最小依赖图构建**：LLM 从课程大纲自动生成概念关系草图 → 人工 20 分钟修正 → 写入 Graphiti（ACE 论文 2024 JEDM 验证）
+3. **LearningMemoryClient schema 扩展**：添加 `weakness_type` 字段（代码审查发现当前数据模型无法支撑五类弱点）
+
+---
+
+## 代码审查纠正（2026-03-14 独立 Agent 审查）
+
+| 模块 | 质量评级 | 关键发现 |
+|------|---------|---------|
+| FSRS Manager | **可复用** | 真实实现，已连通 ReviewService/MasteryEngine/AgentService |
+| Graphiti Bridge | **可复用** | 真实实现，但搜索是 naive substring 非语义搜索 |
+| LearningMemoryClient | **需修复** | 数据模型缺 weakness_type 字段 + score 格式 bug (`/40` vs `/100`) + 并发不安全 + 中文搜索 broken |
+| Context Enrichment | **可复用** | 已默认启用（2025-12-24 修复），提供结构上下文但不含学习历史 |
+| Agent System | **可复用** | 11+ 端点全部真实 Gemini API 调用 |
+
+**⚠️ 重大纠正**：CLAUDE.md 中"Agent API 端点大量 MOCK 实现"的警告对当前代码状态**不正确** — 所有 agent 端点都是真实实现。`user_id="default"` 硬编码不支持多用户。GraphitiBridge 和 LearningMemoryClient 是并行但断开的存储路径。
+
+---
+
+## 补充发现清单
+
+| # | 发现 | 严重程度 | 补救方案 | 状态 |
+|---|------|---------|---------|------|
+| 1 | 冷启动：新学生无历史数据 | 必须解决 | 开局 5-8 题诊断 | ✅ 已纳入 Phase 0 前置 |
+| 2 | 依赖图构建方案未定义 | 必须解决 | LLM 生成 + 人工修正 | ✅ 已纳入 Phase 0 前置 |
+| 3 | 检验评分结果未回传系统 | 必须解决 | Observer 学习事件协议 | ✅ 已在补充 1 定义 |
+| 4 | 复习触发机制缺失 | 必须解决 | Context Builder 兼任编排 | ✅ 已在补充 2 定义 |
+| 5 | 三角协作无编排者 | 必须解决 | Context Builder 兼任编排 | ✅ 已在补充 2 定义 |
+| 6 | mastery 向量存储格式未定义 | 必须解决 | Graphiti 节点属性 + Observer 学习事件 | ✅ 已在补充 1 定义 |
+| 7 | 隐私合规未考虑 | 建议解决 | 本地部署 + 架构预留 | 📋 上线前处理 |
+| 8 | 系统评估方法论缺失 | 建议解决 | 3 个最小指标 | 📋 Phase 0 验收时 |
+| 9 | 双 AI disagree policy | 可后续 | 分数差 > 阈值 → 第三次评分 | 📋 Phase 1 |
+| 10 | 动机/流失防止 | 可后续 | 具体化低门槛复习邀请 | 📋 FIRe 阶段 |
+
+---
+
+## 最终确认决策汇总
+
+### 原始 6 项决策（Session B brainstorming，2026-03-11~13）
+
+| # | 决策 | 状态 | 审查结论 | 用户最终确认 |
+|---|------|------|---------|-------------|
+| 1 | Phase 0 优先策略 | ✅ 有条件通过 | 需增加最小依赖图 | ✅ 同意增加 |
+| 2 | FIRe 推迟 | ✅ 有条件通过 | 需确保架构兼容性 | ✅ 同意 |
+| 3 | 五类弱点模型 | ⚠️ 审查建议降为 3 类 | 元认知检测风险高 | ✅ 坚持 5 类（退出条件生效） |
+| 4 | 三角协作 | ⚠️ 审查发现假设矛盾 | FSRS 孤立 vs Graphiti 关联 | ✅ 同意分层 + fallback |
+| 5 | 检验白板 4 项改进 | ⚠️ 审查发现 2 项根本缺陷 | 追问偏差 + 校准噪音 | ✅ 同意双 AI 方案 |
+| 6 | 记忆同步 4 项改进 | ⚠️ 审查发现 LWW 风险 | 并发丢数据 | ✅ 延迟升级（当前单用户） |
+
+### 补充 3 项决策（Review Session，2026-03-14）
+
+| # | 决策 | 说明 |
+|---|------|------|
+| 7 | Observer 输出协议 | 标准化学习事件对象，同时写入三系统 |
+| 8 | Context Builder 兼任编排器 | 不建独立模块，扩展 Context Builder 职责 |
+| 9 | Phase 精确边界 | Phase 0 / 0.5 / 1 三阶段，完成条件用交互次数而非纯时间 |
+
+### 执行层决策（Review Session AI 自行判断）
+
+| # | 决策 | 说明 |
+|---|------|------|
+| 10 | 验收标准人工标注替代 | AI 辅助 + 抽样人工审核 |
+| 11 | 记忆同步延迟升级 | 先简单方案 + 崩溃保护，等真实并发问题再升级 |
+
+---
+
+## 修订路线图
+
+```
+[前置] 冷启动诊断设计 + 最小依赖图构建 + LearningMemoryClient schema 扩展
+  ↓
+[Phase 0] 纯对话闭环（2-3 周 / ~20 次有效对话）
+  ├── 0.1 Mastery 向量序列化 + Graphiti 节点属性存储
+  ├── 0.2 Context Builder（查 Graphiti 弱点 + FSRS 到期 + 注入 prompt）
+  ├── 0.3 Prompt 3 层改造（L1 角色 / L2 学生上下文 / L3 当次请求）
+  ├── 0.4 Observer（输出标准化学习事件 → 三系统写入）
+  └── 0.5 最小依赖图（20-50 概念，LLM 生成 + 人工修正）
+  ↓
+[Phase 0.5] 基础检验（1-2 周）
+  ├── 基础出题（基于弱点画像生成针对性题目）
+  ├── 单 AI 评分 + 评分回传 Observer
+  └── 五类弱点分类初步验证（AC3.1 退出条件检查点）
+  ↓
+[Phase 1] 完整检验白板（3-4 周）
+  ├── 双 AI 交叉评分（Gemini + Claude）
+  ├── 渐隐机制 + 校准反馈
+  ├── 画布 UI（渐进式展示）
+  └── 策略适配器 5 种策略
+  ↓
+[Phase 2+] FIRe / LangGraph 升级（待 Phase 0 验证后决定）
+```
+
+---
+
+## ITS 完备性确认（最终轮 2026-03-14）
+
+| ITS 标准模块 | 当前设计对应 | 覆盖状态 |
+|---|---|---|
+| Domain Model（领域知识/概念图） | Graphiti 知识图谱 + 最小依赖图 | ✅ 已覆盖 |
+| Student Model（学生认知状态） | Observer 学习事件 + mastery 向量 + FSRS | ✅ 已覆盖 |
+| Tutor Model（教学策略/干预） | Context Builder（编排器）+ Agent prompt 注入 + 策略适配器 | ✅ 已覆盖 |
+| User Interface（交互界面） | Phase 0.5+ 检验白板 | ✅ 已规划 |
+
+**结论**：经 3 轮深度 explore（7 个独立 agent、70+ 篇论文/社区证据）、独立代码审查、集成一致性分析，设计完备，无结构性缺漏。
+
+---
+
+## Graphiti 记录索引
+
+本 brainstorming 在 `canvas-dev` group 中的 Graphiti 记录：
+
+| 前缀 | 数量 | 内容 |
+|------|------|------|
+| `[Session-Start/End]` | 2 | Review Session 生命周期 |
+| `[Research]` | 6 | 4 轮对抗性审查 + 遗漏调研 + 最终验证 |
+| `[Code-Review]` | 1 | 5 模块代码质量审查（4 可复用 / 1 需修复） |
+| `[Acceptance-Criteria]` | 5 | 6 个决策的验收标准（含测试用例 + 退出条件） |
+| `[Decision]` | 4 | 用户方向确认 + 补充方案 + Phase 修正 |
+| `[Decision-Review]` | 4 | 待验证决策（PENDING → 实施后测试） |
