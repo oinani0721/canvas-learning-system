@@ -23,6 +23,14 @@ process.stdin.on('end', () => {
 
     // ===== 高优先级检测（即使 stop_hook_active 也执行）=====
 
+    // 0. Session首轮回复必须确认已读取规则和刚需清单
+    const hasSessionStart = /\[Session-Start\]/i.test(msg);
+    const hasReadRules = /development-discipline|DD-01|DD-03|DD-10|10.*条.*纪律|10.*rules/i.test(msg);
+    const hasReadEssentials = /MVP.*刚需.*14|刚需.*清单|project_mvp_essentials|decision-log/i.test(msg);
+    if (hasSessionStart && !hasReadRules && !hasReadEssentials && !isRetry) {
+      block('Session首轮未确认读取规则和刚需清单。⛔ 必须 Read development-discipline.md 和 MVP刚需清单，并在回复中确认。');
+    }
+
     // 1a. 记录了 [Decision] 但没有 [Decision-Review]
     if (/\[Decision\]/i.test(msg) && !/\[Decision-Review\]/i.test(msg)) {
       block('有 [Decision] 但没有 [Decision-Review]。立即 add_memory("[Decision-Review] ... — 待验证", PENDING 状态)。');

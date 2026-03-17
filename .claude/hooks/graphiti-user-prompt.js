@@ -16,7 +16,7 @@ process.stdin.on('end', () => {
     const isNewFeature = /新功能|新增|引入|扩展|添加.*功能|加个|顺便/i.test(prompt);
     const isFrontend = /前端|UI|界面|组件|Svelte|样式|白板.*设计|面板/i.test(prompt);
 
-    let msg = '⛔ 回复前执行: search_memory_facts(graphiti-canvas, group_id:"canvas-dev", query:"{用户消息关键词}")';
+    let msg = '⛔ 回复前执行: search_memory_facts(graphiti-canvas, group_id:"canvas-dev", query:"{用户消息关键词}", max_facts:30)';
 
     if (isCodeExplore) {
       msg += '\n⛔ 代码场景：必须启动独立 agent 对抗性审查，记录 [Code-Review]。详见 CLAUDE.md。';

@@ -712,6 +712,37 @@ FR 覆盖：FR-TRACE-01~04, FR-EXAM-17, FR-MAST-03/04
 
 所有快捷键仅在对话框输入框获得 focus 时生效。
 
+### 白板操作交互（与 Obsidian Canvas 一致）
+
+| 操作 | 交互方式 | 说明 |
+|------|---------|------|
+| 移动节点 | 左键点击节点 header 区域拖拽 | body 区域保留给文字选取 |
+| 移动白板 | 右键按住拖拽 / 中键按住拖拽 | 平移画布 |
+| 缩放白板 | 鼠标滚轮 | 放大/缩小 |
+| 选中节点 | 左键点击节点 | 右侧面板切换为该节点对话 |
+| 多选节点 | Ctrl+左键 / 框选 | — |
+| 创建连线 | 从节点边缘拖出到另一个节点 | Edge 创建后出现对话图标 |
+| 创建节点 | 双击白板空白处 | 或从对话中拖拽文字到白板 |
+| 删除节点/连线 | 选中 + Delete/Backspace | — |
+| 选中文字（节点内） | 左键在节点 body 区域拖选 | 与节点拖拽共存（Session D 已验证） |
+
+核心原则：操作逻辑与 Obsidian Canvas 保持一致，用过 Obsidian Canvas 的用户零学习成本。
+
+### Settings Tab 布局（Obsidian PluginSettingTab）
+
+Settings Tab 位于 Obsidian 设置页面（Ctrl+,），使用 Obsidian 原生 Setting API 构建。
+
+| 区域 | 内容 | FR 来源 |
+|------|------|---------|
+| 系统状态 | Docker/后端/Neo4j/LLM/LanceDB 5 个组件状态灯 + 重新检测按钮 | FR-SYS-04 |
+| 对话模型 | 供应商下拉 + 模型下拉 + API Key 输入 + 测试连接 | FR-SYS-02/03 |
+| 评分模型 | 供应商下拉 + 模型下拉 + API Key 输入 | FR-SYS-02/03 |
+| 嵌入模型 | bge-m3 (Ollama) 状态显示（只读） | FR-SYS-02 |
+| 后端连接 | 后端地址输入 + Neo4j 地址输入 + 一键启动按钮 | FR-SYS-05 |
+| 数据管理 | 手动备份按钮 + 重建索引按钮 | FR-SYS-06 |
+
+注意：Settings Tab（PluginSettingTab）和右侧面板的 Dashboard（ItemView）是两个不同的东西。HealthPanel 和 ModelConfig 组件（F 组）在 Settings Tab 中通过 Obsidian Setting API 实现。
+
 ## Responsive & Accessibility
 
 ### 响应式策略
