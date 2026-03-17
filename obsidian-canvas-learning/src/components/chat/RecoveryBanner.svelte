@@ -14,11 +14,7 @@
 <script lang="ts">
   import type { RecoveryStatus } from '../../services/crash-recovery';
 
-  /** Current recovery status. */
-  export let status: RecoveryStatus;
-
-  /** Callback when user clicks the manual "Retry" button. */
-  export let onRetry: () => void;
+  const { status, onRetry }: { status: RecoveryStatus; onRetry: () => void } = $props();
 
   const CLAUDE_CODE_INSTALL_URL = 'https://docs.anthropic.com/en/docs/claude-code/overview';
 </script>

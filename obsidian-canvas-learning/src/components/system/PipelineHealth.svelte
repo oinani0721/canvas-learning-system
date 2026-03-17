@@ -45,8 +45,7 @@
 
   // ─── Props ────────────────────────────────────────────────────────────
 
-  export let apiBase: string = "";
-  export let refreshInterval: number = 30000; // 30s default
+  const { apiBase = "", refreshInterval = 30000 }: { apiBase?: string; refreshInterval?: number } = $props();
 
   // ─── State ────────────────────────────────────────────────────────────
 

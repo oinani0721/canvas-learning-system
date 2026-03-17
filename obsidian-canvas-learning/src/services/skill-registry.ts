@@ -112,8 +112,8 @@ const DEFAULT_SKILL_META: Record<string, { name: string; description: string; ic
  * without requiring a plugin restart (AC-4).
  */
 class SkillRegistry {
-  /** Reactive skill list (Svelte 5 $state). */
-  skills: Skill[] = $state([]);
+  /** Skill list. */
+  skills: Skill[] = [];
 
   /** Cached commands directory path. */
   private commandsDir: string | null = null;

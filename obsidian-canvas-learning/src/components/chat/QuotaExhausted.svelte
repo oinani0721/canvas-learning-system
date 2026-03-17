@@ -16,11 +16,8 @@
   import { onDestroy } from 'svelte';
   import { chatState } from '../../stores/chat-state.svelte';
 
-  /** Callback when user clicks "Wait for Reset" */
-  export let onDismiss: () => void;
-
-  /** Callback when user clicks "Use API Key" (opens Settings Tab) */
-  export let onSwitchApiKey: () => void;
+  /** Props using Svelte 5 $props() runes */
+  const { onDismiss, onSwitchApiKey }: { onDismiss: () => void; onSwitchApiKey: () => void } = $props();
 
   // ── Countdown logic (Story 3.10 Task 4) ──────────────────────────────────
 
