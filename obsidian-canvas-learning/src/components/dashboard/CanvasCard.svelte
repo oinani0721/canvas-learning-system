@@ -181,8 +181,9 @@
   {/if}
 </div>
 
-<!-- Exam launcher modal -->
+<!-- Exam launcher modal (Story 6.1: real exam creation) -->
 <ExamLauncher
+  boardId={board.id}
   boardName={board.name}
   {nodeCount}
   isOpen={launcherOpen}

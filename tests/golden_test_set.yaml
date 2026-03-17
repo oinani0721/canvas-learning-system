@@ -1,0 +1,400 @@
+# Story 2.12: Golden Test Set for RAG Pipeline Acceptance Testing
+# 50+ queries covering: CN knowledge, EN knowledge, cross-lingual, fuzzy, file locate, irrelevant
+# Ground truth: expected file_path substring + heading substring (fuzzy match)
+
+queries:
+  # ── 中文知识点查询 (15+) ──
+  - id: cn-01
+    query: "贝叶斯定理的推导过程"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "probability"
+        heading: "贝叶斯"
+
+  - id: cn-02
+    query: "什么是逆否命题"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "logic"
+        heading: "逆否"
+
+  - id: cn-03
+    query: "图的深度优先搜索算法"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "graph"
+        heading: "DFS"
+
+  - id: cn-04
+    query: "矩阵乘法的定义"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "matrix"
+        heading: "乘法"
+
+  - id: cn-05
+    query: "递归的基本概念"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "recursion"
+        heading: "递归"
+
+  - id: cn-06
+    query: "梯度下降优化算法"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "optimization"
+        heading: "梯度"
+
+  - id: cn-07
+    query: "二叉树的遍历方式"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "tree"
+        heading: "遍历"
+
+  - id: cn-08
+    query: "动态规划的核心思想"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "dynamic"
+        heading: "动态规划"
+
+  - id: cn-09
+    query: "排序算法比较"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "sort"
+        heading: "排序"
+
+  - id: cn-10
+    query: "集合运算规则"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "set"
+        heading: "集合"
+
+  - id: cn-11
+    query: "概率分布函数"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "probability"
+        heading: "分布"
+
+  - id: cn-12
+    query: "微积分基本定理"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "calculus"
+        heading: "积分"
+
+  - id: cn-13
+    query: "正则表达式语法"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "regex"
+        heading: "正则"
+
+  - id: cn-14
+    query: "哈希表的工作原理"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "hash"
+        heading: "哈希"
+
+  - id: cn-15
+    query: "神经网络反向传播"
+    language: zh
+    category: knowledge_point
+    ground_truth:
+      - file: "neural"
+        heading: "反向传播"
+
+  # ── 英文知识点查询 (15+) ──
+  - id: en-01
+    query: "Bayes theorem proof"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "probability"
+        heading: "Bayes"
+
+  - id: en-02
+    query: "depth first search algorithm"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "graph"
+        heading: "DFS"
+
+  - id: en-03
+    query: "matrix multiplication definition"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "matrix"
+        heading: "multiplication"
+
+  - id: en-04
+    query: "gradient descent optimization"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "optimization"
+        heading: "gradient"
+
+  - id: en-05
+    query: "binary tree traversal"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "tree"
+        heading: "traversal"
+
+  - id: en-06
+    query: "dynamic programming approach"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "dynamic"
+        heading: "dynamic"
+
+  - id: en-07
+    query: "sorting algorithm comparison"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "sort"
+        heading: "sort"
+
+  - id: en-08
+    query: "probability distribution"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "probability"
+        heading: "distribution"
+
+  - id: en-09
+    query: "hash table collision resolution"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "hash"
+        heading: "hash"
+
+  - id: en-10
+    query: "neural network backpropagation"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "neural"
+        heading: "backprop"
+
+  - id: en-11
+    query: "regular expression syntax"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "regex"
+        heading: "regex"
+
+  - id: en-12
+    query: "recursion base case"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "recursion"
+        heading: "recurs"
+
+  - id: en-13
+    query: "set theory operations"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "set"
+        heading: "set"
+
+  - id: en-14
+    query: "calculus fundamental theorem"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "calculus"
+        heading: "calculus"
+
+  - id: en-15
+    query: "contrapositive logic"
+    language: en
+    category: knowledge_point
+    ground_truth:
+      - file: "logic"
+        heading: "contrap"
+
+  # ── 跨语言混合查询 (5+) ──
+  - id: mix-01
+    query: "Bayes定理的数学推导"
+    language: mixed
+    category: cross_lingual
+    ground_truth:
+      - file: "probability"
+        heading: "Bayes"
+
+  - id: mix-02
+    query: "DFS深度优先搜索algorithm"
+    language: mixed
+    category: cross_lingual
+    ground_truth:
+      - file: "graph"
+        heading: "DFS"
+
+  - id: mix-03
+    query: "gradient梯度下降法"
+    language: mixed
+    category: cross_lingual
+    ground_truth:
+      - file: "optimization"
+        heading: "梯度"
+
+  - id: mix-04
+    query: "hash table哈希表原理"
+    language: mixed
+    category: cross_lingual
+    ground_truth:
+      - file: "hash"
+        heading: "哈希"
+
+  - id: mix-05
+    query: "neural network神经网络基础"
+    language: mixed
+    category: cross_lingual
+    ground_truth:
+      - file: "neural"
+        heading: "neural"
+
+  # ── 模糊/宽泛查询 (5+) ──
+  - id: fuzzy-01
+    query: "算法"
+    language: zh
+    category: fuzzy
+    ground_truth:
+      - file: ""
+        heading: ""
+
+  - id: fuzzy-02
+    query: "数学"
+    language: zh
+    category: fuzzy
+    ground_truth:
+      - file: ""
+        heading: ""
+
+  - id: fuzzy-03
+    query: "计算机基础"
+    language: zh
+    category: fuzzy
+    ground_truth:
+      - file: ""
+        heading: ""
+
+  - id: fuzzy-04
+    query: "data structures"
+    language: en
+    category: fuzzy
+    ground_truth:
+      - file: ""
+        heading: ""
+
+  - id: fuzzy-05
+    query: "编程概念"
+    language: zh
+    category: fuzzy
+    ground_truth:
+      - file: ""
+        heading: ""
+
+  # ── 精确文件定位查询 (5+) ──
+  - id: locate-01
+    query: "找到关于排序的笔记"
+    language: zh
+    category: file_locate
+    ground_truth:
+      - file: "sort"
+        heading: ""
+
+  - id: locate-02
+    query: "哪个文件讲了递归"
+    language: zh
+    category: file_locate
+    ground_truth:
+      - file: "recursion"
+        heading: ""
+
+  - id: locate-03
+    query: "find notes about probability"
+    language: en
+    category: file_locate
+    ground_truth:
+      - file: "probability"
+        heading: ""
+
+  - id: locate-04
+    query: "图论相关文档在哪"
+    language: zh
+    category: file_locate
+    ground_truth:
+      - file: "graph"
+        heading: ""
+
+  - id: locate-05
+    query: "locate calculus file"
+    language: en
+    category: file_locate
+    ground_truth:
+      - file: "calculus"
+        heading: ""
+
+  # ── 无关查询（应触发降级） (5+) ──
+  - id: irrelevant-01
+    query: "今天天气怎么样"
+    language: zh
+    category: irrelevant
+    ground_truth: []
+
+  - id: irrelevant-02
+    query: "推荐一部好看的电影"
+    language: zh
+    category: irrelevant
+    ground_truth: []
+
+  - id: irrelevant-03
+    query: "how to cook pasta"
+    language: en
+    category: irrelevant
+    ground_truth: []
+
+  - id: irrelevant-04
+    query: "最近的新闻有什么"
+    language: zh
+    category: irrelevant
+    ground_truth: []
+
+  - id: irrelevant-05
+    query: "what is the capital of France"
+    language: en
+    category: irrelevant
+    ground_truth: []

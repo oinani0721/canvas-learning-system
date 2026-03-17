@@ -36,8 +36,10 @@ rag_router = APIRouter()
 # Request/Response Models
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class RAGQueryRequest(BaseModel):
     """RAG 查询请求"""
+
     query: str = Field(..., description="查询字符串", min_length=1, max_length=2000)
     canvas_file: Optional[str] = Field(None, description="Canvas 文件路径 (用于上下文过滤)")
     is_review_canvas: bool = Field(False, description="是否为检验白板场景")
@@ -50,17 +52,14 @@ class RAGQueryRequest(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {
-                "query": "什么是逆否命题？",
-                "canvas_file": "离散数学.canvas",
-                "is_review_canvas": False
-            }
+            "example": {"query": "什么是逆否命题？", "canvas_file": "离散数学.canvas", "is_review_canvas": False}
         }
     )
 
 
 class SearchResultItem(BaseModel):
     """单个检索结果"""
+
     doc_id: str = Field(..., description="文档ID")
     content: str = Field(..., description="内容")
     score: float = Field(..., description="相关度分数")
@@ -73,6 +72,7 @@ class MultimodalResultItem(BaseModel):
 
     ✅ Verified from OpenAPI: specs/api/fastapi-backend-api.openapi.yml#MultimodalResultItem
     """
+
     id: str = Field(..., description="内容ID")
     media_type: Literal["image", "pdf", "audio", "video"] = Field(..., description="媒体类型")
     path: str = Field(..., description="文件路径")
@@ -83,6 +83,7 @@ class MultimodalResultItem(BaseModel):
 
 class LatencyInfo(BaseModel):
     """延迟信息"""
+
     graphiti: Optional[float] = Field(None, description="Graphiti 检索延迟 (ms)")
     lancedb: Optional[float] = Field(None, description="LanceDB 检索延迟 (ms)")
     multimodal: Optional[float] = Field(None, description="多模态检索延迟 (ms)")
@@ -92,6 +93,7 @@ class LatencyInfo(BaseModel):
 
 class RAGQueryMetadata(BaseModel):
     """RAG 查询元数据"""
+
     query_rewritten: bool = Field(False, description="Query 是否被重写")
     rewrite_count: int = Field(0, description="重写次数")
     fusion_strategy: Optional[str] = Field(None, description="使用的融合策略")
@@ -104,10 +106,10 @@ class RAGQueryResponse(BaseModel):
 
     ✅ Verified from OpenAPI: specs/api/fastapi-backend-api.openapi.yml#RAGQueryResponse
     """
+
     results: List[SearchResultItem] = Field(default_factory=list, description="检索结果列表")
     multimodal_results: List[MultimodalResultItem] = Field(
-        default_factory=list,
-        description="多模态检索结果 (Story 35.8 AC-35.8.1)"
+        default_factory=list, description="多模态检索结果 (Story 35.8 AC-35.8.1)"
     )
     quality_grade: str = Field("low", description="质量评级 (high/medium/low)")
     result_count: int = Field(0, description="结果数量")
@@ -123,7 +125,7 @@ class RAGQueryResponse(BaseModel):
                         "doc_id": "node-123",
                         "content": "逆否命题是将原命题的条件和结论同时取否定...",
                         "score": 0.95,
-                        "metadata": {"source": "graphiti", "canvas": "离散数学.canvas"}
+                        "metadata": {"source": "graphiti", "canvas": "离散数学.canvas"},
                     }
                 ],
                 "multimodal_results": [
@@ -133,25 +135,19 @@ class RAGQueryResponse(BaseModel):
                         "path": "笔记库/images/逆否命题图解.png",
                         "thumbnail": "data:image/png;base64,...",
                         "relevance_score": 0.87,
-                        "metadata": {"width": 800, "height": 600}
+                        "metadata": {"width": 800, "height": 600},
                     }
                 ],
                 "quality_grade": "high",
                 "result_count": 1,
-                "latency_ms": {
-                    "graphiti": 45.2,
-                    "lancedb": 32.1,
-                    "multimodal": 58.5,
-                    "fusion": 5.3,
-                    "reranking": 12.8
-                },
+                "latency_ms": {"graphiti": 45.2, "lancedb": 32.1, "multimodal": 58.5, "fusion": 5.3, "reranking": 12.8},
                 "total_latency_ms": 153.9,
                 "metadata": {
                     "query_rewritten": False,
                     "rewrite_count": 0,
                     "fusion_strategy": "rrf",
-                    "reranking_strategy": "hybrid_auto"
-                }
+                    "reranking_strategy": "hybrid_auto",
+                },
             }
         }
     )
@@ -159,6 +155,7 @@ class RAGQueryResponse(BaseModel):
 
 class WeakConceptItem(BaseModel):
     """薄弱概念项"""
+
     concept: str = Field(..., description="概念名称")
     stability: float = Field(..., description="稳定性分数 (0-1)")
     last_review: Optional[str] = Field(None, description="上次复习时间")
@@ -167,6 +164,7 @@ class WeakConceptItem(BaseModel):
 
 class WeakConceptsResponse(BaseModel):
     """薄弱概念响应"""
+
     concepts: List[WeakConceptItem] = Field(default_factory=list, description="薄弱概念列表")
     total_count: int = Field(0, description="总数量")
     canvas_file: str = Field(..., description="Canvas 文件")
@@ -174,6 +172,7 @@ class WeakConceptsResponse(BaseModel):
 
 class RAGStatusResponse(BaseModel):
     """RAG 服务状态响应"""
+
     available: bool = Field(..., description="服务是否可用")
     initialized: bool = Field(..., description="是否已初始化")
     langgraph_available: bool = Field(..., description="LangGraph 是否可用")
@@ -185,6 +184,7 @@ class RAGStatusResponse(BaseModel):
 # API Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @rag_router.post(
     "/query",
     response_model=RAGQueryResponse,
@@ -194,12 +194,11 @@ class RAGStatusResponse(BaseModel):
     responses={
         200: {"description": "查询成功", "model": RAGQueryResponse},
         503: {"description": "RAG 服务不可用"},
-        500: {"description": "查询执行失败"}
-    }
+        500: {"description": "查询执行失败"},
+    },
 )
 async def rag_query(
-    request: RAGQueryRequest,
-    rag_service: Annotated[RAGService, Depends(get_rag_service)]
+    request: RAGQueryRequest, rag_service: Annotated[RAGService, Depends(get_rag_service)]
 ) -> RAGQueryResponse:
     """
     执行 RAG 智能检索查询
@@ -229,7 +228,7 @@ async def rag_query(
             canvas_file=request.canvas_file,
             is_review_canvas=request.is_review_canvas,
             fusion_strategy=request.fusion_strategy,
-            reranking_strategy=request.reranking_strategy
+            reranking_strategy=request.reranking_strategy,
         )
 
         # 转换结果格式 (Story 35.8: 含multimodal_results)
@@ -241,7 +240,7 @@ async def rag_query(
                     doc_id=r.get("doc_id", ""),
                     content=r.get("content", ""),
                     score=r.get("score", 0.0),
-                    metadata=r.get("metadata", {})
+                    metadata=r.get("metadata", {}),
                 )
                 for r in reranked
             ],
@@ -252,7 +251,7 @@ async def rag_query(
                     path=mm.get("path", mm.get("file_path", "")),
                     thumbnail=mm.get("thumbnail", mm.get("content_preview")),
                     relevance_score=mm.get("relevance_score", 0.0),
-                    metadata=mm.get("metadata", {})
+                    metadata=mm.get("metadata", {}),
                 )
                 for mm in result.get("multimodal_results", [])
             ],
@@ -266,21 +265,23 @@ async def rag_query(
                 reranking=result.get("reranking_latency_ms"),
             ),
             total_latency_ms=sum(
-                v for v in [
+                v
+                for v in [
                     result.get("graphiti_latency_ms", 0),
                     result.get("lancedb_latency_ms", 0),
                     result.get("multimodal_latency_ms", 0),
                     result.get("fusion_latency_ms", 0),
                     result.get("reranking_latency_ms", 0),
                     result.get("vault_notes_latency_ms", 0),
-                ] if v
+                ]
+                if v
             ),
             metadata=RAGQueryMetadata(
                 query_rewritten=result.get("query_rewritten", False),
                 rewrite_count=result.get("rewrite_count", 0),
                 fusion_strategy=result.get("fusion_strategy"),
                 reranking_strategy=result.get("reranking_strategy"),
-            )
+            ),
         )
 
     except RAGUnavailableError as e:
@@ -298,15 +299,10 @@ async def rag_query(
     summary="获取薄弱概念",
     description="从 Temporal Memory 获取指定 Canvas 的薄弱概念列表",
     operation_id="get_weak_concepts",
-    responses={
-        200: {"description": "成功", "model": WeakConceptsResponse},
-        503: {"description": "RAG 服务不可用"}
-    }
+    responses={200: {"description": "成功", "model": WeakConceptsResponse}, 503: {"description": "RAG 服务不可用"}},
 )
 async def get_weak_concepts(
-    canvas_file: str,
-    rag_service: Annotated[RAGService, Depends(get_rag_service)],
-    limit: int = 10
+    canvas_file: str, rag_service: Annotated[RAGService, Depends(get_rag_service)], limit: int = 10
 ) -> WeakConceptsResponse:
     """
     获取薄弱概念列表
@@ -324,10 +320,7 @@ async def get_weak_concepts(
     logger.info(f"Getting weak concepts for: {canvas_file}")
 
     try:
-        concepts = await rag_service.get_weak_concepts(
-            canvas_file=canvas_file,
-            limit=limit
-        )
+        concepts = await rag_service.get_weak_concepts(canvas_file=canvas_file, limit=limit)
 
         return WeakConceptsResponse(
             concepts=[
@@ -335,12 +328,12 @@ async def get_weak_concepts(
                     concept=c.get("concept", ""),
                     stability=c.get("stability", 0.0),
                     last_review=c.get("last_review"),
-                    review_count=c.get("review_count", 0)
+                    review_count=c.get("review_count", 0),
                 )
                 for c in concepts
             ],
             total_count=len(concepts),
-            canvas_file=canvas_file
+            canvas_file=canvas_file,
         )
 
     except RAGUnavailableError as e:
@@ -353,11 +346,9 @@ async def get_weak_concepts(
     response_model=RAGStatusResponse,
     summary="RAG 服务状态",
     description="获取 RAG 服务状态信息",
-    operation_id="get_rag_status"
+    operation_id="get_rag_status",
 )
-async def get_rag_status(
-    rag_service: Annotated[RAGService, Depends(get_rag_service)]
-) -> RAGStatusResponse:
+async def get_rag_status(rag_service: Annotated[RAGService, Depends(get_rag_service)]) -> RAGStatusResponse:
     """
     获取 RAG 服务状态
 
@@ -375,5 +366,85 @@ async def get_rag_status(
         available=status.get("available", False),
         initialized=status.get("initialized", False),
         langgraph_available=status.get("langgraph_available", False),
-        import_error=status.get("import_error")
+        import_error=status.get("import_error"),
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 2.11: RAG Configuration API
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@rag_router.get(
+    "/config",
+    summary="获取当前 RAG 配置",
+    description="返回当前生效的完整 RAG 管道配置参数",
+    operation_id="get_rag_config",
+)
+async def get_rag_config() -> dict:
+    """
+    Story 2.11 AC-5: Return current effective RAG config.
+    """
+    try:
+        from agentic_rag.config import merge_config
+
+        config = merge_config()
+        return dict(config)
+    except Exception as e:
+        logger.error(f"Failed to load RAG config: {e}")
+        raise HTTPException(status_code=500, detail=f"Config load failed: {e}") from e
+
+
+@rag_router.put(
+    "/config",
+    summary="更新 RAG 配置",
+    description="动态更新 RAG 管道配置，立即生效（无需重启）",
+    operation_id="update_rag_config",
+)
+async def update_rag_config(updates: dict) -> dict:
+    """
+    Story 2.11 AC-5: Update RAG config and persist to YAML file.
+    """
+    import os
+
+    try:
+        from agentic_rag.config import DEFAULT_CONFIG, validate_config
+
+        # Validate incoming updates against defaults
+        test_config = DEFAULT_CONFIG.copy()
+        test_config.update(updates)
+        validated = validate_config(test_config)
+
+        # Persist to YAML file
+        config_path = os.path.join(os.getcwd(), "config", "rag_config.yaml")
+        try:
+            import yaml
+
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+            # Load existing file config
+            existing = {}
+            if os.path.isfile(config_path):
+                with open(config_path, "r", encoding="utf-8") as f:
+                    existing = yaml.safe_load(f) or {}
+
+            # Merge updates
+            existing.update(updates)
+
+            with open(config_path, "w", encoding="utf-8") as f:
+                yaml.dump(existing, f, default_flow_style=False, allow_unicode=True)
+
+            logger.info(f"[CONFIG] Updated {len(updates)} params, persisted to {config_path}")
+        except ImportError:
+            logger.warning("[CONFIG] pyyaml not installed, config not persisted to file")
+
+        # Log changes
+        for param, value in updates.items():
+            old_val = DEFAULT_CONFIG.get(param, "N/A")
+            logger.info(f"[CONFIG] Updated {param}: {old_val} -> {value}")
+
+        return {"status": "ok", "updated_keys": list(updates.keys()), "config": dict(validated)}
+
+    except Exception as e:
+        logger.error(f"Failed to update RAG config: {e}")
+        raise HTTPException(status_code=400, detail=f"Config update failed: {e}") from e

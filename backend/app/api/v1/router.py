@@ -19,6 +19,8 @@ from app.api.v1.endpoints.archive import archive_router  # Story 3.8
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.context import context_router  # Story 3.4
+from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
+from app.api.v1.endpoints.exam import exam_router
 from app.api.v1.endpoints.exam_sessions import exam_sessions_router
 from app.api.v1.endpoints.index_image import index_image_router
 from app.api.v1.endpoints.intelligent_parallel import (
@@ -278,6 +280,23 @@ router.include_router(
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Exam CRUD Routes (Story 6.1-6.4: Exam Board Core Flow)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 6.1: Exam session lifecycle (start/get/list/status)
+# Story 6.2: Canvas content analysis + mode recommendation
+# [Source: _bmad-output/implementation-artifacts/6-1-exam-board-generation.md]
+router.include_router(
+    exam_router,
+    tags=["Exam"],
+    responses={
+        400: {"description": "Nesting prohibited or invalid request"},
+        404: {"description": "Exam session not found"},
+        500: {"description": "Exam service error"},
+    },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Context Routes (Story 3.4 - Learning Context Auto-Injection)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -339,4 +358,21 @@ router.include_router(
     prefix="/archive",
     tags=["Archive"],
     responses={500: {"description": "Archive service error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Edge Rationale Routes (Story 4.1-4.4)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 4.2: Edge dialog — Agent follow-up & rationale recording
+# Story 4.4: Fallback — partial failure handling (207 Multi-Status)
+# [Source: _bmad-output/implementation-artifacts/4-2-edge-dialog-agent-reasoning.md#Task 2]
+router.include_router(
+    edges_router,
+    prefix="/edges",
+    tags=["Edges"],
+    responses={
+        207: {"description": "Partial success — one write succeeded"},
+        500: {"description": "Both writes failed"},
+    },
 )

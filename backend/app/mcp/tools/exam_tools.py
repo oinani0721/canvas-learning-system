@@ -280,47 +280,81 @@ async def score_answer(
         ).model_dump()
 
     try:
-        # Use Agent service for scoring
-        from app.dependencies import get_agent_service
+        # Story 6.4: Use AutoSCORE two-stage evaluation
+        from app.services.autoscore import get_auto_scorer
 
-        agent_svc = await get_agent_service()
-
-        score_result = await agent_svc.score_answer(
-            question_id=question_id,
-            student_answer=student_answer,
+        scorer = get_auto_scorer()
+        autoscore_result = await scorer.evaluate(
+            exam_id=session_id,
             node_id=node_id,
+            question_text="",  # Question text not stored in this flow
+            conversation_segment=student_answer,
+            question_id=question_id,
         )
 
-        score = score_result.get("score", 0.0)
-        feedback = score_result.get("feedback", "")
-
-        # Map score to grade (1-4)
-        if score >= 0.9:
-            grade = 4  # Fluent
-        elif score >= 0.6:
-            grade = 3  # Correct
-        elif score >= 0.3:
-            grade = 2  # Struggled
-        else:
-            grade = 1  # Forgot
-
+        grade = autoscore_result.grade
+        score = autoscore_result.overall_score / 12.0  # Normalize to 0-1
+        feedback = autoscore_result.feedback_summary
         is_correct = grade >= 3
 
-    except (ImportError, AttributeError) as e:
-        logger.warning(f"[Story 3.2] score_answer: AgentService not available: {e}")
-        # When scoring service is not available, return service_unavailable
-        return ScoreAnswerOutput(
-            question_id=question_id,
-            score=0.0,
-            grade=1,
-            feedback="Scoring service is not available",
-            is_correct=False,
-            pipeline_token="",
-            status="service_unavailable",
-            message=str(e),
-        ).model_dump()
+        # Story 6.4 AC-4: Emit SCORE_SUBMITTED event for BKT/FSRS update
+        try:
+            from app.models.canvas_events import LearningEvent, LearningEventType
+            from app.services.event_bus import get_event_bus
+
+            event_bus = get_event_bus()
+            score_event = LearningEvent(
+                event_type=LearningEventType.SCORE_SUBMITTED,
+                payload={
+                    "node_id": node_id,
+                    "session_id": session_id,
+                    "grade": grade,
+                    "is_correct": is_correct,
+                    "source": "autoscore",
+                },
+                source="autoscore",
+            )
+            await event_bus.publish(score_event)
+        except Exception as evt_err:
+            logger.warning(f"[Story 6.4] SCORE_SUBMITTED event failed: {evt_err}")
+
+    except ImportError as e:
+        # Fallback to AgentService if AutoScorer not available
+        logger.info(f"[Story 6.4] AutoScorer not available, falling back to AgentService: {e}")
+        try:
+            from app.dependencies import get_agent_service
+
+            agent_svc = await get_agent_service()
+            score_result = await agent_svc.score_answer(
+                question_id=question_id,
+                student_answer=student_answer,
+                node_id=node_id,
+            )
+            score = score_result.get("score", 0.0)
+            feedback = score_result.get("feedback", "")
+            if score >= 0.9:
+                grade = 4
+            elif score >= 0.6:
+                grade = 3
+            elif score >= 0.3:
+                grade = 2
+            else:
+                grade = 1
+            is_correct = grade >= 3
+        except (ImportError, AttributeError) as fallback_err:
+            logger.warning(f"[Story 3.2] score_answer: no scoring service available: {fallback_err}")
+            return ScoreAnswerOutput(
+                question_id=question_id,
+                score=0.0,
+                grade=1,
+                feedback="Scoring service is not available",
+                is_correct=False,
+                pipeline_token="",
+                status="service_unavailable",
+                message=str(fallback_err),
+            ).model_dump()
     except Exception as e:
-        logger.error(f"[Story 3.2] score_answer error: {e}")
+        logger.error(f"[Story 6.4] score_answer error: {e}")
         return ScoreAnswerOutput(
             question_id=question_id,
             score=0.0,

@@ -2,6 +2,8 @@
   /**
    * Canvas Learning System - Canvas Edge Component
    * Story 1.4: SVG bezier edge with arrow, label, and selection (AC-4)
+   * Story 4.1: EdgeDialogTrigger integration (AC-1, AC-2)
+   * Story 4.4: EdgeLabelEditor fallback integration (AC-1)
    */
 
   import type { CanvasEdgeData, CanvasNodeData } from '../../types/canvas';
@@ -11,6 +13,8 @@
     calculateArrowPoints,
     getBezierMidpoint,
   } from '../../utils/canvas-math';
+  import EdgeDialogTrigger from './EdgeDialogTrigger.svelte';
+  import EdgeLabelEditor from './EdgeLabelEditor.svelte';
 
   // Props
   let {
@@ -27,6 +31,8 @@
   let isEditingLabel = $state(false);
   let labelInputValue = $state('');
   let labelInputEl: HTMLInputElement | null = $state(null);
+  /** Story 4.4: Whether the fallback label editor is open. */
+  let isFallbackEditing = $state(false);
 
   // Derived
   let isSelected = $derived(canvasState.selectedEdgeIds.has(edge.id));
@@ -78,6 +84,17 @@
       isEditingLabel = false;
     }
   }
+
+  /**
+   * Story 4.4 AC-1: Open fallback label editor when Agent is unavailable.
+   */
+  function handleFallbackEdit(_edgeId: string): void {
+    isFallbackEditing = true;
+  }
+
+  function closeFallbackEditor(): void {
+    isFallbackEditing = false;
+  }
 </script>
 
 {#if sourceNode && targetNode}
@@ -114,7 +131,7 @@
     />
 
     <!-- Label -->
-    {#if edge.label && !isEditingLabel}
+    {#if edge.label && !isEditingLabel && !isFallbackEditing}
       <text
         x={midpoint.x}
         y={midpoint.y - 8}
@@ -124,6 +141,24 @@
       >
         {edge.label}
       </text>
+    {/if}
+
+    <!--
+      Story 4.1 AC-1: EdgeDialogTrigger — clickable icon at edge midpoint.
+      Positioned slightly below the label area so they don't overlap.
+    -->
+    {#if !isEditingLabel && !isFallbackEditing}
+      <EdgeDialogTrigger
+        edgeId={edge.id}
+        sourceNodeId={edge.sourceNodeId}
+        targetNodeId={edge.targetNodeId}
+        sourceNodeName={sourceNode.title || sourceNode.id}
+        targetNodeName={targetNode.title || targetNode.id}
+        midpointX={midpoint.x}
+        midpointY={edge.label ? midpoint.y + 14 : midpoint.y}
+        visible={true}
+        onFallbackEdit={handleFallbackEdit}
+      />
     {/if}
   </g>
 {/if}
@@ -145,6 +180,17 @@
       onblur={commitLabel}
     />
   </foreignObject>
+{/if}
+
+<!-- Story 4.4 AC-1: Fallback static label editor -->
+{#if isFallbackEditing}
+  <EdgeLabelEditor
+    edgeId={edge.id}
+    currentLabel={edge.label}
+    x={midpoint.x}
+    y={midpoint.y}
+    onClose={closeFallbackEditor}
+  />
 {/if}
 
 <style>

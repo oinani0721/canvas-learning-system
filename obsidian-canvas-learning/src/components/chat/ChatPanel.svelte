@@ -63,6 +63,23 @@
   // Story 3.11: Recovery status
   let recoveryStatus = $derived(chatState.recoveryStatus);
 
+  // Story 4.1: Chat mode and Edge context
+  let chatMode = $derived(chatState.chatMode);
+  let currentEdge = $derived(chatState.currentEdge);
+
+  /**
+   * Story 4.1 AC-3: Header title based on chat mode.
+   * - 'chat': node name
+   * - 'edge': "A ↔ B"
+   * - 'exam': exam status (future)
+   */
+  let headerTitle = $derived.by(() => {
+    if (chatMode === 'edge' && currentEdge) {
+      return `${currentEdge.sourceNodeName} ↔ ${currentEdge.targetNodeName}`;
+    }
+    return nodeName || '对话';
+  });
+
   // Skills list from registry
   let skills = $derived(skillRegistry.skills);
 
@@ -219,12 +236,22 @@
 </script>
 
 <div class="cl-chat-panel">
-  <!-- Header (Story 3.9 AC-4.1: engine type indicator) -->
-  <div class="cl-chat-panel__header">
+  <!-- Header (Story 3.9 AC-4.1: engine type indicator, Story 4.1 AC-3: edge mode) -->
+  <div class="cl-chat-panel__header" class:cl-chat-panel__header--edge={chatMode === 'edge'}>
     <div class="cl-chat-panel__header-title">
-      {nodeName || '对话'}
+      <!-- Story 4.1 AC-3: Edge mode shows "A ↔ B" with edge icon -->
+      {#if chatMode === 'edge'}
+        <span class="cl-chat-panel__edge-icon">🔗</span>
+      {/if}
+      {headerTitle}
     </div>
     <div class="cl-chat-panel__header-status">
+      <!-- Story 4.1: Mode label -->
+      {#if chatMode === 'edge'}
+        <span class="cl-chat-panel__mode-label cl-chat-panel__mode-label--edge">
+          Edge Q&A
+        </span>
+      {/if}
       <!-- Story 3.9: Engine type label -->
       <span
         class="cl-chat-panel__engine-label"
@@ -264,8 +291,17 @@
 
     {#if messages.length === 0 && historyLoaded}
       <div class="cl-chat-panel__empty">
-        <p>开始你的学习对话</p>
-        <p class="cl-chat-panel__empty-hint">输入 / 查看可用技能</p>
+        {#if chatMode === 'edge' && currentEdge}
+          <!-- Story 4.1: Edge mode empty state -->
+          <p>讨论连线关系</p>
+          <p class="cl-chat-panel__empty-hint">
+            {currentEdge.sourceNodeName} ↔ {currentEdge.targetNodeName}
+          </p>
+          <p class="cl-chat-panel__empty-hint">发送消息开始讨论为什么连接这两个概念</p>
+        {:else}
+          <p>开始你的学习对话</p>
+          <p class="cl-chat-panel__empty-hint">输入 / 查看可用技能</p>
+        {/if}
       </div>
     {/if}
 
@@ -462,5 +498,27 @@
   .cl-chat-panel__input-wrapper {
     position: relative;
     flex-shrink: 0;
+  }
+
+  /* Story 4.1: Edge mode header styling */
+  .cl-chat-panel__header--edge {
+    border-bottom-color: var(--interactive-accent);
+  }
+
+  .cl-chat-panel__edge-icon {
+    margin-right: 4px;
+    font-size: 0.9em;
+  }
+
+  .cl-chat-panel__mode-label {
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.85em;
+    margin-right: 4px;
+  }
+
+  .cl-chat-panel__mode-label--edge {
+    background: var(--interactive-accent-hover, rgba(0, 102, 204, 0.12));
+    color: var(--interactive-accent);
   }
 </style>

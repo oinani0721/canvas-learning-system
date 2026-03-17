@@ -105,6 +105,27 @@ export class ApiClient {
   }
 
   /**
+   * Perform a PATCH request to the backend.
+   * Story 6.1: Exam session status updates.
+   * Request keys are converted from camelCase to snake_case.
+   * Response keys are converted from snake_case to camelCase.
+   */
+  async patch<T>(path: string, body: unknown): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(convertKeys(body, camelToSnake)),
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const raw = await response.json();
+    return convertKeys(raw, snakeToCamel) as T;
+  }
+
+  /**
    * Check backend system health (AC-4).
    * Returns the health response or null if the backend is unreachable.
    */

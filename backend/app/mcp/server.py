@@ -318,4 +318,48 @@ def _register_tool_routes(app: FastAPI) -> None:
             context=input.context,
         )
 
-    logger.info("[Story 3.2] Registered 11 MCP tool routes (incl. Story 3.6 record_error)")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Exam Hint + Skip Tools (Story 6.6)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    from app.models.exam_models import (  # noqa: I001
+        HintRequest as HintRequestModel,
+        HintResponse as HintResponseModel,
+        SkipRequest as SkipRequestModel,
+        SkipResponse as SkipResponseModel,
+    )
+
+    @app.post(
+        "/mcp/tools/request_hint",
+        response_model=HintResponseModel,
+        tags=[MCP_TAG],
+        summary="Request a progressive hint (Chain-of-Hints Level 1-4)",
+        description="Generate a hint at the requested level for the current exam question. "
+        "Level 1=direction, 2=keyword, 3=framework, 4=scaffolded guide. "
+        "Uses LLM with level-specific prompt templates. "
+        "Story 6.6 AC-1, AC-3, AC-6.",
+    )
+    async def _request_hint(input: HintRequestModel) -> Dict[str, Any]:
+        from app.services.exam_service import get_exam_service
+
+        svc = get_exam_service()
+        result = await svc.generate_hint(input)
+        return result.model_dump()
+
+    @app.post(
+        "/mcp/tools/skip_question",
+        response_model=SkipResponseModel,
+        tags=[MCP_TAG],
+        summary="Skip current exam question (no BKT/FSRS penalty)",
+        description="Skip the current question without penalizing mastery. "
+        "BKT p_mastery stays unchanged, FSRS has no rating event. "
+        "Story 6.6 AC-4.",
+    )
+    async def _skip_question(input: SkipRequestModel) -> Dict[str, Any]:
+        from app.services.exam_service import get_exam_service
+
+        svc = get_exam_service()
+        result = await svc.skip_question(input)
+        return result.model_dump()
+
+    logger.info("[Story 3.2] Registered 13 MCP tool routes (incl. Story 6.6 request_hint, skip_question)")

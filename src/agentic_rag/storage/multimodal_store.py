@@ -49,7 +49,7 @@ class MultimodalStore:
         lancedb_client=None,
         graphiti_client=None,
         storage_base_path: Optional[str] = None,
-        vector_dim: int = 768,
+        vector_dim: int = 1024,  # Story 2.9 AC-3: Unified to bge-m3 1024d
     ):
         """
         Initialize MultimodalStore.
@@ -62,9 +62,7 @@ class MultimodalStore:
         """
         self.lancedb_client = lancedb_client
         self.graphiti_client = graphiti_client
-        self.storage_base_path = Path(
-            storage_base_path or self.DEFAULT_STORAGE_PATH
-        )
+        self.storage_base_path = Path(storage_base_path or self.DEFAULT_STORAGE_PATH)
         self.vector_dim = vector_dim
 
         # Ensure storage directories exist
@@ -282,15 +280,11 @@ class MultimodalStore:
             List of (content, score) tuples
         """
         if len(query_vector) != self.vector_dim:
-            raise ValueError(
-                f"Query vector must have {self.vector_dim} dimensions"
-            )
+            raise ValueError(f"Query vector must have {self.vector_dim} dimensions")
 
         filter_dict = {}
         if media_types:
-            filter_dict["media_type"] = {
-                "$in": [mt.value for mt in media_types]
-            }
+            filter_dict["media_type"] = {"$in": [mt.value for mt in media_types]}
 
         if self.lancedb_client:
             results = await self.lancedb_client.search(
@@ -444,9 +438,7 @@ class MultimodalStore:
         """
         if self.graphiti_client:
             # Search for relationships
-            results = await self.graphiti_client.search_facts(
-                query=f"media:{content_id}"
-            )
+            results = await self.graphiti_client.search_facts(query=f"media:{content_id}")
 
             # Extract concept IDs from relationships
             concept_ids = []
@@ -493,9 +485,7 @@ class MultimodalStore:
 
         if self.lancedb_client:
             try:
-                status["lancedb"] = await self.lancedb_client.table_exists(
-                    self.LANCEDB_TABLE_NAME
-                )
+                status["lancedb"] = await self.lancedb_client.table_exists(self.LANCEDB_TABLE_NAME)
             except Exception as e:
                 logger.error(f"LanceDB health check failed: {e}")
 

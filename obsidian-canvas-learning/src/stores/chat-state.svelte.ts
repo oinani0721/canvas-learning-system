@@ -30,6 +30,26 @@ export type ChatStatus = 'idle' | 'connecting' | 'streaming' | 'error';
 /** Story 3.10: Quota status for subscription-based usage. */
 export type QuotaStatus = 'available' | 'exhausted' | 'checking';
 
+/**
+ * Story 4.1: Chat panel mode — determines header UI and context injection.
+ * - 'chat': Normal node dialog (header shows node name)
+ * - 'exam': Exam mode (header shows exam status)
+ * - 'edge': Edge Q&A (header shows "A ↔ B")
+ */
+export type ChatMode = 'chat' | 'exam' | 'edge';
+
+/**
+ * Story 4.1 AC-3: Edge context for ChatPanel edge mode.
+ * Tracks which edge is being discussed and the names of connected nodes.
+ */
+export interface CurrentEdge {
+  edgeId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourceNodeName: string;
+  targetNodeName: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -84,6 +104,17 @@ class ChatStateManager {
 
   /** Story 3.11: Current crash recovery status. */
   recoveryStatus: RecoveryStatus = $state('idle');
+
+  /**
+   * Story 4.1 AC-3: Current chat mode.
+   * Determines ChatPanel header UI and context injection strategy.
+   */
+  chatMode: ChatMode = $state('chat');
+
+  /**
+   * Story 4.1 AC-3: Current edge being discussed (null when not in edge mode).
+   */
+  currentEdge: CurrentEdge | null = $state(null);
 
   /** The active DialogEngine instance. */
   private engine: DialogEngine | null = null;
@@ -211,6 +242,77 @@ class ChatStateManager {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Story 4.1: Edge Chat Operations
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Open an Edge dialog session.
+   *
+   * Story 4.1 AC-3: Switches ChatPanel to edge mode, showing "A ↔ B" header.
+   * Story 4.1 AC-4: Edge sessions use `edge_{edgeId}` as sessionId.
+   *
+   * @param edge - The edge context (edgeId, node names).
+   */
+  async openEdgeChat(edge: CurrentEdge): Promise<void> {
+    if (!this.engine) {
+      this.lastError = {
+        type: 'spawn_failed',
+        message: 'No dialogue engine configured',
+      };
+      this.status = 'error';
+      return;
+    }
+
+    // Save current node's messages to cache before switching
+    if (this.activeNodeId) {
+      this.messageCache.set(this.activeNodeId, [...this.messages]);
+    }
+
+    // Set edge mode
+    this.chatMode = 'edge';
+    this.currentEdge = edge;
+
+    // Use edge-scoped session ID
+    const edgeSessionKey = `edge_${edge.edgeId}`;
+    this.activeNodeId = edgeSessionKey;
+    this.status = 'idle';
+    this.lastError = null;
+
+    // Restore cached messages or start fresh
+    const cached = this.messageCache.get(edgeSessionKey);
+    if (cached) {
+      this.messages = cached;
+    } else {
+      this.messages = [];
+    }
+
+    // Check if this edge has an existing session
+    const sessionId = await this.engine.getSessionId(edgeSessionKey);
+    if (sessionId) {
+      await this.engine.resume(sessionId);
+    }
+  }
+
+  /**
+   * Exit edge mode and return to normal chat mode.
+   * Called when user clicks away from edge dialog or closes the panel.
+   */
+  exitEdgeChat(): void {
+    if (this.chatMode !== 'edge') return;
+
+    // Save edge messages to cache
+    if (this.activeNodeId) {
+      this.messageCache.set(this.activeNodeId, [...this.messages]);
+    }
+
+    this.chatMode = 'chat';
+    this.currentEdge = null;
+    this.activeNodeId = null;
+    this.messages = [];
+    this.status = 'idle';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Node Chat Operations (Task 4.2, 4.3)
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -233,7 +335,7 @@ class ChatStateManager {
     }
 
     // If same node is already active, no-op
-    if (this.activeNodeId === nodeId) {
+    if (this.activeNodeId === nodeId && this.chatMode === 'chat') {
       return;
     }
 
@@ -241,6 +343,10 @@ class ChatStateManager {
     if (this.activeNodeId) {
       this.messageCache.set(this.activeNodeId, [...this.messages]);
     }
+
+    // Story 4.1: Reset edge mode when switching to node chat
+    this.chatMode = 'chat';
+    this.currentEdge = null;
 
     // Switch to new node
     this.activeNodeId = nodeId;
@@ -276,11 +382,34 @@ class ChatStateManager {
   /**
    * Send a message in the currently active node's chat.
    *
+   * Story 4.1 AC-4: When in Edge mode, sets Edge context on the engine
+   * before sending the message so --append-system-prompt includes
+   * Edge dialog instructions.
+   *
    * @param message - The user's message text.
    */
   async sendMessage(message: string): Promise<void> {
     if (!this.engine || !this.activeNodeId) {
       return;
+    }
+
+    // Story 4.1: Set Edge context on the engine if in Edge mode
+    if (
+      this.chatMode === 'edge' &&
+      this.currentEdge &&
+      'setEdgeContext' in this.engine
+    ) {
+      (
+        this.engine as unknown as {
+          setEdgeContext: (params: CurrentEdge | null) => void;
+        }
+      ).setEdgeContext(this.currentEdge);
+    } else if ('setEdgeContext' in this.engine) {
+      (
+        this.engine as unknown as {
+          setEdgeContext: (params: null) => void;
+        }
+      ).setEdgeContext(null);
     }
 
     const nodeId = this.activeNodeId;
@@ -459,6 +588,9 @@ class ChatStateManager {
     this.quotaStatus = 'available';
     this.quotaResetTime = null;
     this.recoveryStatus = 'idle';
+    // Story 4.1 cleanup
+    this.chatMode = 'chat';
+    this.currentEdge = null;
   }
 }
 

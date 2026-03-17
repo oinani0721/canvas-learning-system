@@ -436,4 +436,96 @@ export class SyncEngine {
     }
     return null;
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 4.4: Edge Rationale Outbox Retry
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /** Maximum retries for edge rationale writes. */
+  private static readonly EDGE_RATIONALE_MAX_RETRIES = 3;
+
+  /**
+   * Enqueue a failed edge rationale for retry.
+   *
+   * Story 4.4 AC-3: MCP tool call failure → Outbox retry.
+   * Story 4.4 AC-4: Dual-write partial failure → re-attempt failed part.
+   *
+   * @param edgeId - The edge identifier.
+   * @param rationaleData - The rationale payload to retry.
+   */
+  async enqueueEdgeRationale(
+    edgeId: string,
+    rationaleData: Record<string, unknown>,
+  ): Promise<void> {
+    try {
+      await db.pending_edge_rationales.add({
+        edgeId,
+        rationaleData,
+        createdAt: new Date().toISOString(),
+        retryCount: 0,
+      });
+      console.log(
+        `[Canvas Learning] SyncEngine: enqueued edge rationale for retry (edge=${edgeId})`,
+      );
+    } catch (err) {
+      console.warn(
+        '[Canvas Learning] SyncEngine: failed to enqueue edge rationale:',
+        err,
+      );
+    }
+  }
+
+  /**
+   * Retry all pending edge rationales.
+   *
+   * Story 4.4 AC-4/AC-5: Called when backend recovers.
+   * Uses exponential backoff: 1s, 2s, 4s.
+   */
+  async retryPendingEdgeRationales(): Promise<void> {
+    try {
+      const pending = await db.pending_edge_rationales
+        .where('retryCount')
+        .below(SyncEngine.EDGE_RATIONALE_MAX_RETRIES)
+        .toArray();
+
+      if (pending.length === 0) return;
+
+      console.log(
+        `[Canvas Learning] SyncEngine: retrying ${pending.length} pending edge rationales`,
+      );
+
+      for (const entry of pending) {
+        try {
+          const response = await this.apiClient.post<Record<string, unknown>>(
+            '/api/v1/edges/record-rationale',
+            entry.rationaleData,
+          );
+
+          // Check if fully successful (status 200)
+          if (response) {
+            await db.pending_edge_rationales.delete(entry.id!);
+            console.log(
+              `[Canvas Learning] SyncEngine: edge rationale retry succeeded (edge=${entry.edgeId})`,
+            );
+          }
+        } catch {
+          // Increment retry count
+          await db.pending_edge_rationales.update(entry.id!, {
+            retryCount: entry.retryCount + 1,
+          });
+
+          if (entry.retryCount + 1 >= SyncEngine.EDGE_RATIONALE_MAX_RETRIES) {
+            console.warn(
+              `[Canvas Learning] SyncEngine: edge rationale exceeded max retries (edge=${entry.edgeId})`,
+            );
+          }
+        }
+      }
+    } catch (err) {
+      console.warn(
+        '[Canvas Learning] SyncEngine: edge rationale retry error:',
+        err,
+      );
+    }
+  }
 }

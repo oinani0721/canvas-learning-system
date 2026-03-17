@@ -38,21 +38,17 @@ from langgraph.types import RetryPolicy, Send
 logger = logging.getLogger(__name__)
 
 from agentic_rag.config import CanvasRAGConfig  # noqa: E402
+from agentic_rag.faithfulness_check import (  # noqa: E402
+    faithfulness_check as faithfulness_check_node,
+)
 from agentic_rag.nodes import (  # noqa: E402
     check_quality,
+    compress_context_node,
     fuse_results,
     rerank_results,
     retrieve_graphiti,
     retrieve_lancedb,
 )
-
-# Story 7.1: Faithfulness check node (RAGAS claim-level NLI)
-from agentic_rag.faithfulness_check import (  # noqa: E402
-    faithfulness_check as faithfulness_check_node,
-)
-
-# Story 6.8: 导入多模态检索节点
-# Story 23.4: 导入教材和跨Canvas检索节点
 from agentic_rag.retrievers import (  # noqa: E402
     cross_canvas_retrieval_node,
     multimodal_retrieval_node,
@@ -506,6 +502,9 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_node("rerank_results", rerank_results)
     builder.add_node("check_quality", check_quality)
 
+    # Story 2.10: Context compression + mastery injection
+    builder.add_node("compress_context", compress_context_node)
+
     # Story 7.1: Faithfulness check (RAGAS claim-level NLI) - last quality gate
     builder.add_node("faithfulness_check", faithfulness_check_node)
 
@@ -543,15 +542,18 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_edge("rerank_results", "check_quality")
 
     # check_quality → route_after_quality_check (conditional)
-    # Story 7.1: Routes to faithfulness_check instead of END
+    # Story 2.10: Routes to compress_context instead of faithfulness_check
     builder.add_conditional_edges(
         "check_quality",
         route_after_quality_check,
         {
             "rewrite_query": "rewrite_query",
-            "faithfulness_check": "faithfulness_check",
+            "faithfulness_check": "compress_context",
         },
     )
+
+    # Story 2.10: compress_context → faithfulness_check
+    builder.add_edge("compress_context", "faithfulness_check")
 
     # Story 7.1: faithfulness_check → END (final quality gate)
     builder.add_edge("faithfulness_check", END)

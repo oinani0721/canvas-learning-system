@@ -138,10 +138,43 @@ export class ClaudeCodeEngine implements DialogEngine {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
+   * Story 4.1 AC-4: Edge context parameters for Edge dialog mode.
+   * When set, sendMessage will use assembleEdgeContext instead of assembleContext.
+   */
+  private edgeContextParams: {
+    edgeId: string;
+    sourceNodeId: string;
+    targetNodeId: string;
+    sourceNodeName: string;
+    targetNodeName: string;
+  } | null = null;
+
+  /**
+   * Set Edge context parameters for Edge dialog mode.
+   *
+   * Story 4.1 AC-4: When set, the next sendMessage call will inject
+   * Edge-specific context via --append-system-prompt.
+   *
+   * @param params - Edge context parameters, or null to clear.
+   */
+  setEdgeContext(
+    params: {
+      edgeId: string;
+      sourceNodeId: string;
+      targetNodeId: string;
+      sourceNodeName: string;
+      targetNodeName: string;
+    } | null,
+  ): void {
+    this.edgeContextParams = params;
+  }
+
+  /**
    * Send a message to Claude Code for a specific node.
    *
    * Story 3.1 AC-1: Spawns `claude -p "message" --output-format stream-json`
    * Story 3.1 AC-3: Uses `--resume sessionId` if the node has an existing session
+   * Story 4.1 AC-4: Injects Edge context when in Edge dialog mode
    *
    * @param nodeId - The canvas node identifier.
    * @param message - The user's message text.
@@ -161,10 +194,19 @@ export class ClaudeCodeEngine implements DialogEngine {
     }
 
     // Story 3.4 AC-1, AC-4: Assemble learning context fresh on every message
+    // Story 4.1 AC-4: Use Edge context if in Edge dialog mode
     let contextPrompt: string | null = null;
     if (this.contextAssembler) {
       try {
-        contextPrompt = await this.contextAssembler.assembleContext(nodeId);
+        if (this.edgeContextParams) {
+          // Edge dialog mode — inject Edge-specific context
+          contextPrompt =
+            await this.contextAssembler.assembleEdgeContext(
+              this.edgeContextParams,
+            );
+        } else {
+          contextPrompt = await this.contextAssembler.assembleContext(nodeId);
+        }
       } catch (err) {
         console.warn(
           `[Canvas Learning] Failed to assemble context for node "${nodeId}":`,

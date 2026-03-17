@@ -29,6 +29,7 @@ except ImportError:
 
 class ImageAnalysisResult(TypedDict):
     """Structured result from image analysis."""
+
     ocr_text: str
     latex_formulas: list[str]
     code_snippets: list[dict]  # {"language": str, "code": str}
@@ -80,21 +81,25 @@ class VisionAnalysis:
 
 class GeminiVisionError(Exception):
     """Base exception for Gemini Vision errors."""
+
     pass
 
 
 class GeminiAPIError(GeminiVisionError):
     """Raised when Gemini API call fails."""
+
     pass
 
 
 class GeminiConfigError(GeminiVisionError):
     """Raised when Gemini is not properly configured."""
+
     pass
 
 
 class GeminiTimeoutError(GeminiVisionError):
     """Raised when API call times out."""
+
     pass
 
 
@@ -154,7 +159,7 @@ class GeminiVisionProcessor:
         api_key: Optional[str] = None,
         model_name: Optional[str] = None,
         timeout: int = None,
-        max_retries: int = None
+        max_retries: int = None,
     ):
         """
         Initialize Gemini Vision Processor.
@@ -166,17 +171,13 @@ class GeminiVisionProcessor:
             max_retries: Maximum retry attempts
         """
         if genai is None:
-            raise ImportError(
-                "google-generativeai is required. "
-                "Install with: pip install google-generativeai"
-            )
+            raise ImportError("google-generativeai is required. Install with: pip install google-generativeai")
 
         # Get API key
         self.api_key = api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
         if not self.api_key:
             raise GeminiConfigError(
-                "Gemini API key required. Set GOOGLE_API_KEY environment variable "
-                "or pass api_key parameter."
+                "Gemini API key required. Set GOOGLE_API_KEY environment variable or pass api_key parameter."
             )
 
         # Configure Gemini
@@ -191,10 +192,7 @@ class GeminiVisionProcessor:
         self.model = genai.GenerativeModel(self.model_name)
 
     async def analyze_image(
-        self,
-        image_data: str | bytes,
-        mime_type: str,
-        custom_prompt: Optional[str] = None
+        self, image_data: str | bytes, mime_type: str, custom_prompt: Optional[str] = None
     ) -> ImageAnalysisResult:
         """
         Analyze image using Gemini Vision.
@@ -211,9 +209,6 @@ class GeminiVisionProcessor:
             GeminiAPIError: If API call fails
             GeminiTimeoutError: If request times out
         """
-        import time
-        start_time = time.time()
-
         # Ensure base64 string
         if isinstance(image_data, bytes):
             image_b64 = base64.b64encode(image_data).decode("utf-8")
@@ -224,24 +219,16 @@ class GeminiVisionProcessor:
         prompt = custom_prompt or self.ANALYSIS_PROMPT
 
         # Prepare image part
-        image_part = {
-            "mime_type": mime_type,
-            "data": image_b64
-        }
+        image_part = {"mime_type": mime_type, "data": image_b64}
 
         # Call API with retries
         last_error = None
         for attempt in range(self.max_retries):
             try:
-                response = await asyncio.wait_for(
-                    self._call_api(image_part, prompt),
-                    timeout=self.timeout
-                )
+                response = await asyncio.wait_for(self._call_api(image_part, prompt), timeout=self.timeout)
 
                 # Parse response
                 result = self._parse_response(response.text)
-
-                processing_time = int((time.time() - start_time) * 1000)
 
                 return result
 
@@ -263,16 +250,13 @@ class GeminiVisionProcessor:
         """Make async API call to Gemini."""
         # Gemini's generate_content is synchronous, wrap in executor
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.model.generate_content([image_part, prompt])
-        )
+        return await loop.run_in_executor(None, lambda: self.model.generate_content([image_part, prompt]))
 
     def _parse_response(self, response_text: str) -> ImageAnalysisResult:
         """Parse Gemini response into structured result."""
         try:
             # Extract JSON from response (may have markdown code blocks)
-            json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
+            json_match = re.search(r"```json\s*(.*?)\s*```", response_text, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
             else:
@@ -287,7 +271,7 @@ class GeminiVisionProcessor:
                 code_snippets=data.get("code_snippets", []),
                 description=data.get("description", ""),
                 key_concepts=data.get("key_concepts", []),
-                image_type=data.get("image_type", "unknown")
+                image_type=data.get("image_type", "unknown"),
             )
 
         except json.JSONDecodeError:
@@ -301,7 +285,7 @@ class GeminiVisionProcessor:
         description = text[:200] if len(text) > 200 else text
 
         # Try to find LaTeX formulas
-        latex_formulas = re.findall(r'\$[^$]+\$', text)
+        latex_formulas = re.findall(r"\$[^$]+\$", text)
 
         return ImageAnalysisResult(
             ocr_text=ocr_text,
@@ -309,13 +293,11 @@ class GeminiVisionProcessor:
             code_snippets=[],
             description=description,
             key_concepts=[],
-            image_type="unknown"
+            image_type="unknown",
         )
 
     async def analyze_image_from_path(
-        self,
-        image_path: str | Path,
-        custom_prompt: Optional[str] = None
+        self, image_path: str | Path, custom_prompt: Optional[str] = None
     ) -> VisionAnalysis:
         """
         Analyze image from file path.
@@ -343,7 +325,7 @@ class GeminiVisionProcessor:
             ".jpeg": "image/jpeg",
             ".gif": "image/gif",
             ".webp": "image/webp",
-            ".bmp": "image/bmp"
+            ".bmp": "image/bmp",
         }
         mime_type = mime_types.get(image_path.suffix.lower(), "image/png")
 
@@ -372,14 +354,14 @@ class GeminiVisionProcessor:
             description=result["description"],
             key_concepts=result["key_concepts"],
             image_type=result["image_type"],
-            processing_time_ms=processing_time
+            processing_time_ms=processing_time,
         )
 
     async def batch_analyze(
         self,
         images: list[tuple[str | bytes, str]],  # [(image_data, mime_type), ...]
         progress_callback: Optional[callable] = None,
-        max_concurrent: int = 3
+        max_concurrent: int = 3,
     ) -> list[ImageAnalysisResult]:
         """
         Batch analyze multiple images.
@@ -410,13 +392,10 @@ class GeminiVisionProcessor:
                         code_snippets=[],
                         description=f"Error: {str(e)}",
                         key_concepts=[],
-                        image_type="error"
+                        image_type="error",
                     )
 
-        tasks = [
-            analyze_with_semaphore(idx, img_data, mime_type)
-            for idx, (img_data, mime_type) in enumerate(images)
-        ]
+        tasks = [analyze_with_semaphore(idx, img_data, mime_type) for idx, (img_data, mime_type) in enumerate(images)]
 
         results = await asyncio.gather(*tasks)
         return list(results)
@@ -452,11 +431,7 @@ class GeminiVisionProcessor:
 
 
 # Convenience function
-async def analyze_image(
-    image_path: str | Path,
-    api_key: Optional[str] = None,
-    **kwargs
-) -> VisionAnalysis:
+async def analyze_image(image_path: str | Path, api_key: Optional[str] = None, **kwargs) -> VisionAnalysis:
     """
     Analyze image file and return results.
 
@@ -470,3 +445,136 @@ async def analyze_image(
     """
     processor = GeminiVisionProcessor(api_key=api_key, **kwargs)
     return await processor.analyze_image_from_path(image_path)
+
+
+# =========================================================================
+# Story 2.9: LiteLLM-based Structured OCR Extraction
+# =========================================================================
+
+STRUCTURED_OCR_PROMPT = """请分析这张图片并提取结构化信息。严格以JSON格式输出：
+{
+  "text": "提取的所有文字内容（包括公式用LaTeX表示）",
+  "content_type": "formula|text|diagram|code",
+  "summary": "图片内容的中文摘要（50-100字）",
+  "concepts": ["核心概念1", "核心概念2", "核心概念3"]
+}
+注意：如果没有文字内容，text为空字符串。content_type选择最匹配的一项。"""
+
+
+async def structured_ocr_extract(
+    image_b64: str,
+    mime_type: str = "image/png",
+    model: str = "gemini/gemini-2.0-flash",
+    max_retries: int = 2,
+) -> dict:
+    """
+    Story 2.9 AC-1: Structured OCR extraction via LiteLLM SDK.
+
+    Uses LiteLLM acompletion with vision support for vendor-agnostic OCR.
+    Returns structured dict with text, content_type, summary, concepts.
+
+    Args:
+        image_b64: Base64-encoded image data.
+        mime_type: Image MIME type.
+        model: LLM model name (read from config).
+        max_retries: Max retry attempts on 429/500.
+
+    Returns:
+        Dict with keys: text, content_type, summary, concepts.
+    """
+    import time as _time
+
+    start = _time.perf_counter()
+
+    try:
+        import litellm
+
+        litellm.set_verbose = False
+    except ImportError as exc:
+        raise ImportError("litellm is required for structured OCR. pip install litellm") from exc
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": STRUCTURED_OCR_PROMPT},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:{mime_type};base64,{image_b64}",
+                    },
+                },
+            ],
+        }
+    ]
+
+    last_error = None
+    for attempt in range(max_retries + 1):
+        try:
+            response = await asyncio.wait_for(
+                litellm.acompletion(
+                    model=model,
+                    messages=messages,
+                    max_tokens=1500,
+                    temperature=0.1,
+                ),
+                timeout=10.0,
+            )
+
+            raw_text = response.choices[0].message.content.strip()
+
+            # Parse JSON from response
+            try:
+                # Handle markdown code blocks
+                if "```json" in raw_text:
+                    json_match = re.search(r"```json\s*(.*?)\s*```", raw_text, re.DOTALL)
+                    if json_match:
+                        raw_text = json_match.group(1)
+                elif "```" in raw_text:
+                    json_match = re.search(r"```\s*(.*?)\s*```", raw_text, re.DOTALL)
+                    if json_match:
+                        raw_text = json_match.group(1)
+
+                parsed = json.loads(raw_text)
+                result = {
+                    "text": parsed.get("text", ""),
+                    "content_type": parsed.get("content_type", "text"),
+                    "summary": parsed.get("summary", ""),
+                    "concepts": parsed.get("concepts", []),
+                }
+            except json.JSONDecodeError:
+                # Fallback: treat entire response as text
+                result = {
+                    "text": raw_text,
+                    "content_type": "text",
+                    "summary": raw_text[:100],
+                    "concepts": [],
+                }
+
+            duration_ms = (_time.perf_counter() - start) * 1000
+            import logging
+
+            logging.getLogger(__name__).info(
+                f"[OCR] Extracted {len(result['text'])} chars, type={result['content_type']} in {duration_ms:.0f}ms"
+            )
+
+            return result
+
+        except asyncio.TimeoutError:
+            last_error = GeminiTimeoutError(f"OCR timed out (attempt {attempt + 1})")
+        except Exception as e:
+            last_error = GeminiAPIError(f"OCR failed: {e}")
+
+        if attempt < max_retries:
+            await asyncio.sleep(1.0 * (attempt + 1))
+
+    # All retries exhausted — return fallback with error info
+    import logging
+
+    logging.getLogger(__name__).error(f"[OCR] All retries exhausted: {last_error}")
+    return {
+        "text": "",
+        "content_type": "text",
+        "summary": f"OCR extraction failed: {last_error}",
+        "concepts": [],
+    }

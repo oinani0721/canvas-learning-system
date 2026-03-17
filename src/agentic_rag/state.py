@@ -142,6 +142,16 @@ class CanvasRAGState(MessagesState):
     routing_strategy: Annotated[Optional[str], "L1 路由选择的检索策略"]
     binary_grading_used: Annotated[bool, "是否使用了 LLM 二元评分 (vs 数值阈值降级)"]
 
+    # Story 2.8: 元数据过滤与邻居扩展
+    scope_level: Annotated[Optional[int], "渐进范围搜索当前阶段 (1-4)"]
+
+    # Story 2.10: 上下文压缩与掌握度注入
+    compressed_context: Annotated[Optional[str], "压缩后的上下文文本"]
+    mastery_prefix: Annotated[Optional[str], "掌握度注入的文本"]
+    learning_memories: Annotated[Optional[str], "Graphiti 学习记忆文本"]
+    stale_count: Annotated[int, "过期片段数量"]
+    multi_queries: Annotated[Optional[List[str]], "Multi-Query 改写后的查询列表"]
+
     # Story 7.1: Faithfulness 忠实度检查字段
     faithfulness_score: Annotated[Optional[float], "Faithfulness忠实度评分 (0.0-1.0)"]
     faithfulness_details: Annotated[Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"]
@@ -200,6 +210,14 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "tags": None,
         # Original query
         "original_query": None,
+        # Story 2.8 scope
+        "scope_level": None,
+        # Story 2.10 compression / mastery
+        "compressed_context": None,
+        "mastery_prefix": None,
+        "learning_memories": None,
+        "stale_count": 0,
+        "multi_queries": None,
         # Story 7.1 Faithfulness
         "faithfulness_score": None,
         "faithfulness_details": None,

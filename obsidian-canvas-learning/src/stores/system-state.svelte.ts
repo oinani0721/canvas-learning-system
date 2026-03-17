@@ -34,6 +34,10 @@ class SystemState {
   crossSubjectEnabled = false;
   crossSubjectThreshold = 0.3;
 
+  // ─── Story 4.4: Agent availability state ────────────────────────────────
+  /** Whether the Agent (Claude Code / API Key engine) is currently available. */
+  agentAvailable = true;
+
   // ─── Subscriptions ─────────────────────────────────────────────────────
   private listeners: Set<() => void> = new Set();
 
@@ -147,6 +151,21 @@ class SystemState {
 
   setCrossSubjectThreshold(threshold: number): void {
     this.crossSubjectThreshold = Math.max(0, Math.min(1, threshold));
+    this.notify();
+  }
+
+  // ─── Story 4.4 methods ────────────────────────────────────────────────
+
+  /**
+   * Update Agent availability state.
+   *
+   * Story 4.4 AC-1/AC-6: Controls whether EdgeDialogTrigger opens
+   * Edge dialog or falls back to static label editor.
+   *
+   * @param available - Whether the Agent engine is available.
+   */
+  setAgentAvailable(available: boolean): void {
+    this.agentAvailable = available;
     this.notify();
   }
 

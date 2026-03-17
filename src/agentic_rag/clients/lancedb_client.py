@@ -692,6 +692,132 @@ class LanceDBClient:
         }
 
     # =========================================================================
+    # Story 2.9: Image OCR Content Indexing
+    # =========================================================================
+
+    async def index_image_content(
+        self,
+        node_id: str,
+        image_path: str,
+        ocr_result: Dict[str, Any],
+        table_name: str = "vault_notes",
+        subject: str = "",
+    ) -> int:
+        """
+        Story 2.9 AC-2: Index OCR-extracted image content via the text indexing pipeline.
+
+        Combines OCR text + summary + concepts into indexable text,
+        vectorizes with bge-m3, writes to LanceDB with source_type="image_ocr".
+        Uses delete-before-insert by node_id.
+
+        Args:
+            node_id: Canvas node ID of the image.
+            image_path: Path to the original image file.
+            ocr_result: Structured OCR result dict with keys:
+                text, content_type, summary, concepts.
+            table_name: Target LanceDB table.
+            subject: Subject tag for isolation.
+
+        Returns:
+            Number of chunks indexed.
+        """
+        import hashlib
+
+        if not self._initialized:
+            await self.initialize()
+
+        await self._init_vectorizer()
+        if self._vectorizer is None:
+            if LOGURU_ENABLED:
+                logger.warning("Vectorizer not available, skipping image content indexing")
+            return 0
+
+        # Build indexable text from OCR result
+        text_parts = []
+        ocr_text = ocr_result.get("text", "")
+        if ocr_text:
+            text_parts.append(ocr_text)
+        summary = ocr_result.get("summary", "")
+        if summary:
+            text_parts.append(f"[摘要] {summary}")
+        concepts = ocr_result.get("concepts", [])
+        if concepts:
+            text_parts.append(f"[核心概念] {', '.join(concepts)}")
+
+        combined_text = "\n".join(text_parts)
+        if not combined_text.strip():
+            if LOGURU_ENABLED:
+                logger.debug(f"[IMAGE-INDEX] No text content from OCR for node {node_id}")
+            return 0
+
+        # Vectorize
+        try:
+            vec_result = await self._vectorizer.vectorize_text(combined_text)
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"[IMAGE-INDEX] Vectorization failed for node {node_id}: {e}")
+            return 0
+
+        # Build document
+        content_type = ocr_result.get("content_type", "text")
+        chunk_id = hashlib.md5(f"image_ocr:{node_id}:{combined_text[:100]}".encode()).hexdigest()
+        metadata = {
+            "file_path": image_path,
+            "source": "image_ocr",
+            "source_type": "image_ocr",
+            "node_id": node_id,
+            "content_type": content_type,
+            "subject": subject,
+        }
+
+        doc = {
+            "doc_id": f"img_{chunk_id}",
+            "content": combined_text,
+            "vector": vec_result.vector,
+            "canvas_file": image_path,
+            "node_id": node_id,
+            "node_type": "image_ocr",
+            "color": "",
+            "x": 0,
+            "y": 0,
+            "subject": subject,
+            "source_type": "image_ocr",
+            "timestamp": datetime.now().isoformat(),
+            "metadata_json": json.dumps(metadata, ensure_ascii=False),
+        }
+
+        # Delete old image OCR data for this node
+        if self._db is not None:
+            try:
+                if table_name in self._tables_cache:
+                    tbl = self._tables_cache[table_name]
+                else:
+                    try:
+                        tbl = self._db.open_table(table_name)
+                        self._tables_cache[table_name] = tbl
+                    except Exception:
+                        tbl = None
+
+                if tbl is not None:
+                    escaped_node = node_id.replace("'", "''")
+                    try:
+                        tbl.delete(f"node_id = '{escaped_node}'")
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+        count = await self.add_documents(table_name, [doc])
+
+        if LOGURU_ENABLED:
+            logger.info(
+                f"[IMAGE-INDEX] Indexed {count} chunks for node {node_id} "
+                f"(text={len(ocr_text)} chars, type={content_type})"
+            )
+
+        return count
+
+    # =========================================================================
     # Story 23.2: Embedding Pipeline Methods
     # =========================================================================
 
@@ -1023,6 +1149,10 @@ class LanceDBClient:
                     "source_type": (
                         "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note"
                     ),
+                    # Story 2.8: Frontmatter metadata
+                    "course": chunk.get("course", ""),
+                    "tags_str": chunk.get("tags_str", ""),
+                    "category": chunk.get("category", ""),
                 }
 
                 if LanceDBClient._is_video_transcript(chunk["file_path"]):
@@ -1040,6 +1170,10 @@ class LanceDBClient:
                     "x": 0,
                     "y": 0,
                     "subject": subject or "",
+                    # Story 2.8: Frontmatter columns
+                    "course": chunk.get("course", ""),
+                    "tags_str": chunk.get("tags_str", ""),
+                    "category": chunk.get("category", ""),
                     "timestamp": datetime.now().isoformat(),
                     "metadata_json": json.dumps(metadata, ensure_ascii=False),
                 }
@@ -1220,16 +1354,200 @@ class LanceDBClient:
 
         return count
 
+    # =========================================================================
+    # Story 2.8: Frontmatter Parsing + Wiki-links + Neighbor Expansion
+    # =========================================================================
+
+    @staticmethod
+    def _parse_frontmatter(content: str) -> tuple:
+        """
+        Story 2.8 AC-1: Parse YAML Frontmatter from markdown content.
+
+        Returns:
+            Tuple of (frontmatter_dict, body_content_without_frontmatter).
+            On parse error, returns empty dict + original body with warning log.
+        """
+        import yaml
+
+        fm: Dict[str, Any] = {}
+        body = content
+
+        if not content.startswith("---"):
+            return fm, body
+
+        try:
+            end_idx = content.find("---", 3)
+            if end_idx == -1:
+                return fm, body
+            yaml_str = content[3:end_idx].strip()
+            parsed = yaml.safe_load(yaml_str)
+            if isinstance(parsed, dict):
+                fm = parsed
+            body = content[end_idx + 3:].lstrip("\n")
+        except Exception:
+            import logging
+            logging.getLogger(__name__).warning(
+                "[frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction"
+            )
+        return fm, body
+
+    @staticmethod
+    def _extract_wiki_links(content: str) -> List[str]:
+        """
+        Story 2.8 AC-4: Extract wiki-link targets from markdown content.
+        Handles [[filename]] and [[filename|display text]] patterns.
+
+        Returns:
+            List of unique linked file names (without extension).
+        """
+        import re
+
+        pattern = re.compile(r"\[\[([^\]|]+)(?:\|[^\]]+)?\]\]")
+        matches = pattern.findall(content)
+        seen: set = set()
+        result: List[str] = []
+        for m in matches:
+            m_clean = m.strip()
+            if m_clean and m_clean not in seen:
+                seen.add(m_clean)
+                result.append(m_clean)
+        return result
+
+    async def expand_neighbors(
+        self,
+        results: List[Dict[str, Any]],
+        table_name: str = "vault_notes",
+        max_neighbors: int = 5,
+        score_decay: float = 0.7,
+    ) -> List[Dict[str, Any]]:
+        """
+        Story 2.8 AC-4: 1-hop wiki-link neighbor expansion.
+
+        For each search result, extract wiki-links and fetch chunks from linked files.
+        Neighbor chunks get decayed scores and source_type="neighbor_expansion".
+        """
+        if not results:
+            return results
+
+        linked_files: List[str] = []
+        seen_links: set = set()
+        for r in results:
+            content = r.get("content", "")
+            links = self._extract_wiki_links(content)
+            for link in links:
+                if link not in seen_links:
+                    seen_links.add(link)
+                    linked_files.append(link)
+                    if len(linked_files) >= max_neighbors:
+                        break
+            if len(linked_files) >= max_neighbors:
+                break
+
+        if not linked_files:
+            return results
+
+        neighbor_results: List[Dict[str, Any]] = []
+        if self._db is None:
+            return results
+
+        try:
+            if table_name in self._tables_cache:
+                tbl = self._tables_cache[table_name]
+            else:
+                tbl = self._db.open_table(table_name)
+                self._tables_cache[table_name] = tbl
+
+            for link_name in linked_files:
+                try:
+                    where_clause = f"canvas_file LIKE '%{link_name}%'"
+                    rows = tbl.search().where(where_clause).limit(3).to_list()
+                    for row in rows:
+                        neighbor_doc = dict(row)
+                        orig_score = neighbor_doc.get("_distance", 0.5)
+                        decayed_distance = orig_score / score_decay if score_decay > 0 else orig_score
+                        neighbor_doc["_distance"] = decayed_distance
+                        neighbor_doc["_source_type"] = "neighbor_expansion"
+                        neighbor_results.append(neighbor_doc)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        if neighbor_results:
+            formatted = self._convert_to_search_results(neighbor_results)
+            for fr in formatted:
+                fr["metadata"]["source_type"] = "neighbor_expansion"
+            return list(results) + formatted
+
+        return results
+
+    @staticmethod
+    def _compute_tag_jaccard(tags_a: set, tags_b: set) -> float:
+        """Story 2.8 AC-5: Compute Jaccard similarity between two tag sets."""
+        if not tags_a or not tags_b:
+            return 0.0
+        intersection = len(tags_a & tags_b)
+        union = len(tags_a | tags_b)
+        return intersection / union if union > 0 else 0.0
+
+    async def find_related_courses(
+        self, current_course: str, table_name: str = "vault_notes", threshold: float = 0.3
+    ) -> List[str]:
+        """
+        Story 2.8 AC-5: Find courses with Tag Jaccard similarity above threshold.
+        Scans the table for distinct courses and computes Jaccard similarity
+        with the current course's tag set.
+        """
+        if self._db is None:
+            return list()
+
+        try:
+            if table_name not in self._tables_cache:
+                self._tables_cache[table_name] = self._db.open_table(table_name)
+            tbl = self._tables_cache[table_name]
+            df = tbl.to_pandas()
+
+            if "course" not in df.columns or "tags_str" not in df.columns:
+                return list()
+
+            course_tags: Dict[str, set] = {}
+            for _, row in df.iterrows():
+                course = row.get("course", "")
+                tags_str = row.get("tags_str", "")
+                if not course:
+                    continue
+                if course not in course_tags:
+                    course_tags[course] = set()
+                if tags_str:
+                    course_tags[course].update(t.strip() for t in tags_str.split(",") if t.strip())
+
+            current_tags = course_tags.get(current_course, set())
+            if not current_tags:
+                return list()
+
+            related: List[str] = []
+            for other_course, other_tags in course_tags.items():
+                if other_course == current_course:
+                    continue
+                jaccard = self._compute_tag_jaccard(current_tags, other_tags)
+                if jaccard > threshold:
+                    related.append(other_course)
+
+            return related
+        except Exception:
+            return list()
+
     @staticmethod
     def _split_md_by_heading(
         content: str, file_path: str, max_tokens: int = 512, overlap_tokens: int = 50
     ) -> List[Dict[str, Any]]:
         """
-        Story 2.3: 按 Markdown heading 分段文本，追踪行号 + 面包屑路径前缀
+        Story 2.3+2.8: 按 Markdown heading 分段文本 + Frontmatter 解析
 
         一级切分按 H1-H4 heading，二级切分由 _chunk_text() 按句子边界+原子保护。
         每个 chunk 的 content 前缀注入面包屑路径（文档名 > h1 > h2 > h3），
         heading_path 数组保存在 chunk dict 中供 metadata 使用。
+        Story 2.8: 解析 Frontmatter 提取 course/tags/category。
 
         Args:
             content: Markdown 文件内容
@@ -1239,13 +1557,24 @@ class LanceDBClient:
 
         Returns:
             List[Dict]: [{"file_path", "heading", "content", "heading_path",
-                          "line_start", "line_end"}]
+                          "line_start", "line_end", "course", "tags_str", "category"}]
         """
         import re
 
+        # Story 2.8: Parse frontmatter before chunking
+        frontmatter, body = LanceDBClient._parse_frontmatter(content)
+        fm_course = str(frontmatter.get("course", ""))
+        fm_tags_raw = frontmatter.get("tags", [])
+        if isinstance(fm_tags_raw, list):
+            fm_tags_str = ",".join(str(t) for t in fm_tags_raw)
+        else:
+            fm_tags_str = str(fm_tags_raw)
+        fm_category = str(frontmatter.get("category", ""))
+
         heading_pattern = re.compile(r"^(#{1,4})\s+(.+)$")
         chunks = []
-        lines = content.split("\n")
+        # Use body (frontmatter stripped) for chunking
+        lines = body.split("\n")
 
         # Extract filename without extension for breadcrumb root
         filename = file_path.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
@@ -1289,6 +1618,10 @@ class LanceDBClient:
                         "content": prefixed_content,
                         "line_start": line_start,
                         "line_end": line_end,
+                        # Story 2.8: Frontmatter metadata per chunk
+                        "course": fm_course,
+                        "tags_str": fm_tags_str,
+                        "category": fm_category,
                     }
                 )
 
@@ -1750,9 +2083,23 @@ class LanceDBClient:
             }
 
             # 复制其他metadata字段
-            for key in ["concept", "agent_type", "node_id", "metadata_json"]:
+            for key in [
+                "concept", "agent_type", "node_id", "metadata_json",
+                # Story 2.8: Frontmatter / scope metadata
+                "course", "tags_str", "category",
+                # Story 2.9: Image OCR source type
+                "source_type",
+                # Story 2.8: Neighbor expansion marker
+                "_source_type",
+            ]:
                 if key in item:
                     metadata[key] = item[key]
+
+            # Story 2.8/2.9: Propagate source_type to top-level metadata
+            if "_source_type" in item:
+                metadata["source_type"] = item["_source_type"]
+            elif "source_type" in item:
+                metadata["source_type"] = item["source_type"]
 
             search_results.append({"doc_id": doc_id, "content": content, "score": score, "metadata": metadata})
 
@@ -1802,7 +2149,14 @@ class LanceDBClient:
 
                 # Passthrough extra fields (node_id, node_type, color, x, y, subject, etc.)
                 # so that index_vault_notes / index_single_file schema is preserved
-                for key in ("node_id", "node_type", "color", "x", "y", "subject", "course_id", "tags"):
+                for key in (
+                    "node_id", "node_type", "color", "x", "y", "subject",
+                    "course_id", "tags",
+                    # Story 2.8: Frontmatter metadata columns
+                    "course", "tags_str", "category",
+                    # Story 2.9: Image OCR source type
+                    "source_type",
+                ):
                     if key in doc:
                         lance_doc[key] = doc[key]
 

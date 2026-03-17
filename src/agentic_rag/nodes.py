@@ -44,10 +44,8 @@ logger = logging.getLogger(__name__)
 # ✅ Story 12.1-12.4: 使用真实客户端
 from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient  # noqa: E402
 from agentic_rag.config import DEFAULT_FUSION_GROUPS, CanvasRAGConfig  # noqa: E402
+from agentic_rag.reranking import COHERE_AVAILABLE, CROSS_ENCODER_AVAILABLE, get_reranker  # noqa: E402
 from agentic_rag.state import CanvasRAGState, SearchResult  # noqa: E402
-
-# Story 2.2/2.5: Import reranker with graceful degradation
-from agentic_rag.reranking import CROSS_ENCODER_AVAILABLE, COHERE_AVAILABLE, get_reranker  # noqa: E402
 
 # Story 2.2: Lazy-loaded reranker singleton (Cohere only — local uses get_reranker)
 _cohere_reranker = None
@@ -1305,3 +1303,139 @@ async def update_learning_behavior(state: CanvasRAGState, runtime: Runtime[Canva
         return {"behavior_updated": True, "updated_card": updated_card}
     except Exception:
         return {"behavior_updated": False, "updated_card": {}}
+
+
+# ========================================
+# Story 2.10: Context Compression + Mastery Injection Node
+# ========================================
+
+
+async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+    """
+    Story 2.10: Context compression + mastery injection + learning memory.
+
+    Pipeline position: after check_quality, before faithfulness_check.
+
+    Steps:
+    1. Staleness check on reranked results (non-blocking)
+    2. Compress context from 15K+ tokens to max_tokens (default 3000)
+    3. Build mastery prefix if data available
+    4. Retrieve Graphiti learning memories if available
+
+    Returns:
+        State updates: compressed_context, mastery_prefix, learning_memories, stale_count
+    """
+    start_time = time.perf_counter()
+
+    # Get config
+    max_tokens = _safe_get_config(runtime, "context_max_tokens", 3000)
+    mastery_enabled = _safe_get_config(runtime, "mastery_injection_enabled", True)
+    memory_max_tokens = _safe_get_config(runtime, "learning_memory_max_tokens", 1000)
+    staleness_enabled = _safe_get_config(runtime, "staleness_check_enabled", True)
+
+    # Get query
+    messages = state.get("messages", [])
+    query = ""
+    if messages:
+        last_msg = messages[-1]
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+
+    reranked = state.get("reranked_results", [])
+
+    logger.debug(f"[compress_context] START - {len(reranked)} results, max_tokens={max_tokens}")
+
+    # Step 1: Staleness check (non-blocking)
+    stale_count = 0
+    if staleness_enabled and reranked:
+        try:
+            from agentic_rag.compression import staleness_check
+
+            # Get fingerprint lookup from LanceDB
+            try:
+                client = await _get_lancedb_client()
+                fingerprints = client._get_all_fingerprints()
+            except Exception:
+                fingerprints = {}
+
+            if fingerprints:
+                reranked = staleness_check(reranked, fingerprints)
+                stale_count = sum(1 for r in reranked if r.get("metadata", {}).get("stale", False))
+        except Exception as e:
+            logger.debug(f"[compress_context] Staleness check skipped: {e}")
+
+    # Step 2: Context compression
+    compressed_context = ""
+    if reranked:
+        try:
+            from agentic_rag.compression import compress_context
+
+            compressed_context = compress_context(
+                query=query,
+                documents=reranked,
+                max_tokens=max_tokens,
+            )
+        except Exception as e:
+            logger.warning(f"[compress_context] Compression failed: {e}")
+            # Fallback: concatenate top results
+            compressed_context = "\n\n".join(r.get("content", "") for r in reranked[:5])
+
+    # Step 3: Mastery prefix
+    mastery_prefix = ""
+    if mastery_enabled:
+        try:
+            from agentic_rag.mastery_injection import build_mastery_prefix
+
+            # Try to get mastery data from temporal client
+            try:
+                temporal_client = await _get_temporal_client()
+                # Extract concept from query context
+                canvas_file = state.get("canvas_file", "")
+                concept_query = query[:50]
+                mastery_data = await temporal_client.get_mastery(concept=concept_query, canvas_file=canvas_file)
+                if mastery_data:
+                    mastery_prefix = build_mastery_prefix(
+                        p_mastery=mastery_data.get("p_mastery"),
+                        memory_retention=mastery_data.get("retention"),
+                        has_exam_records=mastery_data.get("has_exam_records", False),
+                        needs_review=mastery_data.get("needs_review", False),
+                    )
+            except Exception:
+                # No mastery data available — skip injection
+                pass
+        except Exception as e:
+            logger.debug(f"[compress_context] Mastery injection skipped: {e}")
+
+    # Step 4: Graphiti learning memories
+    learning_memories = ""
+    try:
+        from agentic_rag.mastery_injection import retrieve_learning_memories
+
+        # Try to get graphiti client
+        try:
+            graphiti_client = await _get_graphiti_client()
+            if graphiti_client:
+                node_id = state.get("canvas_file", "") or query[:30]
+                learning_memories = await retrieve_learning_memories(
+                    node_id=node_id,
+                    max_tokens=memory_max_tokens,
+                    graphiti_client=graphiti_client,
+                )
+        except Exception:
+            pass
+    except Exception as e:
+        logger.debug(f"[compress_context] Learning memory retrieval skipped: {e}")
+
+    latency_ms = (time.perf_counter() - start_time) * 1000
+    logger.debug(
+        f"[compress_context] END - compressed={len(compressed_context)} chars, "
+        f"mastery={'yes' if mastery_prefix else 'no'}, "
+        f"memories={len(learning_memories)} chars, "
+        f"stale={stale_count}, latency={latency_ms:.0f}ms"
+    )
+
+    return {
+        "compressed_context": compressed_context,
+        "mastery_prefix": mastery_prefix,
+        "learning_memories": learning_memories,
+        "stale_count": stale_count,
+    }
