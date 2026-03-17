@@ -1,6 +1,6 @@
 # Story 2.1: Phase 0 — 死代码清理与配置修复
 
-Status: ready-for-dev
+Status: done
 
 ## Story
 
@@ -23,68 +23,68 @@ so that 代码库清爽，所有配置参数正确生效，支持多学科。
 
 ## Tasks / Subtasks
 
-- [ ] Task 1: 归档 reranking.py 和 fusion/ 作为 Story 2.2 参考 (AC: #1, #2)
-  - [ ] 1.1 创建 `_bmad-output/archive/` 目录（如不存在）
-  - [ ] 1.2 复制 `src/agentic_rag/reranking.py` 到 `_bmad-output/archive/reranking.py`
-  - [ ] 1.3 复制 `src/agentic_rag/fusion/` 到 `_bmad-output/archive/fusion/`
-  - [ ] 1.4 复制 `src/tests/test_multimodal_rag.py` 到 `_bmad-output/archive/test_multimodal_rag.py`
-  - [ ] 1.5 复制 `src/tests/agentic_rag/test_observability.py` 到 `_bmad-output/archive/test_observability.py`
+- [x]Task 1: 归档 reranking.py 和 fusion/ 作为 Story 2.2 参考 (AC: #1, #2)
+  - [x]1.1 创建 `_bmad-output/archive/` 目录（如不存在）
+  - [x]1.2 复制 `src/agentic_rag/reranking.py` 到 `_bmad-output/archive/reranking.py`
+  - [x]1.3 复制 `src/agentic_rag/fusion/` 到 `_bmad-output/archive/fusion/`
+  - [x]1.4 复制 `src/tests/test_multimodal_rag.py` 到 `_bmad-output/archive/test_multimodal_rag.py`
+  - [x]1.5 复制 `src/tests/agentic_rag/test_observability.py` 到 `_bmad-output/archive/test_observability.py`
 
-- [ ] Task 2: 删除 9 个死模块（约 5090 行）(AC: #1)
-  - [ ] 2.1 删除 `src/agentic_rag/fusion/` (约 1670 行, 7 files)
-  - [ ] 2.2 删除 `src/agentic_rag/observability/` (约 930 行, 4 files)
-  - [ ] 2.3 删除 `src/agentic_rag/reranking.py` (约 800 行)
-  - [ ] 2.4 删除 `src/agentic_rag/quality/` (约 500 行, 3 files)
-  - [ ] 2.5 删除 `src/agentic_rag/parallel_retrieval.py` (约 270 行)
-  - [ ] 2.6 删除 `src/agentic_rag/env_config.py` (约 283 行) — 同时满足 AC-4
-  - [ ] 2.7 删除 `src/agentic_rag/quality_nodes/` (约 250 行, 3 files)
-  - [ ] 2.8 删除 `src/agentic_rag/traced_nodes.py` (约 250 行)
-  - [ ] 2.9 删除 `src/agentic_rag/routing/` (约 140 行, 2 files)
+- [x]Task 2: 删除 9 个死模块（约 5090 行）(AC: #1)
+  - [x]2.1 删除 `src/agentic_rag/fusion/` (约 1670 行, 7 files)
+  - [x]2.2 删除 `src/agentic_rag/observability/` (约 930 行, 4 files)
+  - [x]2.3 删除 `src/agentic_rag/reranking.py` (约 800 行)
+  - [x]2.4 删除 `src/agentic_rag/quality/` (约 500 行, 3 files)
+  - [x]2.5 删除 `src/agentic_rag/parallel_retrieval.py` (约 270 行)
+  - [x]2.6 删除 `src/agentic_rag/env_config.py` (约 283 行) — 同时满足 AC-4
+  - [x]2.7 删除 `src/agentic_rag/quality_nodes/` (约 250 行, 3 files)
+  - [x]2.8 删除 `src/agentic_rag/traced_nodes.py` (约 250 行)
+  - [x]2.9 删除 `src/agentic_rag/routing/` (约 140 行, 2 files)
 
-- [ ] Task 3: 删除依赖已删模块的测试文件 (AC: #2)
-  - [ ] 3.1 删除 `src/tests/test_multimodal_rag.py`（imports fusion.rrf_fusion, fusion.unified_result）
-  - [ ] 3.2 删除 `src/tests/agentic_rag/test_observability.py`（imports observability.*）
+- [x]Task 3: 删除依赖已删模块的测试文件 (AC: #2)
+  - [x]3.1 删除 `src/tests/test_multimodal_rag.py`（imports fusion.rrf_fusion, fusion.unified_result）
+  - [x]3.2 删除 `src/tests/agentic_rag/test_observability.py`（imports observability.*）
 
-- [ ] Task 4: 清理 __init__.py 文档注释 (AC: #8)
-  - [ ] 4.1 编辑 `src/agentic_rag/__init__.py`，移除对已删模块（fusion/observability/reranking/quality_nodes/traced_nodes/routing/parallel_retrieval/env_config）的描述
+- [x]Task 4: 清理 __init__.py 文档注释 (AC: #8)
+  - [x]4.1 编辑 `src/agentic_rag/__init__.py`，移除对已删模块（fusion/observability/reranking/quality_nodes/traced_nodes/routing/parallel_retrieval/env_config）的描述
 
-- [ ] Task 5: 修复 Ghost Tables (AC: #6)
-  - [ ] 5.1 `src/agentic_rag/clients/lancedb_client.py:112` — `DEFAULT_TABLES` 改为 `["canvas_nodes", "vault_notes"]`（移除从未创建的两个表名）
-  - [ ] 5.2 `src/agentic_rag/clients/lancedb_client.py:810` — `search()` 默认 table_name 改为 `"canvas_nodes"`
-  - [ ] 5.3 `src/agentic_rag/agent_graph.py:179` — fallback table_name 改为 `"canvas_nodes"`
-  - [ ] 5.4 更新 `src/tests/agentic_rag/test_lancedb_client.py:91` — DEFAULT_TABLES 断言值同步更新
+- [x]Task 5: 修复 Ghost Tables (AC: #6)
+  - [x]5.1 `src/agentic_rag/clients/lancedb_client.py:112` — `DEFAULT_TABLES` 改为 `["canvas_nodes", "vault_notes"]`（移除从未创建的两个表名）
+  - [x]5.2 `src/agentic_rag/clients/lancedb_client.py:810` — `search()` 默认 table_name 改为 `"canvas_nodes"`
+  - [x]5.3 `src/agentic_rag/agent_graph.py:179` — fallback table_name 改为 `"canvas_nodes"`
+  - [x]5.4 更新 `src/tests/agentic_rag/test_lancedb_client.py:91` — DEFAULT_TABLES 断言值同步更新
 
-- [ ] Task 6: 修复虚假标记 (AC: #7)
-  - [ ] 6.1 `backend/app/api/v1/endpoints/canvas.py:6` — 修改标记为如实描述当前实现状态
-  - [ ] 6.2 `backend/app/api/v1/endpoints/memory.py:32` — 修改标记为如实描述当前实现状态（全部端点为占位实现）
+- [x]Task 6: 修复虚假标记 (AC: #7)
+  - [x]6.1 `backend/app/api/v1/endpoints/canvas.py:6` — 修改标记为如实描述当前实现状态
+  - [x]6.2 `backend/app/api/v1/endpoints/memory.py:32` — 修改标记为如实描述当前实现状态（全部端点为占位实现）
 
-- [ ] Task 7: 修复 adapter.py L195 配置传递 bug (AC: #3)
-  - [ ] 7.1 编辑 `src/canvas/adapters/agentic_rag_adapter.py:195` — 将 `config={"configurable": config}` 改为 `context=config`，使 LangGraph Context API 扁平传递配置
-  - [ ] 7.2 验证：传入非默认 fusion_strategy，确认 node 中 `_safe_get_config` 收到正确值
+- [x]Task 7: 修复 adapter.py L195 配置传递 bug (AC: #3)
+  - [x]7.1 编辑 `src/canvas/adapters/agentic_rag_adapter.py:195` — 将 `config={"configurable": config}` 改为 `context=config`，使 LangGraph Context API 扁平传递配置
+  - [x]7.2 验证：传入非默认 fusion_strategy，确认 node 中 `_safe_get_config` 收到正确值
 
-- [ ] Task 8: 清理 cs188 硬编码（20+ 处）(AC: #5)
-  - [ ] 8.1 `backend/app/api/v1/endpoints/mastery.py` — 6 处 `default="cs188"` 改为从配置读取
-  - [ ] 8.2 `backend/app/services/mastery_store.py` — 8 处 `group_id: str = "cs188"` 改为从配置读取默认值
-  - [ ] 8.3 `backend/app/services/react_agent.py` — 4 处硬编码（group_id/vault 名）改为配置化
-  - [ ] 8.4 `backend/app/services/review_service.py` — 1 处 `group_id="cs188"` 改为配置化
-  - [ ] 8.5 `backend/app/services/memory_service.py` — 1 处 `group_id: str = "cs188"` 改为配置化
-  - [ ] 8.6 `backend/app/services/agent_service.py` — 3 处硬编码改为配置化
-  - [ ] 8.7 `backend/app/services/graphiti_bridge_service.py` — 3 处 `group_id="cs188"` + 文档注释改为配置化
-  - [ ] 8.8 `backend/app/core/memory_format.py` — 文档注释中 cs188 引用更新
-  - [ ] 8.9 `backend/app/api/v1/endpoints/metadata.py` — 1 处 `subject="cs188"` 改为配置化
-  - [ ] 8.10 `backend/config/subject_mapping.yaml` — 保持为参考配置，确保代码从此配置读取
-  - [ ] 8.11 清理 `backend/app/api/v1/endpoints/review.py:66` 中引用已删 env_config.py 的悬空注释
+- [x]Task 8: 清理 cs188 硬编码（20+ 处）(AC: #5)
+  - [x]8.1 `backend/app/api/v1/endpoints/mastery.py` — 6 处 `default="cs188"` 改为从配置读取
+  - [x]8.2 `backend/app/services/mastery_store.py` — 8 处 `group_id: str = "cs188"` 改为从配置读取默认值
+  - [x]8.3 `backend/app/services/react_agent.py` — 4 处硬编码（group_id/vault 名）改为配置化
+  - [x]8.4 `backend/app/services/review_service.py` — 1 处 `group_id="cs188"` 改为配置化
+  - [x]8.5 `backend/app/services/memory_service.py` — 1 处 `group_id: str = "cs188"` 改为配置化
+  - [x]8.6 `backend/app/services/agent_service.py` — 3 处硬编码改为配置化
+  - [x]8.7 `backend/app/services/graphiti_bridge_service.py` — 3 处 `group_id="cs188"` + 文档注释改为配置化
+  - [x]8.8 `backend/app/core/memory_format.py` — 文档注释中 cs188 引用更新
+  - [x]8.9 `backend/app/api/v1/endpoints/metadata.py` — 1 处 `subject="cs188"` 改为配置化
+  - [x]8.10 `backend/config/subject_mapping.yaml` — 保持为参考配置，确保代码从此配置读取
+  - [x]8.11 清理 `backend/app/api/v1/endpoints/review.py:66` 中引用已删 env_config.py 的悬空注释
 
-- [ ] Task 9: 清理 env_config.py 残留引用 (AC: #4)
-  - [ ] 9.1 检查并清理 `backend/app/api/v1/endpoints/review.py:66` 中引用 env_config.py 的注释
+- [x]Task 9: 清理 env_config.py 残留引用 (AC: #4)
+  - [x]9.1 检查并清理 `backend/app/api/v1/endpoints/review.py:66` 中引用 env_config.py 的注释
 
-- [ ] Task 10: 验证管道完整性 (AC: #9, #10)
-  - [ ] 10.1 运行 `python -m compileall src/agentic_rag/ -q` — 字节码编译通过
-  - [ ] 10.2 运行 `python -c "from agentic_rag.state_graph import build_canvas_agentic_rag_graph; build_canvas_agentic_rag_graph()"` — StateGraph 编译通过
-  - [ ] 10.3 运行 `ruff check src/agentic_rag/` — lint 通过
-  - [ ] 10.4 运行 `ruff check backend/app/` — lint 通过
-  - [ ] 10.5 验证 `from app.services.rag_service import RAGService` 不报错（rag_service.py 也 import agentic_rag）
-  - [ ] 10.6 运行 `python -c "from agentic_rag import *; assert AGENTIC_RAG_AVAILABLE"` — 注意 `__init__.py` 的 try/except 可能吞错误，必须 assert 变量
+- [x]Task 10: 验证管道完整性 (AC: #9, #10)
+  - [x]10.1 运行 `python -m compileall src/agentic_rag/ -q` — 字节码编译通过
+  - [x]10.2 运行 `python -c "from agentic_rag.state_graph import build_canvas_agentic_rag_graph; build_canvas_agentic_rag_graph()"` — StateGraph 编译通过
+  - [x]10.3 运行 `ruff check src/agentic_rag/` — lint 通过
+  - [x]10.4 运行 `ruff check backend/app/` — lint 通过
+  - [x]10.5 验证 `from app.services.rag_service import RAGService` 不报错（rag_service.py 也 import agentic_rag）
+  - [x]10.6 运行 `python -c "from agentic_rag import *; assert AGENTIC_RAG_AVAILABLE"` — 注意 `__init__.py` 的 try/except 可能吞错误，必须 assert 变量
 
 ## Dev Notes
 
@@ -154,11 +154,28 @@ so that 代码库清爽，所有配置参数正确生效，支持多学科。
 
 ### Agent Model Used
 
-(to be filled during implementation)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
+- Python not on PATH; used `.venv/Scripts/python.exe` (Python 3.14.3)
+- ruff available via npm global install
+- Pre-existing ruff warnings in agent_graph.py, adapter.py, graphiti_bridge_service.py (not introduced by this story)
+- Guard hook auto-replaced "cs188" → "default" in mastery.py before our edit; we corrected to DEFAULT_GROUP_ID
+
 ### Completion Notes List
+
+- All 10 tasks completed across 3 commits (archive, delete, fix)
+- 9 dead modules deleted (~6450 lines removed per git)
+- 2 dependent test files deleted
+- adapter.py config passing bug fixed (AC-3)
+- Ghost tables fixed in lancedb_client.py and agent_graph.py (AC-6)
+- canvas.py and memory.py docstrings updated with honest status (AC-7)
+- 20+ cs188 hardcodes replaced with configurable DEFAULT_GROUP_ID (AC-5)
+- env_config.py deleted and residual reference cleaned (AC-4)
+- __init__.py docstring updated (AC-8)
+- compileall and ruff pass with no new errors (AC-9)
+- DEFAULT_TABLES test assertion synced (AC-6)
 
 ### Change Statistics (Expected)
 
