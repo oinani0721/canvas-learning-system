@@ -406,6 +406,21 @@ class MasteryEngine:
         """Serialize concept state to API response dict (includes volatile fields)."""
         eff = self.effective_proficiency(concept)
         level = self.mastery_level(concept)
+
+        # Extract FSRS due date from card data (Story 5.4: Dashboard needs due_date for sorting)
+        fsrs_due_date = None
+        if self.fsrs_manager and concept.fsrs_card_data:
+            try:
+                card = self.fsrs_manager.deserialize_card(concept.fsrs_card_data)
+                due = _card_attr(card, "due", None)
+                if due is not None:
+                    if isinstance(due, datetime):
+                        fsrs_due_date = due.isoformat()
+                    elif isinstance(due, str):
+                        fsrs_due_date = due
+            except Exception:
+                pass  # Graceful degradation: no due date if card parse fails
+
         return {
             "concept_id": concept.concept_id,
             "name": concept.name,
@@ -416,6 +431,7 @@ class MasteryEngine:
             "mastery_color": MASTERY_COLORS.get(level, "#6c757d"),
             "retrievability": round(self._get_retrievability(concept), 3),
             "freshness": self.freshness(concept),
+            "fsrs_due_date": fsrs_due_date,
             "override_active": concept.override_value is not None,
             "override_value": concept.override_value,
             "self_assess_value": concept.self_assess_value,
@@ -423,6 +439,7 @@ class MasteryEngine:
             "interaction_count": concept.interaction_count,
             "fluent_count": concept.fluent_count,
             "p_mastery": round(concept.p_mastery, 3),
+            "last_interaction_ts": concept.last_interaction_ts.isoformat() if concept.last_interaction_ts else None,
         }
 
     def get_review_candidates(self, concepts: list[ConceptState]) -> list[ConceptState]:

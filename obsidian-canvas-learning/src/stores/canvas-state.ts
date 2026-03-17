@@ -16,6 +16,8 @@ import type {
   CanvasBoard,
   CanvasEdgeData,
   CanvasNodeData,
+  DismissedRecommendation,
+  Recommendation,
   ViewRoute,
   Viewport,
 } from '../types/canvas';
@@ -272,6 +274,9 @@ class CanvasState {
     // Update the board's updatedAt
     await db.canvas_boards.update(this.currentBoardId, { updatedAt: now() });
 
+    // Story 1.7: trigger recommendation analysis after node change
+    this.scheduleRecommendationFetch();
+
     return node;
   }
 
@@ -327,6 +332,8 @@ class CanvasState {
     });
 
     this.selectedNodeIds.delete(id);
+    // Story 1.7: trigger recommendation analysis after node change
+    this.scheduleRecommendationFetch();
     this.notify();
   }
 
@@ -356,6 +363,8 @@ class CanvasState {
 
     await db.canvas_edges.add(edge);
     await this.writeOutbox('edge', edge.id, 'create', edge);
+    // Story 1.7: trigger recommendation analysis after edge change
+    this.scheduleRecommendationFetch();
     return edge;
   }
 
@@ -438,6 +447,109 @@ class CanvasState {
 
   setViewport(vp: Viewport): void {
     this.viewport = vp;
+    this.notify();
+  }
+
+  // ─── Story 1.7: Recommendation state ──────────────────────────────────
+  recommendations: Recommendation[] = [];
+  recommendationBarVisible = false;
+  recommendationBarExpanded = false;
+  dismissedSessionClosed = false;
+  private recommendationDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /**
+   * Trigger a debounced recommendation fetch after node/edge changes (AC-1).
+   * Only fires if >= 5 nodes exist on the current board.
+   */
+  scheduleRecommendationFetch(): void {
+    if (this.recommendationDebounceTimer) {
+      clearTimeout(this.recommendationDebounceTimer);
+    }
+    this.recommendationDebounceTimer = setTimeout(() => {
+      this.recommendationDebounceTimer = null;
+      this.fetchRecommendationsIfEligible();
+    }, 5000);
+  }
+
+  private async fetchRecommendationsIfEligible(): Promise<void> {
+    if (!this.currentBoardId || !this.apiClient) return;
+    if (this.nodes.length < 5) return;
+
+    // Get dismissed pairs from IndexedDB (last 24h)
+    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const dismissed = await db.dismissed_recommendations
+      .where('dismissedAt')
+      .above(cutoff)
+      .toArray();
+
+    const dismissedPairs = dismissed.map(d => {
+      const [a, b] = d.pairKey.split('_');
+      return { nodeIdA: a, nodeIdB: b };
+    });
+
+    const response = await this.apiClient.fetchRecommendations(
+      this.currentBoardId,
+      dismissedPairs,
+    );
+
+    this.recommendations = response.recommendations;
+    if (response.recommendations.length > 0 && !this.dismissedSessionClosed) {
+      this.recommendationBarVisible = true;
+    } else if (response.recommendations.length === 0) {
+      this.recommendationBarVisible = false;
+    }
+    this.notify();
+  }
+
+  /**
+   * Accept a recommendation: create edge and remove from list (AC-4).
+   */
+  async acceptRecommendation(recId: string): Promise<void> {
+    const rec = this.recommendations.find(r => r.id === recId);
+    if (!rec) return;
+
+    await this.addEdge({
+      sourceNodeId: rec.sourceNodeId,
+      targetNodeId: rec.targetNodeId,
+      label: rec.suggestedLabel,
+    });
+
+    this.recommendations = this.recommendations.filter(r => r.id !== recId);
+    if (this.recommendations.length === 0) {
+      this.recommendationBarVisible = false;
+    }
+    this.notify();
+  }
+
+  /**
+   * Dismiss a recommendation: record in IndexedDB and remove from list (AC-5).
+   */
+  async dismissRecommendation(recId: string): Promise<void> {
+    const rec = this.recommendations.find(r => r.id === recId);
+    if (!rec) return;
+
+    // Build sorted pair key
+    const ids = [rec.sourceNodeId, rec.targetNodeId].sort();
+    const pairKey = `${ids[0]}_${ids[1]}`;
+
+    await db.dismissed_recommendations.add({
+      pairKey,
+      dismissedAt: now(),
+    });
+
+    this.recommendations = this.recommendations.filter(r => r.id !== recId);
+    if (this.recommendations.length === 0) {
+      this.recommendationBarVisible = false;
+    }
+    this.notify();
+  }
+
+  /**
+   * Close the recommendation bar for this session (AC-3).
+   */
+  closeRecommendationBar(): void {
+    this.recommendationBarVisible = false;
+    this.dismissedSessionClosed = true;
     this.notify();
   }
 

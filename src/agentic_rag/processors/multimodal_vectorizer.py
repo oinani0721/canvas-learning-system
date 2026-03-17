@@ -1,5 +1,5 @@
 """
-Multimodal Content Vectorizer for Canvas Learning System (Story 6.6)
+Multimodal Content Vectorizer for Canvas Learning System
 
 Provides vectorization capabilities for multimodal content including:
 - Image content vectorization (OCR + AI description)
@@ -7,15 +7,14 @@ Provides vectorization capabilities for multimodal content including:
 - Vector fusion with weighted averaging
 - LanceDB storage integration
 
-Dependencies:
-- sentence-transformers: Text embedding model
-- numpy: Vector operations
+Story 2.3: bge-m3 模型迁移
+- 替换 sentence-transformers → FlagEmbedding BGEM3FlagModel
+- 1024d Dense 向量，中英双语支持
+- bge-m3 MIRACL 中文 nDCG@10=63.9
 
-✅ Verified from Story 6.6:
-- AC 6.6.1: 图片内容向量化 (OCR + AI描述, 768维)
-- AC 6.6.2: PDF内容向量化 (按章节)
-- AC 6.6.3: 存储到LanceDB (multimodal_content表)
-- AC 6.6.4: 向量化速度≤1秒/内容
+Dependencies:
+- FlagEmbedding: BAAI/bge-m3 model loading
+- numpy: Vector operations
 """
 
 import asyncio
@@ -32,10 +31,10 @@ except ImportError:
     NUMPY_AVAILABLE = False
 
 try:
-    from sentence_transformers import SentenceTransformer
-    SENTENCE_TRANSFORMERS_AVAILABLE = True
+    from FlagEmbedding import BGEM3FlagModel
+    FLAG_EMBEDDING_AVAILABLE = True
 except ImportError:
-    SENTENCE_TRANSFORMERS_AVAILABLE = False
+    FLAG_EMBEDDING_AVAILABLE = False
 
 
 @dataclass
@@ -113,15 +112,13 @@ class MultimodalVectorizer:
     Multimodal Content Vectorizer for Canvas Learning System.
 
     Features:
-    - Text embedding using sentence-transformers (768-dim by default)
+    - Text embedding using BAAI/bge-m3 (1024-dim Dense vectors)
     - Image content vectorization (OCR text + AI description fusion)
     - PDF chapter vectorization
     - Weighted vector fusion
     - LanceDB integration ready
 
-    ✅ Story 6.6 AC 6.6.1: 图片内容向量化 (OCR + AI描述)
-    ✅ Story 6.6 AC 6.6.2: PDF内容向量化 (按章节)
-    ✅ Story 6.6 AC 6.6.4: 向量化速度≤1秒/内容
+    Story 2.3: bge-m3 1024d Dense 向量，中英双语
 
     Usage:
         vectorizer = MultimodalVectorizer()
@@ -140,16 +137,16 @@ class MultimodalVectorizer:
         )
     """
 
-    # Default embedding model (768-dim)
-    DEFAULT_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
-    DEFAULT_EMBEDDING_DIM: int = 384  # all-MiniLM-L6-v2 outputs 384-dim
+    # Story 2.3: bge-m3 1024d Dense 向量
+    DEFAULT_MODEL_NAME: str = "BAAI/bge-m3"
+    DEFAULT_EMBEDDING_DIM: int = 1024  # bge-m3 Dense outputs 1024-dim
 
-    # Alternative models for 768-dim
-    ALTERNATIVE_MODELS = {
-        "all-mpnet-base-v2": 768,  # Higher quality, 768-dim
-        "all-MiniLM-L12-v2": 384,  # Balanced
-        "paraphrase-multilingual-MiniLM-L12-v2": 384,  # Multilingual
-        "paraphrase-multilingual-mpnet-base-v2": 768,  # Multilingual 768-dim
+    # Supported models (bge-m3 is default; legacy models kept for reference)
+    SUPPORTED_MODELS = {
+        "BAAI/bge-m3": 1024,  # Default — 中英双语
+        "sentence-transformers/all-MiniLM-L6-v2": 384,  # [deprecated]
+        "sentence-transformers/all-mpnet-base-v2": 768,  # [deprecated]
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,  # [deprecated]
     }
 
     # Fusion weights (Story 6.6 requirement: 0.4 OCR + 0.6 description)
@@ -172,8 +169,8 @@ class MultimodalVectorizer:
         Initialize MultimodalVectorizer.
 
         Args:
-            model_name: Sentence-transformers model name (default: all-MiniLM-L6-v2)
-            device: Device to use ("cpu" or "cuda")
+            model_name: Model name (default: BAAI/bge-m3)
+            device: Device to use ("cpu" or "cuda") — bge-m3 uses use_fp16 for GPU
             ocr_weight: Weight for OCR text in fusion (default: 0.4)
             desc_weight: Weight for description in fusion (default: 0.6)
             batch_size: Batch size for encoding
@@ -185,6 +182,7 @@ class MultimodalVectorizer:
         self.desc_weight = desc_weight
         self.batch_size = batch_size
         self.normalize_vectors = normalize_vectors
+        self._is_bge_m3 = "bge-m3" in self.model_name
 
         self._model = None
         self._initialized = False
@@ -202,39 +200,64 @@ class MultimodalVectorizer:
         """
         Initialize the embedding model.
 
+        Story 2.3: Uses BGEM3FlagModel for bge-m3 models.
+
         Returns:
             True if initialization successful
         """
         if self._initialized:
             return True
 
-        if not SENTENCE_TRANSFORMERS_AVAILABLE:
-            raise ImportError(
-                "sentence-transformers is required. "
-                "Install with: pip install sentence-transformers"
-            )
-
         if not NUMPY_AVAILABLE:
             raise ImportError(
                 "numpy is required. Install with: pip install numpy"
             )
 
-        try:
-            # Load model in thread pool to not block event loop
-            loop = asyncio.get_event_loop()
-            self._model = await loop.run_in_executor(
-                None,
-                lambda: SentenceTransformer(self.model_name, device=self.device)
-            )
+        if self._is_bge_m3:
+            if not FLAG_EMBEDDING_AVAILABLE:
+                raise ImportError(
+                    "FlagEmbedding is required for bge-m3. "
+                    "Install with: pip install FlagEmbedding"
+                )
 
-            # Get embedding dimension
-            self._embedding_dim = self._model.get_sentence_embedding_dimension()
-            self._initialized = True
+            try:
+                loop = asyncio.get_event_loop()
+                use_fp16 = self.device != "cpu"
+                self._model = await loop.run_in_executor(
+                    None,
+                    lambda: BGEM3FlagModel(
+                        self.model_name,
+                        use_fp16=use_fp16,
+                    )
+                )
+                # bge-m3 Dense output dimension is always 1024
+                self._embedding_dim = 1024
+                self._initialized = True
+                return True
 
-            return True
+            except Exception as e:
+                raise EmbeddingModelError(f"Failed to load bge-m3 model: {e}") from e
+        else:
+            # Legacy path for sentence-transformers models (deprecated)
+            try:
+                from sentence_transformers import SentenceTransformer
+            except ImportError as e:
+                raise ImportError(
+                    "sentence-transformers is required for legacy models. "
+                    "Install with: pip install sentence-transformers"
+                ) from e
+            try:
+                loop = asyncio.get_event_loop()
+                self._model = await loop.run_in_executor(
+                    None,
+                    lambda: SentenceTransformer(self.model_name, device=self.device)
+                )
+                self._embedding_dim = self._model.get_sentence_embedding_dimension()
+                self._initialized = True
+                return True
 
-        except Exception as e:
-            raise EmbeddingModelError(f"Failed to load model: {e}")
+            except Exception as e:
+                raise EmbeddingModelError(f"Failed to load model: {e}") from e
 
     @property
     def embedding_dim(self) -> int:
@@ -480,15 +503,29 @@ class MultimodalVectorizer:
         # Encode all texts in batch
         try:
             loop = asyncio.get_event_loop()
-            vectors = await loop.run_in_executor(
-                None,
-                lambda: self._model.encode(
-                    texts,
-                    batch_size=self.batch_size,
-                    normalize_embeddings=self.normalize_vectors,
-                    show_progress_bar=False
-                ).tolist()
-            )
+            if self._is_bge_m3:
+                # bge-m3: encode returns dict with 'dense_vecs' key
+                vectors = await loop.run_in_executor(
+                    None,
+                    lambda: self._model.encode(
+                        texts,
+                        batch_size=self.batch_size,
+                        return_dense=True,
+                        return_sparse=False,
+                        return_colbert_vecs=False,
+                    )["dense_vecs"].tolist()
+                )
+            else:
+                # Legacy sentence-transformers path
+                vectors = await loop.run_in_executor(
+                    None,
+                    lambda: self._model.encode(
+                        texts,
+                        batch_size=self.batch_size,
+                        normalize_embeddings=self.normalize_vectors,
+                        show_progress_bar=False
+                    ).tolist()
+                )
         except Exception as e:
             raise VectorizationError(f"Batch encoding failed: {e}")
 
@@ -515,21 +552,37 @@ class MultimodalVectorizer:
         return results
 
     async def _encode_text(self, text: str) -> List[float]:
-        """Encode single text to vector."""
+        """Encode single text to vector.
+
+        Story 2.3: bge-m3 uses BGEM3FlagModel.encode() returning dense_vecs.
+        """
         if not text or not text.strip():
             # Return zero vector for empty text
             return [0.0] * self.embedding_dim
 
         # Run encoding in thread pool
         loop = asyncio.get_event_loop()
-        vector = await loop.run_in_executor(
-            None,
-            lambda: self._model.encode(
-                text,
-                normalize_embeddings=self.normalize_vectors,
-                show_progress_bar=False
-            ).tolist()
-        )
+        if self._is_bge_m3:
+            # bge-m3: encode expects list, returns dict with 'dense_vecs'
+            vector = await loop.run_in_executor(
+                None,
+                lambda: self._model.encode(
+                    [text],
+                    return_dense=True,
+                    return_sparse=False,
+                    return_colbert_vecs=False,
+                )["dense_vecs"][0].tolist()
+            )
+        else:
+            # Legacy sentence-transformers path
+            vector = await loop.run_in_executor(
+                None,
+                lambda: self._model.encode(
+                    text,
+                    normalize_embeddings=self.normalize_vectors,
+                    show_progress_bar=False
+                ).tolist()
+            )
 
         return vector
 

@@ -11,8 +11,10 @@
    * Performance: CSS contain, viewport culling, rAF throttle.
    */
 
+  import { Notice } from 'obsidian';
   import type { CanvasNodeData, Point, Rect, Viewport } from '../../types/canvas';
   import { canvasState } from '../../stores/canvas-state';
+  import { systemState } from '../../stores/system-state.svelte';
   import {
     screenToCanvas,
     zoomViewport,
@@ -23,6 +25,8 @@
   } from '../../utils/canvas-math';
   import CanvasNode from './CanvasNode.svelte';
   import CanvasEdge from './CanvasEdge.svelte';
+  import ImageNode from './ImageNode.svelte';
+  import RecommendationBar from './RecommendationBar.svelte';
 
   // ── Local state ────────────────────────────────────────────────────────
 
@@ -322,6 +326,132 @@
     }
   }
 
+  // ── Story 1.6: Image paste and drop ──────────────────────────────────
+
+  /** Convert a Blob image to base64 DataURL. */
+  function blobToDataUrl(blob: Blob): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  /** Max image size in bytes (10 MB). */
+  const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
+
+  async function createImageNode(file: Blob, position?: Point): Promise<void> {
+    if (file.size > MAX_IMAGE_SIZE) {
+      new Notice('图片过大（> 10MB），请压缩后重试', 5000);
+      return;
+    }
+
+    const dataUrl = await blobToDataUrl(file);
+    const pos = position ?? screenToCanvas(
+      containerWidth / 2, containerHeight / 2, vp,
+    );
+
+    const node = await canvasState.addNode({
+      type: 'image',
+      imageData: dataUrl,
+      indexStatus: 'indexing',
+      x: pos.x - 120,
+      y: pos.y - 80,
+      width: 240,
+      height: 180,
+    });
+
+    // Dispatch custom event for IndexingService to pick up
+    containerEl?.dispatchEvent(
+      new CustomEvent('cl-image-index-request', {
+        detail: { nodeId: node.id, imageData: dataUrl },
+      }),
+    );
+  }
+
+  function handlePaste(event: ClipboardEvent) {
+    const items = event.clipboardData?.items;
+    if (!items) return;
+
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        event.preventDefault();
+        const blob = item.getAsFile();
+        if (blob) createImageNode(blob);
+      }
+    }
+  }
+
+  function handleDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = 'copy';
+    }
+  }
+
+  function handleDrop(event: DragEvent) {
+    event.preventDefault();
+    const files = event.dataTransfer?.files;
+    if (!files || !containerEl) return;
+
+    const rect = containerEl.getBoundingClientRect();
+    let offsetX = 0;
+
+    for (const file of files) {
+      if (file.type.startsWith('image/')) {
+        const dropPos = screenToCanvas(
+          event.clientX - rect.left + offsetX,
+          event.clientY - rect.top,
+          vp,
+        );
+        createImageNode(file, dropPos);
+        offsetX += 260; // 240px width + 20px gap
+      }
+    }
+  }
+
+  // ── Story 1.6: Image index retry ─────────────────────────────────────
+
+  function handleRetryIndex(nodeId: string) {
+    containerEl?.dispatchEvent(
+      new CustomEvent('cl-image-retry-index', { detail: { nodeId } }),
+    );
+  }
+
+  // ── Story 1.7: Recommendation handlers ──────────────────────────────
+
+  let recStateVersion = $state(0);
+  $effect(() => {
+    const unsub = canvasState.subscribe(() => {
+      recStateVersion++;
+    });
+    return unsub;
+  });
+
+  let recommendations = $derived.by(() => {
+    void recStateVersion;
+    return canvasState.recommendations;
+  });
+
+  let showRecommendationBar = $derived.by(() => {
+    void recStateVersion;
+    return canvasState.recommendationBarVisible && !canvasState.dismissedSessionClosed;
+  });
+
+  function handleAcceptRecommendation(recId: string) {
+    canvasState.acceptRecommendation(recId);
+    new Notice('已创建连线', 2000);
+  }
+
+  function handleDismissRecommendation(recId: string) {
+    canvasState.dismissRecommendation(recId);
+  }
+
+  function handleCloseRecommendationBar() {
+    canvasState.closeRecommendationBar();
+  }
+
   // ── Context menu prevention (for right-click pan) ──────────────────────
 
   function handleContextMenu(e: Event) {
@@ -339,6 +469,9 @@
   ondblclick={handleDoubleClick}
   onkeydown={handleKeyDown}
   oncontextmenu={handleContextMenu}
+  onpaste={handlePaste}
+  ondragover={handleDragOver}
+  ondrop={handleDrop}
   role="application"
   tabindex="0"
   aria-label="Canvas whiteboard"
@@ -377,13 +510,27 @@
     style="transform: translate({vp.x}px, {vp.y}px) scale({vp.zoom}); transform-origin: 0 0;"
   >
     {#each visibleNodes as node (node.id)}
-      <CanvasNode {node} onedgedragstart={handleEdgeDragStart} />
+      {#if node.type === 'image'}
+        <ImageNode {node} onedgedragstart={handleEdgeDragStart} onretryindex={handleRetryIndex} />
+      {:else}
+        <CanvasNode {node} onedgedragstart={handleEdgeDragStart} />
+      {/if}
     {/each}
   </div>
 
   <!-- Selection box overlay -->
   {#if isBoxSelecting}
     <div class="cl-canvas-selection-box" style={selectionBoxStyle}></div>
+  {/if}
+
+  <!-- Story 1.7: Recommendation bar -->
+  {#if showRecommendationBar}
+    <RecommendationBar
+      {recommendations}
+      onaccept={handleAcceptRecommendation}
+      ondismiss={handleDismissRecommendation}
+      onclose={handleCloseRecommendationBar}
+    />
   {/if}
 </div>
 

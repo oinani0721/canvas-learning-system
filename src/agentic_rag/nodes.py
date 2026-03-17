@@ -43,16 +43,14 @@ logger = logging.getLogger(__name__)
 
 # ✅ Story 12.1-12.4: 使用真实客户端
 from agentic_rag.clients import GraphitiClient, LanceDBClient, TemporalClient  # noqa: E402
-from agentic_rag.config import CanvasRAGConfig  # noqa: E402
+from agentic_rag.config import DEFAULT_FUSION_GROUPS, CanvasRAGConfig  # noqa: E402
 from agentic_rag.state import CanvasRAGState, SearchResult  # noqa: E402
 
-# Story 2.2: Import reranker with graceful degradation
-from agentic_rag.reranking import CROSS_ENCODER_AVAILABLE, COHERE_AVAILABLE  # noqa: E402
+# Story 2.2/2.5: Import reranker with graceful degradation
+from agentic_rag.reranking import CROSS_ENCODER_AVAILABLE, COHERE_AVAILABLE, get_reranker  # noqa: E402
 
-# Story 2.2: Lazy-loaded reranker singleton
-_local_reranker = None
+# Story 2.2: Lazy-loaded reranker singleton (Cohere only — local uses get_reranker)
 _cohere_reranker = None
-_reranker_init_attempted = False
 
 # 全局客户端实例 (懒加载)
 _graphiti_client: Optional[GraphitiClient] = None
@@ -237,16 +235,25 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
 
-    # ✅ Story 12.2: 使用真实LanceDB客户端
+    # Story 2.4: Extract course_id and tags from state for pre-filtering
+    course_id = state.get("course_id")
+    tags = state.get("tags")
+    # Story 2.4: Use hybrid search as default (jieba FTS + Dense vector)
+    search_type = _safe_get_config(runtime, "search_type", "hybrid")
+
+    # ✅ Story 12.2 + Story 2.4: 使用真实LanceDB客户端 with hybrid search
     try:
         client = await _get_lancedb_client()
 
-        # 搜索多个表并合并结果
+        # 搜索多个表并合并结果 (Story 2.4: hybrid + course/tags filter)
         lancedb_results = await client.search_multiple_tables(
             query=query,
             canvas_file=canvas_file,
             subject=subject,
-            num_results_per_table=batch_size // 2 + 1,  # 每个表返回一半结果
+            num_results_per_table=batch_size // 2 + 1,
+            query_type=search_type,
+            course_id=course_id,
+            tags=tags,
         )
 
         # 限制总结果数
@@ -318,9 +325,11 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     vault_notes_results = state.get("vault_notes_results", [])
 
     # 获取配置 (Story 12.K.2: Safe config access)
-    fusion_strategy = _safe_get_config(runtime, "fusion_strategy", "rrf")
+    fusion_strategy = _safe_get_config(runtime, "fusion_strategy", "layered_rrf")
     source_weights = _safe_get_config(runtime, "source_weights", DEFAULT_SOURCE_WEIGHTS)
     time_decay_factor = _safe_get_config(runtime, "time_decay_factor", 0.05)
+    # Story 2.5: Fusion groups config
+    fusion_groups = _safe_get_config(runtime, "fusion_groups", DEFAULT_FUSION_GROUPS)
 
     # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
     graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
@@ -354,7 +363,10 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     # ✅ Story 23.3 AC 3: 多模态结果已包含在 all_source_results 中
     # Story 23.4: 使用多源融合，所有结果通过 all_source_results 处理
 
-    if fusion_strategy == "rrf":
+    if fusion_strategy == "layered_rrf":
+        # Story 2.5 AC-1: 3-group layered RRF + z-score normalization
+        fused_results = _fuse_layered_rrf(all_source_results, fusion_groups)
+    elif fusion_strategy == "rrf":
         # RRF算法: score = Σ(1/(k+rank)), k=60
         # Story 23.4: 使用多源融合函数
         fused_results = _fuse_rrf_multi_source(all_source_results)
@@ -504,6 +516,114 @@ def _fuse_rrf_multi_source(all_source_results: Dict[str, List[SearchResult]], k:
     return fused_results
 
 
+def _fuse_layered_rrf(
+    all_source_results: Dict[str, List[SearchResult]],
+    fusion_groups: Dict[str, List[str]],
+    k: int = 60,
+) -> List[SearchResult]:
+    """
+    Story 2.5 AC-1: 3-group layered RRF fusion with z-score cross-group normalization.
+
+    1. Group 6 channels into 3 semantic groups (Dense/Graph/Personal)
+    2. Within each group: RRF fusion (k=60) to produce group-level ranking
+    3. Across groups: z-score normalization to make scores comparable
+    4. Merge all normalized results and sort by final score
+
+    Reference: HF-RAG paper arXiv:2509.02837 — layered fusion +3% F1 over flat RRF.
+    """
+    import hashlib
+    import math
+
+    group_results: Dict[str, List[SearchResult]] = {}
+
+    # Step 1: Intra-group RRF fusion
+    for group_name, source_names in fusion_groups.items():
+        # Collect results from sources in this group
+        group_source_results: Dict[str, List[SearchResult]] = {}
+        for source_name in source_names:
+            if source_name in all_source_results:
+                group_source_results[source_name] = all_source_results[source_name]
+
+        if not group_source_results:
+            continue
+
+        # RRF within group (reuse flat RRF logic with dedup)
+        doc_scores: Dict[str, float] = {}
+        doc_data: Dict[str, SearchResult] = {}
+        content_fps: Dict[str, str] = {}
+
+        for source_name, results in group_source_results.items():
+            for rank, result in enumerate(results, start=1):
+                doc_id = result.get("doc_id", f"{source_name}_{rank}")
+                content = result.get("content", "")
+                metadata = result.get("metadata", {})
+                file_path = metadata.get("file_path", "")
+                fp_source = f"{file_path}:{content[:200]}"
+                fp = hashlib.md5(fp_source.encode()).hexdigest()
+
+                if fp in content_fps:
+                    existing_id = content_fps[fp]
+                    doc_scores[existing_id] = doc_scores.get(existing_id, 0.0) + 1.0 / (k + rank)
+                    continue
+
+                content_fps[fp] = doc_id
+                doc_scores[doc_id] = doc_scores.get(doc_id, 0.0) + 1.0 / (k + rank)
+
+                if doc_id not in doc_data:
+                    doc_data[doc_id] = dict(result)
+                    if "metadata" not in doc_data[doc_id]:
+                        doc_data[doc_id]["metadata"] = {}
+                    if "source" not in doc_data[doc_id]["metadata"]:
+                        doc_data[doc_id]["metadata"]["source"] = source_name
+
+        # Build group result list with RRF scores
+        group_fused: List[SearchResult] = []
+        for doc_id, rrf_score in sorted(doc_scores.items(), key=lambda x: x[1], reverse=True):
+            result = doc_data[doc_id]
+            result["score"] = rrf_score
+            result["metadata"]["fusion_group"] = group_name
+            result["metadata"]["fusion_method"] = "layered_rrf"
+            group_fused.append(result)
+
+        group_results[group_name] = group_fused
+
+        # Story 2.5 AC-5: Log group stats
+        top1_score = group_fused[0]["score"] if group_fused else 0.0
+        logger.debug(f"[_fuse_layered_rrf] Group '{group_name}': {len(group_fused)} docs, top-1 RRF={top1_score:.4f}")
+
+    # Step 2: Z-score cross-group normalization
+    all_normalized: List[SearchResult] = []
+    for group_name, results in group_results.items():
+        if not results:
+            continue
+
+        scores = [r["score"] for r in results]
+        mean_score = sum(scores) / len(scores)
+        std_score = math.sqrt(sum((s - mean_score) ** 2 for s in scores) / len(scores))
+
+        for result in results:
+            if std_score > 0:
+                z_score = (result["score"] - mean_score) / std_score
+            else:
+                z_score = 0.0
+            result["score"] = z_score
+            result["metadata"]["z_score"] = z_score
+            all_normalized.append(result)
+
+        # Story 2.5 AC-5: Log normalization stats
+        top1_z = results[0]["score"] if results else 0.0
+        logger.debug(
+            f"[_fuse_layered_rrf] Group '{group_name}' z-score: "
+            f"mean={mean_score:.4f}, std={std_score:.4f}, top-1 z={top1_z:.4f}"
+        )
+
+    # Step 3: Global sort by normalized z-score
+    all_normalized.sort(key=lambda x: x["score"], reverse=True)
+
+    # Return top-30 candidates (reranker will further filter in next node)
+    return all_normalized[:30]
+
+
 def _fuse_weighted_multi_source(
     all_source_results: Dict[str, List[SearchResult]], source_weights: Dict[str, float]
 ) -> List[SearchResult]:
@@ -624,6 +744,65 @@ def _fuse_cascade_multi_source(
 
 
 # ========================================
+# Story 2.5: Adaptive-k 分数断崖自动截取
+# ========================================
+
+
+def _adaptive_k_truncate(
+    results: List[SearchResult],
+    buffer: int = 5,
+    min_k: int = 3,
+    max_k: int = 15,
+    epsilon: float = 0.01,
+) -> List[SearchResult]:
+    """
+    Story 2.5 AC-3: Adaptive-k — automatically truncate results at the score cliff.
+
+    Algorithm:
+    1. Compute adjacent score gaps: gap_i = score_i - score_{i+1}
+    2. Find max_gap_idx = argmax(gaps) — the natural boundary between relevant/irrelevant
+    3. cut = clamp(max_gap_idx + 1 + buffer, min_k, max_k)
+
+    Simple queries (scores clustered high) -> few results (3-5)
+    Complex queries (scores spread out) -> more results (10-15)
+
+    Reference: EMNLP 2025 Megagon Labs — Adaptive-k reduces 99% useless tokens.
+    """
+    if len(results) <= min_k:
+        logger.debug(f"[adaptive_k] Results ({len(results)}) <= min_k ({min_k}), returning all")
+        return results
+
+    # Compute gaps between adjacent scores
+    scores = [r["score"] for r in results]
+    gaps = [scores[i] - scores[i + 1] for i in range(len(scores) - 1)]
+
+    if not gaps:
+        return results[:max_k]
+
+    max_gap = max(gaps)
+
+    # If all scores are nearly identical (no significant cliff), return max_k
+    if max_gap < epsilon:
+        logger.debug(
+            f"[adaptive_k] max_gap={max_gap:.4f} < epsilon={epsilon}, no cliff detected, returning max_k={max_k}"
+        )
+        return results[:max_k]
+
+    max_gap_idx = gaps.index(max_gap)
+    raw_cut = max_gap_idx + 1 + buffer
+    cut = min(max(raw_cut, min_k), max_k)
+
+    # Story 2.5 AC-5: Log truncation decision
+    logger.info(
+        f"[adaptive_k] max_gap={max_gap:.4f} at idx={max_gap_idx}, "
+        f"raw_cut={raw_cut}, final_cut={cut}, "
+        f"top-3 scores=[{', '.join(f'{s:.4f}' for s in scores[:3])}]"
+    )
+
+    return results[:cut]
+
+
+# ========================================
 # Node 4: Reranking
 # ========================================
 
@@ -666,34 +845,49 @@ async def rerank_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig
         logger.debug(f"[rerank_results] hybrid_auto resolved to: {reranking_strategy}")
 
     if reranking_strategy == "local":
-        # Local Cross-Encoder reranking
-        reranked_results = await _rerank_local(fused_results, state)
+        # Local Cross-Encoder reranking (Story 2.5: gte-reranker via get_reranker)
+        reranked_results = await _rerank_local(fused_results, state, runtime)
     elif reranking_strategy == "cohere":
         # Cohere API reranking
         reranked_results = await _rerank_cohere(fused_results, state)
     else:
         raise ValueError(f"Unknown reranking_strategy: {reranking_strategy}")
 
+    # Story 2.5 AC-3: Adaptive-k truncation after reranking
+    adaptive_buffer = _safe_get_config(runtime, "adaptive_k_buffer", 5)
+    adaptive_min = _safe_get_config(runtime, "adaptive_k_min", 3)
+    adaptive_max = _safe_get_config(runtime, "adaptive_k_max", 15)
+    pre_truncate_count = len(reranked_results)
+    reranked_results = _adaptive_k_truncate(
+        reranked_results,
+        buffer=adaptive_buffer,
+        min_k=adaptive_min,
+        max_k=adaptive_max,
+    )
+
     latency_ms = (time.perf_counter() - start_time) * 1000
 
-    # ✅ Story 23.3: 节点出口日志
+    # ✅ Story 23.3 + 2.5: 节点出口日志 (includes adaptive-k info)
     logger.debug(
-        f"[rerank_results] END - strategy={reranking_strategy}, results={len(reranked_results)}, latency={latency_ms:.2f}ms"
+        f"[rerank_results] END - strategy={reranking_strategy}, "
+        f"pre_adaptive={pre_truncate_count}, post_adaptive={len(reranked_results)}, "
+        f"latency={latency_ms:.2f}ms"
     )
 
     return {"reranked_results": reranked_results, "reranking_latency_ms": latency_ms}
 
 
-async def _rerank_local(results: List[SearchResult], state: CanvasRAGState) -> List[SearchResult]:
+async def _rerank_local(
+    results: List[SearchResult],
+    state: CanvasRAGState,
+    runtime: Optional[Runtime[CanvasRAGConfig]] = None,
+) -> List[SearchResult]:
     """
-    Local Cross-Encoder Reranking using bge-reranker-base.
+    Local Cross-Encoder Reranking.
 
-    Story 2.2 Task 1: Activate LocalReranker from reranking.py.
-    Uses lazy-loaded singleton to avoid reloading the model on every call.
+    Story 2.5: Uses get_reranker() singleton (gte-reranker-modernbert-base, fp16).
     Falls back to original ordering if sentence-transformers is unavailable.
     """
-    global _local_reranker, _reranker_init_attempted
-
     if not results:
         return results
 
@@ -712,31 +906,26 @@ async def _rerank_local(results: List[SearchResult], state: CanvasRAGState) -> L
     if not CROSS_ENCODER_AVAILABLE:
         logger.warning(
             "[_rerank_local] sentence-transformers not installed, "
-            "returning results with original RRF scores (reranker degraded)"
+            "returning results with original scores (reranker degraded)"
         )
-        # Mark results as not reranked so check_quality can adjust thresholds
         for r in results:
             if "metadata" not in r:
                 r["metadata"] = {}
             r["metadata"]["reranked"] = False
         return results
 
-    # Lazy-load LocalReranker singleton
-    if _local_reranker is None and not _reranker_init_attempted:
-        _reranker_init_attempted = True
-        try:
-            from agentic_rag.reranking import LocalReranker
+    # Story 2.5: Use get_reranker() singleton with config-driven model name
+    default_model = "Alibaba-NLP/gte-reranker-modernbert-base"
+    if runtime:
+        model_name = _safe_get_config(runtime, "reranker_model_name", default_model)
+        torch_dtype = _safe_get_config(runtime, "reranker_torch_dtype", "float16")
+    else:
+        model_name = default_model
+        torch_dtype = "float16"
 
-            _local_reranker = LocalReranker(
-                model_name="BAAI/bge-reranker-base",
-                batch_size=32,
-            )
-            logger.info("[_rerank_local] LocalReranker singleton initialized successfully")
-        except Exception as e:
-            logger.error(f"[_rerank_local] Failed to initialize LocalReranker: {e}")
-
-    if _local_reranker is None:
-        logger.warning("[_rerank_local] LocalReranker not available, returning original ordering")
+    reranker = get_reranker(model_name=model_name, torch_dtype=torch_dtype)
+    if reranker is None:
+        logger.warning("[_rerank_local] Reranker not available, returning original ordering")
         for r in results:
             if "metadata" not in r:
                 r["metadata"] = {}
@@ -744,7 +933,7 @@ async def _rerank_local(results: List[SearchResult], state: CanvasRAGState) -> L
         return results
 
     try:
-        reranked = await _local_reranker.rerank_search_results(
+        reranked = await reranker.rerank_search_results(
             query=query,
             search_results=results,
             top_k=len(results),

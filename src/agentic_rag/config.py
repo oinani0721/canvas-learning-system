@@ -22,7 +22,7 @@ Updated: 2025-12-12 (Story 23.2 - LanceDB Embedding Config)
 """
 
 import os
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from typing_extensions import TypedDict
 
@@ -33,21 +33,20 @@ from typing_extensions import TypedDict
 # ============================================================================
 
 # Supported embedding models with their dimensions
+# Story 2.3: bge-m3 1024d Dense 为默认模型，旧模型保留兼容但标记 deprecated
 EMBEDDING_MODELS: Dict[str, int] = {
-    "sentence-transformers/all-MiniLM-L6-v2": 384,  # Default, fast
-    "sentence-transformers/all-mpnet-base-v2": 768,  # Higher quality
-    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,  # Multilingual
+    "BAAI/bge-m3": 1024,  # Default — 中英双语，MIRACL nDCG@10=63.9
+    "sentence-transformers/all-MiniLM-L6-v2": 384,  # [deprecated] fast, English-only
+    "sentence-transformers/all-mpnet-base-v2": 768,  # [deprecated] higher quality, English-only
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,  # [deprecated] multilingual
 }
 
 # ✅ Story 23.2 AC 4: 向量维度和模型可配置
 LANCEDB_CONFIG: Dict[str, Any] = {
     "db_path": os.environ.get("LANCEDB_PATH", "data/lancedb"),
     "table_name": os.environ.get("LANCEDB_TABLE", "canvas_nodes"),
-    "embedding_model": os.environ.get(
-        "LANCEDB_EMBEDDING_MODEL",
-        "sentence-transformers/all-MiniLM-L6-v2"
-    ),
-    "embedding_dim": int(os.environ.get("LANCEDB_EMBEDDING_DIM", "384")),
+    "embedding_model": os.environ.get("LANCEDB_EMBEDDING_MODEL", "BAAI/bge-m3"),
+    "embedding_dim": int(os.environ.get("LANCEDB_EMBEDDING_DIM", "1024")),
     "batch_size": int(os.environ.get("LANCEDB_BATCH_SIZE", "100")),
     "timeout_ms": int(os.environ.get("LANCEDB_TIMEOUT_MS", "400")),
 }
@@ -56,17 +55,17 @@ LANCEDB_CONFIG: Dict[str, Any] = {
 # ✅ Story 23.2 AC 2: Canvas节点批量索引
 # ✅ Verified from specs/data/canvas-node.schema.json#/properties
 CANVAS_NODES_SCHEMA = {
-    "doc_id": str,           # 文档唯一ID
-    "content": str,          # 节点文本内容
-    "vector": list,          # embedding向量 (384/768维)
-    "canvas_file": str,      # Canvas文件路径
-    "node_id": str,          # 原始节点ID
-    "node_type": str,        # 节点类型 (text/file/group/link)
-    "color": str,            # 颜色代码 (1-6)
-    "x": int,                # X坐标
-    "y": int,                # Y坐标
-    "timestamp": str,        # 索引时间
-    "metadata_json": str,    # 其他元数据JSON
+    "doc_id": str,  # 文档唯一ID
+    "content": str,  # 节点文本内容
+    "vector": list,  # embedding向量 (1024维, bge-m3 Dense)
+    "canvas_file": str,  # Canvas文件路径
+    "node_id": str,  # 原始节点ID
+    "node_type": str,  # 节点类型 (text/file/group/link)
+    "color": str,  # 颜色代码 (1-6)
+    "x": int,  # X坐标
+    "y": int,  # Y坐标
+    "timestamp": str,  # 索引时间
+    "metadata_json": str,  # 其他元数据JSON
 }
 
 
@@ -123,8 +122,23 @@ class CanvasRAGConfig(TypedDict, total=False):
     lancedb_batch_size: Optional[int]  # LanceDB专用 (默认同retrieval_batch_size)
 
     # 策略配置
-    fusion_strategy: Literal["rrf", "weighted", "cascade"]  # 融合算法
+    fusion_strategy: Literal["rrf", "weighted", "cascade", "layered_rrf"]  # 融合算法
     reranking_strategy: Literal["local", "cohere", "hybrid_auto"]  # Reranking策略
+
+    # Story 2.4: 默认搜索类型
+    search_type: Literal["vector", "hybrid"]  # 默认搜索模式
+
+    # Story 2.5: Reranker 模型配置
+    reranker_model_name: str  # 精排模型名称 (默认 gte-reranker-modernbert-base)
+    reranker_torch_dtype: str  # 推理精度 (默认 float16)
+
+    # Story 2.5: 分层 RRF 融合组映射
+    fusion_groups: Dict[str, List[str]]  # 3 组分层映射
+
+    # Story 2.5: Adaptive-k 动态截取参数
+    adaptive_k_buffer: int  # gap 后缓冲区 (默认 5)
+    adaptive_k_min: int  # 最小返回数量 (默认 3)
+    adaptive_k_max: int  # 最大返回数量 (默认 15)
 
     # 质量控制配置
     quality_threshold: float  # 质量阈值 (0.7=high, 0.5=medium)
@@ -150,17 +164,27 @@ class CanvasRAGConfig(TypedDict, total=False):
 # Story 23.4: 默认数据源权重配置
 # ✅ Verified from Story 23.4 Dev Notes: Data Sources Overview
 DEFAULT_SOURCE_WEIGHTS = {
-    "graphiti": 0.25,      # Graphiti知识图谱
-    "lancedb": 0.25,       # LanceDB向量检索
-    "textbook": 0.20,      # 教材上下文
+    "graphiti": 0.25,  # Graphiti知识图谱
+    "lancedb": 0.25,  # LanceDB向量检索
+    "textbook": 0.20,  # 教材上下文
     "cross_canvas": 0.15,  # 跨Canvas关联
-    "multimodal": 0.15     # 多模态检索
+    "multimodal": 0.15,  # 多模态检索
+}
+
+# Story 2.5: 默认分层 RRF 融合组映射
+# Dense 组: 笔记内容的语义和关键词匹配
+# Graph 组: 知识图谱结构和链接关系
+# Personal 组: 用户个人笔记和多模态内容
+DEFAULT_FUSION_GROUPS: Dict[str, List[str]] = {
+    "dense": ["lancedb", "textbook"],
+    "graph": ["graphiti", "cross_canvas"],
+    "personal": ["vault_notes", "multimodal"],
 }
 
 # 默认配置
 DEFAULT_CONFIG = CanvasRAGConfig(
     retrieval_batch_size=10,
-    fusion_strategy="rrf",
+    fusion_strategy="layered_rrf",
     reranking_strategy="hybrid_auto",
     quality_threshold=0.7,
     max_rewrite_iterations=2,
@@ -170,7 +194,18 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     enable_caching=True,
     # Story 23.4: 多源融合配置
     source_weights=DEFAULT_SOURCE_WEIGHTS,
-    time_decay_factor=0.05,  # 时间衰减因子
+    time_decay_factor=0.05,
+    # Story 2.4: 默认搜索类型为 hybrid
+    search_type="hybrid",
+    # Story 2.5: Reranker 配置
+    reranker_model_name="Alibaba-NLP/gte-reranker-modernbert-base",
+    reranker_torch_dtype="float16",
+    # Story 2.5: 分层 RRF 融合组
+    fusion_groups=DEFAULT_FUSION_GROUPS,
+    # Story 2.5: Adaptive-k 参数
+    adaptive_k_buffer=5,
+    adaptive_k_min=3,
+    adaptive_k_max=15,
 )
 
 

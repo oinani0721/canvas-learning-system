@@ -2,6 +2,7 @@
  * Canvas Learning System - API Client
  * Story 1.1: Plugin scaffold (AC-4)
  * Story 1.3: Model config sync + LLM test (AC-8, AC-3/AC-4)
+ * Story 1.5: Sync batch API (AC-7)
  * Story 5.2: Mastery WebSocket + getBoardMastery (AC-2, Task 6/7)
  *
  * Provides REST communication with the FastAPI backend.
@@ -10,9 +11,24 @@
  * [Source: _bmad-output/implementation-artifacts/1-3-model-config-settings-panel.md#Task 10.3]
  */
 
-import type { ApiResponse, HealthResponse } from '../types/api';
+import type {
+  ApiResponse,
+  HealthResponse,
+  ImageIndexResult,
+  SyncBatchRequest,
+  SyncBatchResponse,
+} from '../types/api';
+import type { RecommendationResponse } from '../types/canvas';
 import type { CanvasLearningSettings } from '../types/settings';
 import type { NodeMasteryData } from '../stores/mastery-state.svelte';
+import type {
+  ExamSession,
+  MasteryBatchResponse,
+  ProfileSummary,
+  QAHighlightCluster,
+  TipItem,
+  WeaknessItem,
+} from '../types/canvas';
 import { masteryState } from '../stores/mastery-state.svelte';
 
 /** Convert snake_case keys to camelCase. */
@@ -355,5 +371,218 @@ export class ApiClient {
       );
       return new Array<{ nodeId: string } & NodeMasteryData>();
     }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 1.5: Sync Batch API (AC-7)
+  // [Source: _bmad-output/implementation-artifacts/1-5-canvas-data-sync-backend-kg.md#Task 7]
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 5.3: Profile API (Learning Profile Panel)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get mastery summary for a node's learning profile.
+   * Returns prescriptive (supportive) language, not raw numbers.
+   */
+  async getProfileSummary(nodeId: string): Promise<ProfileSummary | null> {
+    try {
+      return await this.get<ProfileSummary>(
+        `/api/v1/profile/${encodeURIComponent(nodeId)}/summary`,
+      );
+    } catch {
+      console.warn(`[Canvas Learning] Failed to fetch profile summary for "${nodeId}"`);
+      return null;
+    }
+  }
+
+  /**
+   * Get tips annotations for a node from Graphiti.
+   * NFR-REL-02: Returns empty result on backend failure (degradation).
+   */
+  async getProfileTips(nodeId: string): Promise<{ tips: TipItem[]; total: number }> {
+    try {
+      return await this.get<{ tips: TipItem[]; total: number }>(
+        `/api/v1/profile/${encodeURIComponent(nodeId)}/tips`,
+      );
+    } catch {
+      console.warn(`[Canvas Learning] Failed to fetch tips for "${nodeId}"`);
+      return { tips: new Array<TipItem>(), total: 0 };
+    }
+  }
+
+  /**
+   * Get weakness patterns for a node (positive framing).
+   * NFR-REL-02: Returns empty result on backend failure (degradation).
+   */
+  async getProfileWeaknesses(nodeId: string): Promise<{ weaknesses: WeaknessItem[]; total: number }> {
+    try {
+      return await this.get<{ weaknesses: WeaknessItem[]; total: number }>(
+        `/api/v1/profile/${encodeURIComponent(nodeId)}/weaknesses`,
+      );
+    } catch {
+      console.warn(`[Canvas Learning] Failed to fetch weaknesses for "${nodeId}"`);
+      return { weaknesses: new Array<WeaknessItem>(), total: 0 };
+    }
+  }
+
+  /**
+   * Get key Q&A highlights for a node, clustered by topic.
+   * NFR-REL-02: Returns empty result on backend failure (degradation).
+   */
+  async getProfileQAHighlights(nodeId: string): Promise<{ clusters: QAHighlightCluster[]; total: number }> {
+    try {
+      return await this.get<{ clusters: QAHighlightCluster[]; total: number }>(
+        `/api/v1/profile/${encodeURIComponent(nodeId)}/qa-highlights`,
+      );
+    } catch {
+      console.warn(`[Canvas Learning] Failed to fetch QA highlights for "${nodeId}"`);
+      return { clusters: new Array<QAHighlightCluster>(), total: 0 };
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 5.4: Dashboard API (FSRS Review Dashboard)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get all exam sessions, optionally filtered by board ID.
+   * NFR-REL-02: Returns empty list when backend is unreachable (offline degradation).
+   */
+  async getExamSessions(boardId?: string): Promise<ExamSession[]> {
+    try {
+      const query = boardId ? `?board_id=${encodeURIComponent(boardId)}` : '';
+      const result = await this.get<{ sessions: ExamSession[]; total: number }>(
+        `/api/v1/exam_sessions${query}`,
+      );
+      return result.sessions;
+    } catch {
+      console.warn('[Canvas Learning] Failed to fetch exam sessions — backend may be offline');
+      return new Array<ExamSession>();
+    }
+  }
+
+  /**
+   * Get batch mastery data for all concepts (used by Dashboard review tab).
+   * Returns null when backend is unreachable.
+   */
+  async getMasteryBatch(): Promise<MasteryBatchResponse | null> {
+    try {
+      return await this.get<MasteryBatchResponse>('/api/v1/mastery/batch');
+    } catch {
+      console.warn('[Canvas Learning] Failed to fetch mastery batch — backend may be offline');
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 1.6: Image Index API (AC-4)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Submit an image for OCR indexing.
+   *
+   * POST /api/v1/index/image
+   *
+   * @param nodeId - The image node ID.
+   * @param imageData - Base64 DataURL of the image.
+   * @param signal - Optional AbortSignal for cancellation.
+   */
+  async indexImage(
+    nodeId: string,
+    imageData: string,
+    signal?: AbortSignal,
+  ): Promise<ImageIndexResult> {
+    const response = await fetch(`${this.baseUrl}/api/v1/index/image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node_id: nodeId, image_data: imageData }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+
+    const raw = await response.json();
+    return convertKeys(raw, snakeToCamel) as ImageIndexResult;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 1.7: Recommendation API (AC-1)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Fetch concept-relation recommendations for a canvas board.
+   *
+   * POST /api/v1/canvas/{canvasId}/recommendations
+   *
+   * Silent degradation: returns empty recommendations on any error.
+   */
+  async fetchRecommendations(
+    canvasId: string,
+    dismissedPairs: Array<{ nodeIdA: string; nodeIdB: string }>,
+  ): Promise<RecommendationResponse> {
+    try {
+      return await this.post<RecommendationResponse>(
+        `/api/v1/canvas/${encodeURIComponent(canvasId)}/recommendations`,
+        { dismissedPairs },
+      );
+    } catch {
+      console.warn('[Canvas Learning] Recommendation fetch failed — silent degradation');
+      return {
+        recommendations: new Array<import('../types/canvas').Recommendation>(),
+        canvasId,
+        analyzedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  /**
+   * Send a batch of sync operations to the backend for Neo4j persistence.
+   *
+   * POST /api/v1/sync/batch
+   *
+   * Throws SyncNetworkError on network failures and SyncServerError on
+   * server-side errors (5xx). The caller (SyncEngine) uses these to
+   * decide retry vs. offline behavior.
+   *
+   * @param request - The batch sync request.
+   * @returns SyncBatchResponse with per-operation results.
+   */
+  async syncBatch(request: SyncBatchRequest): Promise<SyncBatchResponse> {
+    try {
+      return await this.post<SyncBatchResponse>(
+        '/api/v1/sync/batch',
+        request,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+        throw new SyncNetworkError(message);
+      }
+      throw new SyncServerError(message);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Story 1.5: Sync Error Types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Network-level error (backend unreachable). */
+export class SyncNetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncNetworkError';
+  }
+}
+
+/** Server-side error (5xx response). */
+export class SyncServerError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SyncServerError';
   }
 }

@@ -2,6 +2,7 @@
   /**
    * Canvas Learning System - Root Application Component
    * Story 1.4: Top-level routing between Dashboard and Canvas views (AC-7, Task 8.2)
+   * Story 1.5: SyncIndicator global mount (AC-6, Task 4.4)
    *
    * Routes:
    *   'dashboard' → DashboardView (board list)
@@ -11,6 +12,7 @@
   import { canvasState } from './stores/canvas-state';
   import DashboardView from './components/dashboard/DashboardView.svelte';
   import CanvasView from './components/canvas/CanvasView.svelte';
+  import SyncIndicator from './components/global/SyncIndicator.svelte';
 
   // Force reactivity for route changes
   let stateVersion = $state(0);
@@ -44,6 +46,8 @@
         ←
       </button>
       <h3 class="cl-main-view__title">{boardName || 'Canvas'}</h3>
+      <div class="cl-main-view__spacer"></div>
+      <SyncIndicator />
     </div>
     <div class="cl-main-view__content cl-main-view__content--canvas">
       <CanvasView />
@@ -52,6 +56,8 @@
     <!-- Dashboard mode -->
     <div class="cl-main-view__header">
       <h3 class="cl-main-view__title">Canvas Learning System</h3>
+      <div class="cl-main-view__spacer"></div>
+      <SyncIndicator />
     </div>
     <div class="cl-main-view__content">
       <DashboardView />
@@ -82,6 +88,10 @@
     font-size: 1.1em;
     font-weight: 600;
     margin: 0;
+  }
+
+  .cl-main-view__spacer {
+    flex: 1;
   }
 
   .cl-main-view__content {

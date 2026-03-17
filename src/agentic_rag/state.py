@@ -19,7 +19,7 @@ Version: 1.0.0
 Created: 2025-11-29
 """
 
-from typing import Annotated, Any, Dict, List, Literal, Optional, Sequence
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from langgraph.graph import MessagesState
 from typing_extensions import TypedDict
@@ -45,6 +45,7 @@ class SearchResult(TypedDict):
 
     统一格式，兼容Graphiti和LanceDB结果。
     """
+
     doc_id: str
     content: str
     score: float  # 原始相似度/相关度分数
@@ -99,7 +100,7 @@ class CanvasRAGState(MessagesState):
 
     # 策略配置字段
     fusion_strategy: Annotated[
-        Literal["rrf", "weighted", "cascade"],
+        Literal["rrf", "weighted", "cascade", "layered_rrf"],
         "融合算法选择",
     ]
     reranking_strategy: Annotated[
@@ -119,6 +120,10 @@ class CanvasRAGState(MessagesState):
     canvas_file: Annotated[Optional[str], "Canvas文件路径"]
     subject: Annotated[Optional[str], "学科标识(用于LanceDB隔离)"]
     is_review_canvas: Annotated[bool, "是否为检验白板场景"]
+
+    # Story 2.4: 课程/标签过滤字段
+    course_id: Annotated[Optional[str], "课程ID (用于按课程过滤搜索范围)"]
+    tags: Annotated[Optional[List[str]], "标签列表 (用于按标签过滤搜索范围, OR 匹配)"]
 
     # 原始Query (用于重写)
     original_query: Annotated[Optional[str], "原始用户查询"]
@@ -150,6 +155,7 @@ class CanvasRAGState(MessagesState):
 # evaluates whether results are sufficient.
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class AgentRAGState(MessagesState):
     """
     State for LLM-controlled Agentic RAG (Phase 3).
@@ -170,26 +176,14 @@ class AgentRAGState(MessagesState):
     has_specific_request: Annotated[bool, "用户是否有具体请求（如列出笔记）"]
 
     # ── LLM-generated Search Queries ──
-    search_queries: Annotated[
-        List[str],
-        "LLM生成的搜索查询列表（可能多个角度）"
-    ]
+    search_queries: Annotated[List[str], "LLM生成的搜索查询列表（可能多个角度）"]
 
     # ── Retrieved Documents ──
-    retrieved_documents: Annotated[
-        List[SearchResult],
-        "当前迭代检索到的文档"
-    ]
+    retrieved_documents: Annotated[List[SearchResult], "当前迭代检索到的文档"]
 
     # ── LLM Document Grading ──
-    document_grades: Annotated[
-        List[str],
-        "LLM对每个文档的相关性评分: relevant / irrelevant"
-    ]
-    relevant_documents: Annotated[
-        List[SearchResult],
-        "LLM判断为相关的文档子集"
-    ]
+    document_grades: Annotated[List[str], "LLM对每个文档的相关性评分: relevant / irrelevant"]
+    relevant_documents: Annotated[List[SearchResult], "LLM判断为相关的文档子集"]
 
     # ── Generation Control ──
     retry_count: Annotated[int, "当前重试计数（最大3次）"]
@@ -197,10 +191,7 @@ class AgentRAGState(MessagesState):
 
     # ── Output ──
     final_answer: Annotated[Optional[str], "LLM生成的最终回答"]
-    citations: Annotated[
-        List[Dict[str, Any]],
-        "引用列表: [{source, content_snippet, line_range}]"
-    ]
+    citations: Annotated[List[Dict[str, Any]], "引用列表: [{source, content_snippet, line_range}]"]
 
     # ── Agent Configuration (passed at invocation) ──
     agent_type: Annotated[Optional[str], "Agent类型（如oral-explanation）"]

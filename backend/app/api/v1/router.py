@@ -17,6 +17,8 @@ from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.config import config_router
+from app.api.v1.endpoints.index_image import index_image_router
+from app.api.v1.endpoints.exam_sessions import exam_sessions_router
 from app.api.v1.endpoints.intelligent_parallel import (
     intelligent_parallel_router,
     single_agent_router,
@@ -26,9 +28,11 @@ from app.api.v1.endpoints.memory import memory_router
 from app.api.v1.endpoints.metadata import metadata_router  # ✅ Story 38.1
 from app.api.v1.endpoints.monitoring import monitoring_router
 from app.api.v1.endpoints.multimodal import multimodal_router
+from app.api.v1.endpoints.profile import profile_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.textbook import textbook_router
 from app.api.v1.system import router as system_router  # Story 1.1
 
@@ -41,34 +45,20 @@ router = APIRouter()
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: include_router tags)
-router.include_router(
-    health.router,
-    tags=["System"],
-    responses={
-        500: {"description": "Internal server error"}
-    }
-)
+router.include_router(health.router, tags=["System"], responses={500: {"description": "Internal server error"}})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # System Infrastructure Health (Story 1.1)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-router.include_router(
-    system_router,
-    responses={
-        500: {"description": "System health check error"}
-    }
-)
+router.include_router(system_router, responses={500: {"description": "System health check error"}})
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Config Routes (AI Configuration Runtime Override)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    config_router,
-    prefix="/config",
-    tags=["Config"],
-    responses={500: {"description": "Configuration error"}}
+    config_router, prefix="/config", tags=["Config"], responses={500: {"description": "Configuration error"}}
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -85,8 +75,8 @@ router.include_router(
     responses={
         400: {"description": "Validation error"},
         404: {"description": "Not found"},
-        500: {"description": "Internal server error"}
-    }
+        500: {"description": "Internal server error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -94,10 +84,7 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    canvas_router,
-    prefix="/canvas",
-    tags=["Canvas"],
-    responses={404: {"description": "Canvas not found"}}
+    canvas_router, prefix="/canvas", tags=["Canvas"], responses={404: {"description": "Canvas not found"}}
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -105,21 +92,27 @@ router.include_router(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 router.include_router(
-    agents_router,
-    prefix="/agents",
-    tags=["Agents"],
-    responses={500: {"description": "Agent call failed"}}
+    agents_router, prefix="/agents", tags=["Agents"], responses={500: {"description": "Agent call failed"}}
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Image Index Routes (Story 1.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    index_image_router,
+    tags=["Index"],
+    responses={
+        400: {"description": "Invalid image data"},
+        503: {"description": "Vision API unavailable"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Review Routes (Story 15.2)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-router.include_router(
-    review_router,
-    prefix="/review",
-    tags=["Review"]
-)
+router.include_router(review_router, prefix="/review", tags=["Review"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Monitoring Routes (Story 17.3)
@@ -131,7 +124,7 @@ router.include_router(
     monitoring_router,
     prefix="/metrics",
     tags=["Monitoring"],
-    responses={500: {"description": "Monitoring service error"}}
+    responses={500: {"description": "Monitoring service error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -145,10 +138,7 @@ router.include_router(
     rollback_router,
     prefix="/rollback",
     tags=["Rollback"],
-    responses={
-        404: {"description": "Operation/snapshot not found"},
-        500: {"description": "Rollback service error"}
-    }
+    responses={404: {"description": "Operation/snapshot not found"}, 500: {"description": "Rollback service error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -162,10 +152,7 @@ router.include_router(
     memory_router,
     prefix="/memory",
     tags=["Memory"],
-    responses={
-        404: {"description": "Episode/concept not found"},
-        500: {"description": "Memory service error"}
-    }
+    responses={404: {"description": "Episode/concept not found"}, 500: {"description": "Memory service error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -179,10 +166,7 @@ router.include_router(
     debug.router,
     prefix="/debug",
     tags=["Debug"],
-    responses={
-        404: {"description": "Bug not found"},
-        500: {"description": "Debug service error"}
-    }
+    responses={404: {"description": "Bug not found"}, 500: {"description": "Debug service error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -196,10 +180,7 @@ router.include_router(
     rag_router,
     prefix="/rag",
     tags=["RAG"],
-    responses={
-        503: {"description": "RAG service unavailable"},
-        500: {"description": "RAG query failed"}
-    }
+    responses={503: {"description": "RAG service unavailable"}, 500: {"description": "RAG query failed"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -212,10 +193,7 @@ router.include_router(
     textbook_router,
     prefix="/textbook",
     tags=["Textbook"],
-    responses={
-        404: {"description": "Textbook not found"},
-        500: {"description": "Textbook sync failed"}
-    }
+    responses={404: {"description": "Textbook not found"}, 500: {"description": "Textbook sync failed"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -231,8 +209,8 @@ router.include_router(
     responses={
         413: {"description": "File too large (max 50MB)"},
         415: {"description": "Unsupported media type"},
-        500: {"description": "Multimodal service error"}
-    }
+        500: {"description": "Multimodal service error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -250,8 +228,8 @@ router.include_router(
         400: {"description": "Invalid request"},
         404: {"description": "Resource not found"},
         409: {"description": "Conflict - session already completed"},
-        500: {"description": "Parallel processing error"}
-    }
+        500: {"description": "Parallel processing error"},
+    },
 )
 
 # ✅ Verified from Story 33.1 - Single Agent Retry Endpoint
@@ -260,10 +238,7 @@ router.include_router(
     single_agent_router,
     prefix="/canvas",
     tags=["Intelligent Parallel"],
-    responses={
-        404: {"description": "Node or canvas not found"},
-        500: {"description": "Agent execution error"}
-    }
+    responses={404: {"description": "Node or canvas not found"}, 500: {"description": "Agent execution error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -276,6 +251,37 @@ router.include_router(
     responses={
         400: {"description": "Invalid grade or level"},
         404: {"description": "Concept not found"},
-        500: {"description": "Mastery engine error"}
-    }
+        500: {"description": "Mastery engine error"},
+    },
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Profile Routes (Story 5.3 - Learning Profile Panel)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    profile_router,
+    tags=["Profile"],
+    responses={404: {"description": "Node not found"}, 500: {"description": "Profile query error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Exam Session Routes (Story 5.4 - FSRS Review Dashboard)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    exam_sessions_router, tags=["Exam Sessions"], responses={500: {"description": "Exam sessions query error"}}
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Canvas Sync Routes (Story 1.5)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 1.5: Canvas data sync from IndexedDB Outbox to Neo4j
+# [Source: _bmad-output/implementation-artifacts/1-5-canvas-data-sync-backend-kg.md]
+router.include_router(
+    sync_router,
+    prefix="/sync",
+    tags=["Sync"],
+    responses={503: {"description": "Neo4j connection unavailable"}, 500: {"description": "Sync processing error"}},
 )

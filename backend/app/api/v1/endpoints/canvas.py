@@ -10,6 +10,8 @@ Only sync_edges (Story 36.4) has a real implementation via CanvasService.
 """
 
 
+import logging
+
 from fastapi import APIRouter, Depends, Response, status
 from pydantic import BaseModel
 
@@ -23,6 +25,12 @@ from app.models import (
     NodeRead,
     NodeUpdate,
 )
+from app.models.recommendation_models import (
+    DismissedPairsRequest,
+    RecommendationResponse,
+)
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -249,3 +257,48 @@ async def sync_edges(
         skipped_count=summary["skipped_count"],
         sync_time_ms=summary["sync_time_ms"]
     )
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 1.7: Concept-Relation Recommendations
+# [Source: _bmad-output/implementation-artifacts/1-7-concept-relation-recommendation.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@canvas_router.post(
+    "/{canvas_id}/recommendations",
+    response_model=RecommendationResponse,
+    summary="Get concept-relation recommendations for a canvas",
+    operation_id="get_canvas_recommendations",
+)
+async def get_recommendations(
+    canvas_id: str,
+    request: DismissedPairsRequest,
+) -> RecommendationResponse:
+    """
+    Analyze a canvas and return concept-relation recommendations.
+
+    Uses two-layer analysis:
+    - L1: bge-m3 text similarity between unconnected nodes
+    - L2: Neo4j 2-hop neighbor co-occurrence patterns
+
+    Returns up to 5 recommendations, filtered by dismissed pairs.
+    Timeout: 5s — returns empty list on timeout (non-blocking).
+
+    Story 1.7 AC-1, AC-2, AC-6
+    """
+    try:
+        from app.clients.neo4j_client import get_neo4j_client
+        from app.services.recommendation_service import RecommendationService
+
+        neo4j_client = get_neo4j_client()
+        service = RecommendationService(neo4j_client)
+        return await service.generate_recommendations(
+            canvas_id=canvas_id,
+            dismissed_pairs=request.dismissed_pairs,
+        )
+    except Exception as e:
+        logger.warning(f"Recommendation endpoint error: {e}")
+        return RecommendationResponse(
+            recommendations=list(),
+            canvas_id=canvas_id,
+        )

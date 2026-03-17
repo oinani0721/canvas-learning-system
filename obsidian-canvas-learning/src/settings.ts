@@ -15,12 +15,13 @@
  * [Source: architecture.md#Authentication & Security — API Key security]
  */
 
-import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
+import { App, Modal, Notice, PluginSettingTab, Setting } from 'obsidian';
 
 import type CanvasLearningPlugin from '../main';
 import { ApiClient } from './services/api-client';
 import type { ComponentStatus } from './types/api';
 import type { LLMProvider } from './types/settings';
+import { systemState } from './stores/system-state.svelte';
 
 /** Display labels for LLM providers. */
 const PROVIDER_LABELS: Record<LLMProvider, string> = {
@@ -97,6 +98,9 @@ export class CanvasLearningSettingTab extends PluginSettingTab {
 
     // ── Section 6: Data management ───────────────────────────────────────────
     this.renderDataManagementSection(containerEl);
+
+    // ── Section 7: Subject management (Story 1.9) ─────────────────────────
+    this.renderSubjectManagementSection(containerEl);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -477,7 +481,7 @@ export class CanvasLearningSettingTab extends PluginSettingTab {
       .setDesc('Create a backup of all learning data')
       .addButton((btn) =>
         btn.setButtonText('Backup').onClick(() => {
-          new Notice('Backup will be available in Story 1.8');
+          new Notice('请使用命令面板 (Ctrl+P) 输入 "Canvas: 备份数据"', 4000);
         }),
       );
 
@@ -489,5 +493,112 @@ export class CanvasLearningSettingTab extends PluginSettingTab {
           new Notice('Index rebuild will be available in Story 2.7');
         }),
       );
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * Section 7: Subject Management (Story 1.9 AC-1)
+   * ═══════════════════════════════════════════════════════════════════════════ */
+
+  private renderSubjectManagementSection(containerEl: HTMLElement): void {
+    containerEl.createEl('h2', { text: '学科管理' });
+
+    const subjects = this.plugin.settings.subjects;
+
+    // Subject list
+    for (const subject of subjects) {
+      const setting = new Setting(containerEl)
+        .setName(subject.name)
+        .setDesc(subject.isDefault ? '默认学科' : '');
+
+      // Edit button
+      setting.addButton((btn) =>
+        btn.setButtonText('编辑').onClick(async () => {
+          const newName = prompt('输入新的学科名称', subject.name);
+          if (newName && newName.trim() && newName.trim() !== subject.name) {
+            subject.name = newName.trim();
+            systemState.updateSubjectName(subject.id, newName.trim());
+            await this.plugin.saveSettings();
+            this.display();
+          }
+        }),
+      );
+
+      // Delete button (disabled for last subject or default)
+      if (!subject.isDefault && subjects.length > 1) {
+        setting.addButton((btn) =>
+          btn
+            .setButtonText('删除')
+            .setWarning()
+            .onClick(async () => {
+              const confirmed = confirm(
+                `删除学科「${subject.name}」不会删除已有数据，确认删除？`,
+              );
+              if (confirmed) {
+                this.plugin.settings.subjects = subjects.filter(
+                  (s) => s.id !== subject.id,
+                );
+                systemState.removeSubject(subject.id);
+                await this.plugin.saveSettings();
+                this.display();
+              }
+            }),
+        );
+      }
+    }
+
+    // Add subject button
+    new Setting(containerEl)
+      .setName('添加学科')
+      .setDesc('创建新的学科分类')
+      .addButton((btn) =>
+        btn.setButtonText('+ 添加').onClick(async () => {
+          const name = prompt('输入学科名称（如 CS188、线性代数、托福听力）');
+          if (name && name.trim()) {
+            const newSubject = systemState.addSubject(name.trim());
+            this.plugin.settings.subjects.push({
+              id: newSubject.id,
+              name: newSubject.name,
+              createdAt: newSubject.createdAt,
+              isDefault: false,
+            });
+            await this.plugin.saveSettings();
+            this.display();
+          }
+        }),
+      );
+
+    // Cross-subject toggle
+    new Setting(containerEl)
+      .setName('跨学科关联')
+      .setDesc('开启后，搜索时会自动发现相关学科的内容')
+      .addToggle((toggle) =>
+        toggle
+          .setValue(this.plugin.settings.crossSubjectEnabled)
+          .onChange(async (val) => {
+            this.plugin.settings.crossSubjectEnabled = val;
+            systemState.setCrossSubjectEnabled(val);
+            await this.plugin.saveSettings();
+          }),
+      );
+
+    // Jaccard threshold slider (only visible when cross-subject is enabled)
+    if (this.plugin.settings.crossSubjectEnabled) {
+      new Setting(containerEl)
+        .setName('关联阈值')
+        .setDesc(
+          `当前: ${this.plugin.settings.crossSubjectThreshold.toFixed(2)} (值越低，跨学科结果越多)`,
+        )
+        .addSlider((slider) =>
+          slider
+            .setLimits(0, 1, 0.05)
+            .setValue(this.plugin.settings.crossSubjectThreshold)
+            .onChange(async (val) => {
+              this.plugin.settings.crossSubjectThreshold = val;
+              systemState.setCrossSubjectThreshold(val);
+              await this.plugin.saveSettings();
+              this.display();
+            }),
+        );
+    }
   }
 }

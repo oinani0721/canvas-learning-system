@@ -1,53 +1,41 @@
 # Canvas Learning System - Subject Configuration
-# Story 30.x: Multi-Subject Memory System (STUB)
+# Story 1.9: Multi-Subject Knowledge Graph Isolation
 """
 Subject-specific configuration for the memory system.
 
-STUB: Full implementation in Story 30.x
+Activated by Story 1.9. Provides:
+- Dynamic subject list (user-managed via Settings UI)
+- Subject path inference from Canvas file paths
+- Group ID construction for Graphiti/Neo4j isolation
 
-TODO: Will implement:
-- Subject-specific memory configuration
-- Subject isolation for multi-subject learning
+[Source: _bmad-output/implementation-artifacts/1-9-multi-subject-kg-isolation.md#Task 5]
 """
 
-from enum import Enum
-from typing import Dict, Optional
+from typing import Optional
 
 
-class SubjectType(str, Enum):
-    """Types of subjects in Canvas Learning System."""
-    MATH = "math"
-    PHYSICS = "physics"
-    COMPUTER_SCIENCE = "computer_science"
-    LANGUAGE = "language"
-    GENERAL = "general"
+# Default subject identifier (used when no subject is specified)
+DEFAULT_SUBJECT_ID = "general"
 
 
-# Default subject configuration
-DEFAULT_SUBJECT = SubjectType.GENERAL
-
-# Subject to Neo4j database mapping (STUB)
-SUBJECT_DATABASE_MAPPING: Dict[SubjectType, str] = {
-    SubjectType.MATH: "neo4j",
-    SubjectType.PHYSICS: "neo4j",
-    SubjectType.COMPUTER_SCIENCE: "neo4j",
-    SubjectType.LANGUAGE: "neo4j",
-    SubjectType.GENERAL: "neo4j",
-}
+def get_database_for_subject(subject_id: str) -> str:
+    """
+    Get Neo4j database name for a subject.
+    All subjects use the same Neo4j database with subjectId property filtering.
+    """
+    return "neo4j"
 
 
-def get_database_for_subject(subject: SubjectType) -> str:
-    """Get Neo4j database name for a subject."""
-    return SUBJECT_DATABASE_MAPPING.get(subject, "neo4j")
-
-
-def get_current_subject() -> SubjectType:
-    """Get the current active subject (STUB)."""
-    return DEFAULT_SUBJECT
+def get_current_subject_id() -> str:
+    """
+    Get the default subject ID.
+    The actual current subject comes from the API request context (subject_id parameter).
+    This function provides the fallback default.
+    """
+    return DEFAULT_SUBJECT_ID
 
 
 # Directories to skip when scanning for subjects
-# ✅ Verified from docs/stories/30.8.story.md#学科推断规则
 SKIP_DIRECTORIES_LOWER = {
     ".obsidian",
     ".git",
@@ -55,7 +43,6 @@ SKIP_DIRECTORIES_LOWER = {
     "__pycache__",
     "node_modules",
     ".canvas-learning",
-    # Chinese common root directories (AC-30.8.2)
     "笔记库",
     "vault",
     "notes",
@@ -65,32 +52,31 @@ SKIP_DIRECTORIES_LOWER = {
 
 def extract_subject_from_canvas_path(canvas_path: str) -> str:
     """
-    从Canvas路径提取学科名称
+    Extract subject name from Canvas file path.
 
-    ✅ Verified from docs/stories/30.8.story.md#AC-30.8.2:
-    规则:
-    1. 使用路径的第一级目录作为学科
-    2. 如果只有文件名，使用文件名（去除扩展名）
-    3. 处理中文和Unicode路径
+    Rules:
+    1. Use the first non-skip directory in the path as subject
+    2. If only a filename, use the filename (without extension)
+    3. Handle Chinese and Unicode paths
 
-    示例:
-    - "数学/离散数学.canvas" → "数学"
-    - "托福/听力/托福听力.canvas" → "托福"
-    - "离散数学.canvas" → "离散数学"
-    - "笔记库/物理/力学.canvas" → "物理" (跳过笔记库)
+    Examples:
+    - "数学/离散数学.canvas" -> "数学"
+    - "托福/听力/托福听力.canvas" -> "托福"
+    - "离散数学.canvas" -> "离散数学"
+    - "笔记库/物理/力学.canvas" -> "物理" (skips 笔记库)
 
     Args:
-        canvas_path: Canvas文件路径
+        canvas_path: Canvas file path
 
     Returns:
         Extracted subject name
 
-    [Source: docs/stories/30.8.story.md#学科推断规则]
+    [Source: Story 1.9 AC-2 path inference]
     """
     from pathlib import Path
 
     if not canvas_path:
-        return DEFAULT_SUBJECT.value
+        return DEFAULT_SUBJECT_ID
 
     path = Path(canvas_path)
     parts = list(path.parts)
@@ -102,12 +88,12 @@ def extract_subject_from_canvas_path(canvas_path: str) -> str:
             return part
 
     # Fallback: use filename without extension
-    return path.stem or DEFAULT_SUBJECT.value
+    return path.stem or DEFAULT_SUBJECT_ID
 
 
 def build_group_id(subject: str, canvas_name: Optional[str] = None) -> str:
     """
-    Build a group_id for Neo4j memory isolation.
+    Build a group_id for Neo4j/Graphiti memory isolation.
 
     Args:
         subject: Subject name (e.g., "math", "physics")
@@ -133,33 +119,20 @@ def sanitize_subject_name(name: str) -> str:
         name: Raw subject name
 
     Returns:
-        Sanitized name (preserves Unicode letters, lowercase ASCII, underscores for separators)
+        Sanitized name
 
     Examples:
-        - "数学" → "数学"
-        - "Math 101" → "math_101"
-        - "计算机科学" → "计算机科学"
-        - "托福/听力" → "托福_听力"
-        - "C++" → "c"
-
-    [Source: docs/stories/30.8.story.md - QA Review Fix for Unicode handling]
+        - "数学" -> "数学"
+        - "Math 101" -> "math_101"
+        - "计算机科学" -> "计算机科学"
+        - "托福/听力" -> "托福_听力"
     """
     import re
 
     if not name:
         return "default"
 
-    # Normalize: casefold() provides better Unicode lowercasing than lower()
-    # Chinese characters are unaffected (no case), ASCII becomes lowercase
     normalized = name.casefold()
-
-    # Replace non-word characters with underscore
-    # \w matches [a-zA-Z0-9_] plus Unicode letters and digits (Chinese, etc.)
-    # This preserves Chinese characters while replacing spaces, punctuation, etc.
     sanitized = re.sub(r'[^\w]', '_', normalized, flags=re.UNICODE)
-
-    # Remove consecutive underscores
     sanitized = re.sub(r'_+', '_', sanitized)
-
-    # Remove leading/trailing underscores
     return sanitized.strip('_') or "default"

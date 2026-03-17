@@ -603,6 +603,7 @@ async def index_vault_incremental(
             count = await lancedb_client.index_single_file(
                 file_path=abs_path,
                 table_name="vault_notes",
+                vault_path=vault_path,
             )
             total_chunks += count
             files_ok += 1

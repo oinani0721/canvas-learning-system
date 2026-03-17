@@ -38,6 +38,12 @@ export interface CanvasLearningSettings {
   // ---- Internal flags ----
   /** Whether the user has been shown the API key security notice. */
   apiKeyNoticeShown: boolean;
+
+  // ---- Story 1.9: Multi-subject settings ----
+  subjects: Array<{ id: string; name: string; createdAt: string; isDefault: boolean }>;
+  activeSubjectId: string | null;
+  crossSubjectEnabled: boolean;
+  crossSubjectThreshold: number;
 }
 
 /** Default settings applied on first install. */
@@ -51,4 +57,9 @@ export const DEFAULT_SETTINGS: CanvasLearningSettings = {
   backendUrl: 'http://localhost:8001',
   neo4jUrl: 'bolt://localhost:7689',
   apiKeyNoticeShown: false,
+  // Story 1.9 defaults
+  subjects: [{ id: 'default-general', name: '通用', createdAt: new Date().toISOString(), isDefault: true }],
+  activeSubjectId: null,
+  crossSubjectEnabled: false,
+  crossSubjectThreshold: 0.3,
 };

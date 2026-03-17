@@ -5,6 +5,10 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
+# MCP Protocol (Story 3.2: MCP Tool Exposure)
+# Exposes FastAPI routes as MCP tools via ASGI direct connection
+fastapi-mcp>=0.1.0
+
 # Async SQLite (Story 1.1 - conversation history persistence)
 aiosqlite>=0.19.0
 

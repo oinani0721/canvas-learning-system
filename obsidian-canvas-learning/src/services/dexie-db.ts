@@ -11,6 +11,7 @@ import type {
   CanvasBoard,
   CanvasEdgeData,
   CanvasNodeData,
+  DismissedRecommendation,
   SyncOutboxEntry,
 } from '../types/canvas';
 
@@ -19,6 +20,8 @@ export class CanvasLearningDB extends Dexie {
   canvas_nodes!: Table<CanvasNodeData, string>;
   canvas_edges!: Table<CanvasEdgeData, string>;
   sync_outbox!: Table<SyncOutboxEntry, number>;
+  // Story 1.7: Dismissed recommendations
+  dismissed_recommendations!: Table<DismissedRecommendation, number>;
 
   constructor() {
     super('CanvasLearningDB');
@@ -28,6 +31,21 @@ export class CanvasLearningDB extends Dexie {
       canvas_nodes: 'id, canvasId, type, title, x, y, createdAt, updatedAt',
       canvas_edges: 'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
       sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
+    });
+
+    // Story 1.6 + 1.7: Schema v2 — image node fields + dismissed recommendations
+    this.version(2).stores({
+      canvas_boards: 'id, name, subjectId, createdAt, updatedAt',
+      canvas_nodes: 'id, canvasId, type, title, x, y, createdAt, updatedAt, indexStatus',
+      canvas_edges: 'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
+      sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
+      dismissed_recommendations: '++id, pairKey, dismissedAt',
+    }).upgrade(tx => {
+      return tx.table('canvas_nodes').toCollection().modify(node => {
+        if (node.type === 'image' && !node.indexStatus) {
+          node.indexStatus = 'none';
+        }
+      });
     });
   }
 }

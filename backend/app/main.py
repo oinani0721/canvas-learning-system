@@ -477,6 +477,18 @@ app.add_middleware(MetricsMiddleware)
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# MCP Server Registration (Story 3.2)
+# [Source: _bmad-output/implementation-artifacts/3-2-mcp-tool-exposure-backend-api.md#Task 1]
+# [Source: _decisions/ADR-001-dialogue-engine.md — MCP injection]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+try:
+    from app.mcp import setup_mcp_server
+    setup_mcp_server(app)
+except Exception as e:
+    logger.warning(f"[Story 3.2] MCP server setup skipped: {e}")
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # WebSocket Routes (Story 33.2)
 # [Source: docs/stories/33.2.story.md - Task 1]
 # [Source: specs/api/parallel-api.openapi.yml#L523-L559]

@@ -36,6 +36,15 @@ lancedb>=0.25.0             # LanceDB向量数据库 (Trust Score: 8.5/10)
                             # 替代ChromaDB作为Layer 2向量存储
 
 # ===========================
+# Story 2.3: bge-m3 模型迁移与分块升级
+# ===========================
+FlagEmbedding>=1.2.0        # BAAI bge-m3 模型加载 (Trust Score: 8.8/10)
+                            # 用于 Dense 1024d 向量生成，替代 sentence-transformers
+                            # bge-m3 支持中英双语，MIRACL 中文 nDCG@10=63.9
+tiktoken>=0.5.0             # OpenAI tiktoken tokenizer (Trust Score: 9.5/10)
+                            # 用于 cl100k_base token 计数，分块 512 token 上限
+
+# ===========================
 # Story 12.1-12.10: Agentic RAG依赖
 # ===========================
 openai>=1.0.0               # OpenAI API客户端 (Trust Score: 9.5/10)
