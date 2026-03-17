@@ -161,9 +161,9 @@ async def generate_question(
         # Get mastery data for difficulty matching
         mastery_data = None
         try:
-            from app.services.mastery_data_store import get_mastery_data_store
+            from app.api.v1.endpoints.mastery import _get_store
 
-            store = get_mastery_data_store()
+            store = _get_store()
             mastery_data = await store.get_concept(node_id)
         except (ImportError, Exception):
             pass
@@ -444,9 +444,9 @@ async def assemble_acp(
         # Get mastery level
         mastery_level = None
         try:
-            from app.services.mastery_data_store import get_mastery_data_store
+            from app.api.v1.endpoints.mastery import _get_store
 
-            store = get_mastery_data_store()
+            store = _get_store()
             concept_state = await store.get_concept(node_id)
             if concept_state:
                 mastery_level = concept_state.p_mastery

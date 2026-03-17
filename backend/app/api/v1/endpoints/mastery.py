@@ -5,6 +5,7 @@ REST endpoints for the BKT + FSRS hybrid mastery proficiency system.
 
 Endpoints:
   GET  /mastery/batch           - Get all concepts' mastery state
+  GET  /mastery/board/{board_id} - Get mastery data for all nodes on a board (Story 5.2)
   POST /mastery/{id}/grade      - Record an interaction grade (1-4)
   POST /mastery/{id}/override   - Set explicit override (Sidebar)
   POST /mastery/{id}/self-assess - Set implicit self-assessment (Canvas color)
@@ -142,6 +143,70 @@ async def get_batch_mastery(group_id: str = Query(default=DEFAULT_GROUP_ID)):
         "concepts": concept_responses,
         "topic_summary": topic_summary,
     }
+
+
+@mastery_router.get("/mastery/board/{board_id:path}")
+async def get_board_mastery(
+    board_id: str,
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
+):
+    """
+    Get mastery data for all nodes on a specific canvas board (Story 5.2 Task 7).
+
+    Returns an array of per-node mastery data used by the frontend to colorize
+    canvas nodes. The response matches the frontend NodeMasteryData type:
+      - node_id: concept identifier
+      - effective_proficiency: combined BKT + FSRS proficiency (null if never examined)
+      - has_interaction: whether the user has interacted with this node
+      - has_exam_record: whether the node has been graded at least once
+      - fsrs_next_review: ISO-8601 timestamp of next FSRS review (null if no card)
+
+    The board_id is the canvas file path (e.g. "学习笔记.canvas").
+    """
+    engine = _get_engine()
+    store = _get_store()
+
+    concepts = await store.get_board_concepts(board_id, group_id)
+
+    # Build per-node mastery data matching frontend NodeMasteryData type
+    items = []
+    for concept in concepts:
+        # has_exam_record: node has been graded at least once (AutoSCORE)
+        has_exam_record = concept.interaction_count > 0
+        # has_interaction: user has engaged with this node (any activity)
+        has_interaction = (
+            has_exam_record
+            or concept.override_value is not None
+            or concept.self_assess_value is not None
+        )
+
+        # effective_proficiency: null when never examined (matches frontend expectation)
+        eff_raw = engine.effective_proficiency(concept)
+        eff_value = round(eff_raw, 3) if has_exam_record else None
+
+        # Determine FSRS next review date from card data
+        fsrs_next_review = None
+        if engine.fsrs_manager and concept.fsrs_card_data:
+            try:
+                card = engine.fsrs_manager.deserialize_card(concept.fsrs_card_data)
+                due = getattr(card, "due", None)
+                if due is not None:
+                    if isinstance(due, str):
+                        fsrs_next_review = due
+                    elif hasattr(due, "isoformat"):
+                        fsrs_next_review = due.isoformat()
+            except Exception:
+                pass  # Graceful degradation: no due date if card parse fails
+
+        items.append({
+            "node_id": concept.concept_id,
+            "effective_proficiency": eff_value,
+            "has_interaction": has_interaction,
+            "has_exam_record": has_exam_record,
+            "fsrs_next_review": fsrs_next_review,
+        })
+
+    return {"data": items}
 
 
 @mastery_router.post("/mastery/{concept_id}/grade")

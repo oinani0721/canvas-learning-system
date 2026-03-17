@@ -57,6 +57,9 @@ from app.api.v1.endpoints.websocket import (
     set_session_validator,
 )
 
+# ✅ Story 5.2: Mastery WebSocket endpoint
+from app.api.v1.endpoints.mastery_ws import websocket_mastery_endpoint
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Logging Setup
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -217,6 +220,24 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[Story 3.8] Archive scheduler started (24h interval)")
     except Exception as e:
         logger.warning(f"[Story 3.8] Archive scheduler init failed (non-fatal): {e}")
+
+    # ✅ Story 5.7: Register EventBus production handlers
+    # [Source: _bmad-output/implementation-artifacts/5-7-eventbus-triconnect.md]
+    # Connects FSRS, Graphiti, and RAG subsystems via event-driven architecture.
+    try:
+        from app.services.event_bus import get_event_bus
+        from app.services.event_handlers import register_all_handlers
+
+        event_bus = get_event_bus()
+        register_all_handlers(event_bus)
+
+        # Recover any failed Tier 2 events from previous run
+        recovered = await event_bus.recover_outbox()
+        if recovered > 0:
+            logger.info(f"[Story 5.7] EventBus recovered {recovered} outbox events")
+        logger.info("[Story 5.7] EventBus handlers registered")
+    except Exception as e:
+        logger.warning(f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}")
 
     yield  # Application runs here
 
@@ -527,6 +548,31 @@ async def websocket_endpoint(websocket: WebSocket, session_id: str):
         session_id: Session ID to subscribe to
     """
     await websocket_intelligent_parallel(websocket, session_id)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# WebSocket Routes (Story 5.2 - Mastery Updates)
+# [Source: obsidian-canvas-learning/src/services/api-client.ts - connectWebSocket]
+# [Source: _bmad-output/implementation-artifacts/5-2-node-color-mastery-visualization.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@app.websocket("/ws")
+async def websocket_mastery(websocket: WebSocket):
+    """
+    WebSocket endpoint for real-time mastery update broadcasts.
+
+    The Obsidian frontend connects to ws://host:8001/ws and receives
+    mastery_update messages whenever a node's mastery state changes.
+    This enables live node color updates without polling.
+
+    [Source: api-client.ts connectWebSocket() / handleWebSocketMessage()]
+
+    Args:
+        websocket: WebSocket connection from the Obsidian plugin
+    """
+    await websocket_mastery_endpoint(websocket)
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Root Endpoint

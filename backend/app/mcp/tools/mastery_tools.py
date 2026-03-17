@@ -123,14 +123,12 @@ async def query_mastery(node_id: str) -> Dict[str, Any]:
     asyncio.create_task(guardian.record_tool_call("query_mastery", "", node_id))
 
     try:
-        from app.api.v1.endpoints.mastery import _get_engine
+        from app.api.v1.endpoints.mastery import _get_engine, _get_store
 
         engine = _get_engine()
 
-        # Query the concept state from the mastery data store
-        from app.services.mastery_data_store import get_mastery_data_store
-
-        store = get_mastery_data_store()
+        # Query the concept state from the mastery store
+        store = _get_store()
         concept = await store.get_concept(node_id)
 
         if concept is None:
@@ -148,15 +146,14 @@ async def query_mastery(node_id: str) -> Dict[str, Any]:
         )
 
         # Add FSRS data if available
-        if hasattr(concept, "fsrs_card") and concept.fsrs_card is not None:
-            from app.services.mastery_engine import _safe_get
-
-            result.fsrs_stability = _safe_get(concept.fsrs_card, "stability")
-            result.fsrs_difficulty = _safe_get(concept.fsrs_card, "difficulty")
+        if concept.fsrs_stability is not None:
+            result.fsrs_stability = concept.fsrs_stability
+        if concept.fsrs_difficulty is not None:
+            result.fsrs_difficulty = concept.fsrs_difficulty
 
         # Compute effective proficiency
-        if hasattr(engine, "compute_effective_proficiency"):
-            result.effective_proficiency = engine.compute_effective_proficiency(concept)
+        if hasattr(engine, "effective_proficiency"):
+            result.effective_proficiency = engine.effective_proficiency(concept)
 
         return result.model_dump()
 
@@ -210,11 +207,10 @@ async def update_fsrs(
         ).model_dump()
 
     try:
-        from app.services.mastery_data_store import get_mastery_data_store
-        from app.services.mastery_engine import MasteryEngine, load_mastery_config
+        from app.api.v1.endpoints.mastery import _get_engine, _get_store
 
-        engine = MasteryEngine(load_mastery_config())
-        store = get_mastery_data_store()
+        engine = _get_engine()
+        store = _get_store()
 
         concept = await store.get_concept(node_id)
         if concept is None:
@@ -236,11 +232,10 @@ async def update_fsrs(
             message=f"FSRS updated with grade={grade}",
         )
 
-        if hasattr(updated, "fsrs_card") and updated.fsrs_card is not None:
-            from app.services.mastery_engine import _safe_get
-
-            result.new_stability = _safe_get(updated.fsrs_card, "stability")
-            result.new_difficulty = _safe_get(updated.fsrs_card, "difficulty")
+        if updated.fsrs_stability is not None:
+            result.new_stability = updated.fsrs_stability
+        if updated.fsrs_difficulty is not None:
+            result.new_difficulty = updated.fsrs_difficulty
 
         return result.model_dump()
 
@@ -298,11 +293,10 @@ async def update_bkt(
         ).model_dump()
 
     try:
-        from app.services.mastery_data_store import get_mastery_data_store
-        from app.services.mastery_engine import MasteryEngine, load_mastery_config
+        from app.api.v1.endpoints.mastery import _get_engine, _get_store
 
-        engine = MasteryEngine(load_mastery_config())
-        store = get_mastery_data_store()
+        engine = _get_engine()
+        store = _get_store()
 
         concept = await store.get_concept(node_id)
         if concept is None:

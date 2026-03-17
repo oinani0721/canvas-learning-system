@@ -223,6 +223,71 @@ class MasteryStore:
             logger.warning(f"Failed to find concept by name '{name}': {e}")
             return None
 
+    async def get_board_concepts(
+        self,
+        board_id: str,
+        group_id: str = DEFAULT_GROUP_ID,
+    ) -> list[ConceptState]:
+        """Load mastery data for all concept nodes belonging to a canvas board.
+
+        Joins Canvas -> CONTAINS_NODE -> Node with EntityNode mastery data.
+        The board_id is the canvas path (e.g. "学习笔记.canvas" or "学习笔记").
+        Nodes are matched by Node.id == EntityNode.mastery_concept_id.
+
+        Falls back to all concepts in the group if no Canvas-Node relationships
+        exist yet (board data not synced).
+
+        Returns:
+            List of ConceptState objects for nodes on the specified board.
+            Empty list on Neo4j errors (graceful degradation, consistent
+            with get_all_concepts pattern).
+        """
+        # Try matching via Canvas -> CONTAINS_NODE -> Node -> EntityNode
+        query = """
+        MATCH (c:Canvas)-[:CONTAINS_NODE]->(n:Node)
+        WHERE c.path = $board_id OR c.path = $board_id_with_ext
+        WITH collect(n.id) AS node_ids
+        MATCH (e:EntityNode)
+        WHERE e.group_id = $group_id
+          AND e.p_mastery IS NOT NULL
+          AND e.mastery_concept_id IN node_ids
+        RETURN properties(e) AS props
+        ORDER BY e.mastery_topic, e.mastery_name
+        """
+        try:
+            # Try with and without .canvas extension
+            board_id_with_ext = board_id if board_id.endswith(".canvas") else board_id + ".canvas"
+            board_id_without_ext = board_id.removesuffix(".canvas")
+
+            records = await self._client.run_query(
+                query,
+                board_id=board_id_without_ext,
+                board_id_with_ext=board_id_with_ext,
+                group_id=group_id,
+            )
+
+            results: list[ConceptState] = []
+            for record in records or []:
+                props = record["props"] if isinstance(record, dict) else record.data()["props"]
+                results.append(ConceptState.from_neo4j_props(props))
+
+            if results:
+                return results
+
+            # Fallback: if no Canvas-Node relationships exist yet,
+            # return all concepts for the group (same as batch endpoint)
+            logger.debug(
+                f"No Canvas-Node relationships found for board '{board_id}', "
+                f"falling back to all concepts in group '{group_id}'"
+            )
+            return await self.get_all_concepts(group_id)
+
+        except Exception as e:
+            logger.warning(f"Failed to get board concepts for '{board_id}': {e}")
+            # Graceful degradation: same pattern as get_all_concepts
+            empty: list[ConceptState] = []
+            return empty
+
     async def record_self_assess_event(
         self,
         concept_id: str,
