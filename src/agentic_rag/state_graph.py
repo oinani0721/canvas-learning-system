@@ -46,6 +46,11 @@ from agentic_rag.nodes import (  # noqa: E402
     retrieve_lancedb,
 )
 
+# Story 7.1: Faithfulness check node (RAGAS claim-level NLI)
+from agentic_rag.faithfulness_check import (  # noqa: E402
+    faithfulness_check as faithfulness_check_node,
+)
+
 # Story 6.8: 导入多模态检索节点
 # Story 23.4: 导入教材和跨Canvas检索节点
 from agentic_rag.retrievers import (  # noqa: E402
@@ -101,42 +106,35 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
 # Conditional Edge: Quality-based Routing
 # ========================================
 
-def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query", END]:
+def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query", "faithfulness_check"]:
     """
     Route based on quality grade
 
-    - low quality + rewrite_count < 2: rewrite_query → START (重新检索)
-    - medium/high quality OR rewrite_count >= 2: END (返回结果)
+    - low quality + rewrite_count < 2: rewrite_query (loop back for re-retrieval)
+    - medium/high quality OR rewrite_count >= 2: faithfulness_check (final gate)
 
-    ✅ Verified from LangGraph Skill (Pattern: Conditional edges)
-    ```python
-    def should_continue(state: MessagesState):
-        if condition:
-            return "node_name"
-        return END
-    ```
+    Story 7.1: Routes to faithfulness_check instead of END for final quality gate.
 
     Returns:
-        "rewrite_query" or END
+        "rewrite_query" or "faithfulness_check"
     """
     quality_grade = state.get("quality_grade")
     rewrite_count = state.get("rewrite_count", 0)
-    max_rewrite = 2  # TODO: 从runtime config获取
+    max_rewrite = 2
 
-    # ✅ Story 23.3 AC 4: 质量控制循环日志
     logger.debug(f"[route_after_quality_check] quality={quality_grade}, rewrite_count={rewrite_count}, max={max_rewrite}")
 
-    # Low quality且未超过重写次数限制
+    # Low quality and rewrite budget remaining
     if quality_grade == "low" and rewrite_count < max_rewrite:
-        logger.debug("[route_after_quality_check] → rewrite_query (low quality, can retry)")
+        logger.debug("[route_after_quality_check] -> rewrite_query (low quality, can retry)")
         return "rewrite_query"
 
-    # Medium/High quality 或 已达重写上限
+    # Acceptable quality or max rewrites reached -> faithfulness check
     if rewrite_count >= max_rewrite:
-        logger.debug(f"[route_after_quality_check] → END (max rewrite reached: {rewrite_count})")
+        logger.debug(f"[route_after_quality_check] -> faithfulness_check (max rewrite reached: {rewrite_count})")
     else:
-        logger.debug(f"[route_after_quality_check] → END (quality acceptable: {quality_grade})")
-    return END
+        logger.debug(f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})")
+    return "faithfulness_check"
 
 
 # ========================================
@@ -211,27 +209,29 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     - add_node, add_conditional_edges, add_edge
     - compile()
 
-    Graph Structure (六路并行检索):
+    Graph Structure (六路并行检索 + faithfulness gate):
     ```
     START
-      ↓
+      |
     fan_out_retrieval (conditional edge)
-      ├──→ retrieve_graphiti (parallel)
-      ├──→ retrieve_lancedb (parallel)
-      ├──→ retrieve_multimodal (parallel) [Story 6.8]
-      ├──→ retrieve_textbook (parallel) [Story 23.4]
-      ├──→ retrieve_cross_canvas (parallel) [Story 23.4]
-      └──→ retrieve_vault_notes (parallel) [Vault Notes]
-           ↓ (converge)
+      |--- retrieve_graphiti (parallel)
+      |--- retrieve_lancedb (parallel)
+      |--- retrieve_multimodal (parallel) [Story 6.8]
+      |--- retrieve_textbook (parallel) [Story 23.4]
+      |--- retrieve_cross_canvas (parallel) [Story 23.4]
+      +--- retrieve_vault_notes (parallel) [Vault Notes]
+           | (converge)
          fuse_results (6-source weighted fusion)
-           ↓
+           |
          rerank_results
-           ↓
+           |
          check_quality
-           ↓
+           |
          route_after_quality_check (conditional edge)
-           ├──→ rewrite_query → fan_out_retrieval (if low quality)
-           └──→ END (if medium/high quality or max rewrite)
+           |--- rewrite_query -> fan_out_retrieval (if low quality)
+           +--- faithfulness_check [Story 7.1] (if acceptable quality)
+                  |
+                 END
     ```
 
     Returns:
@@ -317,6 +317,9 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_node("rerank_results", rerank_results)
     builder.add_node("check_quality", check_quality)
 
+    # Story 7.1: Faithfulness check (RAGAS claim-level NLI) - last quality gate
+    builder.add_node("faithfulness_check", faithfulness_check_node)
+
     # Quality control node
     builder.add_node("rewrite_query", rewrite_query)
 
@@ -351,15 +354,18 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_edge("rerank_results", "check_quality")
 
     # check_quality → route_after_quality_check (conditional)
+    # Story 7.1: Routes to faithfulness_check instead of END
     builder.add_conditional_edges(
         "check_quality",
         route_after_quality_check,
-        # path_map for routing
         {
             "rewrite_query": "rewrite_query",
-            END: END,
+            "faithfulness_check": "faithfulness_check",
         }
     )
+
+    # Story 7.1: faithfulness_check → END (final quality gate)
+    builder.add_edge("faithfulness_check", END)
 
     # rewrite_query → fan_out_retrieval (loop back for re-retrieval)
     builder.add_conditional_edges(

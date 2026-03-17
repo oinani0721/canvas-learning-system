@@ -40,6 +40,22 @@ from app.middleware.metrics import (
     metrics_middleware,
 )
 
+# Story 7.2: LLM Call Logging & Token Tracking
+from app.middleware.llm_call_logger import (
+    LLMCallLog,
+    LLMCallLogger,
+    TaskType,
+    ErrorCategory,
+    CallStatus,
+    classify_error,
+    llm_call_logger,
+)
+from app.middleware.cost_tracker import (
+    CostTracker,
+    get_cost_tracker,
+    cleanup_cost_tracker,
+)
+
 __all__ = [
     # Core middleware
     "ErrorHandlerMiddleware",
@@ -75,4 +91,15 @@ __all__ = [
     "REQUEST_COUNT",
     "REQUEST_LATENCY",
     "CONCURRENT_REQUESTS",
+    # LLM Call Logging (Story 7.2)
+    "LLMCallLog",
+    "LLMCallLogger",
+    "TaskType",
+    "ErrorCategory",
+    "CallStatus",
+    "classify_error",
+    "llm_call_logger",
+    "CostTracker",
+    "get_cost_tracker",
+    "cleanup_cost_tracker",
 ]

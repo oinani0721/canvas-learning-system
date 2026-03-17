@@ -24,27 +24,32 @@ Architecture:
 import json
 import logging
 import math
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.models.mastery_state import (
-    ConceptState,
     DEFAULT_BKT_PARAMS,
     MASTERY_COLORS,
     MASTERY_LABELS,
-    MasteryConfig,
     OVERRIDE_LEVEL_MAP,
     SELF_ASSESS_COLOR_MAP,
+    ConceptState,
+    MasteryConfig,
 )
 
 logger = logging.getLogger(__name__)
 
+# Ensure src/ is on sys.path for cross-package imports (project standard pattern)
+_src_path = str(Path(__file__).parent.parent.parent.parent / "src")
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+
 # Import FSRSManager for FSRS computation
 try:
-    import sys
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "src"))
     from memory.temporal.fsrs_manager import FSRSManager
+
     FSRS_ENGINE_AVAILABLE = True
 except ImportError:
     FSRS_ENGINE_AVAILABLE = False
@@ -65,6 +70,7 @@ def load_mastery_config() -> MasteryConfig:
             developing_threshold=data.get("mastery_thresholds", {}).get("developing", 0.70),
             proficient_threshold=data.get("mastery_thresholds", {}).get("proficient", 0.90),
             mastered_fluent_min=data.get("mastered_fluent_min", 2),
+            default_group_id=data.get("default_group_id", "default"),
         )
     return MasteryConfig()
 
@@ -438,7 +444,10 @@ class MasteryEngine:
     # ═══════════════════════════════════════════════════════════════════════════
 
     def apply_external_signal(
-        self, concept: ConceptState, signal_type: str, severity: float,
+        self,
+        concept: ConceptState,
+        signal_type: str,
+        severity: float,
     ) -> ConceptState:
         """
         Apply an external signal to adjust p_mastery directly.

@@ -546,6 +546,47 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Faithfulness Check Settings (Story 7.1)
+    # [Source: _bmad-output/implementation-artifacts/7-1-llm-faithfulness-prompt-injection.md]
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    FAITHFULNESS_ENABLED: bool = Field(
+        default=True,
+        description="Enable RAGAS faithfulness check in RAG pipeline. Story 7.1 AC-1."
+    )
+
+    FAITHFULNESS_THRESHOLD: float = Field(
+        default=0.85,
+        description="Faithfulness score threshold for acceptable answers. Story 7.1 AC-1.",
+        ge=0.0,
+        le=1.0,
+    )
+
+    FAITHFULNESS_THRESHOLD_LOW: float = Field(
+        default=0.5,
+        description="Faithfulness score below this triggers full degradation. Story 7.1 AC-4.",
+        ge=0.0,
+        le=1.0,
+    )
+
+    FAITHFULNESS_MODEL: str = Field(
+        default="",
+        description="Model for faithfulness checks via LiteLLM. Empty = use AI_MODEL_NAME. Story 7.1."
+    )
+
+    INJECTION_GUARD_ENABLED: bool = Field(
+        default=True,
+        description="Enable prompt injection detection guard. Story 7.1 AC-2,5."
+    )
+
+    INJECTION_THRESHOLD: float = Field(
+        default=0.7,
+        description="Risk score threshold for blocking suspected injection. Story 7.1 AC-5.",
+        ge=0.0,
+        le=1.0,
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Computed Properties
     # ═══════════════════════════════════════════════════════════════════════════
 

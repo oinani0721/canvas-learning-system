@@ -1,0 +1,9 @@
+{
+  "id": "canvas-learning-system",
+  "name": "Canvas Learning System",
+  "version": "0.1.0",
+  "minAppVersion": "1.4.0",
+  "description": "Knowledge graph learning system with AI-powered tutoring, spaced repetition, and mastery tracking.",
+  "author": "Canvas Learning Team",
+  "isDesktopOnly": true
+}

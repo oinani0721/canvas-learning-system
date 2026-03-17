@@ -85,6 +85,11 @@ backend/.env
 docker/neo4j/data/
 docker/neo4j/logs/
 docker/neo4j-cls/
+docker/ollama/models/
+
+# Obsidian plugin build output (Story 1.1)
+obsidian-canvas-learning/main.js
+obsidian-canvas-learning/main.js.map
 
 # Nested/duplicate directories
 backend/backend/

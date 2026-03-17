@@ -9,10 +9,9 @@ Three-tier property classification:
   - Derived: Aggregated from stable/volatile (computed on demand)
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
-
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # BKT Default Parameters (Expert Priors by Difficulty)
@@ -137,6 +136,7 @@ class ConceptState:
     @classmethod
     def from_neo4j_props(cls, props: dict) -> "ConceptState":
         """Create from Neo4j EntityNode properties dict."""
+
         def parse_dt(val):
             if val is None:
                 return None
@@ -186,3 +186,6 @@ class MasteryConfig:
 
     # Mastered requires fluent_count >= this
     mastered_fluent_min: int = 2
+
+    # Default group_id for multi-subject isolation (configurable, no longer hardcoded)
+    default_group_id: str = "default"

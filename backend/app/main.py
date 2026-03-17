@@ -43,6 +43,11 @@ from app.services.resource_monitor import get_default_monitor
 # ✅ Story 30.3 Fix: Import MemoryService from canonical singleton location
 from app.services.memory_service import get_memory_service, cleanup_memory_service
 
+# ✅ Story 7.2: LLM Call Logging & Token Tracking
+from app.middleware.cost_tracker import get_cost_tracker, cleanup_cost_tracker
+from app.middleware.llm_call_logger import llm_call_logger
+from app.core.litellm_config import register_litellm_callbacks
+
 # ✅ Story 33.2: WebSocket endpoint import
 from app.api.v1.endpoints.websocket import (
     websocket_intelligent_parallel,
@@ -112,6 +117,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Set global alert manager for monitoring endpoint dependency injection
     set_alert_manager(alert_manager)
+
+    # ✅ Story 7.2: Initialize CostTracker and LLM Call Logger
+    # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]
+    try:
+        cost_tracker = await get_cost_tracker()
+        await llm_call_logger.start(cost_tracker)
+        await cost_tracker.start_rotation()
+        register_litellm_callbacks()
+        logger.info("[Story 7.2] LLM logging infrastructure initialized")
+    except Exception as e:
+        logger.warning(f"[Story 7.2] LLM logging init failed (non-fatal): {e}")
 
     # ✅ Story 30.3 Fix: Pre-warm MemoryService singleton to avoid first-call latency
     # This ensures the first /api/v1/memory/health call is fast (<100ms vs 21s)
@@ -201,6 +217,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("LanceDB index service cleaned up")
     except Exception as e:
         logger.warning(f"LanceDB index service cleanup failed: {e}")
+
+    # ✅ Story 7.2: Cleanup LLM logging infrastructure
+    try:
+        await llm_call_logger.stop()
+        await cleanup_cost_tracker()
+        logger.info("[Story 7.2] LLM logging infrastructure cleaned up")
+    except Exception as e:
+        logger.warning(f"[Story 7.2] LLM logging cleanup failed: {e}")
 
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()

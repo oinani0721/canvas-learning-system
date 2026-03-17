@@ -199,3 +199,46 @@ def get_request_logger(request: Request):
     """
     request_id = getattr(request.state, "request_id", "unknown")
     return logger.bind(request_id=request_id)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 7.1: QA Check Log Schemas
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# These schemas define the structured log fields for QA pipeline events.
+# Faithfulness check and injection detection logs are emitted by their
+# respective modules (faithfulness_check.py, prompt_injection_guard.py)
+# using structlog with these field conventions.
+
+FAITHFULNESS_CHECK_LOG_SCHEMA = {
+    "event": "faithfulness_check_completed",
+    "fields": {
+        "check_type": "faithfulness",
+        "score": "float (0.0-1.0)",
+        "total_claims": "int",
+        "supported_claims": "int",
+        "degraded": "bool",
+        "degradation_reason": "str",
+        "latency_ms": "float",
+        "answer_length": "int",
+        "error": "Optional[str]",
+    },
+}
+
+INJECTION_DETECTION_LOG_SCHEMA = {
+    "event": "injection_detection",
+    "fields": {
+        "check_type": "prompt_injection",
+        "risk_score": "float (0.0-1.0)",
+        "is_blocked": "bool",
+        "matched_patterns": "List[str]",
+        "input_length": "int",
+        "input_preview": "str (first 100 chars)",
+        "latency_ms": "float",
+    },
+}
+
+QA_LOG_SCHEMAS = {
+    "faithfulness_check": FAITHFULNESS_CHECK_LOG_SCHEMA,
+    "injection_detection": INJECTION_DETECTION_LOG_SCHEMA,
+}

@@ -15,21 +15,22 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
-from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.canvas import canvas_router
-from app.api.v1.endpoints.metadata import metadata_router  # ✅ Story 38.1
+from app.api.v1.endpoints.config import config_router
 from app.api.v1.endpoints.intelligent_parallel import (
     intelligent_parallel_router,
     single_agent_router,
 )
+from app.api.v1.endpoints.mastery import mastery_router
 from app.api.v1.endpoints.memory import memory_router
+from app.api.v1.endpoints.metadata import metadata_router  # ✅ Story 38.1
 from app.api.v1.endpoints.monitoring import monitoring_router
 from app.api.v1.endpoints.multimodal import multimodal_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
-from app.api.v1.endpoints.mastery import mastery_router
 from app.api.v1.endpoints.textbook import textbook_router
+from app.api.v1.system import router as system_router  # Story 1.1
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
 # Pattern: Create main router and include sub-routers with prefixes/tags
@@ -45,6 +46,17 @@ router.include_router(
     tags=["System"],
     responses={
         500: {"description": "Internal server error"}
+    }
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# System Infrastructure Health (Story 1.1)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+router.include_router(
+    system_router,
+    responses={
+        500: {"description": "System health check error"}
     }
 )
 

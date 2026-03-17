@@ -46,6 +46,14 @@ class CanvasEventType(str, Enum):
     COLOR_REMOVED = "color_removed"
     NODE_REMOVED = "node_removed"
 
+    # Story 7.1: QA Pipeline Events
+    FAITHFULNESS_CHECKED = "faithfulness_checked"
+    INJECTION_DETECTED = "injection_detected"
+
+    # Story 7.2 Task 5.1: LLM call logged event (Tier3 fire-and-forget)
+    # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]
+    LLM_CALL_LOGGED = "llm_call_logged"
+
 
 class CanvasEvent(BaseModel):
     """

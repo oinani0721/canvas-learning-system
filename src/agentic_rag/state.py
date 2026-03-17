@@ -123,6 +123,11 @@ class CanvasRAGState(MessagesState):
     # 原始Query (用于重写)
     original_query: Annotated[Optional[str], "原始用户查询"]
 
+    # Story 7.1: Faithfulness 忠实度检查字段
+    faithfulness_score: Annotated[Optional[float], "Faithfulness忠实度评分 (0.0-1.0)"]
+    faithfulness_details: Annotated[Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"]
+    faithfulness_degraded: Annotated[Optional[bool], "是否触发忠实度安全降级"]
+
     # 性能监控字段 (Optional) - Separate keys to avoid concurrent update conflicts
     graphiti_latency_ms: Annotated[Optional[float], "Graphiti检索延迟 (ms)"]
     lancedb_latency_ms: Annotated[Optional[float], "LanceDB检索延迟 (ms)"]

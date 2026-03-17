@@ -5,6 +5,9 @@
 fastapi>=0.104.0
 uvicorn[standard]>=0.24.0
 
+# Async SQLite (Story 1.1 - conversation history persistence)
+aiosqlite>=0.19.0
+
 # File Upload Support (Story 35.1)
 # ✅ Required for FastAPI multipart/form-data file uploads
 # ⚠️ CVE-2026-24486: >=0.0.22 required
@@ -26,6 +29,11 @@ python-dotenv>=1.0.0
 # AI/LLM
 # ✅ Verified from Context7:/googleapis/python-genai - Google Gen AI SDK for Gemini calls
 google-genai>=0.3.0
+
+# LiteLLM - Unified LLM API layer (Story 7.1: Faithfulness Check)
+# ✅ Supports 100+ models via single interface for QA/Faithfulness checks
+# Reference: https://docs.litellm.ai/
+litellm>=1.40.0
 
 # ==========================================================
 # Agentic RAG Dependencies (Story 23.1)

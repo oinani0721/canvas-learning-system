@@ -1,11 +1,11 @@
 # Canvas Learning System - Docker Compose Configuration
-# Story 30.1: Neo4j Docker Environment Deployment
-# [Source: docs/stories/30.1.story.md - AC 1]
+# Story 1.1: Project Scaffold & Docker Setup
 #
 # Usage:
-#   docker-compose up -d neo4j     # Start Neo4j container
-#   docker-compose logs -f neo4j   # View logs
-#   docker-compose down            # Stop and remove containers
+#   docker-compose up -d              # Start all services
+#   docker-compose up -d neo4j        # Start Neo4j only
+#   docker-compose logs -f            # View logs
+#   docker-compose down               # Stop and remove containers
 #
 # Prerequisites:
 #   - Docker Desktop installed
@@ -16,41 +16,28 @@ version: '3.8'
 services:
   # ═══════════════════════════════════════════════════════════════════════════
   # Neo4j Graph Database
-  # [Source: Context7 - /websites/neo4j-operations-manual-current]
   # ═══════════════════════════════════════════════════════════════════════════
   neo4j:
     image: neo4j:5.26-community
     container_name: canvas-learning-system-neo4j
 
-    # Environment configuration
-    # [Source: docs/stories/30.1.story.md - Task 1.3]
     environment:
-      # Authentication: username/password format
       - NEO4J_AUTH=${NEO4J_USER:-neo4j}/${NEO4J_PASSWORD:-password}
-      # Enable APOC plugin for advanced queries
       - NEO4J_PLUGINS=["apoc"]
-      # Memory configuration for development
       - NEO4J_dbms_memory_heap_initial__size=512m
       - NEO4J_dbms_memory_heap_max__size=1G
-      # Allow upgrade if needed
       - NEO4J_dbms_allow__upgrade=true
 
-    # Port mappings
-    # [Source: docs/stories/30.1.story.md - AC 1]
     # NOTE: Using 7476/7689 to avoid conflict with spring-2026-courses (7474/7687)
     ports:
       - "7476:7474"  # HTTP Browser - access at http://localhost:7476
-      - "7689:7687"  # Bolt Protocol - application connection (matches .env NEO4J_URI)
+      - "7689:7687"  # Bolt Protocol - application connection
 
-    # Volume mounts for data persistence
-    # [Source: docs/stories/30.1.story.md - Task 1.2]
     volumes:
-      - ./docker/neo4j/data:/data      # Database files
-      - ./docker/neo4j/logs:/logs      # Log files
-      - ./docker/neo4j/plugins:/plugins # Custom plugins
+      - ./docker/neo4j/data:/data
+      - ./docker/neo4j/logs:/logs
+      - ./docker/neo4j/plugins:/plugins
 
-    # Health check configuration
-    # [Source: docs/stories/30.1.story.md - Task 1.4]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:7474"]
       interval: 30s
@@ -58,11 +45,86 @@ services:
       retries: 5
       start_period: 40s
 
-    # Restart policy
-    # [Source: docs/stories/30.1.story.md - AC 1]
     restart: unless-stopped
 
-    # Network configuration
+    networks:
+      - canvas-network
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Ollama - Local LLM / Embedding Server
+  # Story 1.1 Task 1.2: Ollama service for bge-m3 embeddings
+  # ═══════════════════════════════════════════════════════════════════════════
+  ollama:
+    image: ollama/ollama:latest
+    container_name: canvas-learning-system-ollama
+
+    ports:
+      - "11434:11434"
+
+    volumes:
+      - ./docker/ollama/models:/root/.ollama/models
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:11434/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+    restart: unless-stopped
+
+    # GPU passthrough (optional - uncomment if NVIDIA GPU available)
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+    networks:
+      - canvas-network
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # FastAPI Backend
+  # Story 1.1 Task 1.1: FastAPI service with health check
+  # ═══════════════════════════════════════════════════════════════════════════
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: canvas-learning-system-backend
+
+    ports:
+      - "8001:8001"
+
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - NEO4J_USER=${NEO4J_USER:-neo4j}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
+      - OLLAMA_HOST=http://ollama:11434
+      - CANVAS_BASE_PATH=/app/data
+      - DEBUG=true
+
+    volumes:
+      - ./backend:/app
+      - ./data:/app/data
+
+    depends_on:
+      neo4j:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/v1/system/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+    restart: unless-stopped
+
     networks:
       - canvas-network
 

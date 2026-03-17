@@ -1,0 +1,82 @@
+/* Canvas Learning System - Base Styles
+ * Story 1.1: Plugin scaffold (AC-5)
+ *
+ * Naming convention: all custom classes use cl- prefix
+ * Colors reference Obsidian CSS variables for theme compatibility
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CSS Custom Properties (mapped from Obsidian variables)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-root {
+  --cl-bg-primary: var(--background-primary);
+  --cl-bg-secondary: var(--background-secondary);
+  --cl-bg-modifier-border: var(--background-modifier-border);
+  --cl-text-normal: var(--text-normal);
+  --cl-text-muted: var(--text-muted);
+  --cl-text-faint: var(--text-faint);
+  --cl-text-accent: var(--text-accent);
+  --cl-interactive-accent: var(--interactive-accent);
+  --cl-interactive-accent-hover: var(--interactive-accent-hover);
+  --cl-font-ui: var(--font-interface);
+  --cl-radius-s: var(--radius-s, 4px);
+  --cl-radius-m: var(--radius-m, 8px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Main View Container
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-main-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  background: var(--cl-bg-primary);
+  color: var(--cl-text-normal);
+  font-family: var(--cl-font-ui);
+}
+
+.cl-main-view__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cl-bg-modifier-border);
+}
+
+.cl-main-view__title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cl-main-view__content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Status Indicator
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cl-status-dot--online {
+  background-color: var(--color-green, #4caf50);
+}
+
+.cl-status-dot--offline {
+  background-color: var(--color-red, #f44336);
+}
+
+.cl-status-dot--unknown {
+  background-color: var(--cl-text-faint);
+}

@@ -208,10 +208,43 @@ faithfulness_check 是管道的最后一道质量门控，在 context_compressor
 
 ### Agent Model Used
 
-(To be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
+N/A - Implementation session, no runtime debug logs generated.
+
 ### Completion Notes List
 
+1. **Task 1 (Faithfulness Check)**: Implemented RAGAS two-stage claim-level NLI in `src/agentic_rag/faithfulness_check.py`. Uses LiteLLM for model-agnostic LLM calls. Claim extraction + NLI verification in single pipeline. Threshold gating at 0.85 (warning) and 0.5 (full degradation). Integrated into LangGraph state_graph as final quality gate after check_quality.
+
+2. **Task 2 (Prompt Injection Guard)**: Implemented three-layer defense in `backend/app/middleware/prompt_injection_guard.py`. Layer 1: PromptTemplate structural isolation. Layer 2: 20+ injection patterns covering EN/ZH direct injection, delimiter manipulation, encoding bypass (Base64/Hex/ROT13), indirect injection. Layer 3: Output safety check for system prompt leakage, code execution, XSS.
+
+3. **Task 3 (Output Safety)**: Integrated into prompt_injection_guard.py. Detects boundary marker leaks, self-disclosure, instruction disclosure, verbatim system prompt content, dangerous code patterns, XSS scripts. Sanitizer removes dangerous content.
+
+4. **Task 4 (Structured Logging)**: FaithfulnessCheckLog and InjectionDetectionLog schemas defined in logging_middleware.py. Both modules emit structlog events with standardized fields (check_type, score/risk_score, latency_ms, etc.).
+
+5. **Task 5 (Tests)**: Unit tests for faithfulness score calculation, degradation thresholds, JSON parsing. Unit tests for all 15 attack vectors. Integration tests for E2E faithfulness pass/fail and injection rejection flow.
+
+6. **Architecture note**: faithfulness_check.py placed in `src/agentic_rag/` (not `nodes/` subdirectory) to avoid Python import conflict with existing `nodes.py` file. State_graph.py imports it directly.
+
+7. **Dependency**: Added `litellm>=1.40.0` to requirements.txt per story specification.
+
+8. **Configuration**: Added FAITHFULNESS_ENABLED, FAITHFULNESS_THRESHOLD, FAITHFULNESS_THRESHOLD_LOW, FAITHFULNESS_MODEL, INJECTION_GUARD_ENABLED, INJECTION_THRESHOLD to Settings (config.py).
+
 ### File List
+
+**New files:**
+- `src/agentic_rag/faithfulness_check.py` - RAGAS claim-level NLI faithfulness check node (585 lines)
+- `backend/app/middleware/prompt_injection_guard.py` - OWASP three-layer prompt injection defense (281 lines)
+- `backend/tests/unit/test_faithfulness_check.py` - Faithfulness check unit tests (118 lines)
+- `backend/tests/unit/test_prompt_injection_guard.py` - Injection guard unit tests (215 lines)
+- `backend/tests/integration/test_qa_pipeline.py` - QA pipeline integration tests (112 lines)
+
+**Modified files:**
+- `src/agentic_rag/state.py` - Added faithfulness_score, faithfulness_details, faithfulness_degraded fields
+- `src/agentic_rag/state_graph.py` - Added faithfulness_check node, route_after_quality_check routes to it
+- `backend/app/models/canvas_events.py` - Added FAITHFULNESS_CHECKED and INJECTION_DETECTED events
+- `backend/app/middleware/logging_middleware.py` - Added QA check log schemas
+- `backend/app/config.py` - Added faithfulness and injection guard settings
+- `backend/requirements.txt` - Added litellm>=1.40.0
