@@ -1,24 +1,22 @@
 """
 Agentic RAG - Canvas Learning System智能检索增强生成系统
 
-基于LangGraph构建的多层记忆检索与质量控制编排系统。
+基于LangGraph构建的多层记忆检索编排系统。
 
 Architecture:
 - Layer 1: Graphiti时序知识图谱 (概念关系 + 学习历史)
 - Layer 2: LanceDB向量数据库 (语义检索)
 - Layer 3: Temporal Memory (FSRS遗忘曲线 + 学习行为)
 
-Core Features:
-- 并行检索 (Send模式)
-- 3种融合算法 (RRF, Weighted, Cascade)
-- 混合Reranking (Local + Cohere)
-- 质量控制循环 (Query重写)
+Active modules: state_graph, nodes, config, state, retrievers/, clients/, models/
+Archived (Story 2.1): fusion/, observability/, reranking, quality/, quality_nodes/,
+  routing/, parallel_retrieval, traced_nodes, env_config → _bmad-output/archive/
 
 Author: Canvas Learning System Team
-Version: 1.1.0
+Version: 1.2.0
 Created: 2025-11-29
-Updated: 2025-12-12
-Story: 23.1 - LangGraph导入问题修复
+Updated: 2026-03-16
+Story: 2.1 - Phase 0 死代码清理
 """
 
 import logging
@@ -163,7 +161,7 @@ def check_dependencies() -> dict:
 # Module Exports
 # ============================================================
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     # Core exports (may be None if import failed)
