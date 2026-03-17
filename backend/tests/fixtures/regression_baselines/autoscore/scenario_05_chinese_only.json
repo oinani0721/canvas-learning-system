@@ -1,0 +1,51 @@
+{
+  "scenario_id": "autoscore_05_chinese_only",
+  "description": "Pure Chinese content scenario with medium-level answer",
+  "tags": ["chinese_only", "medium_score"],
+  "input": {
+    "question": "请解释什么是面向对象编程的三大特性。",
+    "rubric": "评分标准：1)封装：将数据和操作数据的方法绑定在一起，对外隐藏内部实现 2)继承：子类继承父类的属性和方法，支持代码复用 3)多态：同一接口不同实现，运行时确定调用哪个方法 4)三者之间的关系和在实际开发中的应用",
+    "student_answer": "面向对象有三大特性：封装、继承和多态。封装就是把变量和函数放在一个类里面，外面不能直接访问私有变量。继承是子类可以用父类的东西。多态我不太确定，好像是同一个方法可以有不同的实现？",
+    "context": "大学Java编程课程"
+  },
+  "expected_output": {
+    "concept_accuracy": {"min": 1, "max": 2},
+    "reasoning_quality": {"min": 0, "max": 1},
+    "knowledge_coverage": {"min": 1, "max": 2},
+    "knowledge_integration": {"min": 0, "max": 1},
+    "overall": {"min": 3, "max": 6}
+  },
+  "replay_response": {
+    "evidence": {
+      "concept_accuracy_evidence": [
+        "正确列出三大特性名称",
+        "封装描述基本正确但不够完整（缺少'隐藏内部实现'的强调）",
+        "继承描述过于简略",
+        "多态的理解存在不确定性，但方向正确"
+      ],
+      "reasoning_quality_evidence": [
+        "简单罗列，缺乏深入解释",
+        "未分析三者的关系"
+      ],
+      "knowledge_coverage_evidence": [
+        "覆盖了封装的基本概念",
+        "覆盖了继承的基本概念（过于简略）",
+        "部分覆盖多态",
+        "未讨论三者关系和实际应用"
+      ],
+      "knowledge_integration_evidence": [
+        "仅罗列三个特性，未建立联系",
+        "未讨论三者如何协同工作"
+      ],
+      "overall_observation": "学生知道三大特性的名称和基本含义，但理解停留在表面，未能深入解释或建立联系。"
+    },
+    "scores": {
+      "concept_accuracy": {"score": 2, "justification": "三个概念的基本方向正确但不够深入"},
+      "reasoning_quality": {"score": 1, "justification": "简单罗列缺乏推理"},
+      "knowledge_coverage": {"score": 1, "justification": "覆盖约40%的要点"},
+      "knowledge_integration": {"score": 0, "justification": "知识点孤立罗列，无联系"}
+    },
+    "overall_score": 4,
+    "confidence": "high"
+  }
+}

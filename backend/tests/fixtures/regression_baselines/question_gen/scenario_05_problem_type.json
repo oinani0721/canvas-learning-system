@@ -1,0 +1,31 @@
+{
+  "scenario_id": "qgen_05_problem_type",
+  "description": "Problem-type whiteboard with high mastery, targeting evaluation-level",
+  "tags": ["problem_type", "high_mastery", "mixed_language"],
+  "input": {
+    "exam_mode": "point_to_point",
+    "node_content": "Dynamic Programming: 解题模式 - 1)定义状态 2)写出状态转移方程 3)确定初始条件和边界 4)确定计算顺序。典型题目：背包问题、最长公共子序列、编辑距离。",
+    "node_type": "problem_type",
+    "student_tips": "DP问题关键是找到子问题重叠结构",
+    "error_history": "破题错误：在编辑距离问题中状态定义错误，把dp[i][j]定义为前i个字符的编辑距离而忽略了第二个字符串的维度",
+    "edge_reasons": "DP与贪心算法的区别：DP保证全局最优，贪心不一定",
+    "mastery_level": 0.75,
+    "conversation_summary": "Student understands DP framework but makes state definition errors in complex problems"
+  },
+  "expected_output": {
+    "has_question": true,
+    "target_bloom_level_valid": true,
+    "valid_bloom_levels": ["evaluate", "create", "analyze"],
+    "difficulty_matches_mastery": true,
+    "format_compliant": true,
+    "addresses_weakness": true
+  },
+  "replay_response": {
+    "question": "给定问题：将字符串 'intention' 转换为 'execution' 的最少编辑操作数（允许插入、删除、替换单个字符）。请写出你的状态定义 dp[i][j] 的含义，并解释为什么需要二维数组而不是一维数组。",
+    "question_type": "application",
+    "target_bloom_level": "evaluate",
+    "target_error_type": "破题错误",
+    "difficulty_rationale": "学生精通度0.75，适合Evaluate/Create层级。历史记录显示在编辑距离的状态定义上有破题错误，出同结构新题验证是否真正理解了二维状态的必要性。",
+    "scoring_hints": "关注：1)状态定义是否包含两个字符串的维度 2)能否解释为什么一维不够 3)能否写出正确的状态转移方程"
+  }
+}

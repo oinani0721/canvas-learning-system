@@ -1,0 +1,31 @@
+{
+  "scenario_id": "qgen_04_knowledge_type",
+  "description": "Knowledge-type whiteboard with low mastery, targeting definition-level questions",
+  "tags": ["knowledge_point", "low_mastery", "chinese"],
+  "input": {
+    "exam_mode": "point_to_point",
+    "node_content": "微积分基本定理：连续函数的不定积分的导数等于该函数本身。即 d/dx [integral from a to x of f(t)dt] = f(x)。",
+    "node_type": "knowledge_point",
+    "student_tips": "",
+    "error_history": "知识点缺失：不理解积分和导数的逆运算关系",
+    "edge_reasons": "微积分基本定理连接了微分和积分",
+    "mastery_level": 0.15,
+    "conversation_summary": "学生对微积分基本概念缺乏理解"
+  },
+  "expected_output": {
+    "has_question": true,
+    "target_bloom_level_valid": true,
+    "valid_bloom_levels": ["remember", "understand"],
+    "difficulty_matches_mastery": true,
+    "format_compliant": true,
+    "addresses_weakness": true
+  },
+  "replay_response": {
+    "question": "请用你自己的话解释：什么是导数？什么是积分？它们之间有什么关系？",
+    "question_type": "definition",
+    "target_bloom_level": "remember",
+    "target_error_type": "知识点缺失",
+    "difficulty_rationale": "学生精通度仅0.15，历史记录显示知识点缺失。需要回退到Bloom Remember层，先确认基础概念，再逐步升级。",
+    "scoring_hints": "关注：1)能否给出导数的基本定义（变化率/切线斜率）2)能否给出积分的基本概念（面积/累积量）3)能否说出二者互为逆运算"
+  }
+}

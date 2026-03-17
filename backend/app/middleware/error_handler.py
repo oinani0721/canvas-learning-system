@@ -119,6 +119,17 @@ class ErrorHandlerMiddleware(BaseHTTPMiddleware):
                 traceback=traceback.format_exc(),
             )
 
+            # Story 7.4: Classify and record the error (fire-and-forget)
+            # [Source: Story 7.4 Task 4.4]
+            try:
+                import asyncio
+
+                from app.middleware.logging_middleware import _record_classified_error
+
+                asyncio.create_task(_record_classified_error(exc))
+            except Exception:
+                pass  # Never let error recording break the error handler
+
             return self._create_error_response(
                 code=500,
                 message="Internal server error",

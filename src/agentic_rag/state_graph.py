@@ -65,6 +65,7 @@ from agentic_rag.state import CanvasRAGState  # noqa: E402
 # Conditional Edge: Fan-out to Parallel Retrieval
 # ========================================
 
+
 def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     """
     Fan-out to parallel retrieval nodes
@@ -92,10 +93,10 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     sends = [
         Send("retrieve_graphiti", state),
         Send("retrieve_lancedb", state),
-        Send("retrieve_multimodal", state),    # Story 6.8: 多模态检索
-        Send("retrieve_textbook", state),       # Story 23.4: 教材上下文
-        Send("retrieve_cross_canvas", state),   # Story 23.4: 跨Canvas关联
-        Send("retrieve_vault_notes", state),    # Vault Notes: .md 笔记检索
+        Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
+        Send("retrieve_textbook", state),  # Story 23.4: 教材上下文
+        Send("retrieve_cross_canvas", state),  # Story 23.4: 跨Canvas关联
+        Send("retrieve_vault_notes", state),  # Vault Notes: .md 笔记检索
     ]
 
     logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: all 6 retrieval nodes")
@@ -105,6 +106,7 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
 # ========================================
 # Conditional Edge: Quality-based Routing
 # ========================================
+
 
 def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query", "faithfulness_check"]:
     """
@@ -122,7 +124,9 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
     rewrite_count = state.get("rewrite_count", 0)
     max_rewrite = 2
 
-    logger.debug(f"[route_after_quality_check] quality={quality_grade}, rewrite_count={rewrite_count}, max={max_rewrite}")
+    logger.debug(
+        f"[route_after_quality_check] quality={quality_grade}, rewrite_count={rewrite_count}, max={max_rewrite}"
+    )
 
     # Low quality and rewrite budget remaining
     if quality_grade == "low" and rewrite_count < max_rewrite:
@@ -141,16 +145,15 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
 # Node: Query Rewrite
 # ========================================
 
+
 async def rewrite_query(state: CanvasRAGState) -> dict:
     """
     Query重写节点
 
-    使用LLM重写query，从不同角度提问。
-
-    ✅ Verified from LangGraph Skill:
-    - Node returns dict with state updates
-
-    TODO: Story 12.9 完成详细实现 (调用gpt-3.5-turbo)
+    Story 2.2 Task 3: 接入LLM进行真正的查询改写。
+    - 使用LiteLLM SDK调用配置的LLM
+    - 3秒超时保护
+    - LLM不可用时降级为关键词扩展
 
     Returns:
         State updates:
@@ -158,9 +161,11 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
         - query_rewritten: True
         - rewrite_count: +1
     """
+    import asyncio
+    import os
+
     current_rewrite_count = state.get("rewrite_count", 0)
 
-    # ✅ Story 23.3 AC 4: 节点入口日志
     logger.debug(f"[rewrite_query] START - rewrite_count={current_rewrite_count}")
 
     messages = state.get("messages", [])
@@ -170,15 +175,78 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     else:
         original_query = ""
 
-    # Placeholder: 简单添加"请详细解释"
-    rewritten_query = f"请详细解释: {original_query}"
+    rewritten_query = original_query  # default: keep original
+
+    # Story 2.2 Task 3.2: Try LLM-based rewrite via LiteLLM
+    llm_rewrite_success = False
+    try:
+        import litellm
+
+        litellm.set_verbose = False
+
+        # Use configured model (same pattern as faithfulness_check.py)
+        model_name = os.getenv("AI_MODEL_NAME", "gemini-2.0-flash-exp")
+        litellm_prefix = os.getenv("FAITHFULNESS_LITELLM_PREFIX", "")
+        if litellm_prefix and not model_name.startswith(litellm_prefix):
+            model_name = f"{litellm_prefix}{model_name}"
+
+        rewrite_prompt = (
+            "你是搜索查询优化专家。请将以下查询改写为更精确的搜索查询，"
+            "以获得更相关的检索结果。\n"
+            f"原始查询：{original_query}\n"
+            "请用不同的关键词和角度重写，直接返回改写后的查询，不要解释。"
+        )
+
+        # Story 2.2 Task 3.3: 3秒超时保护
+        response = await asyncio.wait_for(
+            litellm.acompletion(
+                model=model_name,
+                messages=[{"role": "user", "content": rewrite_prompt}],
+                max_tokens=150,
+                temperature=0.7,
+            ),
+            timeout=3.0,
+        )
+
+        llm_rewritten = response.choices[0].message.content.strip()
+        if llm_rewritten and llm_rewritten != original_query:
+            rewritten_query = llm_rewritten
+            llm_rewrite_success = True
+            logger.info(
+                f"[rewrite_query] LLM rewrite success: '{original_query[:40]}...' -> '{rewritten_query[:40]}...'"
+            )
+
+    except asyncio.TimeoutError:
+        logger.warning("[rewrite_query] LLM rewrite timed out (3s), using keyword fallback")
+    except ImportError:
+        logger.warning("[rewrite_query] litellm not installed, using keyword fallback")
+    except Exception as e:
+        logger.warning(f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback")
+
+    # Story 2.2 Task 3.3/3.4: Fallback - keyword expansion
+    if not llm_rewrite_success:
+        try:
+            import jieba
+
+            # Extract top-5 keywords via jieba and append to query
+            keywords = jieba.analyse.extract_tags(original_query, topK=5)
+            if keywords:
+                rewritten_query = f"{original_query} {' '.join(keywords)}"
+            else:
+                rewritten_query = f"{original_query} 关键概念 定义 解释"
+        except ImportError:
+            # jieba not available, use simple expansion
+            rewritten_query = f"{original_query} 关键概念 定义 解释"
 
     new_rewrite_count = current_rewrite_count + 1
 
-    # ✅ Story 23.3 AC 4: 节点出口日志
-    logger.debug(f"[rewrite_query] END - new_rewrite_count={new_rewrite_count}, query='{rewritten_query[:50]}...'")
+    # Story 2.2 Task 3.5: Log before/after query
+    logger.info(
+        f"[rewrite_query] END - rewrite_count={new_rewrite_count}, "
+        f"llm_success={llm_rewrite_success}, "
+        f"original='{original_query[:50]}', rewritten='{rewritten_query[:50]}'"
+    )
 
-    # 更新state
     return {
         "messages": [{"role": "user", "content": rewritten_query}],
         "query_rewritten": True,
@@ -189,6 +257,7 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
 # ========================================
 # Build StateGraph
 # ========================================
+
 
 def rewrite_loop_routing(state: CanvasRAGState) -> list[Send]:
     """
@@ -238,10 +307,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         Compiled StateGraph
     """
     # 创建StateGraph with context schema
-    builder = StateGraph(
-        state_schema=CanvasRAGState,
-        context_schema=CanvasRAGConfig
-    )
+    builder = StateGraph(state_schema=CanvasRAGState, context_schema=CanvasRAGConfig)
 
     # ========================================
     # Add Nodes
@@ -255,7 +321,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,  # TODO: 细化为ConnectionError
             max_attempts=3,
             backoff_factor=2.0,
-        )
+        ),
     )
 
     builder.add_node(
@@ -265,7 +331,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,
             max_attempts=3,
             backoff_factor=2.0,
-        )
+        ),
     )
 
     # Story 6.8: 多模态检索节点 (with timeout degradation per AC 6.8.4)
@@ -276,7 +342,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,
             max_attempts=2,  # 较少重试，以满足2秒延迟要求
             backoff_factor=1.5,
-        )
+        ),
     )
 
     # Story 23.4: 教材上下文检索节点
@@ -287,7 +353,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,
             max_attempts=2,
             backoff_factor=1.5,
-        )
+        ),
     )
 
     # Story 23.4: 跨Canvas关联检索节点
@@ -298,7 +364,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,
             max_attempts=2,
             backoff_factor=1.5,
-        )
+        ),
     )
 
     # Vault Notes: .md 笔记检索节点
@@ -309,7 +375,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
             retry_on=Exception,
             max_attempts=2,
             backoff_factor=1.5,
-        )
+        ),
     )
 
     # Processing nodes
@@ -343,8 +409,8 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_edge("retrieve_graphiti", "fuse_results")
     builder.add_edge("retrieve_lancedb", "fuse_results")
     builder.add_edge("retrieve_multimodal", "fuse_results")  # Story 6.8
-    builder.add_edge("retrieve_textbook", "fuse_results")     # Story 23.4
-    builder.add_edge("retrieve_cross_canvas", "fuse_results") # Story 23.4
+    builder.add_edge("retrieve_textbook", "fuse_results")  # Story 23.4
+    builder.add_edge("retrieve_cross_canvas", "fuse_results")  # Story 23.4
     builder.add_edge("retrieve_vault_notes", "fuse_results")  # Vault Notes
 
     # fuse_results → rerank_results
@@ -361,7 +427,7 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
         {
             "rewrite_query": "rewrite_query",
             "faithfulness_check": "faithfulness_check",
-        }
+        },
     )
 
     # Story 7.1: faithfulness_check → END (final quality gate)

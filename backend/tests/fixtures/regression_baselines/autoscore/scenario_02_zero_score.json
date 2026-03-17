@@ -1,0 +1,47 @@
+{
+  "scenario_id": "autoscore_02_zero_score",
+  "description": "Zero score scenario: completely irrelevant answer",
+  "tags": ["zero_score", "chinese"],
+  "input": {
+    "question": "请解释牛顿第三定律及其在日常生活中的应用。",
+    "rubric": "评分标准：1)力的相互性：作用力和反作用力大小相等方向相反 2)同时产生同时消失 3)分别作用在两个物体上 4)日常应用举例（走路、火箭、游泳等）",
+    "student_answer": "我觉得牛顿很厉害，他发现了苹果会掉下来。物理很难学。",
+    "context": "高中物理牛顿运动定律"
+  },
+  "expected_output": {
+    "concept_accuracy": {"min": 0, "max": 0},
+    "reasoning_quality": {"min": 0, "max": 0},
+    "knowledge_coverage": {"min": 0, "max": 0},
+    "knowledge_integration": {"min": 0, "max": 0},
+    "overall": {"min": 0, "max": 1}
+  },
+  "replay_response": {
+    "evidence": {
+      "concept_accuracy_evidence": [
+        "未提到任何与第三定律相关的概念",
+        "提到苹果掉落是万有引力而非第三定律"
+      ],
+      "reasoning_quality_evidence": [
+        "无任何推理过程",
+        "回答完全偏离题目要求"
+      ],
+      "knowledge_coverage_evidence": [
+        "未覆盖任何评分标准要点",
+        "力的相互性、同时性、分别作用、应用举例均未涉及"
+      ],
+      "knowledge_integration_evidence": [
+        "无知识点联系",
+        "回答内容与题目无关"
+      ],
+      "overall_observation": "学生回答完全偏离主题，未展示任何关于牛顿第三定律的知识。"
+    },
+    "scores": {
+      "concept_accuracy": {"score": 0, "justification": "核心概念完全未涉及"},
+      "reasoning_quality": {"score": 0, "justification": "无推理过程"},
+      "knowledge_coverage": {"score": 0, "justification": "未覆盖任何评分要点"},
+      "knowledge_integration": {"score": 0, "justification": "无知识点联系"}
+    },
+    "overall_score": 0,
+    "confidence": "high"
+  }
+}

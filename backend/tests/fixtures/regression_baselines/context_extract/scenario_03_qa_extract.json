@@ -1,0 +1,52 @@
+{
+  "scenario_id": "cext_03_qa_extract",
+  "description": "Deep Q&A conversation with high-value question-answer pairs",
+  "tags": ["qa_extract", "english"],
+  "input": {
+    "conversation": "Student: What's the difference between TCP and UDP?\nAI: TCP (Transmission Control Protocol) is connection-oriented, providing reliable, ordered delivery with error checking. UDP (User Datagram Protocol) is connectionless, offering faster but unreliable delivery.\nStudent: So when would I use UDP over TCP?\nAI: UDP is preferred for real-time applications like video streaming, online gaming, and VoIP where speed matters more than perfect reliability. Losing a few packets is acceptable - you'd rather see a slightly glitchy video than a paused one.\nStudent: That makes sense! So basically TCP = reliability, UDP = speed?\nAI: That's a good simplification, but there's more nuance. TCP also has flow control and congestion control mechanisms. And modern protocols like QUIC (used by HTTP/3) actually build reliability on top of UDP to get the best of both worlds.\nStudent: Wait, HTTP/3 uses UDP? That's surprising!",
+    "node_content": "Network protocols: TCP vs UDP",
+    "subject": "Computer Networking"
+  },
+  "expected_output": {
+    "min_errors": 0,
+    "expected_error_types": [],
+    "min_tips": 1,
+    "min_key_qa": 2,
+    "has_evidence_for_each": true
+  },
+  "replay_response": {
+    "errors": [],
+    "tips": [
+      {
+        "content": "QUIC (HTTP/3) builds reliability on top of UDP to combine advantages of both TCP and UDP",
+        "source": "ai_explanation",
+        "evidence": "AI: modern protocols like QUIC (used by HTTP/3) actually build reliability on top of UDP",
+        "importance": "high"
+      },
+      {
+        "content": "TCP = connection-oriented, reliable, ordered; UDP = connectionless, fast, unreliable",
+        "source": "self_summary",
+        "evidence": "Student: So basically TCP = reliability, UDP = speed?",
+        "importance": "high"
+      }
+    ],
+    "key_qa": [
+      {
+        "question": "When would you use UDP over TCP?",
+        "answer": "For real-time applications (video streaming, gaming, VoIP) where speed matters more than perfect reliability",
+        "topic": "TCP vs UDP use cases",
+        "learning_value": "high",
+        "evidence": "Student: So when would I use UDP over TCP?"
+      },
+      {
+        "question": "What is the difference between TCP and UDP?",
+        "answer": "TCP is connection-oriented with reliable ordered delivery and error checking; UDP is connectionless with faster but unreliable delivery",
+        "topic": "Network protocol fundamentals",
+        "learning_value": "high",
+        "evidence": "Student: What's the difference between TCP and UDP?"
+      }
+    ],
+    "extraction_confidence": "high",
+    "extraction_summary": "No errors detected. Extracted 2 tips (QUIC insight + protocol comparison summary) and 2 key Q&A pairs on TCP/UDP."
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "scenario_id": "cext_02_tips_extract",
+  "description": "Tips-heavy conversation where student marks important points",
+  "tags": ["tips_extract", "chinese"],
+  "input": {
+    "conversation": "学生: 我总结一下链表和数组的区别。数组是连续内存，随机访问O(1)，但插入删除需要移动元素O(n)。链表是不连续的，通过指针连接，插入删除O(1)但查找O(n)。\nAI: 总结得很好！补充一点，数组的缓存友好性更好（cache locality），这在实际性能中很重要。\n学生: 哦！所以虽然链表理论复杂度更好，实际上数组因为缓存命中率高可能更快？这个很重要！\nAI: 正是如此。这就是为什么很多实际应用中即使需要频繁插入删除，也会优先考虑动态数组（如ArrayList）而非链表。\n学生: 还有一个关键点：链表需要额外的指针空间，所以空间开销比数组大。",
+    "node_content": "数据结构：数组 vs 链表",
+    "subject": "计算机科学"
+  },
+  "expected_output": {
+    "min_errors": 0,
+    "expected_error_types": [],
+    "min_tips": 2,
+    "min_key_qa": 1,
+    "has_evidence_for_each": true
+  },
+  "replay_response": {
+    "errors": [],
+    "tips": [
+      {
+        "content": "数组的缓存友好性(cache locality)更好，实际性能可能优于链表即使理论复杂度相当",
+        "source": "ai_explanation",
+        "evidence": "AI: 数组的缓存友好性更好（cache locality）",
+        "importance": "high"
+      },
+      {
+        "content": "数组：连续内存，随机访问O(1)，插入删除O(n)；链表：不连续，指针连接，插入删除O(1)，查找O(n)",
+        "source": "self_summary",
+        "evidence": "学生: 我总结一下链表和数组的区别...",
+        "importance": "high"
+      },
+      {
+        "content": "链表需要额外的指针空间，空间开销比数组大",
+        "source": "self_summary",
+        "evidence": "学生: 链表需要额外的指针空间",
+        "importance": "medium"
+      }
+    ],
+    "key_qa": [
+      {
+        "question": "为什么实际应用中经常优先使用动态数组而非链表？",
+        "answer": "因为数组的缓存友好性(cache locality)更好，即使理论复杂度相同，实际性能也往往更优",
+        "topic": "数据结构选择",
+        "learning_value": "high",
+        "evidence": "学生: 所以虽然链表理论复杂度更好，实际上数组因为缓存命中率高可能更快？"
+      }
+    ],
+    "extraction_confidence": "high",
+    "extraction_summary": "无错误，提取3条Tips（含学生自主总结和AI补充的关键点），1对关键问答"
+  }
+}

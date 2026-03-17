@@ -1,14 +1,16 @@
 /**
  * Canvas Learning System - Main View
  * Story 1.1: Plugin scaffold (AC-3)
+ * Story 1.4: Routing between Dashboard and Canvas views (AC-7, Task 8.1)
  *
- * ItemView subclass that hosts the Svelte 5 root component.
+ * ItemView subclass that hosts the Svelte 5 root component (App.svelte).
  * Uses Svelte 5 mount()/unmount() API for lifecycle management.
  */
 
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
 import { mount, unmount } from 'svelte';
-import MainPanel from '../components/global/MainPanel.svelte';
+import App from '../App.svelte';
+import { canvasState } from '../stores/canvas-state';
 
 export const VIEW_TYPE_CANVAS_LEARNING = 'canvas-learning-view';
 
@@ -36,7 +38,7 @@ export class MainView extends ItemView {
     container.empty();
     container.addClass('cl-root');
 
-    this.svelteComponent = mount(MainPanel, {
+    this.svelteComponent = mount(App, {
       target: container,
     });
   }
@@ -46,5 +48,6 @@ export class MainView extends ItemView {
       unmount(this.svelteComponent);
       this.svelteComponent = null;
     }
+    canvasState.dispose();
   }
 }

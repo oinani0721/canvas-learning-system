@@ -1,0 +1,50 @@
+{
+  "scenario_id": "autoscore_04_edge_dispute",
+  "description": "Edge case: borderline answer that could be scored differently, testing confidence marking",
+  "tags": ["edge_case", "dispute", "low_confidence"],
+  "input": {
+    "question": "什么是递归？请给出一个递归的例子。",
+    "rubric": "评分标准：1)递归的定义：函数调用自身 2)递归的两个要素：基准情况(base case)和递归情况 3)举出正确的递归例子 4)说明递归的终止条件",
+    "student_answer": "递归就是自己调用自己的东西。比如斐波那契数列 fib(n) = fib(n-1) + fib(n-2)。递归需要有一个停止的条件，不然就会一直循环下去变成无限递归。",
+    "context": "大学计算机科学导论"
+  },
+  "expected_output": {
+    "concept_accuracy": {"min": 1, "max": 3},
+    "reasoning_quality": {"min": 1, "max": 2},
+    "knowledge_coverage": {"min": 1, "max": 2},
+    "knowledge_integration": {"min": 0, "max": 2},
+    "overall": {"min": 4, "max": 8}
+  },
+  "replay_response": {
+    "evidence": {
+      "concept_accuracy_evidence": [
+        "基本正确描述递归为'自己调用自己'，但不够精确（应该是函数调用自身）",
+        "斐波那契数列例子正确",
+        "提到需要停止条件（虽然用了'循环'来类比，严格说不够准确）"
+      ],
+      "reasoning_quality_evidence": [
+        "从定义到例子到终止条件，有基本的逻辑脉络",
+        "将无限递归类比为'循环'，概念有轻微混淆"
+      ],
+      "knowledge_coverage_evidence": [
+        "覆盖了递归基本定义",
+        "给出了递归例子",
+        "提到了终止条件",
+        "未明确区分base case和recursive case两个要素"
+      ],
+      "knowledge_integration_evidence": [
+        "将递归定义、例子和终止条件联系起来",
+        "但未深入讨论递归与迭代的关系等"
+      ],
+      "overall_observation": "学生理解了递归的基本概念，但表述不够精确，术语使用不够规范。属于边界情况——理解了但表达欠佳。"
+    },
+    "scores": {
+      "concept_accuracy": {"score": 2, "justification": "核心概念理解正确但术语不够精确"},
+      "reasoning_quality": {"score": 1, "justification": "基本逻辑脉络存在但有概念混淆"},
+      "knowledge_coverage": {"score": 2, "justification": "覆盖了约60%的要点"},
+      "knowledge_integration": {"score": 1, "justification": "有基本联系但不够深入"}
+    },
+    "overall_score": 6,
+    "confidence": "medium"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "scenario_id": "qgen_02_comprehensive",
+  "description": "Comprehensive exam mode testing cross-concept integration",
+  "tags": ["comprehensive", "knowledge_point", "chinese"],
+  "input": {
+    "exam_mode": "comprehensive",
+    "node_content": "化学平衡：可逆反应在一定条件下达到正反应速率等于逆反应速率的状态。平衡常数K与温度有关。勒夏特列原理：改变条件时平衡移动方向减弱该改变。",
+    "node_type": "knowledge_point",
+    "student_tips": "K只与温度有关，浓度压强催化剂不影响K值",
+    "error_history": "把催化剂对平衡的影响混淆了，以为催化剂能改变平衡位置",
+    "edge_reasons": "化学平衡与热力学第二定律的关系",
+    "mastery_level": 0.6,
+    "conversation_summary": "学生理解平衡概念但对影响因素的理解有误"
+  },
+  "expected_output": {
+    "has_question": true,
+    "target_bloom_level_valid": true,
+    "valid_bloom_levels": ["apply", "analyze", "evaluate"],
+    "difficulty_matches_mastery": true,
+    "format_compliant": true,
+    "addresses_weakness": true
+  },
+  "replay_response": {
+    "question": "在一个达到化学平衡的可逆反应中，如果同时加入催化剂并升高温度（假设正反应为吸热反应），平衡会如何变化？请分别分析催化剂和温度各自对平衡的影响，并说明最终的综合效果。",
+    "question_type": "analysis",
+    "target_bloom_level": "analyze",
+    "target_error_type": "推理谬误",
+    "difficulty_rationale": "学生精通度0.6，适合Apply/Analyze层级。历史错误显示对催化剂影响有误解，通过综合分析题考察是否真正理解各因素的独立效应。",
+    "scoring_hints": "关注：1)是否正确说明催化剂不改变平衡位置 2)是否正确分析温度对吸热反应平衡的影响 3)是否区分催化剂和温度的不同作用机制"
+  }
+}

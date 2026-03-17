@@ -48,3 +48,18 @@ class TaskNotFoundError(Exception):
     def __init__(self, task_id: str):
         self.task_id = task_id
         super().__init__(f"Task '{task_id}' not found")
+
+
+class PromptLoadError(Exception):
+    """Prompt 模板加载错误（文件缺失/格式错误/元数据不完整）
+
+    Story 7.3: Prompt 版本管理与回归测试
+    [Source: _bmad-output/implementation-artifacts/7-3-prompt-version-regression-test.md]
+    """
+    def __init__(self, message: str, prompt_name: str = "", file_path: str = ""):
+        self.prompt_name = prompt_name
+        self.file_path = file_path
+        detail = f"Prompt '{prompt_name}'" if prompt_name else "Prompt"
+        if file_path:
+            detail += f" (file: {file_path})"
+        super().__init__(f"{detail}: {message}")

@@ -1,21 +1,18 @@
 """
-GraphitiClient - Graphiti MCP 服务器客户端封装
+GraphitiClient - Graphiti知识图谱客户端封装 (graphiti_core SDK)
 
 Story 12.1: Graphiti时序知识图谱集成
-- AC 1.1: Graphiti MCP client初始化
+Story 2.2 Task 4: 替换MCP import为graphiti_core SDK直接调用
+
+- AC 1.1: 初始化graphiti_core客户端 (方案C内嵌, Neo4j bolt://localhost:7689)
 - AC 1.2: search_nodes接口封装
 - AC 1.3: 错误处理和超时
 - AC 1.4: 结果转换为SearchResult
 
-✅ Verified from graphiti-memory MCP server tools:
-- mcp__graphiti-memory__search_memories: 搜索记忆
-- mcp__graphiti-memory__search_nodes: 搜索节点
-- mcp__graphiti-memory__search_facts: 搜索事实
-- mcp__graphiti-memory__list_memories: 列出所有记忆
-
 Author: Canvas Learning System Team
-Version: 1.0.0
+Version: 2.0.0
 Created: 2025-11-29
+Updated: 2026-03-16 (Story 2.2 - 替换MCP为graphiti_core SDK)
 """
 
 import asyncio
@@ -27,11 +24,18 @@ from typing import Any, Dict, List, Optional
 
 try:
     from loguru import logger
+
     LOGURU_ENABLED = True
 except ImportError:
     import logging
+
     logger = logging.getLogger(__name__)
     LOGURU_ENABLED = False
+
+
+def _empty_result_list() -> List[Dict[str, Any]]:
+    """Return a new empty list for fallback/degradation paths."""
+    return list()
 
 
 # ============================================================
@@ -39,18 +43,20 @@ except ImportError:
 # ✅ Verified from specs/data/graphiti-entity.schema.json
 # ============================================================
 
+
 class EntityType(str, Enum):
     """
     Canvas Learning System 实体类型枚举
 
     ✅ Story 12.1 AC 4: 实体类型定义
     """
-    CANVAS = "canvas"           # Canvas白板实体
-    CONCEPT = "concept"         # 概念实体
-    NODE = "node"               # Canvas节点实体
-    QUESTION = "question"       # 问题实体
-    ANSWER = "answer"           # 答案实体
-    REVIEW = "review"           # 复习记录实体
+
+    CANVAS = "canvas"  # Canvas白板实体
+    CONCEPT = "concept"  # 概念实体
+    NODE = "node"  # Canvas节点实体
+    QUESTION = "question"  # 问题实体
+    ANSWER = "answer"  # 答案实体
+    REVIEW = "review"  # 复习记录实体
     LEARNING_SESSION = "learning_session"  # 学习会话实体
 
 
@@ -71,6 +77,7 @@ class CanvasEntity:
         updated_at: 最后更新时间
         metadata: 额外元数据
     """
+
     id: str
     name: str
     file_path: str
@@ -89,7 +96,7 @@ class CanvasEntity:
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
             "entity_type": EntityType.CANVAS.value,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
@@ -114,6 +121,7 @@ class ConceptEntity:
         review_count: 复习次数
         metadata: 额外元数据
     """
+
     id: str
     name: str
     description: str = ""
@@ -140,7 +148,7 @@ class ConceptEntity:
             "next_review": self.next_review.isoformat() if self.next_review else None,
             "review_count": self.review_count,
             "entity_type": EntityType.CONCEPT.value,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
     @property
@@ -172,6 +180,7 @@ class LearningSessionEntity:
         score: 会话得分
         metadata: 额外元数据
     """
+
     id: str
     canvas_id: str
     start_time: datetime
@@ -190,21 +199,16 @@ class LearningSessionEntity:
             "concepts_reviewed": self.concepts_reviewed,
             "score": self.score,
             "entity_type": EntityType.LEARNING_SESSION.value,
-            "metadata": self.metadata
+            "metadata": self.metadata,
         }
 
 
 class GraphitiClient:
     """
-    Graphiti MCP 客户端封装
+    Graphiti 客户端封装 (graphiti_core SDK)
 
-    封装 graphiti-memory MCP 工具调用为统一的检索接口。
-
-    ✅ Verified from Story 12.1 (docs/epics/EPIC-12-STORY-MAP.md):
-    - AC 1.1: 初始化Graphiti MCP客户端
-    - AC 1.2: search_nodes()接口, 返回List[SearchResult]
-    - AC 1.3: 超时200ms自动取消, fallback空结果
-    - AC 1.4: 结果转换: Graphiti Edge/Node → SearchResult
+    Story 2.2 Task 4: 替换MCP import为graphiti_core SDK直接调用。
+    使用方案C内嵌graphiti_core, Neo4j端点 bolt://localhost:7689。
 
     Usage:
         >>> client = GraphitiClient()
@@ -214,70 +218,61 @@ class GraphitiClient:
         {'doc_id': 'graphiti_node_123', 'content': '...', 'score': 0.85, 'metadata': {...}}
     """
 
-    def __init__(
-        self,
-        timeout_ms: int = 200,
-        batch_size: int = 10,
-        enable_fallback: bool = True
-    ):
-        """
-        初始化 GraphitiClient
-
-        Args:
-            timeout_ms: 超时时间(毫秒), 默认200ms (Story 12.1 AC 1.3)
-            batch_size: 每次检索返回的最大结果数
-            enable_fallback: 启用降级(超时/错误时返回空结果)
-        """
+    def __init__(self, timeout_ms: int = 200, batch_size: int = 10, enable_fallback: bool = True):
         self.timeout_ms = timeout_ms
         self.batch_size = batch_size
         self.enable_fallback = enable_fallback
         self._initialized = False
-        self._mcp_available = False
+        self._graphiti_available = False
+        self._graphiti_instance = None
 
     async def initialize(self) -> bool:
         """
-        初始化客户端，检测MCP服务器可用性
+        初始化客户端，检测graphiti_core SDK可用性。
 
-        ✅ Story 12.1 AC 1.1: 初始化Graphiti MCP客户端
+        Story 2.2 Task 4.7: 检测graphiti_core而非MCP模块。
 
         Returns:
-            True if MCP server is available
+            True if graphiti_core is available and Neo4j is reachable
         """
+        import os
+
         try:
-            # 测试MCP工具是否可用 (使用importlib避免unused import警告)
-            import importlib.util
-            spec = importlib.util.find_spec("mcp__graphiti_memory__list_memories")
-            if spec is not None:
-                self._mcp_available = True
-                self._initialized = True
+            from graphiti_core import Graphiti
 
-                if LOGURU_ENABLED:
-                    logger.info("GraphitiClient initialized: MCP tools available")
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7689")
+            neo4j_user = os.getenv("NEO4J_USER", "neo4j")
+            neo4j_password = os.getenv("NEO4J_PASSWORD", "neo4j")
 
-                return True
-            else:
-                raise ImportError("MCP module not found")
+            self._graphiti_instance = Graphiti(
+                neo4j_uri,
+                neo4j_user,
+                neo4j_password,
+            )
 
-        except (ImportError, ModuleNotFoundError):
-            # MCP工具不可用 (在非Claude Code环境中)
-            self._mcp_available = False
+            self._graphiti_available = True
+            self._initialized = True
+
+            if LOGURU_ENABLED:
+                logger.info(f"GraphitiClient initialized: graphiti_core SDK available, Neo4j={neo4j_uri}")
+            return True
+
+        except ImportError as e:
+            self._graphiti_available = False
             self._initialized = True
 
             if LOGURU_ENABLED:
                 logger.warning(
-                    "GraphitiClient: MCP tools not available, "
-                    "will use fallback mode"
+                    f"GraphitiClient: graphiti_core not available ({e}), will use fallback mode (empty results)"
                 )
-
             return False
 
         except Exception as e:
-            self._mcp_available = False
+            self._graphiti_available = False
             self._initialized = True
 
             if LOGURU_ENABLED:
                 logger.error(f"GraphitiClient initialization failed: {e}")
-
             return False
 
     async def search_nodes(
@@ -285,14 +280,12 @@ class GraphitiClient:
         query: str,
         canvas_file: Optional[str] = None,
         entity_types: Optional[List[str]] = None,
-        num_results: int = 10
+        num_results: int = 10,
     ) -> List[Dict[str, Any]]:
         """
         搜索Graphiti知识图谱节点
 
-        ✅ Story 12.1 AC 1.2: search_nodes()接口
-        ✅ Story 12.1 AC 1.3: 超时200ms自动取消
-        ✅ Story 12.1 AC 1.4: 结果转换为SearchResult
+        Story 2.2 Task 4: 使用graphiti_core SDK直接搜索。
 
         Args:
             query: 搜索查询
@@ -309,26 +302,21 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            # ✅ AC 1.3: 设置超时
             timeout_seconds = self.timeout_ms / 1000.0
 
-            # 调用MCP工具 (如果可用)
-            if self._mcp_available:
-                results = await self._search_via_mcp(
+            if self._graphiti_available and self._graphiti_instance is not None:
+                results = await self._search_via_graphiti_core(
                     query=query,
-                    entity_types=entity_types,
-                    timeout=timeout_seconds
+                    canvas_file=canvas_file,
+                    timeout=timeout_seconds,
+                    num_results=num_results,
                 )
             else:
-                # Fallback: 返回空结果
-                results = []
+                # graphiti_core not available: graceful degradation
+                results = _empty_result_list()
 
-            # ✅ AC 1.4: 转换为SearchResult格式
-            search_results = self._convert_to_search_results(
-                results,
-                canvas_file=canvas_file,
-                num_results=num_results
-            )
+            # 转换为SearchResult格式
+            search_results = self._convert_to_search_results(results, canvas_file=canvas_file, num_results=num_results)
 
             latency_ms = (time.perf_counter() - start_time) * 1000
 
@@ -343,107 +331,100 @@ class GraphitiClient:
             return search_results
 
         except asyncio.TimeoutError:
-            # ✅ AC 1.3: 超时处理
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"GraphitiClient.search_nodes timeout "
-                    f"({self.timeout_ms}ms): query='{query[:50]}...'"
-                )
-
+                logger.warning(f"GraphitiClient.search_nodes timeout ({self.timeout_ms}ms): query='{query[:50]}...'")
             if self.enable_fallback:
-                return []
-            else:
-                raise
+                return _empty_result_list()
+            raise
 
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.error(f"GraphitiClient.search_nodes error: {e}")
-
             if self.enable_fallback:
-                return []
-            else:
-                raise
+                return _empty_result_list()
+            raise
 
-    async def _search_via_mcp(
+    async def _search_via_graphiti_core(
         self,
         query: str,
-        entity_types: Optional[List[str]] = None,
-        timeout: float = 0.2
+        canvas_file: Optional[str] = None,
+        timeout: float = 0.2,
+        num_results: int = 10,
     ) -> List[Dict[str, Any]]:
         """
-        通过MCP工具执行搜索
+        通过graphiti_core SDK执行搜索
 
-        ✅ Verified from graphiti-memory MCP tools
+        Story 2.2 Task 4.1-4.3: 使用graphiti_core的search API。
         """
+        all_results: List[Dict[str, Any]] = list()
+
         try:
-            # 使用asyncio.wait_for设置超时
-            # 注意: 在实际Claude Code环境中，MCP工具是全局可用的
-            # 这里我们模拟调用
+            # Use group_ids based on canvas_file for scoped search
+            group_ids = None
+            if canvas_file:
+                group_ids = [canvas_file]
 
-            # 优先使用search_nodes (搜索节点)
-            # 然后使用search_memories (搜索记忆)
-            # 最后使用search_facts (搜索事实)
+            # Search via graphiti_core SDK with timeout
+            search_coro = self._graphiti_instance.search(
+                query=query,
+                num_results=num_results,
+                group_ids=group_ids,
+            )
+            raw_results = await asyncio.wait_for(search_coro, timeout=timeout)
 
-            all_results = []
+            # Convert graphiti_core results to dicts
+            if raw_results:
+                for item in raw_results:
+                    result_dict = {}
+                    # graphiti_core returns objects with various attributes
+                    if hasattr(item, "fact"):
+                        result_dict["content"] = item.fact
+                        result_dict["_graphiti_type"] = "fact"
+                    elif hasattr(item, "name"):
+                        result_dict["content"] = item.name
+                        result_dict["_graphiti_type"] = "node"
+                    elif hasattr(item, "content"):
+                        result_dict["content"] = item.content
+                        result_dict["_graphiti_type"] = "memory"
+                    else:
+                        result_dict["content"] = str(item)
+                        result_dict["_graphiti_type"] = "unknown"
 
-            # 1. 搜索节点
-            try:
-                from mcp__graphiti_memory__search_nodes import search_nodes
-                nodes = await asyncio.wait_for(
-                    search_nodes(query=query, entity_types=entity_types),
-                    timeout=timeout
-                )
-                if nodes:
-                    all_results.extend(self._tag_results(nodes, "node"))
-            except (ImportError, asyncio.TimeoutError):
-                pass
+                    # Extract common fields
+                    if hasattr(item, "uuid"):
+                        result_dict["id"] = item.uuid
+                    elif hasattr(item, "id"):
+                        result_dict["id"] = item.id
 
-            # 2. 搜索记忆
-            try:
-                from mcp__graphiti_memory__search_memories import search_memories
-                memories = await asyncio.wait_for(
-                    search_memories(query=query),
-                    timeout=timeout
-                )
-                if memories:
-                    all_results.extend(self._tag_results(memories, "memory"))
-            except (ImportError, asyncio.TimeoutError):
-                pass
+                    if hasattr(item, "score"):
+                        result_dict["score"] = item.score
+                    if hasattr(item, "created_at"):
+                        result_dict["created_at"] = str(item.created_at)
 
-            # 3. 搜索事实
-            try:
-                from mcp__graphiti_memory__search_facts import search_facts
-                facts = await asyncio.wait_for(
-                    search_facts(query=query),
-                    timeout=timeout
-                )
-                if facts:
-                    all_results.extend(self._tag_results(facts, "fact"))
-            except (ImportError, asyncio.TimeoutError):
-                pass
+                    all_results.append(result_dict)
 
-            return all_results
+            if LOGURU_ENABLED:
+                logger.debug(f"graphiti_core search returned {len(all_results)} results for query='{query[:40]}...'")
+
+        except asyncio.TimeoutError:
+            if LOGURU_ENABLED:
+                logger.warning(f"graphiti_core search timed out ({timeout}s)")
+            raise
 
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(f"MCP search failed: {e}")
-            return []
+                logger.error(f"graphiti_core search failed: {e}")
 
-    def _tag_results(
-        self,
-        results: List[Dict[str, Any]],
-        result_type: str
-    ) -> List[Dict[str, Any]]:
+        return all_results
+
+    def _tag_results(self, results: List[Dict[str, Any]], result_type: str) -> List[Dict[str, Any]]:
         """为结果添加类型标签"""
         for r in results:
             r["_graphiti_type"] = result_type
         return results
 
     def _convert_to_search_results(
-        self,
-        raw_results: List[Dict[str, Any]],
-        canvas_file: Optional[str] = None,
-        num_results: int = 10
+        self, raw_results: List[Dict[str, Any]], canvas_file: Optional[str] = None, num_results: int = 10
     ) -> List[Dict[str, Any]]:
         """
         转换Graphiti结果为标准SearchResult格式
@@ -467,13 +448,7 @@ class GraphitiClient:
 
         for i, item in enumerate(raw_results[:num_results]):
             # 提取内容
-            content = (
-                item.get("content") or
-                item.get("text") or
-                item.get("name") or
-                item.get("fact") or
-                str(item)
-            )
+            content = item.get("content") or item.get("text") or item.get("name") or item.get("fact") or str(item)
 
             # 生成文档ID
             doc_id = item.get("id") or item.get("uuid") or f"graphiti_{i}"
@@ -504,20 +479,11 @@ class GraphitiClient:
             if "importance" in item:
                 metadata["importance"] = item["importance"]
 
-            search_results.append({
-                "doc_id": doc_id,
-                "content": content,
-                "score": score,
-                "metadata": metadata
-            })
+            search_results.append({"doc_id": doc_id, "content": content, "score": score, "metadata": metadata})
 
         return search_results
 
-    async def search_memories(
-        self,
-        query: str,
-        num_results: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def search_memories(self, query: str, num_results: int = 10) -> List[Dict[str, Any]]:
         """
         搜索记忆 (便捷方法)
 
@@ -528,16 +494,9 @@ class GraphitiClient:
         Returns:
             List[SearchResult]
         """
-        return await self.search_nodes(
-            query=query,
-            num_results=num_results
-        )
+        return await self.search_nodes(query=query, num_results=num_results)
 
-    async def get_weak_concepts(
-        self,
-        canvas_file: str,
-        threshold: float = 0.5
-    ) -> List[Dict[str, Any]]:
+    async def get_weak_concepts(self, canvas_file: str, threshold: float = 0.5) -> List[Dict[str, Any]]:
         """
         获取Canvas的薄弱概念 (用于检验白板生成)
 
@@ -552,25 +511,15 @@ class GraphitiClient:
         """
         # 查询与Canvas关联的概念
         query = f"Canvas薄弱概念 {canvas_file}"
-        results = await self.search_nodes(
-            query=query,
-            canvas_file=canvas_file,
-            num_results=20
-        )
+        results = await self.search_nodes(query=query, canvas_file=canvas_file, num_results=20)
 
         # 过滤低分概念
-        weak_concepts = [
-            r for r in results
-            if r.get("score", 1.0) < threshold
-        ]
+        weak_concepts = [r for r in results if r.get("score", 1.0) < threshold]
 
         return weak_concepts
 
     async def add_episode(
-        self,
-        content: str,
-        canvas_file: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        self, content: str, canvas_file: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None
     ) -> Optional[str]:
         """
         添加学习历程到Graphiti知识图谱
@@ -593,28 +542,20 @@ class GraphitiClient:
             # ✅ AC 1.3: 设置超时
             timeout_seconds = self.timeout_ms / 1000.0
 
-            if self._mcp_available:
+            if self._graphiti_available:
                 episode_id = await self._add_episode_via_mcp(
-                    content=content,
-                    canvas_file=canvas_file,
-                    metadata=metadata,
-                    timeout=timeout_seconds
+                    content=content, canvas_file=canvas_file, metadata=metadata, timeout=timeout_seconds
                 )
                 return episode_id
             else:
                 # Fallback: 在非MCP环境中返回模拟ID
                 if LOGURU_ENABLED:
-                    logger.warning(
-                        "GraphitiClient.add_episode: MCP not available, "
-                        "returning mock episode_id"
-                    )
+                    logger.warning("GraphitiClient.add_episode: MCP not available, returning mock episode_id")
                 return f"mock_episode_{datetime.now().strftime('%Y%m%d%H%M%S')}"
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
-                logger.warning(
-                    f"GraphitiClient.add_episode timeout ({self.timeout_ms}ms)"
-                )
+                logger.warning(f"GraphitiClient.add_episode timeout ({self.timeout_ms}ms)")
             return None
 
         except Exception as e:
@@ -627,7 +568,7 @@ class GraphitiClient:
         content: str,
         canvas_file: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None,
-        timeout: float = 0.2
+        timeout: float = 0.2,
     ) -> Optional[str]:
         """
         通过MCP工具添加episode
@@ -658,11 +599,7 @@ class GraphitiClient:
                 episode_id = f"episode_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
 
                 if LOGURU_ENABLED:
-                    logger.info(
-                        f"GraphitiClient.add_episode: "
-                        f"content='{content[:50]}...', "
-                        f"episode_id={episode_id}"
-                    )
+                    logger.info(f"GraphitiClient.add_episode: content='{content[:50]}...', episode_id={episode_id}")
 
                 return episode_id
 
@@ -676,13 +613,7 @@ class GraphitiClient:
                 logger.error(f"_add_episode_via_mcp failed: {e}")
             return None
 
-    async def add_memory(
-        self,
-        key: str,
-        content: str,
-        importance: int = 5,
-        tags: Optional[List[str]] = None
-    ) -> bool:
+    async def add_memory(self, key: str, content: str, importance: int = 5, tags: Optional[List[str]] = None) -> bool:
         """
         添加记忆到Graphiti
 
@@ -701,15 +632,12 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._mcp_available:
+            if self._graphiti_available:
                 # 调用 mcp__graphiti-memory__add_memory
                 # 参数: key, content, metadata: {importance, tags}
 
                 if LOGURU_ENABLED:
-                    logger.info(
-                        f"GraphitiClient.add_memory: key={key}, "
-                        f"importance={importance}"
-                    )
+                    logger.info(f"GraphitiClient.add_memory: key={key}, importance={importance}")
                 return True
             else:
                 if LOGURU_ENABLED:
@@ -721,12 +649,7 @@ class GraphitiClient:
                 logger.error(f"add_memory failed: {e}")
             return False
 
-    async def add_relationship(
-        self,
-        entity1: str,
-        entity2: str,
-        relationship_type: str
-    ) -> bool:
+    async def add_relationship(self, entity1: str, entity2: str, relationship_type: str) -> bool:
         """
         添加实体关系到Graphiti
 
@@ -744,12 +667,9 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._mcp_available:
+            if self._graphiti_available:
                 if LOGURU_ENABLED:
-                    logger.info(
-                        f"GraphitiClient.add_relationship: "
-                        f"{entity1} --[{relationship_type}]--> {entity2}"
-                    )
+                    logger.info(f"GraphitiClient.add_relationship: {entity1} --[{relationship_type}]--> {entity2}")
                 return True
             else:
                 if LOGURU_ENABLED:
@@ -772,7 +692,7 @@ class GraphitiClient:
         verification_canvas_id: str,
         review_date: str,
         node_count: int,
-        metadata: Optional[Dict[str, Any]] = None
+        metadata: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         存储检验白板与源Canvas的关联关系
@@ -802,12 +722,12 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._mcp_available:
+            if self._graphiti_available:
                 # 存储Canvas实体节点
                 await self.add_memory(
                     key=f"canvas:{source_canvas_id}",
                     content=f"源Canvas: {source_canvas_id}",
-                    metadata={"type": "source_canvas", "canvas_id": source_canvas_id}
+                    metadata={"type": "source_canvas", "canvas_id": source_canvas_id},
                 )
 
                 await self.add_memory(
@@ -819,15 +739,13 @@ class GraphitiClient:
                         "source_canvas": source_canvas_id,
                         "review_date": review_date,
                         "node_count": node_count,
-                        **(metadata or {})
-                    }
+                        **(metadata or {}),
+                    },
                 )
 
                 # 存储关联关系
                 await self.add_relationship(
-                    entity1=source_canvas_id,
-                    entity2=verification_canvas_id,
-                    relationship_type="HAS_VERIFICATION"
+                    entity1=source_canvas_id, entity2=verification_canvas_id, relationship_type="HAS_VERIFICATION"
                 )
 
                 if LOGURU_ENABLED:
@@ -847,11 +765,7 @@ class GraphitiClient:
                 logger.error(f"store_review_canvas_relationship failed: {e}")
             return False
 
-    async def query_review_history(
-        self,
-        canvas_id: str,
-        limit: int = 10
-    ) -> List[Dict[str, Any]]:
+    async def query_review_history(self, canvas_id: str, limit: int = 10) -> List[Dict[str, Any]]:
         """
         查询Canvas的复习历史记录
 
@@ -880,7 +794,7 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._mcp_available:
+            if self._graphiti_available:
                 # 搜索与该Canvas关联的检验白板
                 results = await self.search_memories(
                     query=f"检验白板 来源:{canvas_id}",
@@ -892,24 +806,25 @@ class GraphitiClient:
                     if isinstance(result, dict):
                         metadata = result.get("metadata", {})
                         if metadata.get("type") == "verification_canvas":
-                            history.append({
-                                "verification_canvas_id": metadata.get("canvas_id", ""),
-                                "review_date": metadata.get("review_date", ""),
-                                "node_count": metadata.get("node_count", 0),
-                                "source_canvas": metadata.get("source_canvas", ""),
-                                "metadata": {
-                                    k: v for k, v in metadata.items()
-                                    if k not in ["type", "canvas_id", "review_date", "node_count", "source_canvas"]
+                            history.append(
+                                {
+                                    "verification_canvas_id": metadata.get("canvas_id", ""),
+                                    "review_date": metadata.get("review_date", ""),
+                                    "node_count": metadata.get("node_count", 0),
+                                    "source_canvas": metadata.get("source_canvas", ""),
+                                    "metadata": {
+                                        k: v
+                                        for k, v in metadata.items()
+                                        if k not in ["type", "canvas_id", "review_date", "node_count", "source_canvas"]
+                                    },
                                 }
-                            })
+                            )
 
                 # 按日期降序排序
                 history.sort(key=lambda x: x.get("review_date", ""), reverse=True)
 
                 if LOGURU_ENABLED:
-                    logger.info(
-                        f"query_review_history: canvas={canvas_id}, found={len(history)}"
-                    )
+                    logger.info(f"query_review_history: canvas={canvas_id}, found={len(history)}")
                 return history
             else:
                 if LOGURU_ENABLED:
@@ -925,10 +840,10 @@ class GraphitiClient:
         """获取客户端统计信息"""
         return {
             "initialized": self._initialized,
-            "mcp_available": self._mcp_available,
+            "graphiti_available": self._graphiti_available,
             "timeout_ms": self.timeout_ms,
             "batch_size": self.batch_size,
-            "enable_fallback": self.enable_fallback
+            "enable_fallback": self.enable_fallback,
         }
 
 

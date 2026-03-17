@@ -1,0 +1,53 @@
+{
+  "scenario_id": "autoscore_03_partial_mixed",
+  "description": "Partial score with Chinese-English mixed content",
+  "tags": ["partial_score", "mixed_language"],
+  "input": {
+    "question": "Explain the difference between stack and heap memory allocation.",
+    "rubric": "评分标准：1)Stack是LIFO结构，自动管理，速度快 2)Heap是动态分配，需手动管理(或GC) 3)Stack存储局部变量和函数调用，Heap存储动态分配的对象 4)各自的优缺点和适用场景",
+    "student_answer": "Stack memory is like a stack of plates - last in, first out. It's very fast because the CPU just moves a pointer. 局部变量都放在stack上。Heap就是用malloc或new分配的内存，比较慢。I think heap is bigger than stack but I'm not sure about the details of garbage collection.",
+    "context": "Computer Science - Memory Management"
+  },
+  "expected_output": {
+    "concept_accuracy": {"min": 1, "max": 2},
+    "reasoning_quality": {"min": 1, "max": 2},
+    "knowledge_coverage": {"min": 1, "max": 2},
+    "knowledge_integration": {"min": 0, "max": 1},
+    "overall": {"min": 3, "max": 7}
+  },
+  "replay_response": {
+    "evidence": {
+      "concept_accuracy_evidence": [
+        "正确描述Stack为LIFO结构",
+        "正确提到Stack速度快（CPU指针移动）",
+        "正确提到局部变量在stack上",
+        "正确提到Heap使用malloc/new分配",
+        "关于GC的理解不确定"
+      ],
+      "reasoning_quality_evidence": [
+        "Stack的类比(plates)有助于理解但不够严谨",
+        "对Heap的描述较为表面",
+        "未深入分析速度差异的原因"
+      ],
+      "knowledge_coverage_evidence": [
+        "覆盖了Stack的LIFO和速度特点",
+        "覆盖了Heap的动态分配",
+        "部分覆盖了存储内容",
+        "未详细讨论优缺点和适用场景"
+      ],
+      "knowledge_integration_evidence": [
+        "尝试比较Stack和Heap但不够深入",
+        "未将内存管理与程序设计决策联系起来"
+      ],
+      "overall_observation": "学生对Stack有较好理解，对Heap的理解较浅，缺乏深入比较和应用场景分析。"
+    },
+    "scores": {
+      "concept_accuracy": {"score": 2, "justification": "多数概念正确但对GC理解不确定"},
+      "reasoning_quality": {"score": 1, "justification": "有推理尝试但不够深入"},
+      "knowledge_coverage": {"score": 1, "justification": "覆盖约50%的要点"},
+      "knowledge_integration": {"score": 1, "justification": "有比较尝试但联系不够紧密"}
+    },
+    "overall_score": 5,
+    "confidence": "medium"
+  }
+}

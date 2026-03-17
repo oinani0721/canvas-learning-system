@@ -1,0 +1,39 @@
+{
+  "scenario_id": "cext_05_edge_sparse",
+  "description": "Edge case: very sparse conversation with minimal extractable content",
+  "tags": ["edge_case", "sparse", "chinese"],
+  "input": {
+    "conversation": "学生: 什么是指针？\nAI: 指针是一个变量，它存储的是另一个变量的内存地址。\n学生: 哦。\nAI: 你有什么疑问吗？\n学生: 没有了。",
+    "node_content": "C语言指针",
+    "subject": "C语言编程"
+  },
+  "expected_output": {
+    "min_errors": 0,
+    "expected_error_types": [],
+    "min_tips": 0,
+    "min_key_qa": 0,
+    "has_evidence_for_each": true
+  },
+  "replay_response": {
+    "errors": [],
+    "tips": [
+      {
+        "content": "指针是存储另一个变量内存地址的变量",
+        "source": "ai_explanation",
+        "evidence": "AI: 指针是一个变量，它存储的是另一个变量的内存地址。",
+        "importance": "medium"
+      }
+    ],
+    "key_qa": [
+      {
+        "question": "什么是指针？",
+        "answer": "指针是一个变量，存储的是另一个变量的内存地址",
+        "topic": "指针基础",
+        "learning_value": "medium",
+        "evidence": "学生: 什么是指针？ AI: 指针是一个变量..."
+      }
+    ],
+    "extraction_confidence": "medium",
+    "extraction_summary": "对话非常简短，无错误发现。提取1条基础Tips和1对基础问答。学生互动极少，难以深度分析。"
+  }
+}

@@ -80,3 +80,62 @@
 .cl-status-dot--unknown {
   background-color: var(--cl-text-faint);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Layer 2: Mastery Color System (Story 5.2)
+ *
+ * 5-state mastery colors: unlearned / learning / weak / mastered / review
+ * Each state has a -border and -bar variant.
+ * Unlearned maps to Obsidian's native border color (no visual change).
+ * Color values chosen for:
+ *   - WCAG AA contrast (>= 3:1 against node background)
+ *   - Hue + luminance differentiation (accessible to color-vision deficiency)
+ *   - Dark theme: brighter values on dark backgrounds
+ *   - Light theme: deeper values on light backgrounds
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* --- Dark Theme --- */
+.theme-dark {
+  /* Unlearned: Obsidian default (no visual indicator) */
+  --cl-mastery-unlearned-border: var(--background-modifier-border);
+  --cl-mastery-unlearned-bar: transparent;
+
+  /* Learning (blue): has interaction, not yet examined */
+  --cl-mastery-learning-border: #5B8DEF;
+  --cl-mastery-learning-bar: #5B8DEF;
+
+  /* Weak (red/orange): exam proficiency < 0.4 */
+  --cl-mastery-weak-border: #E06356;
+  --cl-mastery-weak-bar: #E06356;
+
+  /* Mastered (green): exam proficiency >= 0.7 */
+  --cl-mastery-mastered-border: #4CAF50;
+  --cl-mastery-mastered-bar: #4CAF50;
+
+  /* Review (yellow): FSRS says review is due */
+  --cl-mastery-review-border: #F5A623;
+  --cl-mastery-review-bar: #F5A623;
+
+  /* Transition shorthand */
+  --cl-mastery-transition: border-color 300ms ease-in-out, box-shadow 300ms ease-in-out;
+}
+
+/* --- Light Theme --- */
+.theme-light {
+  --cl-mastery-unlearned-border: var(--background-modifier-border);
+  --cl-mastery-unlearned-bar: transparent;
+
+  --cl-mastery-learning-border: #3A6DD8;
+  --cl-mastery-learning-bar: #3A6DD8;
+
+  --cl-mastery-weak-border: #C4382B;
+  --cl-mastery-weak-bar: #C4382B;
+
+  --cl-mastery-mastered-border: #2E7D32;
+  --cl-mastery-mastered-bar: #2E7D32;
+
+  --cl-mastery-review-border: #D4880F;
+  --cl-mastery-review-bar: #D4880F;
+
+  --cl-mastery-transition: border-color 300ms ease-in-out, box-shadow 300ms ease-in-out;
+}

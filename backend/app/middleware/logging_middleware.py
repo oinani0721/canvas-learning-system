@@ -242,3 +242,32 @@ QA_LOG_SCHEMAS = {
     "faithfulness_check": FAITHFULNESS_CHECK_LOG_SCHEMA,
     "injection_detection": INJECTION_DETECTION_LOG_SCHEMA,
 }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 7.4: Error Auto-Classification Integration
+# [Source: _bmad-output/implementation-artifacts/7-4-difficulty-matching-extraction-validation.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def _record_classified_error(exc: BaseException) -> None:
+    """Classify and record an error via ErrorAggregator (fire-and-forget).
+
+    Called from the error handler middleware when an unhandled exception
+    is caught. Errors in the recording process itself are silently logged
+    to avoid cascading failures.
+
+    [Source: Story 7.4 Task 4.4 — integration with logging_middleware]
+    """
+    try:
+        from app.services.error_aggregator import get_error_aggregator
+
+        aggregator = get_error_aggregator()
+        await aggregator.record_error(exc)
+    except Exception as record_err:
+        # Avoid cascading: log and move on
+        logger.warning(
+            "error_classification_failed",
+            original_error=type(exc).__name__,
+            record_error=str(record_err)[:200],
+        )

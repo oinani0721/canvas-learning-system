@@ -54,9 +54,7 @@ async def _check_neo4j(settings: Settings) -> ComponentStatus:
                 result = await session.run("RETURN 1 AS n")
                 record = await result.single()
                 if record and record["n"] == 1:
-                    return ComponentStatus(
-                        name="neo4j", status="healthy", message="Bolt connection OK"
-                    )
+                    return ComponentStatus(name="neo4j", status="healthy", message="Bolt connection OK")
                 return ComponentStatus(
                     name="neo4j",
                     status="unhealthy",
@@ -66,9 +64,7 @@ async def _check_neo4j(settings: Settings) -> ComponentStatus:
             await driver.close()
     except Exception as exc:
         logger.warning("Neo4j health check failed: %s", exc)
-        return ComponentStatus(
-            name="neo4j", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="neo4j", status="unhealthy", message=str(exc)[:200])
 
 
 async def _check_ollama(settings: Settings) -> ComponentStatus:
@@ -77,9 +73,7 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
         async with httpx.AsyncClient(timeout=5.0) as client:
             resp = await client.get(f"{settings.OLLAMA_HOST}/api/tags")
             if resp.status_code == 200:
-                return ComponentStatus(
-                    name="ollama", status="healthy", message="API reachable"
-                )
+                return ComponentStatus(name="ollama", status="healthy", message="API reachable")
             return ComponentStatus(
                 name="ollama",
                 status="unhealthy",
@@ -87,9 +81,7 @@ async def _check_ollama(settings: Settings) -> ComponentStatus:
             )
     except Exception as exc:
         logger.warning("Ollama health check failed: %s", exc)
-        return ComponentStatus(
-            name="ollama", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="ollama", status="unhealthy", message=str(exc)[:200])
 
 
 async def _check_lancedb(settings: Settings) -> ComponentStatus:
@@ -111,9 +103,7 @@ async def _check_lancedb(settings: Settings) -> ComponentStatus:
         )
     except Exception as exc:
         logger.warning("LanceDB health check failed: %s", exc)
-        return ComponentStatus(
-            name="lancedb", status="unhealthy", message=str(exc)[:200]
-        )
+        return ComponentStatus(name="lancedb", status="unhealthy", message=str(exc)[:200])
 
 
 @router.get("/health")
@@ -205,26 +195,16 @@ class ErrorStats(BaseModel):
     """
 
     total: int = Field(0, description="Total error count")
-    by_type: Dict[str, int] = Field(
-        default_factory=dict, description="Error count by category"
-    )
+    by_type: Dict[str, int] = Field(default_factory=dict, description="Error count by category")
 
 
 class LLMStatsData(BaseModel):
     """LLM statistics data payload."""
 
-    summary: LLMStatsSummary = Field(
-        default_factory=LLMStatsSummary, description="Aggregated summary"
-    )
-    by_task: list[TaskTypeStats] = Field(
-        default_factory=list, description="Per-task-type breakdown"
-    )
-    by_day: list[DayStats] = Field(
-        default_factory=list, description="Per-day breakdown"
-    )
-    errors: ErrorStats = Field(
-        default_factory=ErrorStats, description="Error statistics"
-    )
+    summary: LLMStatsSummary = Field(default_factory=LLMStatsSummary, description="Aggregated summary")
+    by_task: list[TaskTypeStats] = Field(default_factory=list, description="Per-task-type breakdown")
+    by_day: list[DayStats] = Field(default_factory=list, description="Per-day breakdown")
+    errors: ErrorStats = Field(default_factory=ErrorStats, description="Error statistics")
 
 
 class LLMStatsMeta(BaseModel):
@@ -287,12 +267,8 @@ def _compute_period_range(
                 detail="start_date and end_date are required for custom period",
             )
         try:
-            start = datetime.strptime(start_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc
-            )
-            end = datetime.strptime(end_date, "%Y-%m-%d").replace(
-                tzinfo=timezone.utc, hour=23, minute=59, second=59
-            )
+            start = datetime.strptime(start_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            end = datetime.strptime(end_date, "%Y-%m-%d").replace(tzinfo=timezone.utc, hour=23, minute=59, second=59)
         except ValueError as exc:
             raise HTTPException(
                 status_code=400,
@@ -386,3 +362,363 @@ async def get_llm_stats(
     )
 
     return response.model_dump()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Model Configuration Endpoints (Story 1.3)
+# [Source: _bmad-output/implementation-artifacts/1-3-model-config-settings-panel.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class _ModelTaskConfigRequest(BaseModel):
+    """Single-task model config received from the frontend.
+
+    [Source: Story 1.3 Task 9.2]
+    """
+
+    provider: str = Field(..., description="gemini | anthropic | openai | ollama")
+    model_name: str = Field(..., description="Model identifier")
+    api_key: str = Field(default="", description="Provider API key")
+
+
+class _SystemModelConfigRequest(BaseModel):
+    """Aggregated config pushed from the Settings Tab.
+
+    [Source: Story 1.3 Task 9.2]
+    """
+
+    chat: _ModelTaskConfigRequest | None = None
+    scoring: _ModelTaskConfigRequest | None = None
+
+
+@router.post(
+    "/config",
+    summary="Sync model configuration from frontend",
+    description=(
+        "Receives model provider, name and API key from the Obsidian Settings Tab "
+        "and stores them in the backend's in-memory runtime config. "
+        "API keys are never persisted to disk. (Story 1.3 AC-8)"
+    ),
+    tags=["System"],
+)
+async def update_model_config(body: _SystemModelConfigRequest) -> dict:
+    """Receive model configuration from the frontend Settings Tab.
+
+    [Source: Story 1.3 AC-8 — model config sync to backend]
+    [Source: Story 1.3 Task 9.2 — POST /api/v1/system/config]
+    [Source: Story 1.3 Task 9.5 — API Key in-memory only]
+    [Source: Story 1.3 Task 9.6 — API Key not written to logs]
+    """
+    from app.core.litellm_config import (
+        ModelTaskConfig,
+        SystemModelConfig,
+        get_runtime_model_config,
+    )
+
+    chat_cfg = (
+        ModelTaskConfig(
+            provider=body.chat.provider,
+            model_name=body.chat.model_name,
+            api_key=body.chat.api_key,
+        )
+        if body.chat
+        else None
+    )
+    scoring_cfg = (
+        ModelTaskConfig(
+            provider=body.scoring.provider,
+            model_name=body.scoring.model_name,
+            api_key=body.scoring.api_key,
+        )
+        if body.scoring
+        else None
+    )
+
+    sys_config = SystemModelConfig(chat=chat_cfg, scoring=scoring_cfg)
+    mgr = get_runtime_model_config()
+    mgr.update(sys_config)
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Log confirmation without exposing API keys (Story 1.3 Task 9.6)
+    logger.info(
+        "[Story 1.3] Model config received — chat_provider=%s, scoring_provider=%s",
+        body.chat.provider if body.chat else "none",
+        body.scoring.provider if body.scoring else "none",
+    )
+
+    return {
+        "data": {"status": "ok", "message": "Model configuration updated"},
+        "meta": {"timestamp": now},
+    }
+
+
+@router.post(
+    "/test-llm",
+    summary="Test LLM connection",
+    description=(
+        "Sends a minimal completion request via LiteLLM to verify that "
+        "the provided model and API key are valid. (Story 1.3 AC-3/AC-4)"
+    ),
+    tags=["System"],
+)
+async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
+    """Test LLM connection with the given provider, model, and API key.
+
+    [Source: Story 1.3 AC-3 — test connection button]
+    [Source: Story 1.3 Task 9.3 — POST /api/v1/system/test-llm]
+    [Source: Story 1.3 Dev Notes — LiteLLM test connection implementation]
+    """
+    from app.core.litellm_config import format_litellm_model
+
+    model_str = format_litellm_model(config.provider, config.model_name)
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        import litellm
+
+        await litellm.acompletion(
+            model=model_str,
+            messages=[{"role": "user", "content": "Hello"}],
+            max_tokens=5,
+            api_key=config.api_key if config.api_key else None,
+        )
+
+        # Successful response — connection is valid
+        logger.info(
+            "[Story 1.3] LLM connection test passed — model=%s",
+            model_str,
+        )
+        return {
+            "data": {"status": "success", "model": model_str},
+            "meta": {"timestamp": now},
+        }
+
+    except ImportError:
+        logger.warning("[Story 1.3] litellm not installed, test-llm unavailable")
+        return {
+            "data": {
+                "status": "failed",
+                "error": "litellm is not installed on the backend",
+            },
+            "meta": {"timestamp": now},
+        }
+    except Exception as e:
+        # Do NOT log the full exception if it might contain the API key
+        error_msg = str(e)
+        logger.warning("[Story 1.3] LLM connection test failed — model=%s", model_str)
+        return {
+            "data": {"status": "failed", "error": error_msg},
+            "meta": {"timestamp": now},
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# QA Metrics & Pipeline Health Endpoints (Story 7.4)
+# [Source: _bmad-output/implementation-artifacts/7-4-difficulty-matching-extraction-validation.md]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class AnnotationRequestBody(BaseModel):
+    """Request body for annotation submission (Story 7.4 AC-3)."""
+
+    annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
+
+
+@router.get(
+    "/qa-metrics",
+    summary="Get QA quality metrics",
+    description=(
+        "Returns difficulty matching rate (sliding window of 50 questions) "
+        "and extraction quality statistics. (Story 7.4 AC-2, AC-4)"
+    ),
+    tags=["System"],
+)
+async def get_qa_metrics() -> dict:
+    """Return combined QA metrics: difficulty match rate + extraction quality.
+
+    [Source: Story 7.4 Task 5.1 — GET /api/v1/system/qa-metrics]
+    [Source: Story 7.4 AC-2, AC-4]
+    """
+    from app.models.qa_models import QAMetricsResponse
+    from app.services.difficulty_matcher import get_difficulty_matcher
+    from app.services.extraction_validator import get_extraction_validator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        matcher = get_difficulty_matcher()
+        match_stats = await matcher.get_stats_with_recent()
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to get difficulty stats: {e}")
+        from app.models.qa_models import DifficultyMatchStats
+
+        match_stats = DifficultyMatchStats()
+
+    try:
+        validator = get_extraction_validator()
+        extraction_stats = await validator.get_stats()
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to get extraction stats: {e}")
+        from app.models.qa_models import ExtractionStats
+
+        extraction_stats = ExtractionStats()
+
+    response = QAMetricsResponse(
+        difficulty_match=match_stats,
+        extraction_quality=extraction_stats,
+    )
+
+    return {
+        "data": response.model_dump(),
+        "meta": {"timestamp": now},
+    }
+
+
+@router.get(
+    "/pipeline-health",
+    summary="Get pipeline health indicators",
+    description=(
+        "Returns 7 pipeline health metrics with traffic-light statuses "
+        "and error classification summary. (Story 7.4 AC-5)"
+    ),
+    tags=["System"],
+)
+async def get_pipeline_health() -> dict:
+    """Return full pipeline health status with all 7 indicators.
+
+    [Source: Story 7.4 Task 5.2 — GET /api/v1/system/pipeline-health]
+    [Source: Story 7.4 AC-5]
+    """
+    from app.services.health_monitor import get_pipeline_health_monitor
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        monitor = get_pipeline_health_monitor()
+        health = await monitor.get_health()
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to get pipeline health: {e}")
+        from app.models.qa_models import PipelineHealthStatus
+
+        health = PipelineHealthStatus(overall="critical")
+
+    return {
+        "data": health.model_dump(),
+        "meta": {"timestamp": now},
+    }
+
+
+@router.get(
+    "/extraction-records",
+    summary="Query extraction records for human review",
+    description=(
+        "Paginated query of structured extraction records, with optional "
+        "type filtering (error/tip/key_qa). (Story 7.4 AC-3)"
+    ),
+    tags=["System"],
+)
+async def get_extraction_records(
+    extraction_type: Optional[str] = Query(
+        default=None,
+        description="Filter by type: error, tip, key_qa",
+    ),
+    page: int = Query(default=1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(default=20, ge=1, le=100, description="Records per page"),
+) -> dict:
+    """Return paginated extraction records for human spot-check review.
+
+    [Source: Story 7.4 Task 5.3 — GET /api/v1/system/extraction-records]
+    [Source: Story 7.4 AC-3]
+    """
+    from app.services.extraction_validator import get_extraction_validator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        validator = get_extraction_validator()
+        result = await validator.get_records(
+            extraction_type=extraction_type,
+            page=page,
+            page_size=page_size,
+        )
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to get extraction records: {e}")
+        from app.models.qa_models import ExtractionRecordPage
+
+        result = ExtractionRecordPage()
+
+    return {
+        "data": result.model_dump(),
+        "meta": {"timestamp": now},
+    }
+
+
+@router.post(
+    "/extraction-records/{record_id}/annotate",
+    summary="Submit human annotation for extraction record",
+    description=("Mark an extraction record as correct, incorrect, or partial. (Story 7.4 AC-3)"),
+    tags=["System"],
+)
+async def annotate_extraction_record(
+    record_id: str,
+    body: "AnnotationRequestBody",
+) -> dict:
+    """Submit a human annotation for a specific extraction record.
+
+    [Source: Story 7.4 Task 5.4 — POST /api/v1/system/extraction-records/{id}/annotate]
+    [Source: Story 7.4 AC-3]
+    """
+    from app.services.extraction_validator import get_extraction_validator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        validator = get_extraction_validator()
+        updated = await validator.annotate(record_id, body.annotation)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to annotate record {record_id}: {e}")
+        raise HTTPException(status_code=500, detail="Annotation failed") from e
+
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+    return {
+        "data": {"status": "ok", "record_id": record_id, "annotation": body.annotation},
+        "meta": {"timestamp": now},
+    }
+
+
+@router.get(
+    "/error-aggregation",
+    summary="Get error classification aggregation",
+    description=(
+        "Returns error counts grouped by 4 categories (LLM/Network/Algorithm/Data) "
+        "across 24h, 7d, and 30d time windows. (Story 7.4 AC-6)"
+    ),
+    tags=["System"],
+)
+async def get_error_aggregation() -> dict:
+    """Return error classification aggregation across time windows.
+
+    [Source: Story 7.4 Task 5.5 — GET /api/v1/system/error-aggregation]
+    [Source: Story 7.4 AC-6]
+    """
+    from app.services.error_aggregator import get_error_aggregator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        aggregator = get_error_aggregator()
+        aggregation = await aggregator.get_aggregation()
+    except Exception as e:
+        logger.error(f"[Story 7.4] Failed to get error aggregation: {e}")
+        from app.models.qa_models import ErrorAggregation
+
+        aggregation = ErrorAggregation()
+
+    return {
+        "data": aggregation.model_dump(),
+        "meta": {"timestamp": now},
+    }

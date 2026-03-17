@@ -1,0 +1,54 @@
+{
+  "scenario_id": "cext_01_error_extract",
+  "description": "Extract 4 types of errors from a learning conversation",
+  "tags": ["error_extract", "chinese"],
+  "input": {
+    "conversation": "学生: 牛顿第二定律是F=ma对吧？\nAI: 是的，牛顿第二定律的表达式是F=ma。你能解释一下各个物理量的含义吗？\n学生: F是力，m是速度，a是加速度。\nAI: 注意，m代表的是质量而不是速度。速度通常用v表示。\n学生: 哦对，m是质量。那如果一个物体质量是2kg，受力10N，加速度就是5m/s对吧？\nAI: 加速度的单位应该是m/s^2，不是m/s。计算结果a=F/m=10/2=5是正确的，但单位是m/s^2。\n学生: 我懂了！就是说力越大加速度越大，这个我理解。",
+    "node_content": "牛顿第二定律 F=ma",
+    "subject": "物理"
+  },
+  "expected_output": {
+    "min_errors": 2,
+    "expected_error_types": ["知识点缺失", "破题错误"],
+    "min_tips": 1,
+    "min_key_qa": 1,
+    "has_evidence_for_each": true
+  },
+  "replay_response": {
+    "errors": [
+      {
+        "error_type": "知识点缺失",
+        "description": "将质量m误认为速度",
+        "evidence": "学生: F是力，m是速度，a是加速度。",
+        "severity": "medium",
+        "related_concept": "牛顿第二定律物理量定义"
+      },
+      {
+        "error_type": "破题错误",
+        "description": "加速度单位使用错误（m/s而非m/s^2）",
+        "evidence": "学生: 加速度就是5m/s对吧？",
+        "severity": "medium",
+        "related_concept": "加速度单位"
+      }
+    ],
+    "tips": [
+      {
+        "content": "F=ma中m是质量(kg)，不是速度(v)；加速度单位是m/s^2",
+        "source": "confusion_resolved",
+        "evidence": "AI: 注意，m代表的是质量而不是速度。",
+        "importance": "high"
+      }
+    ],
+    "key_qa": [
+      {
+        "question": "F=ma各物理量含义是什么？",
+        "answer": "F是力(N)，m是质量(kg)，a是加速度(m/s^2)",
+        "topic": "牛顿第二定律",
+        "learning_value": "high",
+        "evidence": "学生最初混淆了m的含义，经AI纠正后理解"
+      }
+    ],
+    "extraction_confidence": "high",
+    "extraction_summary": "提取到2个错误（知识点缺失+破题错误）、1条Tips和1对关键问答"
+  }
+}

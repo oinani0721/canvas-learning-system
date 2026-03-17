@@ -54,6 +54,10 @@ class CanvasEventType(str, Enum):
     # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]
     LLM_CALL_LOGGED = "llm_call_logged"
 
+    # Story 7.4: Difficulty evaluation completed (Tier3 fire-and-forget)
+    # [Source: _bmad-output/implementation-artifacts/7-4-difficulty-matching-extraction-validation.md]
+    DIFFICULTY_EVALUATED = "difficulty_evaluated"
+
 
 class CanvasEvent(BaseModel):
     """
@@ -75,38 +79,14 @@ class CanvasEvent(BaseModel):
     - metadata: 额外元数据
     """
 
-    event_id: str = Field(
-        default_factory=lambda: str(uuid4()),
-        description="事件唯一标识 (UUID)"
-    )
-    session_id: str = Field(
-        ...,
-        description="会话ID"
-    )
-    event_type: CanvasEventType = Field(
-        ...,
-        description="事件类型"
-    )
-    timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
-        description="事件发生时间"
-    )
-    canvas_path: str = Field(
-        ...,
-        description="关联Canvas路径"
-    )
-    node_id: Optional[str] = Field(
-        default=None,
-        description="关联节点ID（可选）"
-    )
-    edge_id: Optional[str] = Field(
-        default=None,
-        description="关联边ID（可选）(Story 30.5 AC-30.5.2)"
-    )
-    metadata: Optional[Dict[str, Any]] = Field(
-        default=None,
-        description="事件元数据"
-    )
+    event_id: str = Field(default_factory=lambda: str(uuid4()), description="事件唯一标识 (UUID)")
+    session_id: str = Field(..., description="会话ID")
+    event_type: CanvasEventType = Field(..., description="事件类型")
+    timestamp: datetime = Field(default_factory=datetime.utcnow, description="事件发生时间")
+    canvas_path: str = Field(..., description="关联Canvas路径")
+    node_id: Optional[str] = Field(default=None, description="关联节点ID（可选）")
+    edge_id: Optional[str] = Field(default=None, description="关联边ID（可选）(Story 30.5 AC-30.5.2)")
+    metadata: Optional[Dict[str, Any]] = Field(default=None, description="事件元数据")
 
     model_config = {
         "json_schema_extra": {
@@ -117,10 +97,7 @@ class CanvasEvent(BaseModel):
                 "timestamp": "2026-01-16T10:30:00Z",
                 "canvas_path": "Canvas/学习笔记.canvas",
                 "node_id": "node_xyz789",
-                "metadata": {
-                    "concept": "机器学习",
-                    "node_text": "监督学习定义"
-                }
+                "metadata": {"concept": "机器学习", "node_text": "监督学习定义"},
             }
         }
     }

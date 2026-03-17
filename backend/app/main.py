@@ -48,6 +48,9 @@ from app.middleware.cost_tracker import get_cost_tracker, cleanup_cost_tracker
 from app.middleware.llm_call_logger import llm_call_logger
 from app.core.litellm_config import register_litellm_callbacks
 
+# ✅ Story 7.3: Prompt Version Management & Regression Testing
+from app.services.prompt_registry import get_prompt_registry
+
 # ✅ Story 33.2: WebSocket endpoint import
 from app.api.v1.endpoints.websocket import (
     websocket_intelligent_parallel,
@@ -117,6 +120,15 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Set global alert manager for monitoring endpoint dependency injection
     set_alert_manager(alert_manager)
+
+    # ✅ Story 7.3: Initialize PromptRegistry (load all prompt templates)
+    # [Source: _bmad-output/implementation-artifacts/7-3-prompt-version-regression-test.md]
+    try:
+        prompt_registry = get_prompt_registry()
+        loaded_count = prompt_registry.load_all()
+        logger.info(f"[Story 7.3] PromptRegistry loaded {loaded_count} templates")
+    except Exception as e:
+        logger.warning(f"[Story 7.3] PromptRegistry init failed (non-fatal): {e}")
 
     # ✅ Story 7.2: Initialize CostTracker and LLM Call Logger
     # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]

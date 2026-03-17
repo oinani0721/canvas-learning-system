@@ -1,0 +1,55 @@
+{
+  "scenario_id": "autoscore_01_full_score",
+  "description": "Full score scenario: student provides comprehensive, accurate answer",
+  "tags": ["full_score", "chinese"],
+  "input": {
+    "question": "请解释光合作用的完整过程，包括光反应和暗反应。",
+    "rubric": "评分标准：1)光反应发生在类囊体薄膜上，将水分解产生O2、ATP和NADPH 2)暗反应（Calvin循环）发生在叶绿体基质中，利用ATP和NADPH固定CO2为G3P 3)两个阶段的能量流动关系 4)整体反应方程式",
+    "student_answer": "光合作用分为两个阶段。光反应发生在叶绿体的类囊体薄膜上，光能驱动水的光解产生O2，同时生成ATP和NADPH。暗反应（Calvin循环）在叶绿体基质中进行，利用光反应产生的ATP和NADPH将CO2固定，经过一系列反应生成G3P（甘油醛-3-磷酸），最终合成葡萄糖。光反应为暗反应提供化学能（ATP）和还原力（NADPH），暗反应消耗这些产物再生ADP和NADP+回到光反应使用。总反应：6CO2 + 6H2O -> C6H12O6 + 6O2（需光能）。",
+    "context": "高中生物第五章光合作用单元"
+  },
+  "expected_output": {
+    "concept_accuracy": {"min": 2, "max": 3},
+    "reasoning_quality": {"min": 2, "max": 3},
+    "knowledge_coverage": {"min": 2, "max": 3},
+    "knowledge_integration": {"min": 2, "max": 3},
+    "overall": {"min": 9, "max": 12}
+  },
+  "replay_response": {
+    "evidence": {
+      "concept_accuracy_evidence": [
+        "正确描述光反应发生在类囊体薄膜上",
+        "准确说明水的光解产生O2、ATP和NADPH",
+        "正确描述Calvin循环在叶绿体基质中进行",
+        "正确说明CO2固定和G3P生成",
+        "总反应方程式正确"
+      ],
+      "reasoning_quality_evidence": [
+        "逻辑清晰地从光反应到暗反应展开",
+        "准确解释两阶段的能量偶联关系（ATP/NADPH的产生与消耗）",
+        "因果链完整：光能→化学能→有机物"
+      ],
+      "knowledge_coverage_evidence": [
+        "覆盖光反应位置、产物",
+        "覆盖暗反应位置、底物、产物",
+        "覆盖能量流动关系",
+        "覆盖总反应方程式",
+        "四个评分要点全部覆盖"
+      ],
+      "knowledge_integration_evidence": [
+        "将光反应和暗反应联系起来（ATP/NADPH桥梁）",
+        "说明ADP和NADP+的循环利用",
+        "展现对整体过程的系统性理解"
+      ],
+      "overall_observation": "学生回答全面准确，覆盖所有要点，逻辑清晰，概念间联系紧密。"
+    },
+    "scores": {
+      "concept_accuracy": {"score": 3, "justification": "所有概念准确，术语使用规范"},
+      "reasoning_quality": {"score": 3, "justification": "推理链完整，因果关系清晰"},
+      "knowledge_coverage": {"score": 3, "justification": "覆盖全部四个评分要点"},
+      "knowledge_integration": {"score": 3, "justification": "概念间联系紧密，展现系统性理解"}
+    },
+    "overall_score": 12,
+    "confidence": "high"
+  }
+}

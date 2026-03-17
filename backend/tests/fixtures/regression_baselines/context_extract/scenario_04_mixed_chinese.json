@@ -1,0 +1,53 @@
+{
+  "scenario_id": "cext_04_mixed_chinese",
+  "description": "Chinese-English mixed conversation with multiple extraction types",
+  "tags": ["mixed_language", "multi_type"],
+  "input": {
+    "conversation": "学生: HashMap的时间复杂度是O(1)对吧？所有操作都是constant time。\nAI: 在理想情况下，HashMap的get/put操作是O(1)。但在worst case下，如果发生大量hash collision，时间复杂度会退化。Java 8之后，当链表长度超过8时会转化为红黑树，worst case从O(n)改善为O(log n)。\n学生: 等等，我以为HashMap永远是O(1)的，所以它可能变慢？\nAI: 是的，这取决于hash function的质量。一个好的hash function应该均匀分布key，减少collision。\n学生: 那TreeMap呢？我记得TreeMap是O(log n)的，因为它内部是balanced BST。\nAI: 正确！TreeMap基于红黑树实现，保证O(log n)。当你需要有序遍历时，TreeMap比HashMap更合适。\n学生: 所以选择用HashMap还是TreeMap主要看是否需要排序？",
+    "node_content": "Java集合：HashMap vs TreeMap",
+    "subject": "Java编程"
+  },
+  "expected_output": {
+    "min_errors": 1,
+    "expected_error_types": ["似懂非懂"],
+    "min_tips": 2,
+    "min_key_qa": 1,
+    "has_evidence_for_each": true
+  },
+  "replay_response": {
+    "errors": [
+      {
+        "error_type": "似懂非懂",
+        "description": "认为HashMap永远是O(1)，忽略了hash collision导致的退化情况",
+        "evidence": "学生: 我以为HashMap永远是O(1)的",
+        "severity": "medium",
+        "related_concept": "HashMap时间复杂度分析"
+      }
+    ],
+    "tips": [
+      {
+        "content": "HashMap理想O(1)，但hash collision时退化；Java 8后链表长度>8转红黑树，worst case从O(n)改善为O(log n)",
+        "source": "ai_explanation",
+        "evidence": "AI: Java 8之后，当链表长度超过8时会转化为红黑树",
+        "importance": "high"
+      },
+      {
+        "content": "HashMap vs TreeMap选择：需要排序用TreeMap(O(log n))，不需要排序用HashMap(平均O(1))",
+        "source": "self_summary",
+        "evidence": "学生: 选择用HashMap还是TreeMap主要看是否需要排序？",
+        "importance": "high"
+      }
+    ],
+    "key_qa": [
+      {
+        "question": "HashMap和TreeMap如何选择？",
+        "answer": "需要有序遍历用TreeMap（基于红黑树O(log n)），不需要排序用HashMap（平均O(1)但worst case可退化）",
+        "topic": "Java集合选择",
+        "learning_value": "high",
+        "evidence": "学生: 选择用HashMap还是TreeMap主要看是否需要排序？ AI: TreeMap基于红黑树实现..."
+      }
+    ],
+    "extraction_confidence": "high",
+    "extraction_summary": "提取1个似懂非懂错误（对HashMap复杂度的过度简化），2条Tips，1对关键问答"
+  }
+}

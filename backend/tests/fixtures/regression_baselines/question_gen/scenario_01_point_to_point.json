@@ -1,0 +1,31 @@
+{
+  "scenario_id": "qgen_01_point_to_point",
+  "description": "Point-to-point exam mode for a knowledge-type whiteboard node",
+  "tags": ["point_to_point", "knowledge_point"],
+  "input": {
+    "exam_mode": "point_to_point",
+    "node_content": "二叉搜索树(BST)：左子树所有节点值小于根节点，右子树所有节点值大于根节点。支持O(log n)查找、插入、删除（平衡时）。",
+    "node_type": "knowledge_point",
+    "student_tips": "记住左小右大",
+    "error_history": "曾把BST的中序遍历结果理解为前序遍历",
+    "edge_reasons": "BST与AVL树的关系：AVL是自平衡的BST",
+    "mastery_level": 0.45,
+    "conversation_summary": "学生基本理解BST结构，但对遍历方式混淆"
+  },
+  "expected_output": {
+    "has_question": true,
+    "target_bloom_level_valid": true,
+    "valid_bloom_levels": ["understand", "apply"],
+    "difficulty_matches_mastery": true,
+    "format_compliant": true,
+    "addresses_weakness": true
+  },
+  "replay_response": {
+    "question": "请描述对一棵BST进行中序遍历的过程，并解释为什么中序遍历的结果一定是有序的。",
+    "question_type": "explanation",
+    "target_bloom_level": "understand",
+    "target_error_type": "似懂非懂",
+    "difficulty_rationale": "学生精通度0.45，处于Understand层级。历史错误显示对遍历混淆，需要通过解释来厘清概念。",
+    "scoring_hints": "关注：1)是否正确描述中序遍历顺序（左-根-右）2)能否解释有序性的原因（利用BST性质推导）3)是否与前序遍历区分"
+  }
+}

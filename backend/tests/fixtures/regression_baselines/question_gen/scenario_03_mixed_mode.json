@@ -1,0 +1,31 @@
+{
+  "scenario_id": "qgen_03_mixed_mode",
+  "description": "Mixed exam mode with English content",
+  "tags": ["mixed", "english"],
+  "input": {
+    "exam_mode": "mixed",
+    "node_content": "SQL JOINs: INNER JOIN returns matching rows from both tables. LEFT JOIN returns all rows from the left table plus matches from the right. RIGHT JOIN is the opposite. FULL OUTER JOIN returns all rows from both.",
+    "node_type": "knowledge_point",
+    "student_tips": "INNER JOIN is the most common one",
+    "error_history": "Confused LEFT JOIN with INNER JOIN, thought LEFT JOIN only returns matching rows",
+    "edge_reasons": "JOINs relate to database normalization - normalized tables need JOINs to reconstruct data",
+    "mastery_level": 0.35,
+    "conversation_summary": "Student understands INNER JOIN but confuses other JOIN types"
+  },
+  "expected_output": {
+    "has_question": true,
+    "target_bloom_level_valid": true,
+    "valid_bloom_levels": ["understand", "apply"],
+    "difficulty_matches_mastery": true,
+    "format_compliant": true,
+    "addresses_weakness": true
+  },
+  "replay_response": {
+    "question": "Given two tables: Students(id, name) with rows (1,'Alice'), (2,'Bob'), (3,'Carol') and Enrollments(student_id, course) with rows (1,'Math'), (1,'Science'), (3,'Math'). What rows would a LEFT JOIN Students ON Students.id = Enrollments.student_id return? Explain why the result differs from an INNER JOIN.",
+    "question_type": "comparison",
+    "target_bloom_level": "understand",
+    "target_error_type": "似懂非懂",
+    "difficulty_rationale": "Mastery at 0.35, targeting Understand level. Student confused LEFT JOIN with INNER JOIN, so a concrete comparison question will clarify the difference.",
+    "scoring_hints": "Focus on: 1) Whether student correctly identifies that Bob appears in LEFT JOIN but not INNER JOIN 2) Whether student explains the NULL values for non-matching rows 3) Whether student articulates the fundamental difference between the two JOIN types"
+  }
+}
