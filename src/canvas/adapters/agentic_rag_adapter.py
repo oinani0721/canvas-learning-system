@@ -188,11 +188,11 @@ class AgenticRAGAdapter:
         }
 
         try:
-            # ✅ Verified from Story 12.10 (lines 1287-1296):
-            # 调用Agentic RAG StateGraph
+            # Story 2.1 AC-3: Fix config passing — LangGraph Context API
+            # requires flat context=config, not nested {"configurable": config}
             result_state = await canvas_agentic_rag.ainvoke(
                 initial_state,
-                config={"configurable": config}  # LangGraph context传递
+                context=config,
             )
 
             # 提取结果

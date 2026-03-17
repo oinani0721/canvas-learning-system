@@ -12,6 +12,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from app.config import DEFAULT_GROUP_ID
 from app.models.mastery_state import ConceptState
 
 logger = logging.getLogger(__name__)
@@ -27,7 +28,7 @@ class MasteryStore:
         """
         self._client = neo4j_client
 
-    async def get_concept(self, concept_id: str, group_id: str = "cs188") -> Optional[ConceptState]:
+    async def get_concept(self, concept_id: str, group_id: str = DEFAULT_GROUP_ID) -> Optional[ConceptState]:
         """
         Load a single concept's mastery state from Neo4j.
 
@@ -43,7 +44,9 @@ class MasteryStore:
         """
         try:
             records = await self._client.run_query(
-                query, concept_id=concept_id, group_id=group_id,
+                query,
+                concept_id=concept_id,
+                group_id=group_id,
             )
             if records and len(records) > 0:
                 props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
@@ -53,7 +56,7 @@ class MasteryStore:
             logger.warning(f"Failed to get concept {concept_id}: {e}")
             return None
 
-    async def save_concept(self, concept: ConceptState, group_id: str = "cs188") -> None:
+    async def save_concept(self, concept: ConceptState, group_id: str = DEFAULT_GROUP_ID) -> None:
         """
         Save (upsert) concept mastery state to Neo4j EntityNode.
 
@@ -79,7 +82,7 @@ class MasteryStore:
         except Exception as e:
             logger.error(f"Failed to save concept {concept.concept_id}: {e}")
 
-    async def get_all_concepts(self, group_id: str = "cs188") -> list[ConceptState]:
+    async def get_all_concepts(self, group_id: str = DEFAULT_GROUP_ID) -> list[ConceptState]:
         """
         Load all concepts with mastery data for a group.
 
@@ -108,7 +111,7 @@ class MasteryStore:
         concept_id: str,
         topic: str = "",
         name: str = "",
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
     ) -> ConceptState:
         """
         Get existing concept or create a new one with defaults.
@@ -131,7 +134,7 @@ class MasteryStore:
         self,
         concept_id: str,
         grade: int,
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
         source: str = "interaction",
     ) -> None:
         """
@@ -161,7 +164,7 @@ class MasteryStore:
         concept_id: str,
         level: str,
         reason: str = "",
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
     ) -> None:
         """Record an override event on the EntityNode."""
         query = """
@@ -183,7 +186,9 @@ class MasteryStore:
             logger.warning(f"Failed to record override for {concept_id}: {e}")
 
     async def find_concept_by_name(
-        self, name: str, group_id: str = "cs188",
+        self,
+        name: str,
+        group_id: str = DEFAULT_GROUP_ID,
     ) -> Optional[ConceptState]:
         """
         Find a concept by fuzzy name match (case-insensitive CONTAINS).
@@ -202,7 +207,9 @@ class MasteryStore:
         """
         try:
             records = await self._client.run_query(
-                query, group_id=group_id, name=name,
+                query,
+                group_id=group_id,
+                name=name,
             )
             if records and len(records) > 0:
                 props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
@@ -216,7 +223,7 @@ class MasteryStore:
         self,
         concept_id: str,
         color: str,
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
     ) -> None:
         """Record a self-assessment event (Canvas color change)."""
         query = """

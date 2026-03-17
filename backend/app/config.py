@@ -446,6 +446,24 @@ class Settings(BaseSettings):
     )
 
     # ═══════════════════════════════════════════════════════════════════════════
+    # Subject / Group ID Configuration (Story 2.1)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    DEFAULT_GROUP_ID: str = Field(
+        default="cs188",
+        description="Default Graphiti group_id for memory isolation. Configurable per subject. Story 2.1 AC-5."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Ollama Settings (Story 1.1)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    OLLAMA_HOST: str = Field(
+        default="http://localhost:11434",
+        description="Ollama API base URL. Use http://ollama:11434 inside Docker."
+    )
+
+    # ═══════════════════════════════════════════════════════════════════════════
     # Vault-wide Note Indexing Settings
     # ═══════════════════════════════════════════════════════════════════════════
 
@@ -741,3 +759,8 @@ def get_settings() -> Settings:
 # Create default settings instance for direct import
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: settings module pattern)
 settings = get_settings()
+
+# Convenience constant: default group_id for Graphiti memory isolation.
+# All modules should import this instead of hardcoding "cs188".
+# Story 2.1 AC-5: cs188 hardcode cleanup.
+DEFAULT_GROUP_ID: str = settings.DEFAULT_GROUP_ID

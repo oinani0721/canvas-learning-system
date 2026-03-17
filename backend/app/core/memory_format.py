@@ -5,7 +5,7 @@ Ensures consistent entity naming, episode_body formatting, and classification
 across all write paths:
   - Canvas backend (graphiti_bridge_service.py)
   - React Agent (react_agent.py record_learning_memory tool)
-  - Claude Code MCP (mcp__graphiti-cs188__add_memory)
+  - Claude Code MCP (mcp__graphiti__add_memory)
 
 Color reference (canvas_utils.py authoritative, plugin CSS remapped):
   "1"=Gray, "2"=Green, "3"=Purple, "4"=Red, "5"=Blue, "6"=Yellow

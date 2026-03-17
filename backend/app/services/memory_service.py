@@ -64,7 +64,7 @@ from app.core.subject_config import (
     sanitize_subject_name,
 )
 # Story 36.9 AC-36.9.5: Import settings for ENABLE_GRAPHITI_JSON_DUAL_WRITE config flag
-from app.config import settings
+from app.config import DEFAULT_GROUP_ID, settings
 from app.services.graphiti_bridge_service import get_graphiti_bridge
 from app.core.failure_counters import (
     DUAL_WRITE_DEAD_LETTER_PATH,
@@ -641,7 +641,7 @@ class MemoryService:
         node_id: str,
         agent_feedback: Optional[str] = None,
         score: Optional[float] = None,
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
         node_color: Optional[str] = None,
         node_text: Optional[str] = None,
     ) -> None:

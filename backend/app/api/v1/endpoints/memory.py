@@ -5,6 +5,10 @@
 """
 Memory API Endpoints - Learning history storage and query.
 
+NOTE: All endpoints delegate to MemoryService which requires a live Neo4j
+connection. When Neo4j is unavailable, endpoints will return 500 errors.
+Endpoint logic is real (not stubbed), but depends on MemoryService health.
+
 Story 22.4 Implementation:
 - POST /episodes: Record learning events (AC-22.4.1)
 - GET /episodes: Query learning history (AC-22.4.2)

@@ -3,7 +3,9 @@
 """
 Canvas operations router.
 
-Provides 6 endpoints for Canvas file and node/edge operations.
+WARNING: 6 CRUD endpoints are placeholder stubs (not connected to service layer).
+Only sync_edges (Story 36.4) has a real implementation via CanvasService.
+
 [Source: specs/api/fastapi-backend-api.openapi.yml#/paths/~1api~1v1~1canvas]
 """
 

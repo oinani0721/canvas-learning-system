@@ -176,7 +176,7 @@ async def retrieve(state: AgentRAGState) -> dict:
                 try:
                     results = await lancedb.search(
                         query=query,
-                        table_name="canvas_explanations",
+                        table_name="canvas_nodes",
                         num_results=3,
                     )
                     all_results.extend(results)

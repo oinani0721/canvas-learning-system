@@ -88,7 +88,7 @@ class TestLanceDBClientInitialization:
 
     def test_default_tables_defined(self):
         """AC 2.1: 默认表名已定义"""
-        assert LanceDBClient.DEFAULT_TABLES == ["canvas_explanations", "canvas_concepts"]
+        assert LanceDBClient.DEFAULT_TABLES == ["canvas_nodes", "vault_notes"]
 
 
 # ============================================================

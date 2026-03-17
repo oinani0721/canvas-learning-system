@@ -26,6 +26,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from cachetools import TTLCache
 
+from app.config import DEFAULT_GROUP_ID
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
 # Story 12.G.2: Agent Error Type Enum
@@ -1825,7 +1826,7 @@ class AgentService:
             await self._neo4j_client.run_query(
                 cypher,
                 nodeId=f"transition-{timestamp}",
-                groupId="cs188",
+                groupId=DEFAULT_GROUP_ID,
                 name=name,
                 body=body,
                 sourceDesc=source_desc,
@@ -1988,7 +1989,7 @@ class AgentService:
         # Fix B3: Use toLower() for case-insensitive matching
         cypher_query = """
         MATCH (m:EntityNode)
-        WHERE m.group_id = 'cs188'
+        WHERE m.group_id = $group_id
           AND (toLower(m.text) CONTAINS toLower($query_text)
                OR toLower(m.episode_body) CONTAINS toLower($query_text)
                OR toLower(m.name) CONTAINS toLower($query_text))
@@ -2010,7 +2011,7 @@ class AgentService:
         """
 
         # Execute query
-        params = {"query_text": content[:100]}
+        params = {"query_text": content[:100], "group_id": DEFAULT_GROUP_ID}
         if canvas_name:
             params["canvas_name"] = canvas_name
 
@@ -3593,7 +3594,7 @@ class AgentService:
                 from app.clients.neo4j_client import get_neo4j_client
                 _m_engine = MasteryEngine(load_mastery_config())
                 _m_store = MasteryStore(get_neo4j_client())
-                _m_concept = await _m_store.get_concept(node_id, group_id="cs188")
+                _m_concept = await _m_store.get_concept(node_id, group_id=DEFAULT_GROUP_ID)
                 if _m_concept and _m_concept.interaction_count > 0:
                     _eff = _m_engine.effective_proficiency(_m_concept)
                     _label = _m_engine.mastery_label(_m_concept)

@@ -11,9 +11,9 @@ Architecture:
     → MemoryService.record_learning_event()
     → GraphitiBridgeService.bridge_to_claude_format()
     → Neo4j :EntityNode with entity_type property
-    → Claude Code: mcp__graphiti-cs188__search_nodes() finds these records
+    → Claude Code: mcp__graphiti__search_nodes() finds these records
 
-Entity Types (aligned with CS188 CLAUDE.md):
+Entity Types (aligned with project CLAUDE.md):
   - Misconception: 知识点不理解
   - ProblemTrap: 做题思维误区
   - GuidedThinking: 引导思考记录
@@ -35,6 +35,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
+from app.config import DEFAULT_GROUP_ID
 from app.core.memory_format import (
     ENTITY_TYPES,
     build_entity_name,
@@ -65,7 +66,7 @@ class GraphitiBridgeService:
     Bridges Canvas learning events into Claude Code-compatible Graphiti format.
 
     Writes :EntityNode labels to Neo4j with structured episode_body matching
-    the format that Claude Code's mcp__graphiti-cs188__search_nodes expects.
+    the format that Claude Code's mcp__graphiti__search_nodes expects.
     """
 
     def __init__(self, neo4j_client, canvas_base_path: Optional[str] = None):
@@ -87,7 +88,7 @@ class GraphitiBridgeService:
         node_text: Optional[str] = None,
         agent_feedback: Optional[str] = None,
         score: Optional[float] = None,
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
         topic: Optional[str] = None,
     ) -> bool:
         """
@@ -104,7 +105,7 @@ class GraphitiBridgeService:
             node_text: Full text content of the canvas node
             agent_feedback: AI agent feedback/explanation
             score: Understanding score (0-100)
-            group_id: Graphiti group_id (default: "cs188")
+            group_id: Graphiti group_id (from config DEFAULT_GROUP_ID)
             topic: Topic category (e.g., "Search", "MDPs")
 
         Returns:
@@ -193,7 +194,7 @@ class GraphitiBridgeService:
     async def search_claude_records(
         self,
         query: str,
-        group_id: str = "cs188",
+        group_id: str = DEFAULT_GROUP_ID,
         entity_types: Optional[List[str]] = None,
         limit: int = 10,
     ) -> List[Dict[str, Any]]:

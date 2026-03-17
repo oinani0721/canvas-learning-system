@@ -18,6 +18,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.config import DEFAULT_GROUP_ID
 from app.dependencies import SettingsDep
 from app.models import ErrorResponse
 from app.models.metadata_models import (
@@ -484,7 +485,7 @@ async def index_vault_notes(
             table_name="vault_notes",
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
-            subject="cs188"
+            subject=DEFAULT_GROUP_ID
         )
 
         duration_ms = (time.perf_counter() - start_time) * 1000

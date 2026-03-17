@@ -16,6 +16,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from app.config import DEFAULT_GROUP_ID
 from app.services.mastery_engine import MasteryEngine, load_mastery_config
 from app.services.mastery_store import MasteryStore
 
@@ -39,6 +40,7 @@ def _get_store() -> MasteryStore:
     global _store
     if _store is None:
         from app.clients.neo4j_client import get_neo4j_client
+
         client = get_neo4j_client()
         _store = MasteryStore(client)
     return _store
@@ -48,8 +50,11 @@ def _get_store() -> MasteryStore:
 # Request/Response Models
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 class GradeRequest(BaseModel):
-    grade: int = Field(..., ge=1, le=4, description="Student response grade (1=Forgot, 2=Struggled, 3=Correct, 4=Fluent)")
+    grade: int = Field(
+        ..., ge=1, le=4, description="Student response grade (1=Forgot, 2=Struggled, 3=Correct, 4=Fluent)"
+    )
     topic: str = Field(default="", description="Topic category (optional, for new concepts)")
     name: str = Field(default="", description="Display name (optional, for new concepts)")
 
@@ -75,8 +80,9 @@ class GraphitiSyncRequest(BaseModel):
 # Endpoints
 # ═══════════════════════════════════════════════════════════════════════════════
 
+
 @mastery_router.get("/mastery/batch")
-async def get_batch_mastery(group_id: str = Query(default="cs188")):
+async def get_batch_mastery(group_id: str = Query(default=DEFAULT_GROUP_ID)):
     """
     Get all concepts' current mastery state (includes volatile computations).
 
@@ -104,6 +110,7 @@ async def get_batch_mastery(group_id: str = Query(default="cs188")):
     try:
         import json
         from pathlib import Path
+
         config_path = Path(__file__).parent.parent.parent.parent.parent / "mastery_config.json"
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
@@ -131,7 +138,7 @@ async def get_batch_mastery(group_id: str = Query(default="cs188")):
 async def record_grade(
     concept_id: str,
     req: GradeRequest,
-    group_id: str = Query(default="cs188"),
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """
     Record a student interaction grade (1-4) and update BKT + FSRS.
@@ -146,7 +153,10 @@ async def record_grade(
     store = _get_store()
 
     concept = await store.get_or_create_concept(
-        concept_id, topic=req.topic, name=req.name, group_id=group_id,
+        concept_id,
+        topic=req.topic,
+        name=req.name,
+        group_id=group_id,
     )
 
     concept = engine.update_on_interaction(concept, req.grade)
@@ -160,7 +170,7 @@ async def record_grade(
 async def set_override(
     concept_id: str,
     req: OverrideRequest,
-    group_id: str = Query(default="cs188"),
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """
     Set explicit mastery override from Sidebar (weight=0.8).
@@ -187,7 +197,7 @@ async def set_override(
 async def self_assess(
     concept_id: str,
     req: SelfAssessRequest,
-    group_id: str = Query(default="cs188"),
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """
     Record implicit self-assessment from Canvas color change (weight=0.5).
@@ -204,7 +214,9 @@ async def self_assess(
     store = _get_store()
 
     concept = await store.get_or_create_concept(
-        concept_id, name=req.name or concept_id, group_id=group_id,
+        concept_id,
+        name=req.name or concept_id,
+        group_id=group_id,
     )
     concept = engine.set_self_assess(concept, req.color)
     await store.save_concept(concept, group_id)
@@ -216,7 +228,7 @@ async def self_assess(
 @mastery_router.delete("/mastery/{concept_id}/override")
 async def reset_override(
     concept_id: str,
-    group_id: str = Query(default="cs188"),
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """Reset override to model-computed value."""
     engine = _get_engine()
@@ -235,7 +247,7 @@ async def reset_override(
 @mastery_router.post("/mastery/graphiti-sync")
 async def graphiti_sync(
     req: GraphitiSyncRequest,
-    group_id: str = Query(default="cs188"),
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):
     """
     Bridge: Graphiti misconception/ProblemTrap → mastery penalty.
@@ -250,7 +262,9 @@ async def graphiti_sync(
       - guided_thinking_correct: p_mastery += severity (small boost)
     """
     if req.signal not in ("misconception", "problem_trap", "guided_thinking_correct"):
-        raise HTTPException(400, f"Invalid signal type: {req.signal}. Must be: misconception, problem_trap, guided_thinking_correct")
+        raise HTTPException(
+            400, f"Invalid signal type: {req.signal}. Must be: misconception, problem_trap, guided_thinking_correct"
+        )
 
     engine = _get_engine()
     store = _get_store()

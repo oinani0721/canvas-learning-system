@@ -109,7 +109,7 @@ class LanceDBClient:
     """
 
     # 默认表名
-    DEFAULT_TABLES = ["canvas_explanations", "canvas_concepts", "canvas_nodes", "vault_notes"]
+    DEFAULT_TABLES = ["canvas_nodes", "vault_notes"]
 
     # ✅ Story 23.2 AC 4: 默认嵌入维度 (all-MiniLM-L6-v2)
     DEFAULT_EMBEDDING_DIM = 384
@@ -807,7 +807,7 @@ class LanceDBClient:
     async def search(
         self,
         query: str,
-        table_name: str = "canvas_explanations",
+        table_name: str = "canvas_nodes",
         canvas_file: Optional[str] = None,
         subject: Optional[str] = None,
         num_results: int = 10,

@@ -573,7 +573,8 @@ class ReviewService:
 
             m_engine = MasteryEngine(load_mastery_config())
             m_store = MasteryStore(get_neo4j_client())
-            all_mastery = await m_store.get_all_concepts(group_id="cs188")
+            from app.config import DEFAULT_GROUP_ID
+            all_mastery = await m_store.get_all_concepts(group_id=DEFAULT_GROUP_ID)
             review_candidates = m_engine.get_review_candidates(all_mastery)
 
             # Build name -> proficiency lookup for question_generator

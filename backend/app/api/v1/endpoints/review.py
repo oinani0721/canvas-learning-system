@@ -62,8 +62,7 @@ _src_path = _project_root / "src"
 if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
-# ✅ Canvas base path configuration (P0 Task #7)
-# [Source: src/agentic_rag/env_config.py - canvas_base_path]
+# Canvas base path configuration (reads from project root)
 _canvas_base_path = _project_root / "笔记库"
 
 # ✅ Import real EbbinghausReviewScheduler

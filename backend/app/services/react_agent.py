@@ -19,6 +19,8 @@ from typing import Any, Dict, List, Optional
 from langchain_core.messages import HumanMessage
 from langchain_core.tools import tool
 
+from app.config import DEFAULT_GROUP_ID
+
 logger = logging.getLogger(__name__)
 
 
@@ -159,7 +161,7 @@ async def search_knowledge_graph(
 
         cypher = f"""
         MATCH (n:EntityNode)
-        WHERE n.group_id = 'cs188'
+        WHERE n.group_id = $group_id
           AND (toLower(n.name) CONTAINS toLower($query)
                OR toLower(n.episode_body) CONTAINS toLower($query)
                OR toLower(n.text) CONTAINS toLower($query))
@@ -169,7 +171,7 @@ async def search_knowledge_graph(
         ORDER BY n.updated_at DESC
         LIMIT $limit
         """
-        records = await _neo4j_client.run_query(cypher, query=query, limit=num_results)
+        records = await _neo4j_client.run_query(cypher, query=query, limit=num_results, group_id=DEFAULT_GROUP_ID)
 
         if not records:
             return f"[No results] No knowledge graph entities found for: '{query}'"
@@ -309,7 +311,7 @@ async def record_learning_memory(
         await _neo4j_client.run_query(
             cypher,
             nodeId=f"agent-{timestamp}",
-            groupId="cs188",
+            groupId=DEFAULT_GROUP_ID,
             name=name,
             entityType=entity_type,
             body=body,
@@ -348,7 +350,7 @@ async def search_obsidian_cli(query: str, limit: int = 10) -> str:
 
     try:
         result = subprocess.run(
-            [obs_path, "search:context", f'query={query}', 'vault=CS188', f'limit={limit}'],
+            [obs_path, "search:context", f'query={query}', f'vault={DEFAULT_GROUP_ID.upper()}', f'limit={limit}'],
             capture_output=True, text=True, timeout=5, encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -376,7 +378,7 @@ async def get_note_outline(file_name: str) -> str:
 
     try:
         result = subprocess.run(
-            [obs_path, "outline", f'file={file_name}', 'vault=CS188'],
+            [obs_path, "outline", f'file={file_name}', f'vault={DEFAULT_GROUP_ID.upper()}'],
             capture_output=True, text=True, timeout=5, encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
@@ -402,7 +404,7 @@ async def find_backlinks(file_name: str) -> str:
 
     try:
         result = subprocess.run(
-            [obs_path, "backlinks", f'file={file_name}', 'vault=CS188'],
+            [obs_path, "backlinks", f'file={file_name}', f'vault={DEFAULT_GROUP_ID.upper()}'],
             capture_output=True, text=True, timeout=5, encoding="utf-8",
         )
         if result.returncode == 0 and result.stdout.strip():
