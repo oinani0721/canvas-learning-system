@@ -83,11 +83,27 @@ def _card_attr(card, attr: str, default=0.0):
 
 
 class MasteryEngine:
-    """BKT + FSRS hybrid mastery computation engine."""
+    """BKT + FSRS hybrid mastery computation engine.
+
+    Story 5.6: Optionally integrates MasteryFusionEngine for multi-signal fusion.
+    When fusion_engine is set, effective_proficiency() uses fused signals
+    instead of min(p_mastery, R).
+    """
 
     def __init__(self, config: Optional[MasteryConfig] = None):
         self.config = config or load_mastery_config()
         self.fsrs_manager = FSRSManager() if FSRS_ENGINE_AVAILABLE else None
+        # Story 5.6: Fusion engine (set via set_fusion_engine, None = fallback to min)
+        self._fusion_engine = None
+
+    def set_fusion_engine(self, fusion_engine) -> None:
+        """Attach a MasteryFusionEngine for multi-signal fusion.
+
+        When set, effective_proficiency() uses fused signals.
+        When None, falls back to min(p_mastery, R).
+        """
+        self._fusion_engine = fusion_engine
+        logger.info("MasteryEngine: fusion engine attached")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Core: Update on Interaction (Grade 1-4)
@@ -242,8 +258,10 @@ class MasteryEngine:
         """
         Compute volatile effective proficiency (never stored).
 
-        Blends BKT mastery probability with FSRS retrievability,
-        then applies override and self-assessment decay.
+        Story 5.6 upgrade: Uses multi-signal fusion engine if available.
+        Fallback: min(p_mastery, R) from Story 5.1.
+
+        After fusion/fallback, applies override and self-assessment decay.
 
         Returns:
             float in [0.0, 1.0]
@@ -251,9 +269,19 @@ class MasteryEngine:
         if concept.interaction_count == 0:
             # Not assessed yet - only consider override/self-assess if present
             base = 0.0
+        elif self._fusion_engine is not None:
+            # Story 5.6: Use multi-signal fusion
+            fusion_result = self._fusion_engine.compute_fused_mastery(concept.concept_id)
+            if fusion_result.active_signal_count > 0:
+                base = fusion_result.fused_mastery
+            else:
+                # Fallback to min(p_mastery, R) when no signals available
+                R = self._get_retrievability(concept)
+                base = min(concept.p_mastery, R)
         else:
+            # Original Story 5.1 fallback: Conservative min strategy
             R = self._get_retrievability(concept)
-            base = min(concept.p_mastery, R)  # Conservative: take lower of know vs recall
+            base = min(concept.p_mastery, R)
 
         # Apply override decay (explicit override from Sidebar)
         result = self._apply_override(concept, base)
@@ -421,6 +449,25 @@ class MasteryEngine:
             except Exception:
                 pass  # Graceful degradation: no due date if card parse fails
 
+        # Story 5.6: Include fusion details if fusion engine is available
+        fusion_details = None
+        if self._fusion_engine is not None:
+            fusion_result = self._fusion_engine.compute_fused_mastery(concept.concept_id)
+            fusion_details = {
+                "fused_mastery": fusion_result.fused_mastery,
+                "active_signal_count": fusion_result.active_signal_count,
+                "is_fallback": fusion_result.is_fallback,
+                "signals": [
+                    {
+                        "name": sd.signal_name,
+                        "value": sd.value,
+                        "weight": sd.weight,
+                        "normalized_weight": sd.normalized_weight,
+                    }
+                    for sd in fusion_result.signal_details
+                ],
+            }
+
         return {
             "concept_id": concept.concept_id,
             "name": concept.name,
@@ -440,6 +487,7 @@ class MasteryEngine:
             "fluent_count": concept.fluent_count,
             "p_mastery": round(concept.p_mastery, 3),
             "last_interaction_ts": concept.last_interaction_ts.isoformat() if concept.last_interaction_ts else None,
+            "fusion_details": fusion_details,
         }
 
     def get_review_candidates(self, concepts: list[ConceptState]) -> list[ConceptState]:

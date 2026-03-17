@@ -42,6 +42,11 @@ class CanvasState {
   viewport: Viewport = { x: 0, y: 0, zoom: 1 };
   currentRoute: ViewRoute = 'dashboard';
 
+  /** Story 3.3: Active chat node ID (null if no chat is open). */
+  activeChatNodeId: string | null = null;
+  /** Story 3.3: Active chat node name for display. */
+  activeChatNodeName: string = '';
+
   // ─── Subscriptions ─────────────────────────────────────────────────────
   private boardsSub: { unsubscribe(): void } | null = null;
   private nodesSub: { unsubscribe(): void } | null = null;
@@ -227,6 +232,30 @@ class CanvasState {
       );
       masteryState.clear();
     }
+  }
+
+  /**
+   * Story 3.3: Open the chat panel for a specific node.
+   * Switches the view route to 'chat' and stores the active chat node info.
+   *
+   * @param nodeId - The node to open chat for.
+   * @param nodeName - Display name of the node.
+   */
+  openNodeChat(nodeId: string, nodeName = ''): void {
+    this.activeChatNodeId = nodeId;
+    this.activeChatNodeName = nodeName || nodeId;
+    this.currentRoute = 'chat';
+    this.notify();
+  }
+
+  /**
+   * Story 3.3: Navigate back from chat to the canvas view.
+   */
+  navigateBackFromChat(): void {
+    this.activeChatNodeId = null;
+    this.activeChatNodeName = '';
+    this.currentRoute = 'canvas';
+    this.notify();
   }
 
   navigateToDashboard(): void {

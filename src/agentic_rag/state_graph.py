@@ -66,40 +66,151 @@ from agentic_rag.state import CanvasRAGState  # noqa: E402
 # ========================================
 
 
+def classify_query_intent(query: str) -> str:
+    """
+    Story 2.6 AC-5: L1 路由 — 规则分类查询意图
+
+    通过关键词匹配将查询分类为四种意图之一:
+    - knowledge_point: 知识点查询 → 优先 Dense + Sparse
+    - learning_history: 学习历史查询 → 优先 Graphiti
+    - file_locate: 文件定位查询 → 优先 Vault + CLI
+    - comprehensive: 综合/未分类 → 全部 6 路
+
+    规则分类延迟 <1ms，满足 L1 < 200ms 要求。
+    MVP 阶段使用规则分类，LLM 分类为远期增强。
+
+    Args:
+        query: 用户查询文本
+
+    Returns:
+        意图分类字符串
+    """
+    q = query.lower().strip()
+
+    # File/note locate keywords
+    file_keywords = [
+        "笔记",
+        "文件",
+        "文档",
+        "在哪",
+        "哪个文件",
+        "找到",
+        "note",
+        "file",
+        "document",
+        "where",
+        "locate",
+        "find",
+    ]
+    for kw in file_keywords:
+        if kw in q:
+            return "file_locate"
+
+    # Learning history keywords
+    history_keywords = [
+        "之前",
+        "上次",
+        "复习",
+        "历史",
+        "学过",
+        "记录",
+        "进度",
+        "回顾",
+        "以前",
+        "学习过",
+        "掌握",
+        "previous",
+        "history",
+        "review",
+        "progress",
+        "learned",
+    ]
+    for kw in history_keywords:
+        if kw in q:
+            return "learning_history"
+
+    # Default: comprehensive (knowledge_point is also handled by full retrieval)
+    return "comprehensive"
+
+
+def _build_sends_for_intent(intent: str, state: CanvasRAGState) -> list[Send]:
+    """
+    Story 2.6 AC-5: Build Send list based on query intent.
+
+    Args:
+        intent: Query intent classification
+        state: Current state to pass to retrieval nodes
+
+    Returns:
+        List of Send objects for parallel retrieval
+    """
+    all_sends = [
+        Send("retrieve_graphiti", state),
+        Send("retrieve_lancedb", state),
+        Send("retrieve_multimodal", state),
+        Send("retrieve_textbook", state),
+        Send("retrieve_cross_canvas", state),
+        Send("retrieve_vault_notes", state),
+    ]
+
+    if intent == "file_locate":
+        # Prioritize vault + lancedb, skip graphiti/multimodal
+        return [
+            Send("retrieve_lancedb", state),
+            Send("retrieve_textbook", state),
+            Send("retrieve_vault_notes", state),
+            Send("retrieve_cross_canvas", state),
+        ]
+    elif intent == "learning_history":
+        # Prioritize graphiti + lancedb
+        return [
+            Send("retrieve_graphiti", state),
+            Send("retrieve_lancedb", state),
+            Send("retrieve_vault_notes", state),
+        ]
+    else:
+        # comprehensive / knowledge_point: all 6 routes
+        return all_sends
+
+
 def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     """
-    Fan-out to parallel retrieval nodes
+    Fan-out to parallel retrieval nodes — Story 2.6 AC-5: L1 智能路由
 
-    ✅ Verified from LangGraph Skill (Pattern: Send for parallel execution):
-    ```python
-    def continue_to_jokes(state: OverallState):
-        return [Send("generate_joke", {"subject": s}) for s in state['subjects']]
-    ```
-
-    ✅ Verified from Context7 (langgraph - Dynamic Parallel Processing with Send):
-    - Conditional edges return list[Send] to enable parallel execution
-    - Send objects specify target node and state
-
-    Story 6.8 扩展: 添加多模态检索节点，三路并行检索
-    Story 23.4 扩展: 添加教材和跨Canvas检索节点，五路并行检索
+    Uses classify_query_intent to determine which retrieval channels to activate.
+    Falls back to all 6 routes if routing fails.
 
     Returns:
         List[Send]: Send objects for parallel execution
     """
-    # 六路并行检索日志
-    logger.debug("[fan_out_retrieval] Dispatching to 6 parallel retrieval nodes")
+    # Extract query
+    messages = state.get("messages", [])
+    query = ""
+    if messages:
+        last_msg = messages[-1]
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
 
-    # Send to all 6 retrieval sources in parallel
-    sends = [
-        Send("retrieve_graphiti", state),
-        Send("retrieve_lancedb", state),
-        Send("retrieve_multimodal", state),  # Story 6.8: 多模态检索
-        Send("retrieve_textbook", state),  # Story 23.4: 教材上下文
-        Send("retrieve_cross_canvas", state),  # Story 23.4: 跨Canvas关联
-        Send("retrieve_vault_notes", state),  # Vault Notes: .md 笔记检索
-    ]
+    # L1 routing with exception safety
+    try:
+        intent = classify_query_intent(query)
+        sends = _build_sends_for_intent(intent, state)
+        logger.info(f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'")
+    except Exception as e:
+        logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 6 channels")
+        intent = "comprehensive"
+        sends = [
+            Send("retrieve_graphiti", state),
+            Send("retrieve_lancedb", state),
+            Send("retrieve_multimodal", state),
+            Send("retrieve_textbook", state),
+            Send("retrieve_cross_canvas", state),
+            Send("retrieve_vault_notes", state),
+        ]
 
-    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects: all 6 retrieval nodes")
+    # Store routing info in state (via return — not directly, but logged for traceability)
+    # Note: fan_out_retrieval returns Send objects, can't update state directly.
+    # query_intent and routing_strategy are set in check_quality node from state.
+    logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}")
     return sends
 
 
@@ -110,10 +221,11 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
 
 def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query", "faithfulness_check"]:
     """
-    Route based on quality grade
+    Route based on quality grade — Story 2.6 AC-3/AC-4
 
     - low quality + rewrite_count < 2: rewrite_query (loop back for re-retrieval)
     - medium/high quality OR rewrite_count >= 2: faithfulness_check (final gate)
+    - safe_degradation is set in check_quality node (not here, per LangGraph convention)
 
     Story 7.1: Routes to faithfulness_check instead of END for final quality gate.
 
@@ -134,8 +246,12 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
         return "rewrite_query"
 
     # Acceptable quality or max rewrites reached -> faithfulness check
+    safe_deg = state.get("safe_degradation", False)
     if rewrite_count >= max_rewrite:
-        logger.debug(f"[route_after_quality_check] -> faithfulness_check (max rewrite reached: {rewrite_count})")
+        logger.debug(
+            f"[route_after_quality_check] -> faithfulness_check "
+            f"(max rewrite reached: {rewrite_count}, safe_degradation={safe_deg})"
+        )
     else:
         logger.debug(f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})")
     return "faithfulness_check"
@@ -148,21 +264,21 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
 
 async def rewrite_query(state: CanvasRAGState) -> dict:
     """
-    Query重写节点
+    Query 重写节点 — Story 2.6 AC-2: LLM 语义改写 + 双策略
 
-    Story 2.2 Task 3: 接入LLM进行真正的查询改写。
-    - 使用LiteLLM SDK调用配置的LLM
-    - 3秒超时保护
-    - LLM不可用时降级为关键词扩展
+    第 1 次（rewrite_count=0）：添加澄清性上下文 + 领域关键词 + 明确意图
+    第 2 次（rewrite_count=1）：完全不同角度重述 + 子问题分解 + 同义词替换
+
+    3 秒超时保护，超时/异常降级为 jieba 关键词拼接或简单扩展。
 
     Returns:
         State updates:
-        - messages: 添加重写后的query
+        - messages: 添加重写后的 query
         - query_rewritten: True
         - rewrite_count: +1
+        - original_query: 首次改写时保存原始查询
     """
     import asyncio
-    import os
 
     current_rewrite_count = state.get("rewrite_count", 0)
 
@@ -171,36 +287,47 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     messages = state.get("messages", [])
     if messages:
         last_msg = messages[-1]
-        original_query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+        current_query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
     else:
-        original_query = ""
+        current_query = ""
 
-    rewritten_query = original_query  # default: keep original
+    # Preserve original_query (only set on first rewrite)
+    original_query = state.get("original_query") or current_query
 
-    # Story 2.2 Task 3.2: Try LLM-based rewrite via LiteLLM
+    rewritten_query = current_query  # default: keep current
+
+    # Story 2.6 AC-2: Dual-strategy LLM rewrite via LiteLLM
     llm_rewrite_success = False
     try:
         import litellm
 
         litellm.set_verbose = False
 
-        # Use configured model (same pattern as faithfulness_check.py)
-        model_name = os.getenv("AI_MODEL_NAME", "gemini-2.0-flash-exp")
-        litellm_prefix = os.getenv("FAITHFULNESS_LITELLM_PREFIX", "")
-        if litellm_prefix and not model_name.startswith(litellm_prefix):
-            model_name = f"{litellm_prefix}{model_name}"
+        # Read model from runtime config or environment
+        from agentic_rag.config import DEFAULT_CONFIG
 
-        rewrite_prompt = (
-            "你是搜索查询优化专家。请将以下查询改写为更精确的搜索查询，"
-            "以获得更相关的检索结果。\n"
-            f"原始查询：{original_query}\n"
-            "请用不同的关键词和角度重写，直接返回改写后的查询，不要解释。"
-        )
+        rewrite_model = DEFAULT_CONFIG.get("rewrite_model", "gemini/gemini-2.0-flash")
 
-        # Story 2.2 Task 3.3: 3秒超时保护
+        # Strategy-based prompt
+        if current_rewrite_count == 0:
+            # Strategy 1: Clarification + domain keywords + explicit intent
+            rewrite_prompt = (
+                "你是搜索优化专家。请保持核心意图，添加澄清上下文和领域关键词。"
+                "只输出改写后的查询，不要解释。\n"
+                f"原始查询：{current_query}"
+            )
+        else:
+            # Strategy 2: Different angle + sub-question decomposition + synonyms
+            rewrite_prompt = (
+                "请从完全不同的角度重述此查询，或将其分解为更具体的子问题。"
+                "使用同义词替换关键术语。只输出改写后的查询，不要解释。\n"
+                f"原始查询：{current_query}"
+            )
+
+        # 3 秒超时保护
         response = await asyncio.wait_for(
             litellm.acompletion(
-                model=model_name,
+                model=rewrite_model,
                 messages=[{"role": "user", "content": rewrite_prompt}],
                 max_tokens=150,
                 temperature=0.7,
@@ -209,12 +336,9 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
         )
 
         llm_rewritten = response.choices[0].message.content.strip()
-        if llm_rewritten and llm_rewritten != original_query:
+        if llm_rewritten and llm_rewritten != current_query:
             rewritten_query = llm_rewritten
             llm_rewrite_success = True
-            logger.info(
-                f"[rewrite_query] LLM rewrite success: '{original_query[:40]}...' -> '{rewritten_query[:40]}...'"
-            )
 
     except asyncio.TimeoutError:
         logger.warning("[rewrite_query] LLM rewrite timed out (3s), using keyword fallback")
@@ -223,34 +347,33 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
     except Exception as e:
         logger.warning(f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback")
 
-    # Story 2.2 Task 3.3/3.4: Fallback - keyword expansion
+    # Fallback: jieba keyword extraction or simple expansion
     if not llm_rewrite_success:
         try:
             import jieba
 
-            # Extract top-5 keywords via jieba and append to query
-            keywords = jieba.analyse.extract_tags(original_query, topK=5)
+            keywords = jieba.analyse.extract_tags(current_query, topK=5)
             if keywords:
-                rewritten_query = f"{original_query} {' '.join(keywords)}"
+                rewritten_query = f"{current_query} {' '.join(keywords)}"
             else:
-                rewritten_query = f"{original_query} 关键概念 定义 解释"
-        except ImportError:
-            # jieba not available, use simple expansion
-            rewritten_query = f"{original_query} 关键概念 定义 解释"
+                rewritten_query = f"{current_query} 关键概念 定义 解释"
+        except (ImportError, AttributeError):
+            rewritten_query = f"{current_query} 关键概念 定义 解释"
 
     new_rewrite_count = current_rewrite_count + 1
 
-    # Story 2.2 Task 3.5: Log before/after query
+    # Story 2.6 AC-6: Structured logging
     logger.info(
-        f"[rewrite_query] END - rewrite_count={new_rewrite_count}, "
-        f"llm_success={llm_rewrite_success}, "
-        f"original='{original_query[:50]}', rewritten='{rewritten_query[:50]}'"
+        f"[CRAG-RETRY] iteration={new_rewrite_count}, "
+        f"original='{original_query[:60]}', rewritten='{rewritten_query[:60]}', "
+        f"llm_success={llm_rewrite_success}, strategy={'clarify' if current_rewrite_count == 0 else 'rephrase'}"
     )
 
     return {
         "messages": [{"role": "user", "content": rewritten_query}],
         "query_rewritten": True,
         "rewrite_count": new_rewrite_count,
+        "original_query": original_query,
     }
 
 

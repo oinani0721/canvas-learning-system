@@ -15,10 +15,12 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import debug, health
 from app.api.v1.endpoints.agents import agents_router
+from app.api.v1.endpoints.archive import archive_router  # Story 3.8
 from app.api.v1.endpoints.canvas import canvas_router
 from app.api.v1.endpoints.config import config_router
-from app.api.v1.endpoints.index_image import index_image_router
+from app.api.v1.endpoints.context import context_router  # Story 3.4
 from app.api.v1.endpoints.exam_sessions import exam_sessions_router
+from app.api.v1.endpoints.index_image import index_image_router
 from app.api.v1.endpoints.intelligent_parallel import (
     intelligent_parallel_router,
     single_agent_router,
@@ -32,8 +34,10 @@ from app.api.v1.endpoints.profile import profile_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.textbook import textbook_router
+from app.api.v1.endpoints.tips import tips_router  # Story 3.6
 from app.api.v1.system import router as system_router  # Story 1.1
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter include_router)
@@ -274,6 +278,18 @@ router.include_router(
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Context Routes (Story 3.4 - Learning Context Auto-Injection)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 3.4: Tier 1 + Tier 2 learning context for --append-system-prompt
+# [Source: _bmad-output/implementation-artifacts/3-4-learning-context-auto-injection.md#Task 5]
+router.include_router(
+    context_router,
+    tags=["Context"],
+    responses={500: {"description": "Context assembly error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Canvas Sync Routes (Story 1.5)
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -284,4 +300,43 @@ router.include_router(
     prefix="/sync",
     tags=["Sync"],
     responses={503: {"description": "Neo4j connection unavailable"}, 500: {"description": "Sync processing error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Tips Routes (Story 3.6)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 3.6: Tips annotation - user-selected dialogue text saved to Graphiti
+# [Source: _bmad-output/implementation-artifacts/3-6-tips-annotation-error-archiving.md]
+router.include_router(
+    tips_router,
+    prefix="/tips",
+    tags=["Tips"],
+    responses={500: {"description": "Tips save error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Suggestions Routes (Story 3.7)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 3.7: LLM relation suggestion for pullout nodes
+# [Source: _bmad-output/implementation-artifacts/3-7-dialog-pullout-node.md]
+router.include_router(
+    suggestions_router,
+    prefix="/suggestions",
+    tags=["Suggestions"],
+    responses={500: {"description": "Suggestion service error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Archive Routes (Story 3.8)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 3.8: Conversation archive management (Hot-Warm-Cold)
+# [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md]
+router.include_router(
+    archive_router,
+    prefix="/archive",
+    tags=["Archive"],
+    responses={500: {"description": "Archive service error"}},
 )

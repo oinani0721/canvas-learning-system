@@ -15,8 +15,8 @@ Architecture Reference:
 - ADR-0004: Async Execution Engine (fire-and-forget pattern)
 """
 
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, Optional
 from uuid import uuid4
@@ -150,3 +150,91 @@ class CanvasEventContext:
                 metadata["edge_label"] = self.edge_data["label"]
 
         return metadata
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 5.7: Learning Event Types for EventBus
+# [Source: _bmad-output/implementation-artifacts/5-7-eventbus-triconnect.md]
+# [Source: _bmad-output/planning-artifacts/architecture.md#Cross-Cutting Concerns #10]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+class LearningEventType(str, Enum):
+    """Learning event types for the mastery EventBus.
+
+    8 event types spanning FSRS, Graphiti, and RAG subsystems.
+    Each event has an assigned tier (priority level).
+    """
+
+    # Tier 1 (P0) CRITICAL — await synchronous execution
+    SCORE_SUBMITTED = "score_submitted"
+
+    # Tier 2 (P1) IMPORTANT — fire + retry + JSONL outbox
+    BKT_UPDATED = "bkt_updated"
+    FSRS_UPDATED = "fsrs_updated"
+    MASTERY_CHANGED = "mastery_changed"
+    CALIBRATION_RECORDED = "calibration_recorded"
+    MEMORY_WRITE_REQUESTED = "memory_write_requested"
+
+    # Tier 3 (P2) BEST_EFFORT — fire-and-forget
+    RAG_WEIGHT_ADJUST = "rag_weight_adjust"
+    UI_MASTERY_PUSH = "ui_mastery_push"
+
+
+class EventTier(str, Enum):
+    """Event priority tiers for the EventBus.
+
+    Tier 1: CRITICAL — await synchronous, failure raises exception
+    Tier 2: IMPORTANT — async with retry (exponential backoff 2s->4s->8s, max 3) + JSONL outbox
+    Tier 3: BEST_EFFORT — fire-and-forget, failure only logged
+    """
+
+    TIER_1_CRITICAL = "tier_1_critical"
+    TIER_2_IMPORTANT = "tier_2_important"
+    TIER_3_BEST_EFFORT = "tier_3_best_effort"
+
+
+# Mapping from event type to its tier (immutable, not overridable by handlers)
+LEARNING_EVENT_TIER_MAP: Dict[LearningEventType, EventTier] = {
+    LearningEventType.SCORE_SUBMITTED: EventTier.TIER_1_CRITICAL,
+    LearningEventType.BKT_UPDATED: EventTier.TIER_2_IMPORTANT,
+    LearningEventType.FSRS_UPDATED: EventTier.TIER_2_IMPORTANT,
+    LearningEventType.MASTERY_CHANGED: EventTier.TIER_2_IMPORTANT,
+    LearningEventType.CALIBRATION_RECORDED: EventTier.TIER_2_IMPORTANT,
+    LearningEventType.MEMORY_WRITE_REQUESTED: EventTier.TIER_2_IMPORTANT,
+    LearningEventType.RAG_WEIGHT_ADJUST: EventTier.TIER_3_BEST_EFFORT,
+    LearningEventType.UI_MASTERY_PUSH: EventTier.TIER_3_BEST_EFFORT,
+}
+
+
+@dataclass
+class LearningEvent:
+    """Structured learning event for EventBus.
+
+    Every event must carry:
+      - event_id: UUID for idempotent deduplication
+      - event_type: LearningEventType enum
+      - payload: dict with at least node_id + session_id
+      - timestamp: auto-generated
+      - source: originator identifier
+      - tier: EventTier (determined from LEARNING_EVENT_TIER_MAP, not overridable)
+    """
+
+    event_type: LearningEventType
+    payload: Dict[str, Any]
+    source: str
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+
+    @property
+    def tier(self) -> EventTier:
+        """Tier is determined by event_type, not overridable."""
+        return LEARNING_EVENT_TIER_MAP.get(self.event_type, EventTier.TIER_3_BEST_EFFORT)
+
+    @property
+    def node_id(self) -> Optional[str]:
+        return self.payload.get("node_id")
+
+    @property
+    def session_id(self) -> Optional[str]:
+        return self.payload.get("session_id")

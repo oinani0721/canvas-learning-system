@@ -80,8 +80,9 @@ export interface Point {
   y: number;
 }
 
-/** View routing state for App.svelte. */
-export type ViewRoute = 'dashboard' | 'canvas';
+/** View routing state for App.svelte.
+ * Story 3.3: Added 'chat' route for the ChatPanel view. */
+export type ViewRoute = 'dashboard' | 'canvas' | 'chat';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Story 1.7: Recommendation types

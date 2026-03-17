@@ -144,6 +144,10 @@ class CanvasRAGConfig(TypedDict, total=False):
     quality_threshold: float  # 质量阈值 (0.7=high, 0.5=medium)
     max_rewrite_iterations: int  # 最大重写次数 (默认2)
 
+    # Story 2.6: CRAG 质量门控 LLM 模型配置
+    quality_check_model: str  # CRAG 二元评分 LLM 模型 (默认 gemini/gemini-2.0-flash)
+    rewrite_model: str  # 查询改写 LLM 模型 (默认同 quality_check_model)
+
     # 成本控制配置
     cohere_monthly_limit: int  # Cohere月度限额 (默认50)
     enable_cost_monitoring: bool  # 是否启用成本监控 (默认True)
@@ -192,6 +196,9 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     enable_cost_monitoring=True,
     timeout_seconds=10.0,
     enable_caching=True,
+    # Story 2.6: CRAG 质量门控 LLM 模型
+    quality_check_model="gemini/gemini-2.0-flash",
+    rewrite_model="gemini/gemini-2.0-flash",
     # Story 23.4: 多源融合配置
     source_weights=DEFAULT_SOURCE_WEIGHTS,
     time_decay_factor=0.05,

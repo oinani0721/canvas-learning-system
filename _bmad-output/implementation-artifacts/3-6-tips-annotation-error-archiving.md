@@ -158,10 +158,30 @@ function positionPanel(selection: Selection): { top: number, left: number } {
 
 ### Agent Model Used
 
-(to be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- AC-1: TipAnnotation.svelte floating panel with mouseup selection detection, absolute positioning
+- AC-2: tips-service.ts + POST /api/v1/tips endpoint -> Graphiti via MemoryService
+- AC-3: error_tools.py MCP record_error tool + error_classifier.py with LLM classification
+- AC-4: ErrorType enum + ERROR_TYPE_TO_REMEDY mapping in entity_types.py
+- AC-5: Tag selector in TipAnnotation.svelte with 4 predefined tags (important/confused/inspiration/review)
+- Graphiti entity schemas: LearningTip, Misconception in entity_types.py
+- MCP server updated: record_error tool registered (11 total tools)
+- Router updated: /api/v1/tips route registered
+
 ### File List
+
+- backend/app/graphiti/__init__.py (new)
+- backend/app/graphiti/entity_types.py (new)
+- backend/app/services/error_classifier.py (new)
+- backend/app/mcp/tools/error_tools.py (new)
+- backend/app/api/v1/endpoints/tips.py (new)
+- backend/app/mcp/server.py (modified - added record_error tool)
+- backend/app/mcp/tools/__init__.py (modified - added error_tools)
+- backend/app/api/v1/router.py (modified - added tips_router)
+- obsidian-canvas-learning/src/components/chat/TipAnnotation.svelte (new)
+- obsidian-canvas-learning/src/services/tips-service.ts (new)

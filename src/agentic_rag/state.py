@@ -128,6 +128,20 @@ class CanvasRAGState(MessagesState):
     # 原始Query (用于重写)
     original_query: Annotated[Optional[str], "原始用户查询"]
 
+    # Story 2.6: CRAG 质量门控与安全降级
+    safe_degradation: Annotated[bool, "是否触发安全降级 (2次重试后仍 low)"]
+    degradation_reason: Annotated[Optional[str], "降级原因 (如 retrieval_quality_insufficient)"]
+    quality_history: Annotated[
+        List[Dict[str, Any]],
+        "质量评分历史 [{iteration, grade, top3_scores, query, binary_grading}]",
+    ]
+    query_intent: Annotated[
+        Optional[str],
+        "L1 路由识别的查询意图 (knowledge_point/learning_history/file_locate/comprehensive)",
+    ]
+    routing_strategy: Annotated[Optional[str], "L1 路由选择的检索策略"]
+    binary_grading_used: Annotated[bool, "是否使用了 LLM 二元评分 (vs 数值阈值降级)"]
+
     # Story 7.1: Faithfulness 忠实度检查字段
     faithfulness_score: Annotated[Optional[float], "Faithfulness忠实度评分 (0.0-1.0)"]
     faithfulness_details: Annotated[Optional[Dict[str, Any]], "Faithfulness检查详情 (claims + NLI结果)"]
@@ -144,6 +158,71 @@ class CanvasRAGState(MessagesState):
     vault_notes_latency_ms: Annotated[Optional[float], "Vault笔记检索延迟 (ms)"]
     fusion_latency_ms: Annotated[Optional[float], "融合算法延迟 (ms)"]
     reranking_latency_ms: Annotated[Optional[float], "Reranking延迟 (ms)"]
+
+
+def create_initial_state(**overrides: Any) -> Dict[str, Any]:
+    """
+    Story 2.7 AC-8: Factory function to create a CanvasRAGState with safe defaults.
+
+    All fields have sensible initial values so that pipeline execution
+    never raises KeyError on missing state fields.
+
+    Args:
+        **overrides: Any field values to override defaults.
+
+    Returns:
+        Dict with all CanvasRAGState fields populated.
+    """
+    defaults: Dict[str, Any] = {
+        "messages": [],
+        # Retrieval results
+        "graphiti_results": [],
+        "lancedb_results": [],
+        "multimodal_results": [],
+        "textbook_results": [],
+        "cross_canvas_results": [],
+        "vault_notes_results": [],
+        "fused_results": [],
+        "reranked_results": [],
+        # Strategy
+        "fusion_strategy": "layered_rrf",
+        "reranking_strategy": "hybrid_auto",
+        # Quality control
+        "quality_grade": None,
+        "query_rewritten": False,
+        "rewrite_count": 0,
+        # Context
+        "canvas_file": None,
+        "subject": None,
+        "is_review_canvas": False,
+        # Filters
+        "course_id": None,
+        "tags": None,
+        # Original query
+        "original_query": None,
+        # Story 7.1 Faithfulness
+        "faithfulness_score": None,
+        "faithfulness_details": None,
+        "faithfulness_degraded": None,
+        # Latency
+        "graphiti_latency_ms": None,
+        "lancedb_latency_ms": None,
+        "multimodal_latency_ms": None,
+        "textbook_latency_ms": None,
+        "cross_canvas_latency_ms": None,
+        "vault_notes_latency_ms": None,
+        "fusion_latency_ms": None,
+        "reranking_latency_ms": None,
+        # Story 2.6 CRAG quality gate
+        "safe_degradation": False,
+        "degradation_reason": None,
+        "quality_history": [],
+        "query_intent": None,
+        "routing_strategy": None,
+        "binary_grading_used": False,
+    }
+    defaults.update(overrides)
+    return defaults
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -18,12 +18,17 @@ import type {
   EngineError,
   StreamEvent,
 } from '../services/dialog-engine';
+import type { ActiveEngineType } from '../services/engine-fallback';
+import type { RecoveryStatus } from '../services/crash-recovery';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // State Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export type ChatStatus = 'idle' | 'connecting' | 'streaming' | 'error';
+
+/** Story 3.10: Quota status for subscription-based usage. */
+export type QuotaStatus = 'available' | 'exhausted' | 'checking';
 
 export interface ChatMessage {
   id: string;
@@ -68,6 +73,18 @@ class ChatStateManager {
   lastError: EngineError | null = $state(null);
   engineAvailable: boolean = $state(true);
 
+  /** Story 3.9: Current engine type indicator. */
+  activeEngineType: ActiveEngineType = $state('claude-code');
+
+  /** Story 3.10: Subscription quota status. */
+  quotaStatus: QuotaStatus = $state('available');
+
+  /** Story 3.10: Estimated time when quota resets (null if unknown). */
+  quotaResetTime: Date | null = $state(null);
+
+  /** Story 3.11: Current crash recovery status. */
+  recoveryStatus: RecoveryStatus = $state('idle');
+
   /** The active DialogEngine instance. */
   private engine: DialogEngine | null = null;
 
@@ -103,6 +120,94 @@ class ChatStateManager {
    */
   getEngine(): DialogEngine | null {
     return this.engine;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.9: Engine Switching
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Switch the active engine (called by EngineFallbackManager).
+   *
+   * Story 3.9 AC-3: Transparent engine switching — the UI layer
+   * doesn't need to know about the switch, conversation history
+   * is preserved in the message cache.
+   *
+   * @param engine - The new DialogEngine to use.
+   * @param type - The engine type identifier.
+   */
+  switchEngine(engine: DialogEngine, type: ActiveEngineType): void {
+    this.engine = engine;
+    this.activeEngineType = type;
+    this.engineAvailable = true;
+    this.lastError = null;
+
+    // Re-register error handler for the new engine
+    engine.onError((error: EngineError) => {
+      this.lastError = error;
+      this.status = 'error';
+
+      if (error.type === 'auth_failed') {
+        this.engineAvailable = false;
+      }
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.10: Quota Management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Set the quota status to exhausted.
+   *
+   * Story 3.10 AC-1, AC-2: Called when a 429 rate_limited error is detected.
+   *
+   * @param retryAfterSec - Optional retry-after hint in seconds.
+   */
+  setQuotaExhausted(retryAfterSec?: number): void {
+    this.quotaStatus = 'exhausted';
+
+    if (retryAfterSec) {
+      this.quotaResetTime = new Date(Date.now() + retryAfterSec * 1000);
+    } else {
+      // Default: estimate next Monday reset
+      const now = new Date();
+      const daysUntilMonday = (8 - now.getDay()) % 7 || 7;
+      const nextMonday = new Date(now);
+      nextMonday.setDate(now.getDate() + daysUntilMonday);
+      nextMonday.setHours(0, 0, 0, 0);
+      this.quotaResetTime = nextMonday;
+    }
+  }
+
+  /**
+   * Set the quota status back to available.
+   *
+   * Story 3.10 AC-5: Called when a re-spawn succeeds after quota exhaustion.
+   */
+  setQuotaAvailable(): void {
+    this.quotaStatus = 'available';
+    this.quotaResetTime = null;
+  }
+
+  /**
+   * Set the quota status to checking (during re-spawn attempt).
+   */
+  setQuotaChecking(): void {
+    this.quotaStatus = 'checking';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.11: Recovery Status
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Update the crash recovery status for UI display.
+   *
+   * @param status - The new recovery status.
+   */
+  setRecoveryStatus(status: RecoveryStatus): void {
+    this.recoveryStatus = status;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -250,6 +355,78 @@ class ChatStateManager {
     this.messageCache.set(nodeId, [...this.messages]);
   }
 
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.3: Streaming Chunk + History Management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Append a streaming text chunk to the current assistant message.
+   *
+   * Story 3.3 AC-2: Real-time incremental rendering.
+   * If no assistant message exists yet, creates one.
+   *
+   * @param text - Text chunk to append.
+   */
+  appendStreamChunk(text: string): void {
+    const lastMsg = this.messages[this.messages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant') {
+      const updated = { ...lastMsg, content: lastMsg.content + text };
+      this.messages = [...this.messages.slice(0, -1), updated];
+    } else {
+      const newMsg: ChatMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: text,
+        timestamp: Date.now(),
+      };
+      this.messages = [...this.messages, newMsg];
+    }
+  }
+
+  /**
+   * Load persisted history messages into state.
+   *
+   * Story 3.3 AC-4: Called on ChatPanel mount to restore history.
+   * Only loads if current messages array is empty (no in-memory cache).
+   *
+   * @param history - Messages from MessageStore, ordered oldest-first.
+   */
+  loadHistory(history: ChatMessage[]): void {
+    if (this.messages.length === 0) {
+      this.messages = history;
+    }
+  }
+
+  /**
+   * Prepend older history messages (for lazy-load pagination).
+   *
+   * Story 3.3 AC-4: IntersectionObserver triggers loading more.
+   *
+   * @param olderMessages - Older messages to prepend, ordered oldest-first.
+   */
+  prependHistory(olderMessages: ChatMessage[]): void {
+    this.messages = [...olderMessages, ...this.messages];
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.5: Skill Command Execution
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Execute a skill command.
+   *
+   * Story 3.5 AC-2: Skill commands are sent as regular messages with
+   * `/command-name args` format. Claude Code's native /command system
+   * handles loading the corresponding .claude/commands/skill.md prompt.
+   *
+   * @param skillName - The skill command name (without /).
+   * @param args - Optional arguments for the skill.
+   */
+  async executeSkill(skillName: string, args = ''): Promise<void> {
+    const message = args ? `/${skillName} ${args}` : `/${skillName}`;
+    await this.sendMessage(message);
+  }
+
   /**
    * Clear the chat history for the active node.
    */
@@ -277,6 +454,11 @@ class ChatStateManager {
     this.messages = [];
     this.lastError = null;
     this.messageCache.clear();
+    // Story 3.9 / 3.10 / 3.11 cleanup
+    this.activeEngineType = 'claude-code';
+    this.quotaStatus = 'available';
+    this.quotaResetTime = null;
+    this.recoveryStatus = 'idle';
   }
 }
 

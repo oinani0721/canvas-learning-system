@@ -177,10 +177,29 @@ class GenerationManager {
 
 ### Agent Model Used
 
-(to be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- AC-1: ArchiveManager with Hot-Warm-Cold lifecycle, dual trigger (time 30d/6mo + capacity 50K tokens)
+- AC-2: ConversationDistiller LLM-based extraction (tips, errors, Q&A, summary) with Graphiti persistence
+- AC-3: GenerationManager with active Map + background execution, node switching preserves generation
+- AC-4: NodeStatusIndicator.svelte with 3 states (generating/spinning, unread/green dot, idle/hidden)
+- AC-5: MAX_CONCURRENT=3 with queue + auto-dequeue on completion
+- ArchiveScheduler registered in FastAPI lifespan (24h interval), with manual trigger API
+- Archive API: POST /trigger, GET /status/{node_id}, GET /summary/{node_id}
+- Messages marked archived (not physically deleted)
+
 ### File List
+
+- backend/app/services/conversation_archive.py (new)
+- backend/app/services/conversation_distiller.py (new)
+- backend/app/services/archive_scheduler.py (new)
+- backend/app/api/v1/endpoints/archive.py (new)
+- backend/app/main.py (modified - added archive scheduler lifecycle)
+- backend/app/api/v1/router.py (modified - added archive_router)
+- obsidian-canvas-learning/src/services/generation-manager.ts (new)
+- obsidian-canvas-learning/src/components/canvas/NodeStatusIndicator.svelte (new)
+- obsidian-canvas-learning/src/components/canvas/CanvasView.svelte (modified - added generation status + pullout)

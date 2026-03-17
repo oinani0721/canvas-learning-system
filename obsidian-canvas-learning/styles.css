@@ -139,3 +139,37 @@
 
   --cl-mastery-transition: border-color 300ms ease-in-out, box-shadow 300ms ease-in-out;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Story 3.3: Chat Panel Styles
+ *
+ * ChatPanel, MessageBubble, InputBar, StreamingIndicator, SkillSelector
+ * All classes prefixed with .cl-chat-*
+ * Colors reference Obsidian CSS variables for Light/Dark theme compatibility.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Chat panel CSS variable mapping */
+.cl-chat-panel {
+  --cl-chat-bubble-user-bg: var(--interactive-accent);
+  --cl-chat-bubble-user-fg: var(--text-on-accent);
+  --cl-chat-bubble-agent-bg: var(--background-secondary);
+  --cl-chat-bubble-agent-fg: var(--text-normal);
+}
+
+/* Custom scrollbar for chat messages */
+.cl-chat-panel__messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}

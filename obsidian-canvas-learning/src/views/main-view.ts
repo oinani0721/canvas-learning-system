@@ -2,9 +2,13 @@
  * Canvas Learning System - Main View
  * Story 1.1: Plugin scaffold (AC-3)
  * Story 1.4: Routing between Dashboard and Canvas views (AC-7, Task 8.1)
+ * Story 3.3: ChatPanel view mode support (AC-1, Task 6)
  *
  * ItemView subclass that hosts the Svelte 5 root component (App.svelte).
  * Uses Svelte 5 mount()/unmount() API for lifecycle management.
+ *
+ * Story 3.3: Passes the Obsidian `app` instance to App.svelte so that
+ * ChatPanel can use MarkdownRenderer.render() and workspace.openLinkText().
  */
 
 import { ItemView, type WorkspaceLeaf } from 'obsidian';
@@ -38,8 +42,12 @@ export class MainView extends ItemView {
     container.empty();
     container.addClass('cl-root');
 
+    // Story 3.3: Pass app instance for MarkdownRenderer and workspace API
     this.svelteComponent = mount(App, {
       target: container,
+      props: {
+        app: this.app,
+      },
     });
   }
 

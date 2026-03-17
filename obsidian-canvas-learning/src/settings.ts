@@ -101,6 +101,9 @@ export class CanvasLearningSettingTab extends PluginSettingTab {
 
     // ── Section 7: Subject management (Story 1.9) ─────────────────────────
     this.renderSubjectManagementSection(containerEl);
+
+    // ── Section 8: Engine Fallback / Backup API Key (Story 3.9) ───────────
+    this.renderFallbackSection(containerEl);
   }
 
   /* ═══════════════════════════════════════════════════════════════════════════
@@ -600,5 +603,122 @@ export class CanvasLearningSettingTab extends PluginSettingTab {
             }),
         );
     }
+  }
+
+  /* ═══════════════════════════════════════════════════════════════════════════
+   * Section 8: Engine Fallback / Backup API Key (Story 3.9 AC-5)
+   * ═══════════════════════════════════════════════════════════════════════════ */
+
+  private renderFallbackSection(containerEl: HTMLElement): void {
+    containerEl.createEl('h2', { text: 'AI 引擎备用方案' });
+    containerEl.createEl('p', {
+      text: '当 Claude Code 订阅不可用时，自动切换到 API Key 直连模式。',
+      cls: 'setting-item-description',
+    });
+
+    // ── Current engine status ─────────────────────────────────────────────
+    const engineType = this.plugin.settings.currentEngine;
+    const engineLabel =
+      engineType === 'claude-code'
+        ? 'Claude Code (订阅模式)'
+        : 'API Key (备用模式)';
+    const engineColor =
+      engineType === 'claude-code'
+        ? 'var(--text-success, #4caf50)'
+        : 'var(--text-warning, #e2b93d)';
+
+    const statusSetting = new Setting(containerEl).setName('当前引擎');
+    const statusSpan = statusSetting.controlEl.createSpan({
+      text: engineLabel,
+    });
+    statusSpan.style.color = engineColor;
+    statusSpan.style.fontWeight = '600';
+
+    // ── Backup API Key (password + toggle) ────────────────────────────────
+    // Story 3.9 AC-5: password input with show/hide toggle
+    const apiKeySetting = new Setting(containerEl)
+      .setName('备用 Anthropic API Key')
+      .setDesc('订阅不可用时自动启用（存储在本地，不入 Git）');
+
+    apiKeySetting.addText((text) => {
+      text.inputEl.type = 'password';
+      text.inputEl.style.width = '260px';
+      text
+        .setPlaceholder('sk-ant-...')
+        .setValue(this.plugin.settings.fallbackApiKey)
+        .onChange(async (val) => {
+          this.plugin.settings.fallbackApiKey = val;
+          await this.plugin.saveSettings();
+        });
+
+      // Show/hide toggle button
+      const toggleBtn = apiKeySetting.controlEl.createEl('button', {
+        text: 'Show',
+        cls: 'cls-api-key-toggle',
+      });
+      toggleBtn.style.marginLeft = '8px';
+      toggleBtn.addEventListener('click', () => {
+        if (text.inputEl.type === 'password') {
+          text.inputEl.type = 'text';
+          toggleBtn.textContent = 'Hide';
+        } else {
+          text.inputEl.type = 'password';
+          toggleBtn.textContent = 'Show';
+        }
+      });
+    });
+
+    // ── Test Connection button ────────────────────────────────────────────
+    // Story 3.9 AC-5: validate API Key by calling Anthropic API
+    const testSetting = new Setting(containerEl).setName('');
+
+    const feedbackEl = testSetting.controlEl.createSpan({
+      cls: 'cls-test-feedback',
+    });
+    feedbackEl.style.marginRight = '8px';
+
+    testSetting.addButton((btn) =>
+      btn.setButtonText('测试连接').onClick(async () => {
+        const apiKey = this.plugin.settings.fallbackApiKey;
+        if (!apiKey) {
+          feedbackEl.textContent = '请先输入 API Key';
+          feedbackEl.style.color = 'var(--text-error, #f44336)';
+          return;
+        }
+
+        feedbackEl.textContent = '测试中...';
+        feedbackEl.style.color = 'var(--text-muted)';
+
+        try {
+          const resp = await fetch('https://api.anthropic.com/v1/messages', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-api-key': apiKey,
+              'anthropic-version': '2023-06-01',
+            },
+            body: JSON.stringify({
+              model: 'claude-sonnet-4-20250514',
+              max_tokens: 1,
+              messages: [{ role: 'user', content: 'hi' }],
+            }),
+          });
+
+          if (resp.ok || resp.status === 200) {
+            feedbackEl.textContent = '\u2713 连接成功';
+            feedbackEl.style.color = 'var(--text-success, #4caf50)';
+          } else if (resp.status === 401 || resp.status === 403) {
+            feedbackEl.textContent = '\u2717 API Key 无效';
+            feedbackEl.style.color = 'var(--text-error, #f44336)';
+          } else {
+            feedbackEl.textContent = `\u2717 HTTP ${resp.status}`;
+            feedbackEl.style.color = 'var(--text-error, #f44336)';
+          }
+        } catch (e) {
+          feedbackEl.textContent = `\u2717 ${e instanceof Error ? e.message : 'Network error'}`;
+          feedbackEl.style.color = 'var(--text-error, #f44336)';
+        }
+      }),
+    );
   }
 }

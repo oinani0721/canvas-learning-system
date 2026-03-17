@@ -77,6 +77,8 @@ export interface EngineError {
   type: EngineErrorType;
   message: string;
   exitCode?: number;
+  /** Retry-after hint in seconds (for rate_limited errors). */
+  retryAfterSec?: number;
   /** Original error for debugging. */
   cause?: Error;
 }

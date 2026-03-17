@@ -409,6 +409,289 @@ class LanceDBClient:
                 logger.debug(f"Failed to cache tables: {e}")
 
     # =========================================================================
+    # Story 2.7: File Fingerprint Infrastructure
+    # =========================================================================
+
+    FINGERPRINT_TABLE = "file_fingerprints"
+
+    @staticmethod
+    def _compute_file_hash(file_path: str) -> str:
+        """
+        Story 2.7 AC-1: Compute SHA-256 content hash of a file.
+
+        Args:
+            file_path: Absolute path to the file.
+
+        Returns:
+            Hex-encoded SHA-256 hash string.
+        """
+        import hashlib
+
+        sha = hashlib.sha256()
+        with open(file_path, "r", encoding="utf-8") as f:
+            sha.update(f.read().encode("utf-8"))
+        return sha.hexdigest()
+
+    def _ensure_fingerprint_table(self):
+        """
+        Story 2.7 Task 1.1: Create or open the file_fingerprints table.
+
+        Schema: file_path (str), content_hash (str), last_indexed (str), chunk_count (int)
+        """
+        if self._db is None:
+            return
+
+        if self.FINGERPRINT_TABLE in self._tables_cache:
+            return
+
+        try:
+            existing_tables = self._db.table_names()
+            if self.FINGERPRINT_TABLE in existing_tables:
+                self._tables_cache[self.FINGERPRINT_TABLE] = self._db.open_table(self.FINGERPRINT_TABLE)
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"[fingerprint] Error checking fingerprint table: {e}")
+
+    def _get_all_fingerprints(self) -> Dict[str, str]:
+        """
+        Get all stored fingerprints as file_path -> content_hash mapping.
+
+        Returns:
+            Dict mapping file_path to content_hash.
+        """
+        self._ensure_fingerprint_table()
+
+        if self.FINGERPRINT_TABLE not in self._tables_cache:
+            # No fingerprint table yet — first run, all files are new
+            empty_map: Dict[str, str] = {}
+            return empty_map
+
+        try:
+            tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+            rows = tbl.to_pandas()
+            if rows.empty:
+                empty_map2: Dict[str, str] = {}
+                return empty_map2
+            return dict(zip(rows["file_path"], rows["content_hash"]))
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"[fingerprint] Error reading fingerprints: {e}")
+            empty_map3: Dict[str, str] = {}
+            return empty_map3
+
+    def _get_changed_files(self, vault_path: str, file_paths: List[str]) -> tuple:
+        """
+        Story 2.7 Task 1.3: Compare current files against stored fingerprints.
+
+        Args:
+            vault_path: Vault root directory for relative path computation.
+            file_paths: List of absolute paths to current .md files.
+
+        Returns:
+            Tuple of (new_files, changed_files, deleted_files) — all as relative paths.
+        """
+        stored = self._get_all_fingerprints()
+
+        # Build current hash map (relative path -> hash)
+        current_hashes: Dict[str, str] = {}
+        for fp in file_paths:
+            rel = os.path.relpath(fp, vault_path).replace("\\", "/")
+            try:
+                h = self._compute_file_hash(fp)
+                current_hashes[rel] = h
+            except Exception as e:
+                if LOGURU_ENABLED:
+                    logger.debug(f"[fingerprint] Cannot hash {fp}: {e}")
+
+        new_files: List[str] = []
+        changed_files: List[str] = []
+        deleted_files: List[str] = []
+
+        # Detect new and changed
+        for rel, h in current_hashes.items():
+            if rel not in stored:
+                new_files.append(rel)
+            elif stored[rel] != h:
+                changed_files.append(rel)
+
+        # Detect deleted (in stored but not in current)
+        current_rel_set = set(current_hashes.keys())
+        for stored_rel in stored:
+            if stored_rel not in current_rel_set:
+                deleted_files.append(stored_rel)
+
+        return new_files, changed_files, deleted_files
+
+    def _update_fingerprint(self, file_path: str, content_hash: str, chunk_count: int):
+        """
+        Story 2.7 Task 1.4: Update fingerprint record using delete-before-insert.
+
+        Args:
+            file_path: Relative file path.
+            content_hash: SHA-256 hash.
+            chunk_count: Number of chunks indexed for this file.
+        """
+        if self._db is None:
+            return
+
+        record = {
+            "file_path": file_path,
+            "content_hash": content_hash,
+            "last_indexed": datetime.now().isoformat(),
+            "chunk_count": chunk_count,
+        }
+
+        try:
+            if self.FINGERPRINT_TABLE in self._tables_cache:
+                tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+                # Delete existing record for this file
+                escaped = file_path.replace("'", "''")
+                try:
+                    tbl.delete(f"file_path = '{escaped}'")
+                except Exception:
+                    pass
+                tbl.add([record])
+            else:
+                # Create table with first record
+                tbl = self._db.create_table(self.FINGERPRINT_TABLE, data=[record])
+                self._tables_cache[self.FINGERPRINT_TABLE] = tbl
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.error(f"[fingerprint] Failed to update fingerprint for {file_path}: {e}")
+
+    def _remove_fingerprint(self, file_path: str):
+        """
+        Story 2.7 Task 1.5: Delete fingerprint record.
+
+        Args:
+            file_path: Relative file path.
+        """
+        if self.FINGERPRINT_TABLE not in self._tables_cache:
+            return
+
+        try:
+            tbl = self._tables_cache[self.FINGERPRINT_TABLE]
+            escaped = file_path.replace("'", "''")
+            tbl.delete(f"file_path = '{escaped}'")
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"[fingerprint] Failed to remove fingerprint for {file_path}: {e}")
+
+    def _delete_file_chunks(self, table_name: str, file_path: str) -> int:
+        """
+        Story 2.7 AC-2: Delete all chunks for a file from a LanceDB table.
+
+        Uses canvas_file field to match. Handles single-quote escaping for SQL.
+
+        Args:
+            table_name: LanceDB table name.
+            file_path: Relative file path (value of canvas_file column).
+
+        Returns:
+            1 on success, 0 on failure.
+        """
+        if self._db is None:
+            return 0
+
+        try:
+            if table_name in self._tables_cache:
+                tbl = self._tables_cache[table_name]
+            else:
+                try:
+                    tbl = self._db.open_table(table_name)
+                    self._tables_cache[table_name] = tbl
+                except Exception:
+                    return 0
+
+            escaped = file_path.replace("'", "''")
+            tbl.delete(f"canvas_file = '{escaped}'")
+            if LOGURU_ENABLED:
+                logger.debug(f"[index] Deleted old chunks for '{file_path}' from '{table_name}'")
+            return 1
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.warning(f"[index] Failed to delete chunks for '{file_path}': {e}")
+            return 0
+
+    async def rebuild_index(
+        self,
+        vault_path: str,
+        table_name: str = "vault_notes",
+        subject: str = "",
+        max_tokens: int = 512,
+        overlap_tokens: int = 50,
+        progress_callback=None,
+    ) -> Dict[str, Any]:
+        """
+        Story 2.7 AC-4: Full index rebuild — drop all data and re-index from scratch.
+
+        Used for model migration or data recovery. Ignores all fingerprint caches.
+
+        Args:
+            vault_path: Vault root directory.
+            table_name: Target LanceDB table name.
+            subject: Subject tag for isolation.
+            max_tokens: Chunk size in tokens.
+            overlap_tokens: Overlap between chunks.
+            progress_callback: Optional callable(current, total) for progress reporting.
+
+        Returns:
+            Dict with total_files, total_chunks, duration_ms.
+        """
+        start_time = time.perf_counter()
+
+        if not self._initialized:
+            await self.initialize()
+
+        # Drop fingerprint table
+        try:
+            self._db.drop_table(self.FINGERPRINT_TABLE, ignore_missing=True)
+            self._tables_cache.pop(self.FINGERPRINT_TABLE, None)
+        except Exception:
+            pass
+
+        # Drop main table
+        try:
+            self._db.drop_table(table_name, ignore_missing=True)
+            self._tables_cache.pop(table_name, None)
+        except Exception:
+            pass
+
+        if LOGURU_ENABLED:
+            logger.info(
+                f"[REBUILD] Dropped tables '{table_name}' and '{self.FINGERPRINT_TABLE}', starting full rebuild"
+            )
+
+        # Re-index all files via index_vault_notes with force_rebuild
+        total_chunks = await self.index_vault_notes(
+            vault_path=vault_path,
+            table_name=table_name,
+            max_tokens=max_tokens,
+            overlap_tokens=overlap_tokens,
+            subject=subject,
+            force_rebuild=True,
+            progress_callback=progress_callback,
+        )
+
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        # Count files
+        skip_dirs = [".obsidian", ".git", ".trash", "node_modules"]
+        total_files = 0
+        for _root, dirs, files in os.walk(vault_path):
+            dirs[:] = [d for d in dirs if d not in skip_dirs]
+            total_files += sum(1 for f in files if f.endswith(".md"))
+
+        if LOGURU_ENABLED:
+            logger.info(f"[REBUILD] Complete: {total_files} files, {total_chunks} chunks in {duration_ms:.0f}ms")
+
+        return {
+            "total_files": total_files,
+            "total_chunks": total_chunks,
+            "duration_ms": round(duration_ms),
+        }
+
+    # =========================================================================
     # Story 23.2: Embedding Pipeline Methods
     # =========================================================================
 
@@ -592,23 +875,33 @@ class LanceDBClient:
         max_tokens: int = 512,
         overlap_tokens: int = 50,
         subject: Optional[str] = None,
+        force_rebuild: bool = False,
+        progress_callback=None,
     ) -> int:
         """
-        扫描 vault 中所有 .md 文件，按 heading 分段索引到 LanceDB
+        Story 2.7: Fingerprint-driven incremental vault indexing.
 
-        Story 2.3: chunk_size 语义从"字符数"改为"token 数"（tiktoken cl100k_base）
+        Scans vault .md files, compares SHA-256 content hashes against stored
+        fingerprints, and only re-indexes new/changed files. Deleted files are
+        cleaned up automatically.
+
+        When force_rebuild=True (or on first run), all files are indexed.
 
         Args:
-            vault_path: Vault 根目录路径
-            skip_dirs: 要跳过的目录列表
-            table_name: LanceDB 表名
-            max_tokens: 每段目标 token 数（默认 512）
-            overlap_tokens: 段落重叠 token 数（默认 50）
-            subject: 学科标识
+            vault_path: Vault root directory path.
+            skip_dirs: Directories to skip.
+            table_name: LanceDB table name.
+            max_tokens: Chunk size in tokens (tiktoken cl100k_base).
+            overlap_tokens: Token overlap between chunks.
+            subject: Subject tag for isolation.
+            force_rebuild: If True, skip fingerprint comparison and index all files.
+            progress_callback: Optional callable(current, total) for progress.
 
         Returns:
-            int: 索引的段落数量
+            int: Total number of chunks indexed.
         """
+        index_start = time.perf_counter()
+
         if not self._initialized:
             await self.initialize()
 
@@ -622,10 +915,9 @@ class LanceDBClient:
         if skip_dirs is None:
             skip_dirs = [".obsidian", ".git", ".trash", "node_modules"]
 
-        # 递归收集所有 .md 文件
-        md_files = []
+        # Scan all .md files
+        md_files: List[str] = []
         for root, dirs, files in os.walk(vault_path):
-            # 跳过指定目录
             dirs[:] = [d for d in dirs if d not in skip_dirs]
             for f in files:
                 if f.endswith(".md"):
@@ -636,9 +928,57 @@ class LanceDBClient:
                 logger.info(f"No .md files found in {vault_path}")
             return 0
 
-        # 按 heading 分段所有文件
-        all_chunks = []
-        for md_file in md_files:
+        total_scanned = len(md_files)
+
+        # Story 2.7 AC-1: Fingerprint-based change detection
+        if force_rebuild:
+            # Force: treat all files as new
+            new_files_rel = [os.path.relpath(fp, vault_path).replace("\\", "/") for fp in md_files]
+            changed_files_rel: List[str] = []
+            deleted_files_rel: List[str] = []
+            files_to_index = md_files
+        else:
+            new_files_rel, changed_files_rel, deleted_files_rel = self._get_changed_files(vault_path, md_files)
+            # Build abs paths for files that need indexing
+            files_to_index_rel = set(new_files_rel) | set(changed_files_rel)
+            files_to_index = [
+                fp for fp in md_files if os.path.relpath(fp, vault_path).replace("\\", "/") in files_to_index_rel
+            ]
+
+        skipped = total_scanned - len(files_to_index) - len(deleted_files_rel)
+
+        if LOGURU_ENABLED:
+            logger.info(
+                f"[INDEX] Scanned {total_scanned} files: {len(new_files_rel)} new, "
+                f"{len(changed_files_rel)} changed, {len(deleted_files_rel)} deleted, "
+                f"{skipped} skipped"
+            )
+
+        # Story 2.7 AC-6: Clean up deleted files
+        for del_rel in deleted_files_rel:
+            self._delete_file_chunks(table_name, del_rel)
+            self._remove_fingerprint(del_rel)
+            if LOGURU_ENABLED:
+                logger.debug(f"[INDEX] Cleaned deleted file: {del_rel}")
+
+        if not files_to_index:
+            # Nothing to index — but still rebuild FTS if deletions happened
+            if deleted_files_rel:
+                self._rebuild_fts_index(table_name)
+
+            duration_ms = (time.perf_counter() - index_start) * 1000
+            if LOGURU_ENABLED:
+                logger.info(f"[INDEX] No files to index, duration={duration_ms:.0f}ms")
+            return 0
+
+        # Process files: chunk + vectorize + delete-before-insert
+        import hashlib
+
+        total_chunks_indexed = 0
+        for file_idx, md_file in enumerate(files_to_index):
+            if progress_callback:
+                progress_callback(file_idx + 1, len(files_to_index))
+
             try:
                 with open(md_file, "r", encoding="utf-8") as fh:
                     content = fh.read()
@@ -652,89 +992,99 @@ class LanceDBClient:
 
             rel_path = os.path.relpath(md_file, vault_path).replace("\\", "/")
             chunks = self._split_md_by_heading(content, rel_path, max_tokens, overlap_tokens)
-            all_chunks.extend(chunks)
 
-        if not all_chunks:
+            if not chunks:
+                continue
+
+            # Batch vectorize chunks for this file
+            texts = [c["content"] for c in chunks]
+            try:
+                vectorized = await self._vectorizer.batch_vectorize(texts)
+            except Exception as e:
+                if LOGURU_ENABLED:
+                    logger.error(f"Vectorization failed for {rel_path}: {e}")
+                continue
+
+            # Build documents
+            documents = []
+            for chunk, vec_result in zip(chunks, vectorized):
+                chunk_id = hashlib.md5(
+                    f"{chunk['file_path']}:{chunk.get('heading', '')}:{chunk['content'][:100]}".encode()
+                ).hexdigest()
+
+                metadata = {
+                    "file_path": chunk["file_path"],
+                    "heading": chunk.get("heading", ""),
+                    "heading_path": chunk.get("heading_path", []),
+                    "line_start": chunk.get("line_start"),
+                    "line_end": chunk.get("line_end"),
+                    "source": "vault_note",
+                    "subject": subject,
+                    "source_type": (
+                        "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note"
+                    ),
+                }
+
+                if LanceDBClient._is_video_transcript(chunk["file_path"]):
+                    ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
+                    metadata.update(ts_info)
+
+                doc = {
+                    "doc_id": f"vault_{chunk_id}",
+                    "content": chunk["content"],
+                    "vector": vec_result.vector,
+                    "canvas_file": chunk["file_path"],
+                    "node_id": "",
+                    "node_type": "vault_note",
+                    "color": "",
+                    "x": 0,
+                    "y": 0,
+                    "subject": subject or "",
+                    "timestamp": datetime.now().isoformat(),
+                    "metadata_json": json.dumps(metadata, ensure_ascii=False),
+                }
+                documents.append(doc)
+
+            # Story 2.7 AC-2: delete-before-insert
+            self._delete_file_chunks(table_name, rel_path)
+
+            # Insert new chunks
+            chunk_count = await self.add_documents(table_name, documents)
+            total_chunks_indexed += chunk_count
+
+            # Update fingerprint
+            content_hash = self._compute_file_hash(md_file)
+            self._update_fingerprint(rel_path, content_hash, chunk_count)
+
             if LOGURU_ENABLED:
-                logger.info("No text chunks extracted from vault .md files")
-            return 0
+                logger.debug(f"[INDEX] Indexed {chunk_count} chunks from {rel_path}")
 
-        # 批量向量化
-        texts = [c["content"] for c in all_chunks]
-        try:
-            vectorized = await self._vectorizer.batch_vectorize(texts)
-        except Exception as e:
-            if LOGURU_ENABLED:
-                logger.error(f"Batch vectorization failed for vault notes: {e}")
-            return 0
+        # Story 2.7 AC-5: Rebuild FTS index after incremental update
+        self._rebuild_fts_index(table_name)
 
-        # 准备 LanceDB 文档
-        import hashlib
+        duration_ms = (time.perf_counter() - index_start) * 1000
+        if LOGURU_ENABLED:
+            logger.info(
+                f"[INDEX] Complete: {total_chunks_indexed} chunks from "
+                f"{len(files_to_index)} files in {duration_ms:.0f}ms"
+            )
 
-        documents = []
-        for chunk, vec_result in zip(all_chunks, vectorized):
-            chunk_id = hashlib.md5(
-                f"{chunk['file_path']}:{chunk['heading']}:{chunk['content'][:100]}".encode()
-            ).hexdigest()
+        return total_chunks_indexed
 
-            metadata = {
-                "file_path": chunk["file_path"],
-                "heading": chunk["heading"],
-                "heading_path": chunk.get("heading_path", []),  # Story 2.3: 面包屑层级
-                "line_start": chunk.get("line_start"),
-                "line_end": chunk.get("line_end"),
-                "source": "vault_note",
-                "subject": subject,
-                "source_type": "video_transcript" if LanceDBClient._is_video_transcript(chunk["file_path"]) else "note",
-            }
-
-            # Add timestamp info for video transcripts
-            if LanceDBClient._is_video_transcript(chunk["file_path"]):
-                ts_info = LanceDBClient._extract_timestamps_from_section(chunk["heading"], chunk["content"])
-                metadata.update(ts_info)
-
-            doc = {
-                "doc_id": f"vault_{chunk_id}",
-                "content": chunk["content"],
-                "vector": vec_result.vector,
-                "canvas_file": chunk["file_path"],  # 复用 canvas_file 字段存储文件路径
-                "node_id": "",
-                "node_type": "vault_note",
-                "color": "",
-                "x": 0,
-                "y": 0,
-                "subject": subject or "",
-                "timestamp": datetime.now().isoformat(),
-                "metadata_json": json.dumps(metadata, ensure_ascii=False),
-            }
-            documents.append(doc)
-
-        # 写入 LanceDB（先清空旧表再写入，实现全量更新）
-        try:
-            # Always drop — cache may not have it but disk does
-            self._db.drop_table(table_name, ignore_missing=True)
-            self._tables_cache.pop(table_name, None)
-        except Exception:
-            pass
-
-        count = await self.add_documents(table_name, documents)
-
-        # Story 2.4: Create FTS index on jieba-tokenized content for Chinese search
+    def _rebuild_fts_index(self, table_name: str):
+        """
+        Story 2.7 AC-5: Rebuild FTS index on content_tokenized after incremental update.
+        """
         try:
             tbl = self._db.open_table(table_name)
             tbl.create_fts_index("content_tokenized", replace=True)
             if LOGURU_ENABLED:
                 logger.info(
-                    f"Created FTS index on '{table_name}.content_tokenized' (jieba_available={JIEBA_AVAILABLE})"
+                    f"[INDEX] Rebuilt FTS index on '{table_name}.content_tokenized' (jieba_available={JIEBA_AVAILABLE})"
                 )
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.warning(f"FTS index creation failed (hybrid search unavailable): {e}")
-
-        if LOGURU_ENABLED:
-            logger.info(f"Indexed {count} chunks from {len(md_files)} .md files in vault {vault_path} to {table_name}")
-
-        return count
+                logger.warning(f"[INDEX] FTS index rebuild failed: {e}")
 
     async def index_single_file(
         self,
@@ -744,26 +1094,22 @@ class LanceDBClient:
         vault_path: Optional[str] = None,
     ) -> int:
         """
-        Index a single .md file into an existing table (incremental append).
+        Story 2.7: Index a single .md file with delete-before-insert dedup + fingerprint.
 
-        Generates vectors and uses the full vault_notes schema so documents
-        are discoverable by vector search and schema-compatible with the table.
-
-        Story 2.3 AC-5: rel_path uses os.path.relpath(file_path, vault_path)
-        instead of os.path.basename to preserve directory structure.
+        Story 2.7 AC-7: Uses os.path.relpath(file_path, vault_path) to preserve
+        full directory structure (fixes CRITICAL C8 path loss).
 
         Args:
-            file_path: Absolute path to the .md file
-            table_name: Target table name
-            subject: Optional subject tag
+            file_path: Absolute path to the .md file.
+            table_name: Target table name.
+            subject: Optional subject tag.
             vault_path: Vault root directory for computing relative path.
                         If None, falls back to parent directory of file_path.
 
         Returns:
-            Number of chunks indexed
+            Number of chunks indexed.
         """
         import hashlib
-        import os
 
         if not os.path.isfile(file_path):
             if LOGURU_ENABLED:
@@ -781,24 +1127,34 @@ class LanceDBClient:
         if not content.strip():
             return 0
 
-        # Story 2.3 AC-5: Use relpath to preserve directory structure
+        # Story 2.7 AC-7: Use relpath to preserve directory structure
         if vault_path:
             rel_path = os.path.relpath(file_path, vault_path).replace("\\", "/")
         else:
-            rel_path = os.path.basename(file_path)
+            # Fallback: use parent directory as vault_path
+            rel_path = os.path.relpath(file_path, os.path.dirname(file_path)).replace("\\", "/")
+
+        # Check fingerprint — skip if unchanged
+        content_hash = self._compute_file_hash(file_path)
+        stored_fps = self._get_all_fingerprints()
+        if rel_path in stored_fps and stored_fps[rel_path] == content_hash:
+            if LOGURU_ENABLED:
+                logger.debug(f"[INDEX] Skipping unchanged file: {rel_path}")
+            return 0
+
         chunks = self._split_md_by_heading(content, rel_path)
 
         if not chunks:
             return 0
 
-        # Initialize vectorizer for embedding generation
+        # Initialize vectorizer
         await self._init_vectorizer()
         if not self._vectorizer:
             if LOGURU_ENABLED:
                 logger.error("Vectorizer not available, cannot index single file")
             return 0
 
-        # Batch vectorize all chunks
+        # Batch vectorize
         texts = [c["content"] for c in chunks]
         vectorized = await self._vectorizer.batch_vectorize(texts)
 
@@ -807,7 +1163,7 @@ class LanceDBClient:
                 logger.error(f"Vectorization mismatch: {len(chunks)} chunks vs {len(vectorized)} vectors")
             return 0
 
-        # Build documents with full schema (matching index_vault_notes)
+        # Build documents
         documents = []
         for chunk, vec_result in zip(chunks, vectorized):
             if not vec_result.vector:
@@ -820,15 +1176,14 @@ class LanceDBClient:
             metadata = {
                 "file_path": chunk.get("file_path", rel_path),
                 "heading": chunk.get("heading", ""),
-                "heading_path": chunk.get("heading_path", []),  # Story 2.3: 面包屑层级
+                "heading_path": chunk.get("heading_path", []),
                 "line_start": chunk.get("line_start", 0),
                 "line_end": chunk.get("line_end", 0),
                 "source": "vault_note",
                 "subject": subject,
-                "source_type": "video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note",
+                "source_type": ("video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note"),
             }
 
-            # Add timestamp info for video transcripts
             if LanceDBClient._is_video_transcript(file_path):
                 ts_info = LanceDBClient._extract_timestamps_from_section(chunk.get("heading", ""), chunk["content"])
                 metadata.update(ts_info)
@@ -849,10 +1204,19 @@ class LanceDBClient:
             }
             documents.append(doc)
 
+        # Story 2.7 AC-2: delete-before-insert
+        self._delete_file_chunks(table_name, rel_path)
+
         count = await self.add_documents(table_name, documents)
 
+        # Update fingerprint
+        self._update_fingerprint(rel_path, content_hash, count)
+
+        # Rebuild FTS index
+        self._rebuild_fts_index(table_name)
+
         if LOGURU_ENABLED:
-            logger.info(f"Incrementally indexed {count} chunks from {rel_path}")
+            logger.info(f"[INDEX] Indexed {count} chunks from {rel_path} (delete-before-insert)")
 
         return count
 

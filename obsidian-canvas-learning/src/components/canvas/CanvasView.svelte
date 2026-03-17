@@ -26,7 +26,11 @@
   import CanvasNode from './CanvasNode.svelte';
   import CanvasEdge from './CanvasEdge.svelte';
   import ImageNode from './ImageNode.svelte';
+  import NodeStatusIndicator from './NodeStatusIndicator.svelte';
   import RecommendationBar from './RecommendationBar.svelte';
+  import { decodePulloutDragData } from '../../services/pullout-service';
+  import { PulloutService } from '../../services/pullout-service';
+  import { getGenerationManager, type GenerationStatus } from '../../services/generation-manager';
 
   // ── Local state ────────────────────────────────────────────────────────
 
@@ -52,6 +56,27 @@
   let edgeDragStart = $state<Point>({ x: 0, y: 0 });
   let edgeDragEnd = $state<Point>({ x: 0, y: 0 });
   let edgeDragTargetId = $state<string | null>(null);
+
+  // Story 3.7: Pullout service for drag-from-chat-to-canvas
+  const pulloutService = new PulloutService();
+
+  // Story 3.8: Generation manager for async status indicators
+  const generationManager = getGenerationManager();
+  let nodeStatusMap = $state(new Map<string, GenerationStatus>());
+
+  // Subscribe to generation status changes
+  $effect(() => {
+    const unsub = generationManager.onStatusChange((nodeId, status) => {
+      const updated = new Map(nodeStatusMap);
+      if (status === 'idle') {
+        updated.delete(nodeId);
+      } else {
+        updated.set(nodeId, status);
+      }
+      nodeStatusMap = updated;
+    });
+    return unsub;
+  });
 
   // Force reactivity for canvasState changes
   let stateVersion = $state(0);
@@ -392,10 +417,39 @@
 
   function handleDrop(event: DragEvent) {
     event.preventDefault();
-    const files = event.dataTransfer?.files;
-    if (!files || !containerEl) return;
+    if (!event.dataTransfer || !containerEl) return;
 
     const rect = containerEl.getBoundingClientRect();
+
+    // Story 3.7: Check for pullout drag data first
+    const pulloutData = decodePulloutDragData(event.dataTransfer);
+    if (pulloutData) {
+      const dropPos = screenToCanvas(
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+        vp,
+      );
+
+      pulloutService.createPulloutNode(
+        pulloutData.content,
+        dropPos,
+        {
+          sourceNodeId: pulloutData.sourceNodeId,
+          sourceMessageId: pulloutData.sourceMessageId,
+          timestamp: pulloutData.timestamp,
+        },
+      ).then((result) => {
+        new Notice('Node created from dialogue', 2000);
+      }).catch((err) => {
+        console.warn('[Canvas Learning] Pullout node creation failed:', err);
+      });
+      return;
+    }
+
+    // Story 1.6: Image file drop handling
+    const files = event.dataTransfer.files;
+    if (!files) return;
+
     let offsetX = 0;
 
     for (const file of files) {

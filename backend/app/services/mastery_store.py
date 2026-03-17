@@ -6,13 +6,17 @@ Uses MERGE upsert pattern to create or update mastery data on existing nodes.
 
 All mastery properties are stored as prefixed flat properties on EntityNode
 to avoid schema changes to the existing graph model.
+
+Story 5.5: CalibrationRecord persistence (mastery_calibration_records JSON property)
 """
 
+import json
 import logging
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 
 from app.config import DEFAULT_GROUP_ID
+from app.models.mastery_models import CalibrationRecord
 from app.models.mastery_state import ConceptState
 
 logger = logging.getLogger(__name__)
@@ -241,3 +245,124 @@ class MasteryStore:
             )
         except Exception as e:
             logger.warning(f"Failed to record self-assess for {concept_id}: {e}")
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Story 5.5: Calibration Record Persistence
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    async def save_calibration_record(
+        self,
+        record: CalibrationRecord,
+        group_id: str = DEFAULT_GROUP_ID,
+    ) -> None:
+        """Append a CalibrationRecord to the node's calibration history.
+
+        Storage: JSON-serialized list in mastery_calibration_records property.
+        Uses MERGE upsert (idempotent). Appends to existing array.
+        """
+        record_json = record.model_dump_json()
+
+        query = """
+        MATCH (n:EntityNode)
+        WHERE n.group_id = $group_id
+          AND (n.mastery_concept_id = $node_id OR n.name = $node_id)
+        WITH n,
+             CASE WHEN n.mastery_calibration_records IS NULL
+                  THEN '[]'
+                  ELSE n.mastery_calibration_records
+             END AS existing
+        SET n.mastery_calibration_records =
+            substring(existing, 0, size(existing) - 1)
+            + CASE WHEN size(existing) > 2 THEN ',' ELSE '' END
+            + $record_json + ']',
+            n.mastery_calibration_count = coalesce(n.mastery_calibration_count, 0) + 1,
+            n.mastery_calibration_last_quadrant = $quadrant,
+            n.mastery_calibration_is_dangerous = $is_dangerous
+        """
+        try:
+            await self._client.run_query(
+                query,
+                group_id=group_id,
+                node_id=record.node_id,
+                record_json=record_json,
+                quadrant=record.quadrant.value,
+                is_dangerous=record.is_dangerous,
+            )
+            logger.debug(
+                f"Saved calibration record for {record.node_id}: "
+                f"quadrant={record.quadrant.value} is_dangerous={record.is_dangerous}"
+            )
+        except Exception as e:
+            logger.error(f"Failed to save calibration record for {record.node_id}: {e}")
+
+    async def get_calibration_records(
+        self,
+        node_id: str,
+        group_id: str = DEFAULT_GROUP_ID,
+    ) -> List[CalibrationRecord]:
+        """Load all CalibrationRecords for a given node.
+
+        Deserializes from the mastery_calibration_records JSON property.
+
+        Returns:
+            List of CalibrationRecord objects. Empty list on Neo4j errors
+            (graceful degradation consistent with get_all_concepts pattern).
+        """
+        query = """
+        MATCH (n:EntityNode)
+        WHERE n.group_id = $group_id
+          AND (n.mastery_concept_id = $node_id OR n.name = $node_id)
+          AND n.mastery_calibration_records IS NOT NULL
+        RETURN n.mastery_calibration_records AS records_json
+        LIMIT 1
+        """
+        results = await self._client.run_query(
+            query,
+            group_id=group_id,
+            node_id=node_id,
+        )
+        if not results:
+            return []
+
+        records_json = results[0]["records_json"] if isinstance(results[0], dict) else results[0].data()["records_json"]
+        if not records_json:
+            return []
+
+        raw_list = json.loads(records_json)
+        parsed: List[CalibrationRecord] = []
+        for item in raw_list:
+            if isinstance(item, str):
+                parsed.append(CalibrationRecord.model_validate_json(item))
+            else:
+                parsed.append(CalibrationRecord.model_validate(item))
+        return parsed
+
+    async def get_dangerous_nodes(
+        self,
+        group_id: str = DEFAULT_GROUP_ID,
+    ) -> List[str]:
+        """Return node IDs that have MISCONCEPTION quadrant records.
+
+        Used for prioritizing exam questions on dangerous blind spots.
+
+        Returns:
+            List of node_id strings. Empty list when no dangerous nodes exist
+            (this is a valid state, not a fallback).
+        """
+        query = """
+        MATCH (n:EntityNode)
+        WHERE n.group_id = $group_id
+          AND n.mastery_calibration_is_dangerous = true
+        RETURN n.mastery_concept_id AS node_id,
+               coalesce(n.mastery_calibration_count, 0) AS record_count
+        ORDER BY record_count DESC
+        """
+        results = await self._client.run_query(query, group_id=group_id)
+        if not results:
+            return []
+        node_ids: List[str] = []
+        for r in results:
+            nid = r["node_id"] if isinstance(r, dict) else r.data()["node_id"]
+            if nid is not None:
+                node_ids.append(nid)
+        return node_ids

@@ -207,6 +207,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Story 38.1] LanceDB index recovery skipped: {e}")
 
+    # ✅ Story 3.8: Start archive scheduler (24h interval)
+    # [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md#Task 3]
+    archive_scheduler = None
+    try:
+        from app.services.archive_scheduler import get_archive_scheduler
+        archive_scheduler = get_archive_scheduler()
+        await archive_scheduler.start()
+        logger.info("[Story 3.8] Archive scheduler started (24h interval)")
+    except Exception as e:
+        logger.warning(f"[Story 3.8] Archive scheduler init failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown
@@ -237,6 +248,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.info("[Story 7.2] LLM logging infrastructure cleaned up")
     except Exception as e:
         logger.warning(f"[Story 7.2] LLM logging cleanup failed: {e}")
+
+    # ✅ Story 3.8: Stop archive scheduler
+    if archive_scheduler is not None:
+        try:
+            await archive_scheduler.stop()
+            logger.info("[Story 3.8] Archive scheduler stopped")
+        except Exception as e:
+            logger.warning(f"[Story 3.8] Archive scheduler stop failed: {e}")
 
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()

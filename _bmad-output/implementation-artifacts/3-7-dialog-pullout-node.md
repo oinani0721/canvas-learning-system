@@ -126,10 +126,24 @@ event.dataTransfer.setData('text/plain', selectedText); // 兜底
 
 ### Agent Model Used
 
-(to be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
 ### Completion Notes List
 
+- AC-1: MessageBubble.svelte extended with draggable + ondragstart handler; CanvasView.svelte handleDrop updated with pullout detection
+- AC-2: relation-suggester.ts + POST /api/v1/suggestions/relation endpoint with LLM via LiteLLM, 5s timeout
+- AC-3: pullout-service.ts createPulloutNode triggers canvasState.addNode (delta sync via Outbox)
+- AC-4: Source metadata (sourceType: dialog_pullout, sourceNodeId, sourceMessageId) embedded in node creation
+- PULLOUT_MIME_TYPE custom drag data format with text/plain fallback
+- Relation types defined in entity_types.py: IS_PREREQUISITE, IS_APPLICATION, CONTRASTS_WITH, IS_SUBCONCEPT, SUPPLEMENTS
+
 ### File List
+
+- obsidian-canvas-learning/src/services/pullout-service.ts (new)
+- obsidian-canvas-learning/src/services/relation-suggester.ts (new)
+- backend/app/api/v1/endpoints/suggestions.py (new)
+- backend/app/api/v1/router.py (modified - added suggestions_router)
+- obsidian-canvas-learning/src/components/chat/MessageBubble.svelte (modified - added drag support)
+- obsidian-canvas-learning/src/components/canvas/CanvasView.svelte (modified - added pullout drop handling)

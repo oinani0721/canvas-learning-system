@@ -74,6 +74,11 @@ def _register_tool_routes(app: FastAPI) -> None:
         archive_conversation,
         create_exam_node,
     )
+    from app.mcp.tools.error_tools import (
+        RecordErrorInput,
+        RecordErrorOutput,
+        record_error,
+    )
     from app.mcp.tools.exam_tools import (
         AssembleAcpInput,
         AssembleAcpOutput,
@@ -291,4 +296,26 @@ def _register_tool_routes(app: FastAPI) -> None:
             position_y=input.position_y,
         )
 
-    logger.info("[Story 3.2] Registered 10 MCP tool routes")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Error Classification Tools (Story 3.6)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @app.post(
+        "/mcp/tools/record_error",
+        response_model=RecordErrorOutput,
+        tags=[MCP_TAG],
+        summary="Record and classify a student error (4-type)",
+        description="Record a student understanding error detected during dialogue. "
+        "Automatically classifies into 4 types (problem_framing, reasoning_fallacy, "
+        "knowledge_gap, superficial) and maps to a differentiated remedy strategy. "
+        "No pipeline token required.",
+    )
+    async def _record_error(input: RecordErrorInput) -> Dict[str, Any]:
+        return await record_error(
+            node_id=input.node_id,
+            session_id=input.session_id,
+            error_description=input.error_description,
+            context=input.context,
+        )
+
+    logger.info("[Story 3.2] Registered 11 MCP tool routes (incl. Story 3.6 record_error)")

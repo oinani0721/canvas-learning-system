@@ -1010,17 +1010,13 @@ async def _rerank_cohere(results: List[SearchResult], state: CanvasRAGState) -> 
 
 async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
     """
-    质量评估节点
+    质量评估节点 — Story 2.6: CRAG 二元 LLM 评分 + 安全降级
 
-    Story 2.2 Task 2: CRAG分数域匹配修复
-    - 当reranker激活时，分数范围0-1，阈值0.7/0.5适用
-    - 当reranker降级时（分数仍为RRF范围max~0.098），动态调低阈值至0.05/0.03
-    - 记录top-3分数值，便于调试触发率
+    优先使用 LLM 二元评分（yes/no 判断文档与查询的相关性）。
+    LLM 不可用时降级为数值阈值方案（reranker top-3 均值）。
 
-    评估reranked_results的质量，分级:
-    - high: Top-3平均分 >= threshold_high
-    - medium: Top-3平均分 >= threshold_medium
-    - low: Top-3平均分 < threshold_medium
+    CRAG 论文 arXiv:2401.15884 验证二元评分比数值阈值更可靠，
+    提升 9.6-20% 准确率，且不受分数域漂移影响。
 
     Args:
         state: 当前状态
@@ -1029,60 +1025,207 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
     Returns:
         State更新字典:
         - quality_grade: Literal["high", "medium", "low"]
+        - quality_history: 累计质量评分历史
+        - binary_grading_used: 是否使用了 LLM 二元评分
+        - safe_degradation: 是否触发安全降级
+        - degradation_reason: 降级原因
+        - original_query: 首次保存原始查询
     """
     reranked_results = state.get("reranked_results", [])
     rewrite_count = state.get("rewrite_count", 0)
+    max_rewrite = _safe_get_config(runtime, "max_rewrite_iterations", 2)
+    quality_history = list(state.get("quality_history", []))
 
     logger.debug(f"[check_quality] START - results_count={len(reranked_results)}, rewrite_count={rewrite_count}")
 
+    # Extract query for LLM binary grading
+    messages = state.get("messages", [])
+    query = ""
+    if messages:
+        last_msg = messages[-1]
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+
+    # Preserve original_query on first invocation
+    original_query = state.get("original_query") or query
+
+    # Story 2.6 AC-5: Track query intent (L1 routing result)
+    query_intent = state.get("query_intent")
+    if not query_intent and query:
+        try:
+            from agentic_rag.state_graph import classify_query_intent
+
+            query_intent = classify_query_intent(query)
+        except Exception:
+            query_intent = "comprehensive"
+
     if not reranked_results:
         logger.debug("[check_quality] END - empty results, grade=low")
-        return {"quality_grade": "low"}
+        history_entry = {
+            "iteration": rewrite_count,
+            "grade": "low",
+            "top3_scores": [],
+            "query": query,
+            "binary_grading": False,
+        }
+        quality_history.append(history_entry)
 
-    # 计算Top-3平均分
+        # Safe degradation check
+        safe_degradation = False
+        degradation_reason = None
+        if rewrite_count >= max_rewrite:
+            safe_degradation = True
+            degradation_reason = "retrieval_quality_insufficient"
+            logger.info("[check_quality] Safe degradation triggered: empty results after max rewrites")
+
+        return {
+            "quality_grade": "low",
+            "quality_history": quality_history,
+            "binary_grading_used": False,
+            "safe_degradation": safe_degradation,
+            "degradation_reason": degradation_reason,
+            "original_query": original_query,
+            "query_intent": query_intent,
+            "routing_strategy": query_intent,
+        }
+
     top3_scores = [r["score"] for r in reranked_results[:3]]
-    avg_score = sum(top3_scores) / len(top3_scores) if top3_scores else 0.0
 
-    # Story 2.2 Task 2.3: Detect if reranker was degraded (scores still in RRF range)
-    # RRF scores max out around 0.098 (1/(60+1) = 0.0164 per source, ~6 sources max ~0.098)
-    # Reranker scores are in 0-1 range with typical values 0.3-0.95
-    is_reranker_degraded = False
-    if reranked_results:
-        first_result_metadata = reranked_results[0].get("metadata", {})
-        is_reranker_degraded = first_result_metadata.get("reranked") is False
-        # Also detect by score range: if max score < 0.15, likely RRF scores
-        max_score = max(r["score"] for r in reranked_results) if reranked_results else 0.0
-        if max_score < 0.15:
-            is_reranker_degraded = True
+    # --- Story 2.6 AC-1: Try LLM binary grading first ---
+    binary_grading_used = False
+    quality_grade = None
 
-    # Story 12.K.2: Safe config access
-    quality_threshold_high = _safe_get_config(runtime, "quality_threshold", 0.7)
-    quality_threshold_medium = quality_threshold_high - 0.2  # 0.5
+    try:
+        import litellm
 
-    # Story 2.2 Task 2.3: Dynamic threshold adjustment for degraded reranker
-    if is_reranker_degraded:
-        quality_threshold_high = 0.05
-        quality_threshold_medium = 0.03
-        logger.info(
-            f"[check_quality] Reranker degraded detected, "
-            f"adjusted thresholds: high={quality_threshold_high}, medium={quality_threshold_medium}"
+        quality_check_model = _safe_get_config(runtime, "quality_check_model", "gemini/gemini-2.0-flash")
+
+        # Grade each top-k document with binary yes/no
+        top_k_docs = reranked_results[:3]
+        doc_contents = []
+        for i, doc in enumerate(top_k_docs):
+            content = doc.get("content", "")[:500]  # Limit content length
+            doc_contents.append(f"文档{i + 1}: {content}")
+
+        docs_text = "\n\n".join(doc_contents)
+        grading_prompt = (
+            "你是文档相关性判断专家。判断以下文档是否与用户查询相关。\n"
+            f"用户查询: {query}\n\n"
+            f"{docs_text}\n\n"
+            "对每个文档，判断是否与查询相关。\n"
+            "按以下格式逐行回答（每行一个文档，只写 yes 或 no）:\n"
+            "文档1: yes\n文档2: no\n文档3: yes"
         )
 
-    if avg_score >= quality_threshold_high:
-        quality_grade = "high"
-    elif avg_score >= quality_threshold_medium:
-        quality_grade = "medium"
-    else:
-        quality_grade = "low"
+        import asyncio
 
-    # Story 2.2 Task 2.4: Enhanced logging for debugging trigger rates
-    logger.info(
-        f"[check_quality] END - top3_scores={[f'{s:.4f}' for s in top3_scores]}, "
-        f"avg_score={avg_score:.4f}, grade={quality_grade}, "
-        f"reranker_degraded={is_reranker_degraded}, rewrite_count={rewrite_count}"
-    )
+        response = await asyncio.wait_for(
+            litellm.acompletion(
+                model=quality_check_model,
+                messages=[{"role": "user", "content": grading_prompt}],
+                max_tokens=100,
+                temperature=0.0,
+            ),
+            timeout=5.0,
+        )
 
-    return {"quality_grade": quality_grade}
+        llm_answer = response.choices[0].message.content.strip().lower()
+        logger.debug(f"[check_quality] LLM binary grading response: {llm_answer}")
+
+        # Parse yes/no answers
+        yes_count = llm_answer.count("yes")
+        no_count = llm_answer.count("no")
+        total_graded = yes_count + no_count
+
+        if total_graded > 0:
+            binary_grading_used = True
+            if yes_count == total_graded:
+                quality_grade = "high"
+            elif yes_count > 0:
+                quality_grade = "medium"
+            else:
+                quality_grade = "low"
+
+            logger.info(
+                f"[CRAG-GRADE] iteration={rewrite_count}, grade={quality_grade}, "
+                f"binary=True, yes={yes_count}, no={no_count}, "
+                f"top3_scores={[f'{s:.4f}' for s in top3_scores]}"
+            )
+        else:
+            # LLM returned non-standard format, fall through to numeric
+            logger.warning("[check_quality] LLM binary response unparseable, falling back to numeric threshold")
+
+    except Exception as e:
+        logger.warning(f"[check_quality] LLM binary grading failed: {e}, falling back to numeric threshold")
+
+    # --- Fallback: numeric threshold (Story 2.2 original logic) ---
+    if quality_grade is None:
+        binary_grading_used = False
+        avg_score = sum(top3_scores) / len(top3_scores) if top3_scores else 0.0
+
+        # Detect reranker degradation
+        is_reranker_degraded = False
+        if reranked_results:
+            first_result_metadata = reranked_results[0].get("metadata", {})
+            is_reranker_degraded = first_result_metadata.get("reranked") is False
+            max_score = max(r["score"] for r in reranked_results) if reranked_results else 0.0
+            if max_score < 0.15:
+                is_reranker_degraded = True
+
+        quality_threshold_high = _safe_get_config(runtime, "quality_threshold", 0.7)
+        quality_threshold_medium = quality_threshold_high - 0.2
+
+        if is_reranker_degraded:
+            quality_threshold_high = 0.05
+            quality_threshold_medium = 0.03
+            logger.info(
+                f"[check_quality] Reranker degraded, adjusted thresholds: "
+                f"high={quality_threshold_high}, medium={quality_threshold_medium}"
+            )
+
+        if avg_score >= quality_threshold_high:
+            quality_grade = "high"
+        elif avg_score >= quality_threshold_medium:
+            quality_grade = "medium"
+        else:
+            quality_grade = "low"
+
+        logger.info(
+            f"[CRAG-GRADE] iteration={rewrite_count}, grade={quality_grade}, "
+            f"binary=False, avg_score={avg_score:.4f}, "
+            f"top3_scores={[f'{s:.4f}' for s in top3_scores]}"
+        )
+
+    # --- Story 2.6 AC-6: Quality history tracking ---
+    history_entry = {
+        "iteration": rewrite_count,
+        "grade": quality_grade,
+        "top3_scores": [round(s, 4) for s in top3_scores],
+        "query": query[:200],
+        "binary_grading": binary_grading_used,
+    }
+    quality_history.append(history_entry)
+
+    # --- Story 2.6 AC-4 / Task 3.5: Safe degradation ---
+    safe_degradation = False
+    degradation_reason = None
+    if quality_grade == "low" and rewrite_count >= max_rewrite:
+        safe_degradation = True
+        degradation_reason = "retrieval_quality_insufficient"
+        logger.info(
+            f"[check_quality] Safe degradation triggered: grade=low after {rewrite_count} rewrites, "
+            f"quality_history={quality_history}"
+        )
+
+    return {
+        "quality_grade": quality_grade,
+        "quality_history": quality_history,
+        "binary_grading_used": binary_grading_used,
+        "safe_degradation": safe_degradation,
+        "degradation_reason": degradation_reason,
+        "original_query": original_query,
+        "query_intent": query_intent,
+        "routing_strategy": query_intent,
+    }
 
 
 # ========================================

@@ -35,6 +35,12 @@ export interface CanvasLearningSettings {
   backendUrl: string;
   neo4jUrl: string;
 
+  // ---- Story 3.9: Engine Fallback ----
+  /** Backup Anthropic API Key for fallback when CLI spawn fails. */
+  fallbackApiKey: string;
+  /** Current active engine type. */
+  currentEngine: 'claude-code' | 'api-key';
+
   // ---- Internal flags ----
   /** Whether the user has been shown the API key security notice. */
   apiKeyNoticeShown: boolean;
@@ -56,6 +62,8 @@ export const DEFAULT_SETTINGS: CanvasLearningSettings = {
   scoringApiKey: '',
   backendUrl: 'http://localhost:8001',
   neo4jUrl: 'bolt://localhost:7689',
+  fallbackApiKey: '',
+  currentEngine: 'claude-code',
   apiKeyNoticeShown: false,
   // Story 1.9 defaults
   subjects: [{ id: 'default-general', name: '通用', createdAt: new Date().toISOString(), isDefault: true }],

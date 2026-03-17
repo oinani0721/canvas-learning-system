@@ -26,6 +26,7 @@ import type {
   EngineErrorCallback,
   StreamEvent,
 } from './dialog-engine';
+import type { ContextAssembler } from './context-assembler';
 import { SessionStore } from './session-store';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -37,6 +38,49 @@ const CLAUDE_BINARY = 'claude';
 
 /** Exit code indicating authentication failure. */
 const AUTH_FAILED_EXIT_CODE = 2;
+
+/**
+ * Patterns that indicate a 429 rate limit error in stderr or stream-json output.
+ * Used by Story 3.10 to distinguish quota exhaustion from other errors.
+ */
+const RATE_LIMIT_PATTERNS = [
+  /rate.?limit/i,
+  /429/,
+  /too many requests/i,
+  /quota.*exceeded/i,
+  /rate_limit_error/i,
+];
+
+/**
+ * Extract retry-after seconds from error text, if available.
+ * Returns null if no parseable retry-after information is found.
+ */
+function extractRetryAfter(text: string): number | null {
+  // Try "retry-after: N" header-style
+  const headerMatch = text.match(/retry[- ]after[:\s]+(\d+)/i);
+  if (headerMatch) {
+    return parseInt(headerMatch[1], 10);
+  }
+  // Try "try again in N seconds/minutes/hours"
+  const naturalMatch = text.match(
+    /try again in (\d+)\s*(second|minute|hour)/i,
+  );
+  if (naturalMatch) {
+    const value = parseInt(naturalMatch[1], 10);
+    const unit = naturalMatch[2].toLowerCase();
+    if (unit.startsWith('minute')) return value * 60;
+    if (unit.startsWith('hour')) return value * 3600;
+    return value;
+  }
+  return null;
+}
+
+/**
+ * Check whether an error string matches known rate limit patterns.
+ */
+function isRateLimitError(text: string): boolean {
+  return RATE_LIMIT_PATTERNS.some((p) => p.test(text));
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ClaudeCodeEngine
@@ -62,6 +106,8 @@ export class ClaudeCodeEngine implements DialogEngine {
   private mcpConfigPath: string | null;
   private errorCallbacks: EngineErrorCallback[] = [];
   private activeProcesses: Map<string, ChildProcess> = new Map();
+  /** Story 3.4: Context assembler for learning context injection. */
+  private contextAssembler: ContextAssembler | null = null;
 
   /**
    * Create a ClaudeCodeEngine.
@@ -73,6 +119,18 @@ export class ClaudeCodeEngine implements DialogEngine {
   constructor(pluginDataDir: string, mcpConfigPath: string | null = null) {
     this.sessionStore = new SessionStore(pluginDataDir);
     this.mcpConfigPath = mcpConfigPath;
+  }
+
+  /**
+   * Set the context assembler for learning context injection.
+   *
+   * Story 3.4 AC-1: Context injected via --append-system-prompt.
+   * Called during plugin initialization after creating the ContextAssembler.
+   *
+   * @param assembler - The ContextAssembler instance.
+   */
+  setContextAssembler(assembler: ContextAssembler): void {
+    this.contextAssembler = assembler;
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -102,8 +160,22 @@ export class ClaudeCodeEngine implements DialogEngine {
       return;
     }
 
-    // Build CLI arguments
-    const args = this.buildArgs(message);
+    // Story 3.4 AC-1, AC-4: Assemble learning context fresh on every message
+    let contextPrompt: string | null = null;
+    if (this.contextAssembler) {
+      try {
+        contextPrompt = await this.contextAssembler.assembleContext(nodeId);
+      } catch (err) {
+        console.warn(
+          `[Canvas Learning] Failed to assemble context for node "${nodeId}":`,
+          err,
+        );
+        // Non-blocking: continue without context
+      }
+    }
+
+    // Build CLI arguments (with optional context injection)
+    const args = this.buildArgs(message, contextPrompt || undefined);
 
     // Add --resume if this node has an existing session
     const existingSessionId = await this.sessionStore.getSessionId(nodeId);
@@ -140,9 +212,14 @@ export class ClaudeCodeEngine implements DialogEngine {
     let lastSessionId: string | null = null;
 
     try {
-      // Create a promise that resolves when the process exits
+      // Create a promise that resolves when the process exits.
+      // Captures both exit code and signal for Story 3.11 classification.
+      let exitSignal: string | null = null;
       const exitPromise = new Promise<number | null>((resolve) => {
-        proc.on('close', (code) => resolve(code));
+        proc.on('close', (code, signal) => {
+          exitSignal = signal;
+          resolve(code);
+        });
         proc.on('error', (err) => {
           this.emitError({
             type: 'crash',
@@ -200,8 +277,15 @@ export class ClaudeCodeEngine implements DialogEngine {
       // Wait for process to exit
       const exitCode = await exitPromise;
 
-      // Handle exit codes
-      if (exitCode === AUTH_FAILED_EXIT_CODE) {
+      // Story 3.11: SIGTERM/SIGKILL = external termination, do not auto-retry
+      if (exitSignal === 'SIGTERM' || exitSignal === 'SIGKILL') {
+        yield {
+          type: 'error',
+          error: `Process terminated by signal ${exitSignal}`,
+        };
+      // Handle exit codes — Story 3.10 / 3.11 classification
+      } else if (exitCode === AUTH_FAILED_EXIT_CODE) {
+        // Auth failure → Story 3.9 Fallback
         const engineError: EngineError = {
           type: 'auth_failed',
           message:
@@ -210,8 +294,31 @@ export class ClaudeCodeEngine implements DialogEngine {
         };
         this.emitError(engineError);
         yield { type: 'error', error: engineError.message };
+      } else if (
+        exitCode !== null &&
+        exitCode !== 0 &&
+        isRateLimitError(stderrOutput)
+      ) {
+        // 429 Rate Limit → Story 3.10 Quota Management
+        const retryAfterSec = extractRetryAfter(stderrOutput);
+        const engineError: EngineError = {
+          type: 'rate_limited',
+          message: '本周订阅额度已用完',
+          exitCode,
+          retryAfterSec: retryAfterSec ?? undefined,
+        };
+        this.emitError(engineError);
+        yield { type: 'error', error: engineError.message };
       } else if (exitCode !== null && exitCode !== 0) {
-        const msg = stderrOutput.trim() || `Process exited with code ${exitCode}`;
+        // Other non-zero exit → crash (Story 3.11)
+        const msg =
+          stderrOutput.trim() || `Process exited with code ${exitCode}`;
+        const engineError: EngineError = {
+          type: 'crash',
+          message: msg,
+          exitCode,
+        };
+        this.emitError(engineError);
         yield { type: 'error', error: msg };
       }
 
@@ -290,10 +397,13 @@ export class ClaudeCodeEngine implements DialogEngine {
   /**
    * Build CLI arguments for the `claude` command.
    *
+   * Story 3.4 AC-1: Includes --append-system-prompt when learning context is available.
+   *
    * @param message - User message to send via -p flag.
+   * @param systemPromptAppend - Optional learning context to inject via --append-system-prompt.
    * @returns Array of CLI arguments.
    */
-  private buildArgs(message: string): string[] {
+  private buildArgs(message: string, systemPromptAppend?: string): string[] {
     const args: string[] = [
       '-p',
       message,
@@ -304,6 +414,11 @@ export class ClaudeCodeEngine implements DialogEngine {
     // Add MCP config if available (Story 3.2 integration point)
     if (this.mcpConfigPath) {
       args.push('--mcp-config', this.mcpConfigPath);
+    }
+
+    // Story 3.4: Inject learning context as appended system prompt
+    if (systemPromptAppend) {
+      args.push('--append-system-prompt', systemPromptAppend);
     }
 
     return args;
@@ -381,12 +496,26 @@ export class ClaudeCodeEngine implements DialogEngine {
 
     // Handle system/error events
     if (eventType === 'system' || eventType === 'error') {
+      const errorObj = parsed.error as Record<string, unknown> | string | undefined;
+      const errorType = typeof errorObj === 'object' ? (errorObj?.type as string) : undefined;
+      const errorMsg =
+        (typeof errorObj === 'object' ? (errorObj?.message as string) : (errorObj as string)) ??
+        (parsed.message as string) ??
+        'Unknown error';
+
+      // Story 3.10: Detect rate_limit_error from stream-json
+      if (errorType === 'rate_limit_error' || isRateLimitError(errorMsg)) {
+        const retryAfterSec = extractRetryAfter(errorMsg);
+        this.emitError({
+          type: 'rate_limited',
+          message: '本周订阅额度已用完',
+          retryAfterSec: retryAfterSec ?? undefined,
+        });
+      }
+
       return {
         type: 'error',
-        error:
-          (parsed.message as string) ??
-          (parsed.error as string) ??
-          'Unknown error',
+        error: errorMsg,
         raw: line,
       };
     }

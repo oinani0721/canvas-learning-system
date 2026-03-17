@@ -25,6 +25,11 @@ import { IndexingService } from './src/services/indexing-service';
 import { DockerManager } from './src/services/docker-manager';
 import { BackupManager, type BackupInfo } from './src/services/backup-manager';
 import { waitForBackendReady } from './src/services/health-poller';
+// Story 3.9 / 3.10 / 3.11: E3 Defense Layer
+import { ClaudeCodeEngine } from './src/services/claude-code-engine';
+import { EngineFallbackManager } from './src/services/engine-fallback';
+import { CrashRecoveryManager } from './src/services/crash-recovery';
+import { chatState } from './src/stores/chat-state.svelte';
 
 /**
  * Extended settings stored in data.json.
@@ -74,6 +79,10 @@ export default class CanvasLearningPlugin extends Plugin {
   private backupManager: BackupManager | null = null;
   private backendOnline = false;
   settings: PluginData = DEFAULT_PLUGIN_DATA;
+  // Story 3.9 / 3.10 / 3.11: E3 Defense Layer
+  private claudeCodeEngine: ClaudeCodeEngine | null = null;
+  private engineFallback: EngineFallbackManager | null = null;
+  private crashRecovery: CrashRecoveryManager | null = null;
 
   async onload(): Promise<void> {
     // Load persisted settings from data.json
@@ -133,6 +142,9 @@ export default class CanvasLearningPlugin extends Plugin {
     // Story 1.8: Register service management commands
     this.registerServiceCommands();
 
+    // ── Story 3.9 / 3.10 / 3.11: E3 Defense Layer ────────────────────────
+    this.initDefenseLayer(vaultPath);
+
     // Auto-show setup wizard on first launch (AC-1)
     if (!this.settings.setupComplete) {
       // Defer to ensure Obsidian workspace is fully loaded
@@ -148,6 +160,16 @@ export default class CanvasLearningPlugin extends Plugin {
   }
 
   async onunload(): Promise<void> {
+    // Story 3.9 / 3.10 / 3.11: Clean up E3 Defense Layer
+    this.crashRecovery?.destroy();
+    this.crashRecovery = null;
+    this.engineFallback?.destroy();
+    this.engineFallback = null;
+    if (this.claudeCodeEngine) {
+      await this.claudeCodeEngine.destroyAll();
+      this.claudeCodeEngine = null;
+    }
+    await chatState.cleanup();
     // Story 1.6: Cancel pending OCR requests
     this.indexingService?.cancelAll();
     this.indexingService = null;
@@ -373,6 +395,98 @@ export default class CanvasLearningPlugin extends Plugin {
         modal.open();
       },
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3.9 / 3.10 / 3.11: E3 Defense Layer Initialization
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Initialize the E3 Defense Layer:
+   * - ClaudeCodeEngine (primary AI engine)
+   * - EngineFallbackManager (Story 3.9: auto-switch on auth failure)
+   * - CrashRecoveryManager (Story 3.11: auto-restart on crash)
+   * - Quota management error routing (Story 3.10: 429 detection)
+   *
+   * @param vaultPath - Absolute path to the Obsidian vault root.
+   */
+  private initDefenseLayer(vaultPath: string): void {
+    const pluginDataDir = `${vaultPath}/.obsidian/plugins/canvas-learning-system`;
+
+    // ── 1. Create ClaudeCodeEngine (primary) ──────────────────────────────
+    this.claudeCodeEngine = new ClaudeCodeEngine(pluginDataDir);
+
+    // ── 2. Create EngineFallbackManager (Story 3.9) ───────────────────────
+    this.engineFallback = new EngineFallbackManager(
+      this.claudeCodeEngine,
+      {
+        onEngineSwitch: (newEngine, type) => {
+          chatState.switchEngine(newEngine, type);
+        },
+        getFallbackApiKey: () => this.settings.fallbackApiKey,
+        saveEngineType: async (type) => {
+          this.settings.currentEngine = type;
+          await this.saveSettings();
+        },
+        openSettings: () => {
+          // Open Obsidian settings pane and navigate to this plugin's tab
+          (this.app as any).setting?.open();
+          (this.app as any).setting?.openTabById?.(this.manifest.id);
+        },
+      },
+    );
+
+    // ── 3. Create CrashRecoveryManager (Story 3.11) ───────────────────────
+    this.crashRecovery = new CrashRecoveryManager(pluginDataDir, {
+      restartAndResend: async (nodeId, message, sessionId) => {
+        // Restart: send the message again through the engine
+        // The engine's sendMessage will handle --resume via sessionId
+        const engine = this.engineFallback?.getActiveEngine() ?? this.claudeCodeEngine;
+        if (!engine) return false;
+
+        try {
+          // Consume the entire stream to check for success
+          let gotDone = false;
+          for await (const event of engine.sendMessage(nodeId, message)) {
+            if (event.type === 'done') {
+              gotDone = true;
+            }
+            if (event.type === 'error') {
+              return false;
+            }
+          }
+          return gotDone;
+        } catch {
+          return false;
+        }
+      },
+      onStatusChange: (status) => {
+        chatState.setRecoveryStatus(status);
+      },
+    });
+
+    // ── 4. Wire engine errors for quota + crash routing ───────────────────
+    // Listen on the primary engine for rate_limited and crash errors
+    this.claudeCodeEngine.onError((error) => {
+      if (error.type === 'rate_limited') {
+        // Story 3.10: Set quota exhausted state
+        chatState.setQuotaExhausted(error.retryAfterSec);
+      } else if (error.type === 'crash') {
+        // Story 3.11: Trigger crash recovery
+        this.crashRecovery?.handleCrash(error.exitCode ?? null, error.message);
+      }
+    });
+
+    // ── 5. Set the active engine on chatState ─────────────────────────────
+    // If previously in api-key mode and key still exists, restore that state
+    if (
+      this.settings.currentEngine === 'api-key' &&
+      this.settings.fallbackApiKey
+    ) {
+      this.engineFallback.switchToApiKey();
+    } else {
+      chatState.setEngine(this.claudeCodeEngine);
+    }
   }
 
   /**

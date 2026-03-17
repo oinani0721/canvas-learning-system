@@ -3,16 +3,23 @@
    * Canvas Learning System - Root Application Component
    * Story 1.4: Top-level routing between Dashboard and Canvas views (AC-7, Task 8.2)
    * Story 1.5: SyncIndicator global mount (AC-6, Task 4.4)
+   * Story 3.3: ChatPanel view routing (AC-1, Task 6)
    *
    * Routes:
    *   'dashboard' → DashboardView (board list)
    *   'canvas'    → CanvasView (active whiteboard)
+   *   'chat'      → ChatPanel (node conversation, Story 3.3)
    */
 
+  import { getContext } from 'svelte';
+  import type { App } from 'obsidian';
   import { canvasState } from './stores/canvas-state';
   import DashboardView from './components/dashboard/DashboardView.svelte';
   import CanvasView from './components/canvas/CanvasView.svelte';
+  import ChatPanel from './components/chat/ChatPanel.svelte';
   import SyncIndicator from './components/global/SyncIndicator.svelte';
+
+  let { app }: { app?: App } = $props();
 
   // Force reactivity for route changes
   let stateVersion = $state(0);
@@ -33,13 +40,36 @@
     return canvasState.getCurrentBoardName();
   });
 
+  let chatNodeId = $derived.by(() => {
+    void stateVersion;
+    return canvasState.activeChatNodeId;
+  });
+
+  let chatNodeName = $derived.by(() => {
+    void stateVersion;
+    return canvasState.activeChatNodeName;
+  });
+
   function goToDashboard() {
     canvasState.navigateToDashboard();
+  }
+
+  function goBackFromChat() {
+    canvasState.navigateBackFromChat();
   }
 </script>
 
 <div class="cl-main-view">
-  {#if currentRoute === 'canvas'}
+  {#if currentRoute === 'chat' && chatNodeId && app}
+    <!-- Chat mode: show back button + node name + ChatPanel (Story 3.3) -->
+    <div class="cl-main-view__content cl-main-view__content--chat">
+      <ChatPanel
+        nodeId={chatNodeId}
+        nodeName={chatNodeName}
+        {app}
+      />
+    </div>
+  {:else if currentRoute === 'canvas'}
     <!-- Canvas mode: show back button + board name + canvas -->
     <div class="cl-main-view__header">
       <button class="cl-nav-back-btn" onclick={goToDashboard} title="返回白板列表">
@@ -101,6 +131,13 @@
   }
 
   .cl-main-view__content--canvas {
+    padding: 0;
+    overflow: hidden;
+  }
+
+  /* Story 3.3: Chat view takes full height, no padding */
+  .cl-main-view__content--chat {
+    flex: 1;
     padding: 0;
     overflow: hidden;
   }

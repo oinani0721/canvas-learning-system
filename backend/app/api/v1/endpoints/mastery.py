@@ -9,6 +9,9 @@ Endpoints:
   POST /mastery/{id}/override   - Set explicit override (Sidebar)
   POST /mastery/{id}/self-assess - Set implicit self-assessment (Canvas color)
   DELETE /mastery/{id}/override - Reset override to model value
+  POST /mastery/{id}/calibration         - Record calibration data point (Story 5.5)
+  GET  /mastery/{id}/calibration/summary - Get calibration summary (Story 5.5)
+  GET  /mastery/calibration/dangerous    - List misconception nodes (Story 5.5)
 """
 
 import logging
@@ -17,6 +20,13 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import DEFAULT_GROUP_ID
+from app.models.mastery_models import (
+    CalibrationRequest,
+)
+from app.services.calibration_tracker import (
+    get_calibration_summary,
+    record_calibration,
+)
 from app.services.mastery_engine import MasteryEngine, load_mastery_config
 from app.services.mastery_store import MasteryStore
 
@@ -299,4 +309,86 @@ async def graphiti_sync(
             "old_p_mastery": round(old_mastery, 3),
             "new_p_mastery": round(concept.p_mastery, 3),
         },
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Story 5.5: Calibration API Endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+@mastery_router.post("/mastery/{concept_id}/calibration")
+async def record_calibration_endpoint(
+    concept_id: str,
+    req: CalibrationRequest,
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
+):
+    """Record a calibration data point (self_confidence + actual_performance).
+
+    Creates a CalibrationRecord with auto-classified Area9 quadrant.
+    Persists to Neo4j for progressive calibration assessment.
+
+    Quadrants:
+      - Mastered: confident + correct
+      - Misconception: confident + wrong (DANGEROUS)
+      - Lucky: unsure + correct
+      - Unlearned: unsure + wrong
+    """
+    store = _get_store()
+
+    cal_record = record_calibration(
+        node_id=concept_id,
+        self_confidence=req.self_confidence,
+        actual_performance=req.actual_performance,
+        session_id=req.session_id,
+    )
+
+    await store.save_calibration_record(cal_record, group_id)
+
+    return {
+        "node_id": concept_id,
+        "quadrant": cal_record.quadrant.value,
+        "is_dangerous": cal_record.is_dangerous,
+        "self_confidence": cal_record.self_confidence,
+        "actual_performance": cal_record.actual_performance,
+        "timestamp": cal_record.timestamp.isoformat(),
+    }
+
+
+@mastery_router.get("/mastery/{concept_id}/calibration/summary")
+async def get_calibration_summary_endpoint(
+    concept_id: str,
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
+):
+    """Get calibration summary for a concept node.
+
+    Three-stage progressive assessment:
+      Stage 1 (< 10 records): Data collection, no assessment
+      Stage 2 (10-20 records): Preliminary trends + signed_bias
+      Stage 3 (20+ records): Full report + absolute_bias + rating
+    """
+    store = _get_store()
+
+    records = await store.get_calibration_records(concept_id, group_id)
+    summary = get_calibration_summary(records)
+
+    return summary.model_dump()
+
+
+@mastery_router.get("/mastery/calibration/dangerous")
+async def get_dangerous_nodes_endpoint(
+    group_id: str = Query(default=DEFAULT_GROUP_ID),
+):
+    """List all nodes with MISCONCEPTION quadrant records.
+
+    Returns node IDs where user has high confidence but low performance
+    (the most dangerous learning blind spots). Used for exam question
+    prioritization.
+    """
+    store = _get_store()
+    node_ids = await store.get_dangerous_nodes(group_id)
+
+    return {
+        "dangerous_nodes": node_ids,
+        "count": len(node_ids),
     }
