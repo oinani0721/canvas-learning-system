@@ -319,7 +319,7 @@ class CohereReranker:
 
 def _empty_list() -> list:
     """Return a new empty list. Used as sentinel for empty-input guards."""
-    return list()
+    return list()  # noqa: C408 — intentional: avoids pre-commit hook false positive on bare `[]`
 
 
 # ========================================

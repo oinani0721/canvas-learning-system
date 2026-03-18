@@ -373,8 +373,9 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
     fusion_strategy = _safe_get_config(runtime, "fusion_strategy", "layered_rrf")
     source_weights = _safe_get_config(runtime, "source_weights", DEFAULT_SOURCE_WEIGHTS)
     time_decay_factor = _safe_get_config(runtime, "time_decay_factor", 0.05)
-    # Story 2.5: Fusion groups config
+    # Story 2.5: Fusion groups config + RRF k value
     fusion_groups = _safe_get_config(runtime, "fusion_groups", DEFAULT_FUSION_GROUPS)
+    rrf_k = _safe_get_config(runtime, "rrf_k", 60)
 
     # Story 23.4 AC 2: 对Graphiti结果应用时间衰减
     graphiti_results = _apply_time_decay(graphiti_results, time_decay_factor)
@@ -410,11 +411,11 @@ async def fuse_results(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig])
 
     if fusion_strategy == "layered_rrf":
         # Story 2.5 AC-1: 3-group layered RRF + z-score normalization
-        fused_results = _fuse_layered_rrf(all_source_results, fusion_groups)
+        fused_results = _fuse_layered_rrf(all_source_results, fusion_groups, k=rrf_k)
     elif fusion_strategy == "rrf":
-        # RRF算法: score = Σ(1/(k+rank)), k=60
+        # RRF算法: score = Σ(1/(k+rank)), k configurable
         # Story 23.4: 使用多源融合函数
-        fused_results = _fuse_rrf_multi_source(all_source_results)
+        fused_results = _fuse_rrf_multi_source(all_source_results, k=rrf_k)
     elif fusion_strategy == "weighted":
         # Story 23.4 AC 4: Weighted融合使用source_weights
         fused_results = _fuse_weighted_multi_source(all_source_results, source_weights)

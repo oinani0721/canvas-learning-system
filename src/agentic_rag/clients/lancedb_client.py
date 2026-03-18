@@ -816,6 +816,10 @@ class LanceDBClient:
 
         count = await self.add_documents(table_name, [doc])
 
+        # Story 2.4: Rebuild FTS index for hybrid search support
+        if count > 0:
+            self._rebuild_fts_index(table_name)
+
         if LOGURU_ENABLED:
             logger.info(
                 f"[IMAGE-INDEX] Indexed {count} chunks for node {node_id} "
@@ -994,6 +998,10 @@ class LanceDBClient:
 
         # 写入LanceDB
         count = await self.add_documents(table_name, documents)
+
+        # Story 2.4: Rebuild FTS index on content_tokenized for hybrid search support
+        if count > 0:
+            self._rebuild_fts_index(table_name)
 
         if LOGURU_ENABLED:
             logger.info(f"Indexed {count} nodes from {canvas_path} to {table_name}")
@@ -1323,6 +1331,10 @@ class LanceDBClient:
                 "source": "vault_note",
                 "subject": subject,
                 "source_type": ("video_transcript" if LanceDBClient._is_video_transcript(file_path) else "note"),
+                # Story 2.8: Frontmatter metadata
+                "course": chunk.get("course", ""),
+                "tags_str": chunk.get("tags_str", ""),
+                "category": chunk.get("category", ""),
             }
 
             if LanceDBClient._is_video_transcript(file_path):
@@ -1340,6 +1352,10 @@ class LanceDBClient:
                 "x": 0,
                 "y": 0,
                 "subject": subject or "",
+                # Story 2.8: Frontmatter columns
+                "course": chunk.get("course", ""),
+                "tags_str": chunk.get("tags_str", ""),
+                "category": chunk.get("category", ""),
                 "timestamp": datetime.now().isoformat(),
                 "metadata_json": json.dumps(metadata, ensure_ascii=False),
             }
@@ -1390,9 +1406,10 @@ class LanceDBClient:
             parsed = yaml.safe_load(yaml_str)
             if isinstance(parsed, dict):
                 fm = parsed
-            body = content[end_idx + 3:].lstrip("\n")
+            body = content[end_idx + 3 :].lstrip("\n")
         except Exception:
             import logging
+
             logging.getLogger(__name__).warning(
                 "[frontmatter] Failed to parse YAML frontmatter, skipping metadata extraction"
             )
@@ -1769,6 +1786,14 @@ class LanceDBClient:
         ✅ Story 12.2 AC 2.4: 结果转换
         ✅ Story 2.4: Hybrid 为默认模式 + 课程/标签过滤
 
+        Hybrid search strategy (Story 2.4):
+        - Dense branch: bge-m3 1024d cosine similarity
+        - FTS branch: Tantivy FTS on jieba-tokenized content (content_tokenized column)
+        - Fusion: Reciprocal Rank Fusion (RRF, k=60)
+        - Degradation: FTS unavailable → Dense-only; both fail → empty results
+        - Note: FTS+jieba serves as sparse vector substitute (LanceDB has no native
+          sparse vector column; Tantivy BM25 provides equivalent term-matching capability)
+
         Args:
             query: 搜索查询 (文本或向量)
             table_name: 表名
@@ -1777,8 +1802,8 @@ class LanceDBClient:
             num_results: 返回结果数量
             metric: 距离度量 ("cosine" 或 "L2")
             query_type: 搜索类型 ("vector" 或 "hybrid"). hybrid使用向量+FTS+RRF融合
-            course_id: 课程ID (用于按课程过滤搜索范围)
-            tags: 标签列表 (用于按标签过滤, OR 匹配)
+            course_id: 课程ID (maps to 'course' column, 用于按课程过滤搜索范围)
+            tags: 标签列表 (maps to 'tags_str' column, 用于按标签过滤, OR 匹配)
 
         Returns:
             List[SearchResult]: 标准化的搜索结果
@@ -1844,6 +1869,11 @@ class LanceDBClient:
             else:
                 raise
 
+    @staticmethod
+    def _escape_sql(value: str) -> str:
+        """Escape single quotes for SQL WHERE clauses to prevent injection."""
+        return value.replace("'", "''")
+
     def _build_where_filters(
         self,
         canvas_file: Optional[str] = None,
@@ -1854,18 +1884,23 @@ class LanceDBClient:
         """
         Story 2.4 AC-5: Build SQL WHERE filter clauses for LanceDB queries.
 
-        Supports canvas_file, subject, course_id, and tags (OR matching).
+        Supports canvas_file, subject, course_id (maps to 'course' column),
+        and tags (maps to 'tags_str' column, OR matching via LIKE).
         Returns list of SQL clause strings to apply via .where().
+
+        Column mapping:
+        - course_id param → 'course' column (set by index_vault_notes from frontmatter)
+        - tags param → 'tags_str' column (comma-separated tags from frontmatter)
         """
         clauses: List[str] = []
         if canvas_file:
-            clauses.append(f"canvas_file = '{canvas_file}'")
+            clauses.append(f"canvas_file = '{self._escape_sql(canvas_file)}'")
         if subject:
-            clauses.append(f"subject = '{subject}'")
+            clauses.append(f"subject = '{self._escape_sql(subject)}'")
         if course_id:
-            clauses.append(f"course_id = '{course_id}'")
+            clauses.append(f"course = '{self._escape_sql(course_id)}'")
         if tags:
-            tag_conditions = " OR ".join(f"tags LIKE '%{tag}%'" for tag in tags)
+            tag_conditions = " OR ".join(f"tags_str LIKE '%{self._escape_sql(tag)}%'" for tag in tags)
             clauses.append(f"({tag_conditions})")
         return clauses
 
@@ -1935,6 +1970,8 @@ class LanceDBClient:
                         logger.debug(f"Hybrid vector branch failed: {e}")
 
             # Story 2.4 AC-2: FTS with jieba-tokenized query on content_tokenized
+            # Serves as sparse search substitute (LanceDB has no native sparse vector
+            # column type; Tantivy FTS + jieba provides equivalent Chinese retrieval).
             try:
                 tokenized_query = _jieba_tokenize(query)
                 if LOGURU_ENABLED:
@@ -1943,10 +1980,14 @@ class LanceDBClient:
                 fq = self._apply_where_clauses(fq, where_clauses)
                 fts_results = fq.to_list()
             except Exception as e:
+                # FTS unavailable (no index yet, no content_tokenized column, etc.)
+                # Hybrid degrades to Dense-only — still returns results via vector branch
                 if LOGURU_ENABLED:
-                    logger.debug(f"Hybrid FTS branch failed: {e}")
+                    logger.warning(f"[search] FTS branch unavailable, degrading to Dense-only: {e}")
 
             # Story 2.4 AC-4: RRF fusion with single-path degradation
+            # When only one branch has results, RRF still works correctly
+            # (single-source ranking = original rank order)
             if vector_results or fts_results:
                 all_raw = self._rrf_fuse(vector_results, fts_results, num_results)
                 return self._convert_to_search_results(all_raw, canvas_file=canvas_file)
@@ -2091,9 +2132,14 @@ class LanceDBClient:
 
             # 复制其他metadata字段
             for key in [
-                "concept", "agent_type", "node_id", "metadata_json",
+                "concept",
+                "agent_type",
+                "node_id",
+                "metadata_json",
                 # Story 2.8: Frontmatter / scope metadata
-                "course", "tags_str", "category",
+                "course",
+                "tags_str",
+                "category",
                 # Story 2.9: Image OCR source type
                 "source_type",
                 # Story 2.8: Neighbor expansion marker
@@ -2209,10 +2255,18 @@ class LanceDBClient:
                 # Passthrough extra fields (node_id, node_type, color, x, y, subject, etc.)
                 # so that index_vault_notes / index_single_file schema is preserved
                 for key in (
-                    "node_id", "node_type", "color", "x", "y", "subject",
-                    "course_id", "tags",
+                    "node_id",
+                    "node_type",
+                    "color",
+                    "x",
+                    "y",
+                    "subject",
+                    "course_id",
+                    "tags",
                     # Story 2.8: Frontmatter metadata columns
-                    "course", "tags_str", "category",
+                    "course",
+                    "tags_str",
+                    "category",
                     # Story 2.9: Image OCR source type
                     "source_type",
                 ):
