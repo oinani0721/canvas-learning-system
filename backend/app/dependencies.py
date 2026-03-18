@@ -1097,6 +1097,41 @@ async def build_batch_processing_deps():
 
 
 # =============================================================================
+# Subject Resolution Dependency (Story 1.9)
+# =============================================================================
+
+
+def resolve_subject_id(
+    subject_id: Optional[str] = None,
+) -> Optional[str]:
+    """
+    FastAPI dependency that resolves the ``subject_id`` query parameter
+    and sets it in the per-request context variable.
+
+    Usage in an endpoint::
+
+        @router.get("/example")
+        async def example(subject: str | None = Depends(resolve_subject_id)):
+            ...
+
+    The resolved value is also stored via
+    ``subject_config.set_current_subject_id`` so that any downstream
+    service can call ``get_current_subject_id()`` without explicit
+    parameter threading.
+
+    [Source: Story 1.9 Task 5 — request-context subject propagation]
+    """
+    from .core.subject_config import set_current_subject_id
+
+    if subject_id:
+        set_current_subject_id(subject_id)
+    return subject_id
+
+
+SubjectIdDep = Annotated[Optional[str], Depends(resolve_subject_id)]
+
+
+# =============================================================================
 # Exported Dependencies for easy import
 # =============================================================================
 
@@ -1120,6 +1155,7 @@ __all__ = [
     "get_intelligent_grouping_service",  # EPIC-33
     "get_agent_routing_engine",  # EPIC-33
     "build_batch_processing_deps",  # Story 33.11: DI consolidation
+    "resolve_subject_id",  # Story 1.9: per-request subject resolution
     # Type Aliases (Annotated types for cleaner endpoint signatures)
     "SettingsDep",
     "CanvasServiceDep",
@@ -1136,6 +1172,7 @@ __all__ = [
     "SessionManagerDep",  # EPIC-33
     "IntelligentGroupingServiceDep",  # EPIC-33
     "AgentRoutingEngineDep",  # EPIC-33
+    "SubjectIdDep",  # Story 1.9
     # BatchOrchestratorDep removed (dead code, AC-33.9.8)
     # IntelligentParallelServiceDep removed per AC-33.9.8 (dead code)
 ]

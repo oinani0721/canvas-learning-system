@@ -3,6 +3,7 @@
 
 # Core Framework
 fastapi>=0.104.0
+anthropic>=0.40.0
 uvicorn[standard]>=0.24.0
 
 # MCP Protocol (Story 3.2: MCP Tool Exposure)
@@ -16,6 +17,9 @@ aiosqlite>=0.19.0
 # ✅ Required for FastAPI multipart/form-data file uploads
 # ⚠️ CVE-2026-24486: >=0.0.22 required
 python-multipart>=0.0.22
+
+# System Monitoring
+psutil>=5.9.0
 
 # Monitoring & Metrics
 # ✅ Verified from Context7:/prometheus/client_python (topic: Counter Histogram Gauge)
@@ -76,6 +80,14 @@ cachetools>=5.3.0
 # Embedding Models
 # ✅ For OpenAI embeddings (optional, can use local models)
 openai>=1.0.0
+
+# Story 2.3: bge-m3 Embedding Model (1024-dim Dense vectors, 中英双语)
+# ✅ BAAI/bge-m3 via BGEM3FlagModel — MIRACL 中文 nDCG@10=63.9
+FlagEmbedding>=1.2.0
+
+# Story 2.3: Token counting for intelligent chunking (512 token chunks)
+# ✅ cl100k_base encoding for accurate Chinese/English token counting
+tiktoken>=0.5.0
 
 # ==========================================================
 # Data Migration (Story 30.1)

@@ -207,6 +207,8 @@ class RAGService:
         self,
         query: str,
         canvas_file: Optional[str] = None,
+        subject_id: Optional[str] = None,
+        cross_subject: bool = False,
         is_review_canvas: bool = False,
         fusion_strategy: Optional[str] = None,
         reranking_strategy: Optional[str] = None,
@@ -226,7 +228,11 @@ class RAGService:
         Args:
             query: User query string
             canvas_file: Optional canvas file path for context
+            subject_id: Optional subject for multi-subject scope isolation (Story 1.9)
+            cross_subject: Whether to expand search to related subjects via Tag Jaccard
             is_review_canvas: Whether this is a review canvas (affects fusion strategy)
+            fusion_strategy: Override fusion strategy
+            reranking_strategy: Override reranking strategy
             config: Optional runtime configuration overrides
 
         Returns:
@@ -239,6 +245,7 @@ class RAGService:
             RuntimeError: If LangGraph not available
 
         [Source: docs/stories/23.1.story.md#Step-4-创建rag_service.py]
+        [Source: Story 1.9 Task 6 — retrieval scope isolation]
         """
         if not LANGGRAPH_AVAILABLE:
             raise RAGUnavailableError(
@@ -249,11 +256,18 @@ class RAGService:
         if not self._initialized:
             await self.initialize()
 
+        # Story 1.9: Resolve subject scope for retrieval isolation.
+        # The `subject` field in the LangGraph state is read by retrieve_lancedb
+        # and retrieve_graphiti nodes for scoped search.
+        effective_subject = subject_id
+
         # Build initial state
         # ✅ Verified from agentic_rag/state.py: CanvasRAGState schema
         initial_state = {
             "messages": [{"role": "user", "content": query}],
             "canvas_file": canvas_file,
+            "subject": effective_subject,
+            "cross_subject": cross_subject,
             "is_review_canvas": is_review_canvas,
             "fusion_strategy": fusion_strategy or ("weighted" if is_review_canvas else "rrf"),
             "reranking_strategy": reranking_strategy or "hybrid_auto",

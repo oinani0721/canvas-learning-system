@@ -54,9 +54,11 @@ async def find_related_subjects(
     """
     current_tags = all_subject_tags.get(current_subject_id, set())
     if not current_tags:
-        return list()
+        # No tags for current subject => no similarity can be computed
+        empty: List[str] = []
+        return empty
 
-    related: List[str] = list()
+    related: List[str] = []  # ruff C408: use literal
     for subject_id, tags in all_subject_tags.items():
         if subject_id == current_subject_id:
             continue
@@ -69,6 +71,66 @@ async def find_related_subjects(
             )
 
     return related
+
+
+async def expand_search_subjects(
+    current_subject_id: str,
+    neo4j_driver: object,
+    threshold: float = 0.3,
+) -> List[str]:
+    """
+    Expand the search scope to include related subjects via Tag Jaccard.
+
+    Called when ``cross_subject=True`` in a RAG query.  Fetches tags for
+    all subjects from Neo4j, computes Jaccard similarity against the
+    current subject, and returns a list that includes the current subject
+    plus any related subjects exceeding the threshold.
+
+    Args:
+        current_subject_id: The subject the user is currently working in.
+        neo4j_driver: Async Neo4j driver for tag extraction.
+        threshold: Minimum Jaccard coefficient to include a subject.
+
+    Returns:
+        List of subject_ids to search (always includes *current_subject_id*).
+    """
+    # 1. Fetch all known subjects from Neo4j
+    all_subject_ids: List[str] = []
+    try:
+        async with neo4j_driver.session() as session:
+            result = await session.run(
+                "MATCH (s:Subject) RETURN s.id AS id"
+            )
+            records = await result.data()
+            all_subject_ids = [r["id"] for r in records if r.get("id")]
+    except Exception as e:
+        logger.warning(f"expand_search_subjects: failed to list subjects: {e}")
+        return [current_subject_id]
+
+    if not all_subject_ids:
+        return [current_subject_id]
+
+    # 2. Fetch tags for each subject
+    all_tags: Dict[str, Set[str]] = {}
+    for sid in all_subject_ids:
+        all_tags[sid] = await get_subject_tags_from_neo4j(neo4j_driver, sid)
+
+    # 3. Find related subjects
+    related = await find_related_subjects(
+        current_subject_id, all_tags, threshold=threshold
+    )
+
+    # 4. Always include the current subject first
+    result_subjects = [current_subject_id]
+    for sid in related:
+        if sid != current_subject_id:
+            result_subjects.append(sid)
+
+    logger.info(
+        f"expand_search_subjects: {current_subject_id} -> {result_subjects} "
+        f"(threshold={threshold})"
+    )
+    return result_subjects
 
 
 async def get_subject_tags_from_neo4j(

@@ -1,10 +1,10 @@
-mappings:
-- pattern: Math 54/**
-  subject: math54
-  category: math
-- pattern: Physics 7A/**
-  subject: physics7a
-  category: physics
+# Subject Mapping Configuration (Story 1.9)
+# Users can add their own mappings via the Settings UI or by editing this file.
+# Mappings are ordered: first match wins.
+mappings: []
+
+# Category inference rules: when no explicit mapping matches, the first
+# significant directory component is tested against these patterns.
 category_rules:
   math:
   - math*
@@ -16,9 +16,13 @@ category_rules:
   - CS*
   - cs*
   - 计算机*
+
+# Fallback defaults when nothing matches
 defaults:
   category: general
   subject: general
+
+# Directories to skip when inferring subject from path
 skip_directories:
 - notes
 - templates

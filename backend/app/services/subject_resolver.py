@@ -19,7 +19,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import yaml
 
@@ -179,11 +179,13 @@ class SubjectResolver:
         canvas_name = self._extract_canvas_name(normalized_path)
 
         # 1. Manual override (highest priority)
-        if manual_subject and manual_category:
+        # Story 1.9: Accept manual_subject alone (category defaults to subject)
+        if manual_subject:
+            category = manual_category or manual_subject
             group_id = f"{manual_subject}:{canvas_name}"
             return SubjectInfo(
                 subject=manual_subject,
-                category=manual_category,
+                category=category,
                 group_id=group_id,
                 source=MetadataSource.MANUAL
             )

@@ -27,7 +27,9 @@
 # - Mark epic as 'in-progress' when starting work on its first story
 # - SM typically creates next story ONLY after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then Dev runs code-review (fresh context, ideally different LLM)
-# - Dependencies: E1 → E2 → E3 → {E4, E5, E6}, E7 parallel
+# - Architecture: Tauri 2.0 + React + ReactFlow + shadcn/ui (DE-1~DE-5)
+# - Dependencies: E1/E2 parallel → E3 → {E4, E5} → E6
+# - E7(QA) dissolved: FR-QA-01~07 distributed to E1/E2/E3/E5/E6
 
 generated: 2026-03-17
 project: Canvas
@@ -37,27 +39,31 @@ story_location: _bmad-output/implementation-artifacts
 
 development_status:
   # ══════════════════════════════════════════════════════
-  # Epic 1: 系统安装与画布基础 (9 stories)
+  # Epic 1: 桌面应用搭建与画布基础 (11 stories)
+  # FR: SYS-01~07, KG-01~07, QA-01(基础), QA-03
   # ══════════════════════════════════════════════════════
   epic-1: in-progress
   1-1-project-scaffold-docker-setup: done
   1-2-setup-wizard: done
-  1-3-model-config-settings-panel: ready-for-dev
-  1-4-canvas-core-crud-mini-dashboard: ready-for-dev
-  1-5-canvas-data-sync-backend-kg: ready-for-dev
-  1-6-image-node-async-index: ready-for-dev
+  1-3-model-config-settings-panel: done
+  1-4-canvas-core-crud-mini-dashboard: done
+  1-5-canvas-data-sync-backend-kg: done
+  1-6-image-node-async-index: done
   1-7-concept-relation-recommendation: ready-for-dev
-  1-8-backend-service-management: ready-for-dev
-  1-9-multi-subject-kg-isolation: ready-for-dev
+  1-8-backend-service-management: done
+  1-9-multi-subject-kg-isolation: done
+  1-10-llm-structured-logging-infra: done
+  1-11-llm-faithfulness-check-base: done
   epic-1-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 2: 智能检索管道 (12 stories)
+  # Epic 2: 智能检索管道 (13 stories)
+  # FR: RET-01~12, IDX-01~08, RET-P-01~08, QA-P-01~05, OPS-01~04, QA-02, QA-06(检索侧)
   # ══════════════════════════════════════════════════════
   epic-2: in-progress
-  2-1-dead-code-cleanup-config-fix: ready-for-dev
-  2-2-search-channel-repair-activation: ready-for-dev
-  2-3-bge-m3-migration-chunking-upgrade: ready-for-dev
+  2-1-dead-code-cleanup-config-fix: done
+  2-2-search-channel-repair-activation: done
+  2-3-bge-m3-migration-chunking-upgrade: done
   2-4-chinese-search-hybrid-retrieval: ready-for-dev
   2-5-reranker-fusion-upgrade: ready-for-dev
   2-6-crag-quality-gate-safe-degradation: ready-for-dev
@@ -67,10 +73,12 @@ development_status:
   2-10-context-compression-mastery-injection: ready-for-dev
   2-11-search-pipeline-configurable: ready-for-dev
   2-12-full-rebuild-acceptance-test: ready-for-dev
+  2-13-prompt-version-regression-test: ready-for-dev
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 3: 节点 AI 对话与交互 (11 stories)
+  # Epic 3: 节点 AI 对话与交互 (13 stories)
+  # FR: CONV-01~09, AGENT-01~03, MCP-01~03, RET-13, SKILL-01~05, QA-04, QA-05
   # ══════════════════════════════════════════════════════
   epic-3: in-progress
   3-1-claude-code-cli-per-node-session: ready-for-dev
@@ -84,12 +92,15 @@ development_status:
   3-9-engine-fallback: ready-for-dev
   3-10-quota-management-degradation: ready-for-dev
   3-11-crash-recovery: ready-for-dev
+  3-12-token-tracking-cost-statistics: ready-for-dev
+  3-13-prompt-injection-output-safety: ready-for-dev
   epic-3-retrospective: optional
 
   # ══════════════════════════════════════════════════════
   # Epic 4: Edge 连线对话与关系学习 (4 stories)
+  # FR: EDGE-01~04
   # ══════════════════════════════════════════════════════
-  epic-4: in-progress
+  epic-4: backlog
   4-1-edge-dialog-trigger: ready-for-dev
   4-2-edge-dialog-agent-reasoning: ready-for-dev
   4-3-ei-se-dual-strategy: ready-for-dev
@@ -97,9 +108,10 @@ development_status:
   epic-4-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 5: 精通度追踪、学习档案与 Dashboard (7 stories)
+  # Epic 5: 精通度追踪、学习档案与 Dashboard (8 stories)
+  # FR: MAST-01~06, TRACE-01~05, DASH-01~04, QA-07
   # ══════════════════════════════════════════════════════
-  epic-5: in-progress
+  epic-5: backlog
   5-1-bkt-fsrs-mastery-system: ready-for-dev
   5-2-node-color-mastery-visualization: ready-for-dev
   5-3-learning-profile-panel: ready-for-dev
@@ -107,12 +119,14 @@ development_status:
   5-5-calibration-tracking: ready-for-dev
   5-6-multi-signal-fusion: ready-for-dev
   5-7-eventbus-triconnect: ready-for-dev
+  5-8-structured-extraction-manual-review: ready-for-dev
   epic-5-retrospective: optional
 
   # ══════════════════════════════════════════════════════
-  # Epic 6: 检验白板与递归考察 (8 stories)
+  # Epic 6: 检验白板与递归考察 (10 stories)
+  # FR: EXAM-01~08,11~13,15~21, QA-01(深化), QA-06(出题侧)
   # ══════════════════════════════════════════════════════
-  epic-6: in-progress
+  epic-6: backlog
   6-1-exam-board-generation: ready-for-dev
   6-2-exam-mode-selection: ready-for-dev
   6-3-ai-precise-question-acp: ready-for-dev
@@ -121,14 +135,6 @@ development_status:
   6-6-progressive-hints-skip: ready-for-dev
   6-7-cognitive-load-rest-reminder: ready-for-dev
   6-8-exam-record-persistence: ready-for-dev
+  6-9-scoring-faithfulness-deep-check: ready-for-dev
+  6-10-question-difficulty-matching: ready-for-dev
   epic-6-retrospective: optional
-
-  # ══════════════════════════════════════════════════════
-  # Epic 7: 质量保证与可观测性 (4 stories)
-  # ══════════════════════════════════════════════════════
-  epic-7: in-progress
-  7-1-llm-faithfulness-prompt-injection: ready-for-dev
-  7-2-llm-logging-token-tracking: ready-for-dev
-  7-3-prompt-version-regression-test: ready-for-dev
-  7-4-difficulty-matching-extraction-validation: ready-for-dev
-  epic-7-retrospective: optional

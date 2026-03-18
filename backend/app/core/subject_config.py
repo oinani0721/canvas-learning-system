@@ -4,18 +4,29 @@
 Subject-specific configuration for the memory system.
 
 Activated by Story 1.9. Provides:
-- Dynamic subject list (user-managed via Settings UI)
+- Dynamic subject list (user-managed via Neo4j :Subject nodes)
 - Subject path inference from Canvas file paths
 - Group ID construction for Graphiti/Neo4j isolation
+- Request-context subject resolution
 
 [Source: _bmad-output/implementation-artifacts/1-9-multi-subject-kg-isolation.md#Task 5]
 """
 
-from typing import Optional
+import logging
+from contextvars import ContextVar
+from typing import TYPE_CHECKING, List, Optional
 
+if TYPE_CHECKING:
+    from neo4j import AsyncDriver
+
+logger = logging.getLogger(__name__)
 
 # Default subject identifier (used when no subject is specified)
 DEFAULT_SUBJECT_ID = "general"
+
+# ContextVar for per-request subject_id propagation
+# Set by API middleware/dependency, read by services that need the current subject.
+_current_subject_id: ContextVar[str] = ContextVar("current_subject_id", default=DEFAULT_SUBJECT_ID)
 
 
 def get_database_for_subject(subject_id: str) -> str:
@@ -28,11 +39,59 @@ def get_database_for_subject(subject_id: str) -> str:
 
 def get_current_subject_id() -> str:
     """
-    Get the default subject ID.
-    The actual current subject comes from the API request context (subject_id parameter).
-    This function provides the fallback default.
+    Get the current subject ID from the request context.
+
+    The subject_id is set per-request via ``set_current_subject_id`` (called
+    from the API dependency layer).  Falls back to DEFAULT_SUBJECT_ID when
+    no request context is active (e.g. background tasks, CLI).
     """
-    return DEFAULT_SUBJECT_ID
+    return _current_subject_id.get()
+
+
+def set_current_subject_id(subject_id: str) -> None:
+    """
+    Set the subject_id for the current request context.
+
+    Called by the FastAPI dependency ``resolve_subject_id`` so that any
+    downstream service can retrieve it via ``get_current_subject_id()``.
+    """
+    _current_subject_id.set(subject_id if subject_id else DEFAULT_SUBJECT_ID)
+
+
+async def list_subjects_from_neo4j(neo4j_driver: "AsyncDriver") -> List[dict]:
+    """
+    Fetch the dynamic list of user-created subjects from Neo4j.
+
+    Each subject is stored as a ``:Subject`` node with properties:
+        id (str), name (str), createdAt (str), color (str|null).
+
+    Args:
+        neo4j_driver: An async Neo4j driver instance.
+
+    Returns:
+        List of subject dicts with keys: id, name, createdAt, color.
+    """
+    query = """
+    MATCH (s:Subject)
+    RETURN s.id AS id, s.name AS name,
+           s.createdAt AS createdAt, s.color AS color
+    ORDER BY s.createdAt ASC
+    """
+    subjects: List[dict] = []
+    try:
+        async with neo4j_driver.session() as session:
+            result = await session.run(query)
+            records = await result.data()
+            for rec in records:
+                subjects.append({
+                    "id": rec.get("id", ""),
+                    "name": rec.get("name", ""),
+                    "created_at": rec.get("createdAt", ""),
+                    "color": rec.get("color"),
+                })
+    except Exception as e:
+        logger.warning(f"Failed to list subjects from Neo4j: {e}")
+    return subjects
 
 
 # Directories to skip when scanning for subjects
@@ -136,3 +195,31 @@ def sanitize_subject_name(name: str) -> str:
     sanitized = re.sub(r'[^\w]', '_', normalized, flags=re.UNICODE)
     sanitized = re.sub(r'_+', '_', sanitized)
     return sanitized.strip('_') or "default"
+
+
+def build_neo4j_subject_filter(
+    subject_id: Optional[str],
+    node_alias: str = "n",
+) -> tuple:
+    """
+    Build a Cypher WHERE clause fragment for subject-scoped queries.
+
+    Returns a ``(clause, params)`` tuple.  When *subject_id* is ``None`` or
+    ``"general"`` (the default bucket), the clause is empty so that the query
+    returns results across all subjects.
+
+    Args:
+        subject_id: The subject to filter by (may be None).
+        node_alias: Cypher variable name of the node to filter.
+
+    Returns:
+        (cypher_fragment, param_dict) -- e.g.
+        ``("AND n.subjectId = $subject_id", {"subject_id": "math"})``
+        or ``("", {})``.
+    """
+    if not subject_id or subject_id == DEFAULT_SUBJECT_ID:
+        return ("", {})
+    return (
+        f"AND {node_alias}.subjectId = $subject_id",
+        {"subject_id": subject_id},
+    )

@@ -393,7 +393,7 @@ class LanceDBClient:
             return False
 
     async def _cache_tables(self):
-        """缓存表信息"""
+        """缓存表信息，并检查向量维度是否与当前模型匹配"""
         if self._db is None:
             return
 
@@ -404,6 +404,13 @@ class LanceDBClient:
                     self._tables_cache[name] = self._db.open_table(name)
                 except Exception:
                     pass
+
+            # Story 2.3 Task 6: Auto-detect dimension mismatch on startup
+            # Check vector tables against expected embedding_dim
+            vector_tables = [t for t in self._tables_cache if t != self.FINGERPRINT_TABLE]
+            for tname in vector_tables:
+                self._check_and_fix_dimension_mismatch(tname, self.embedding_dim)
+
         except Exception as e:
             if LOGURU_ENABLED:
                 logger.debug(f"Failed to cache tables: {e}")
@@ -2114,6 +2121,58 @@ class LanceDBClient:
         """
         self._embedder = embedder
 
+    def _check_and_fix_dimension_mismatch(self, table_name: str, new_vector_dim: int) -> bool:
+        """
+        Story 2.3 Task 6: Detect vector dimension mismatch and auto drop+recreate.
+
+        When migrating from 384d (old model) to 1024d (bge-m3), existing tables
+        will have vectors of the wrong dimension. This method inspects the first
+        row of an existing table, compares its vector dimension against the new
+        expected dimension, and drops the table if mismatched.
+
+        Args:
+            table_name: LanceDB table name.
+            new_vector_dim: Expected vector dimension (e.g. 1024 for bge-m3).
+
+        Returns:
+            True if the table was dropped due to mismatch (caller should create new).
+            False if dimensions match or table doesn't exist.
+        """
+        if self._db is None:
+            return False
+
+        if table_name not in self._tables_cache:
+            return False
+
+        try:
+            tbl = self._tables_cache[table_name]
+            # Sample first row to inspect vector dimension
+            rows = tbl.head(1).to_pydict()
+            vectors = rows.get("vector", [])
+            if not vectors or len(vectors) == 0:
+                return False
+
+            existing_dim = len(vectors[0])
+            if existing_dim == new_vector_dim:
+                return False
+
+            # Dimension mismatch detected — drop table
+            if LOGURU_ENABLED:
+                logger.warning(
+                    f"[SCHEMA] Vector dimension mismatch in '{table_name}': "
+                    f"existing={existing_dim}, expected={new_vector_dim}. "
+                    f"Dropping table for recreation with correct dimensions."
+                )
+
+            self._db.drop_table(table_name, ignore_missing=True)
+            self._tables_cache.pop(table_name, None)
+            return True
+
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"[SCHEMA] Dimension check failed for '{table_name}': {e}")
+            return False
+
     async def add_documents(self, table_name: str, documents: List[Dict[str, Any]]) -> int:
         """
         添加文档到表
@@ -2170,6 +2229,12 @@ class LanceDBClient:
                     lance_doc["metadata_json"] = json.dumps(doc["metadata"], ensure_ascii=False)
 
                 data.append(lance_doc)
+
+            # Story 2.3 Task 6: Check vector dimension mismatch before insert
+            if data and table_name in self._tables_cache:
+                sample_vector = data[0].get("vector")
+                if sample_vector is not None:
+                    self._check_and_fix_dimension_mismatch(table_name, len(sample_vector))
 
             # 检查表是否存在
             if table_name in self._tables_cache:

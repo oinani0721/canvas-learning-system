@@ -168,11 +168,23 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
         runtime, "retrieval_batch_size", 10
     )
     canvas_file = state.get("canvas_file")
+    subject = state.get("subject")
+
+    # Story 1.9: Build scoped group_id for Graphiti search isolation.
+    # When subject is set, use build_group_id to scope the search.
+    scoped_canvas = canvas_file
+    if subject:
+        try:
+            from app.core.subject_config import build_group_id
+            scoped_canvas = build_group_id(subject, canvas_file)
+        except ImportError:
+            # Running outside backend context — fall back to plain canvas_file
+            scoped_canvas = f"{subject}:{canvas_file}" if canvas_file else subject
 
     # ✅ Story 12.1: 使用真实Graphiti客户端
     try:
         client = await _get_graphiti_client()
-        graphiti_results = await client.search_nodes(query=query, canvas_file=canvas_file, num_results=batch_size)
+        graphiti_results = await client.search_nodes(query=query, canvas_file=scoped_canvas, num_results=batch_size)
     except Exception as e:
         # Fallback: 返回空结果
         logger.warning(f"[retrieve_graphiti] Fallback triggered: {e}")
@@ -615,11 +627,39 @@ def _fuse_layered_rrf(
             f"mean={mean_score:.4f}, std={std_score:.4f}, top-1 z={top1_z:.4f}"
         )
 
-    # Step 3: Global sort by normalized z-score
-    all_normalized.sort(key=lambda x: x["score"], reverse=True)
+    # Step 3: Cross-group content fingerprint dedup
+    # Story 2.2 Task 5: Same content appearing in different groups (e.g. vault_notes
+    # and lancedb) should be merged — keep the one with higher z-score.
+    global_fps: Dict[str, int] = {}  # fingerprint -> index in all_normalized
+    deduped: List[SearchResult] = []
+    dedup_count = 0
+    for result in all_normalized:
+        content = result.get("content", "")
+        metadata = result.get("metadata", {})
+        file_path = metadata.get("file_path", "")
+        fp_source = f"{file_path}:{content[:200]}"
+        fp = hashlib.md5(fp_source.encode()).hexdigest()
+
+        if fp in global_fps:
+            # Already seen — keep existing (higher z-score since list is appended per group,
+            # but we haven't sorted yet, so compare scores)
+            existing_idx = global_fps[fp]
+            if result["score"] > deduped[existing_idx]["score"]:
+                deduped[existing_idx] = result
+            dedup_count += 1
+            continue
+
+        global_fps[fp] = len(deduped)
+        deduped.append(result)
+
+    if dedup_count > 0:
+        logger.debug(f"[_fuse_layered_rrf] Cross-group dedup removed {dedup_count} duplicates")
+
+    # Step 4: Global sort by normalized z-score
+    deduped.sort(key=lambda x: x["score"], reverse=True)
 
     # Return top-30 candidates (reranker will further filter in next node)
-    return all_normalized[:30]
+    return deduped[:30]
 
 
 def _fuse_weighted_multi_source(

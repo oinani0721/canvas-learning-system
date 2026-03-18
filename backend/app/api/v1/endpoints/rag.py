@@ -42,6 +42,16 @@ class RAGQueryRequest(BaseModel):
 
     query: str = Field(..., description="查询字符串", min_length=1, max_length=2000)
     canvas_file: Optional[str] = Field(None, description="Canvas 文件路径 (用于上下文过滤)")
+    subject_id: Optional[str] = Field(
+        None,
+        description="学科 ID, 用于多学科知识图谱隔离 (Story 1.9). "
+        "当提供时, 检索范围限定在该学科内.",
+    )
+    cross_subject: bool = Field(
+        False,
+        description="是否启用跨学科检索 (Story 1.9 AC-5). "
+        "启用后通过 Tag Jaccard 桥接扩展到相似学科.",
+    )
     is_review_canvas: bool = Field(False, description="是否为检验白板场景")
     fusion_strategy: Optional[Literal["rrf", "weighted", "cascade"]] = Field(
         None, description="融合策略 (默认: rrf, 检验白板: weighted)"
@@ -52,7 +62,13 @@ class RAGQueryRequest(BaseModel):
 
     model_config = ConfigDict(
         json_schema_extra={
-            "example": {"query": "什么是逆否命题？", "canvas_file": "离散数学.canvas", "is_review_canvas": False}
+            "example": {
+                "query": "什么是逆否命题？",
+                "canvas_file": "离散数学.canvas",
+                "subject_id": "math",
+                "cross_subject": False,
+                "is_review_canvas": False,
+            }
         }
     )
 
@@ -220,12 +236,16 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    logger.info(f"RAG query: {request.query[:50]}...")
+    logger.info(
+        f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
+    )
 
     try:
         result = await rag_service.query(
             query=request.query,
             canvas_file=request.canvas_file,
+            subject_id=request.subject_id,
+            cross_subject=request.cross_subject,
             is_review_canvas=request.is_review_canvas,
             fusion_strategy=request.fusion_strategy,
             reranking_strategy=request.reranking_strategy,

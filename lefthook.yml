@@ -111,6 +111,25 @@ pre-commit:
         fi
         echo "[Python] Typecheck done (exit: $PYRIGHT_EXIT)."
 
+    # --- Obsidian Lint: Check Obsidian API compliance (DD-06) ---
+    obsidian-lint:
+      glob: "canvas-progress-tracker/obsidian-plugin/**/*.ts"
+      exclude: "canvas-progress-tracker/obsidian-plugin/node_modules/**"
+      run: |
+        PLUGIN_DIR="canvas-progress-tracker/obsidian-plugin"
+        if [ ! -d "$PLUGIN_DIR/node_modules" ]; then
+          exit 0
+        fi
+        echo "[Obsidian Lint] Checking Obsidian API compliance (DD-06)..."
+        cd "$PLUGIN_DIR" && npm run lint:obsidian 2>&1
+        LINT_EXIT=$?
+        if [ $LINT_EXIT -ne 0 ]; then
+          echo "[Obsidian Lint] VIOLATIONS FOUND! Fix Obsidian anti-patterns before committing."
+          echo "[Obsidian Lint] Auto-fix: cd $PLUGIN_DIR && npm run lint:obsidian:fix"
+          exit 1
+        fi
+        echo "[Obsidian Lint] Obsidian compliance OK."
+
     # --- TypeScript typecheck: Check plugin types ---
     ts-typecheck:
       glob: "canvas-progress-tracker/obsidian-plugin/**/*.ts"
@@ -149,6 +168,9 @@ post-commit:
             echo ""
           fi
         fi
+
+    backup-push:
+      run: git push backup HEAD --quiet 2>&1; echo '[Backup] push done'
 
 # ============================================================
 # Pre-push: Blocking checks before push

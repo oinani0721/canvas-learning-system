@@ -36,6 +36,7 @@ from app.api.v1.endpoints.profile import profile_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
 from app.api.v1.endpoints.textbook import textbook_router
@@ -319,6 +320,23 @@ router.include_router(
     prefix="/sync",
     tags=["Sync"],
     responses={503: {"description": "Neo4j connection unavailable"}, 500: {"description": "Sync processing error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Subject Management Routes (Story 1.9)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 1.9: Multi-subject knowledge graph isolation — CRUD for subjects
+# [Source: _bmad-output/implementation-artifacts/1-9-multi-subject-kg-isolation.md#Task 8]
+router.include_router(
+    subjects_router,
+    prefix="/subjects",
+    tags=["Subjects"],
+    responses={
+        404: {"description": "Subject not found"},
+        409: {"description": "Duplicate subject name"},
+        500: {"description": "Subject management error"},
+    },
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
