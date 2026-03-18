@@ -45,6 +45,7 @@ from agentic_rag.nodes import (  # noqa: E402
     check_quality,
     compress_context_node,
     fuse_results,
+    multi_query_rewrite_node,
     rerank_results,
     retrieve_graphiti,
     retrieve_lancedb,
@@ -507,6 +508,9 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     builder.add_node("rerank_results", rerank_results)
     builder.add_node("check_quality", check_quality)
 
+    # Story 2.10: Multi-query rewrite (optional, before retrieval)
+    builder.add_node("multi_query_rewrite", multi_query_rewrite_node)
+
     # Story 2.10: Context compression + mastery injection
     builder.add_node("compress_context", compress_context_node)
 
@@ -520,9 +524,10 @@ def build_canvas_agentic_rag_graph() -> StateGraph:
     # Add Edges
     # ========================================
 
-    # START → fan_out_retrieval (parallel dispatch)
+    # START → multi_query_rewrite → fan_out_retrieval (parallel dispatch)
+    builder.add_edge(START, "multi_query_rewrite")
     builder.add_conditional_edges(
-        START,
+        "multi_query_rewrite",
         fan_out_retrieval,
         # No path_map needed - Send objects specify destinations
     )

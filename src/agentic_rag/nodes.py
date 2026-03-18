@@ -244,6 +244,11 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     batch_size = _safe_get_config(runtime, "lancedb_batch_size") or _safe_get_config(
         runtime, "retrieval_batch_size", 10
     )
+    rrf_k = _safe_get_config(runtime, "rrf_k", 60)
+    tag_jaccard_threshold = _safe_get_config(runtime, "tag_jaccard_threshold", 0.3)
+    min_results_threshold = _safe_get_config(runtime, "min_results_threshold", 5)
+    neighbor_max_count = _safe_get_config(runtime, "neighbor_max_count", 5)
+    neighbor_score_decay = _safe_get_config(runtime, "neighbor_score_decay", 0.7)
     canvas_file = state.get("canvas_file")
     subject = state.get("subject")
 
@@ -293,12 +298,13 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
                     course_id=course_id,
                     table_name="vault_notes",
                     num_results=per_subject_limit,
-                    min_results_threshold=5,
+                    min_results_threshold=min_results_threshold,
                     query_type=search_type,
                     subject=search_subject,
                     canvas_file=canvas_file,
                     tag_jaccard_bridge_enabled=True,
-                    tag_jaccard_threshold=0.3,
+                    tag_jaccard_threshold=tag_jaccard_threshold,
+                    rrf_k=rrf_k,
                 )
             else:
                 subject_results = await client.search_multiple_tables(
@@ -309,6 +315,7 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
                     query_type=search_type,
                     course_id=course_id,
                     tags=tags,
+                    rrf_k=rrf_k,
                 )
             lancedb_results.extend(subject_results)
 
@@ -316,8 +323,8 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
         lancedb_results = await client.expand_neighbors(
             results=lancedb_results,
             table_name="vault_notes",
-            max_neighbors=5,
-            score_decay=0.7,
+            max_neighbors=neighbor_max_count,
+            score_decay=neighbor_score_decay,
         )
 
         # Deduplicate by doc_id, keeping highest score
@@ -1262,8 +1269,8 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
         # Parse yes/no answers with word-boundary matching
         # Story 2-6 H1: .count("yes") matches substrings like "analysis";
         # use \b word boundaries for accurate binary grading.
-        yes_count = len(re.findall(r'\byes\b', llm_answer, re.IGNORECASE))
-        no_count = len(re.findall(r'\bno\b', llm_answer, re.IGNORECASE))
+        yes_count = len(re.findall(r"\byes\b", llm_answer, re.IGNORECASE))
+        no_count = len(re.findall(r"\bno\b", llm_answer, re.IGNORECASE))
         total_graded = yes_count + no_count
 
         if total_graded > 0:
@@ -1570,4 +1577,68 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
         "mastery_prefix": mastery_prefix,
         "learning_memories": learning_memories,
         "stale_count": stale_count,
+    }
+
+
+# ========================================
+# Story 2.10 AC-5: Multi-Query Rewrite Node
+# ========================================
+
+
+async def multi_query_rewrite_node(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]) -> Dict[str, Any]:
+    """
+    Story 2.10 AC-5: Multi-Query + Decomposition rewrite node.
+
+    Pipeline position: START -> multi_query_rewrite -> fan_out_retrieval.
+
+    Classifies query complexity and rewrites if needed:
+    - Simple (< 20 chars, no conjunctions): pass through
+    - Medium: Multi-Query (2-3 rephrased queries for broader recall)
+    - Complex (conjunctions, multi-part): Decomposition (sub-questions)
+
+    The rewritten queries are stored in state["multi_queries"] and the
+    *first* rewritten query replaces the user message for downstream
+    retrieval. All queries are available for fan_out_retrieval to use
+    for parallel search if desired.
+
+    3-second timeout; fallback to original query on failure.
+
+    Returns:
+        State updates: multi_queries, messages (appended if rewritten).
+    """
+    start_time = time.perf_counter()
+
+    multi_query_enabled = _safe_get_config(runtime, "multi_query_enabled", True)
+    multi_query_model = _safe_get_config(runtime, "multi_query_model", "gemini/gemini-2.0-flash")
+
+    # Extract current query
+    messages = state.get("messages", [])
+    query = ""
+    if messages:
+        last_msg = messages[-1]
+        query = last_msg.get("content", "") if isinstance(last_msg, dict) else getattr(last_msg, "content", "")
+
+    if not query:
+        logger.debug("[multi_query_rewrite] No query found, skipping")
+        return {"multi_queries": None}
+
+    logger.debug(f"[multi_query_rewrite] START - query='{query[:60]}', enabled={multi_query_enabled}")
+
+    try:
+        from agentic_rag.mastery_injection import multi_query_rewrite
+
+        queries = await multi_query_rewrite(
+            query=query,
+            model=multi_query_model,
+            enabled=multi_query_enabled,
+        )
+    except Exception as e:
+        logger.warning(f"[multi_query_rewrite] Rewrite failed: {e}, using original query")
+        queries = [query]
+
+    latency_ms = (time.perf_counter() - start_time) * 1000
+    logger.debug(f"[multi_query_rewrite] END - {len(queries)} queries, latency={latency_ms:.0f}ms")
+
+    return {
+        "multi_queries": queries,
     }

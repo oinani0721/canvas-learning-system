@@ -1597,6 +1597,7 @@ class LanceDBClient:
         tag_jaccard_bridge_enabled: bool = False,
         tag_jaccard_threshold: float = 0.3,
         category: Optional[str] = None,
+        rrf_k: int = 60,
     ) -> List[Dict[str, Any]]:
         """
         Story 2.8 AC-3: Progressive 4-stage cascading scope search.
@@ -1623,6 +1624,7 @@ class LanceDBClient:
             tag_jaccard_bridge_enabled: Whether to use Tag Jaccard for stage 2.
             tag_jaccard_threshold: Jaccard similarity threshold for related courses.
             category: Optional category for stage 3 filtering.
+            rrf_k: RRF fusion k parameter (Story 2.11 configurable, default 60).
 
         Returns:
             List of search results with scope_level in metadata.
@@ -1652,6 +1654,7 @@ class LanceDBClient:
             course_id=course_id,
             subject=subject,
             canvas_file=canvas_file,
+            rrf_k=rrf_k,
         )
         _tag_and_collect(stage1, scope=1)
 
@@ -1678,6 +1681,7 @@ class LanceDBClient:
                     course_id=related_course,
                     subject=subject,
                     canvas_file=canvas_file,
+                    rrf_k=rrf_k,
                 )
                 _tag_and_collect(stage2, scope=2)
 
@@ -1698,6 +1702,7 @@ class LanceDBClient:
                 num_results=num_results,
                 query_type=query_type,
                 subject=subject,
+                rrf_k=rrf_k,
             )
             _tag_and_collect(stage3, scope=3)
 
@@ -1715,6 +1720,7 @@ class LanceDBClient:
             query_type=query_type,
             subject=subject,
             canvas_file=canvas_file,
+            rrf_k=rrf_k,
         )
         _tag_and_collect(stage4, scope=4)
 
@@ -1731,6 +1737,7 @@ class LanceDBClient:
         num_results: int = 10,
         query_type: str = "hybrid",
         subject: Optional[str] = None,
+        rrf_k: int = 60,
     ) -> List[Dict[str, Any]]:
         """
         Story 2.8 AC-3 Stage 3: Search by category column.
@@ -1744,6 +1751,7 @@ class LanceDBClient:
             num_results: Number of results to return.
             query_type: Search type.
             subject: Optional subject filter.
+            rrf_k: RRF fusion k parameter (Story 2.11 configurable, default 60).
 
         Returns:
             List of search results filtered by category.
@@ -1789,7 +1797,7 @@ class LanceDBClient:
                 pass
 
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(vector_results, fts_results, num_results)
+                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
                 return self._convert_to_search_results(all_raw)
 
         # Fallback to vector search
@@ -2020,6 +2028,7 @@ class LanceDBClient:
         query_type: str = "hybrid",
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        rrf_k: int = 60,
     ) -> List[Dict[str, Any]]:
         """
         向量搜索
@@ -2047,6 +2056,7 @@ class LanceDBClient:
             query_type: 搜索类型 ("vector" 或 "hybrid"). hybrid使用向量+FTS+RRF融合
             course_id: 课程ID (maps to 'course' column, 用于按课程过滤搜索范围)
             tags: 标签列表 (maps to 'tags_str' column, 用于按标签过滤, OR 匹配)
+            rrf_k: RRF fusion k parameter (Story 2.11 configurable, default 60)
 
         Returns:
             List[SearchResult]: 标准化的搜索结果
@@ -2072,6 +2082,7 @@ class LanceDBClient:
                     query_type=query_type,
                     course_id=course_id,
                     tags=tags,
+                    rrf_k=rrf_k,
                 ),
                 timeout=timeout_seconds,
             )
@@ -2178,6 +2189,7 @@ class LanceDBClient:
         query_type: str = "hybrid",
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        rrf_k: int = 60,
     ) -> List[Dict[str, Any]]:
         """内部搜索实现 (Story 2.4: hybrid default + jieba FTS + course/tags filter)"""
         if self._db is None:
@@ -2246,7 +2258,7 @@ class LanceDBClient:
             # When only one branch has results, RRF still works correctly
             # (single-source ranking = original rank order)
             if vector_results or fts_results:
-                all_raw = self._rrf_fuse(vector_results, fts_results, num_results)
+                all_raw = self._rrf_fuse(vector_results, fts_results, num_results, k=rrf_k)
                 return self._convert_to_search_results(all_raw, canvas_file=canvas_file)
 
             # Both hybrid branches returned nothing — degrade to pure vector
@@ -2576,6 +2588,7 @@ class LanceDBClient:
         query_type: str = "hybrid",
         course_id: Optional[str] = None,
         tags: Optional[List[str]] = None,
+        rrf_k: int = 60,
     ) -> List[Dict[str, Any]]:
         """
         搜索多个表并合并结果
@@ -2591,6 +2604,7 @@ class LanceDBClient:
             query_type: 搜索类型 ("vector" 或 "hybrid")
             course_id: 课程ID (按课程过滤)
             tags: 标签列表 (按标签过滤, OR 匹配)
+            rrf_k: RRF fusion k parameter (Story 2.11 configurable, default 60)
 
         Returns:
             合并后的搜索结果 (按分数排序)
@@ -2611,6 +2625,7 @@ class LanceDBClient:
                     query_type=query_type,
                     course_id=course_id,
                     tags=tags,
+                    rrf_k=rrf_k,
                 )
                 all_results.extend(results)
             except Exception as e:

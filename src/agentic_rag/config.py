@@ -230,12 +230,14 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
     _cfg_logger = logging.getLogger(__name__)
     validated = dict(config)
 
+    # --- Numeric range rules ---
     _VALIDATION_RULES: Dict[str, dict] = {
         "rrf_k": {"type": int, "min": 1},
         "max_rewrite_iterations": {"type": int, "min": 0, "max": 5},
         "quality_threshold": {"type": (int, float), "min": 0.0, "max": 1.0},
         "adaptive_k_min": {"type": int, "min": 1},
         "adaptive_k_max": {"type": int, "min": 1},
+        "adaptive_k_buffer": {"type": int, "min": 0},
         "context_max_tokens": {"type": int, "min": 100},
         "neighbor_score_decay": {"type": (int, float), "min": 0.0, "max": 1.0},
         "tag_jaccard_threshold": {"type": (int, float), "min": 0.0, "max": 1.0},
@@ -244,6 +246,8 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
         "neighbor_max_count": {"type": int, "min": 1},
         "learning_memory_max_tokens": {"type": int, "min": 100},
         "retrieval_batch_size": {"type": int, "min": 1},
+        "time_decay_factor": {"type": (int, float), "min": 0.0, "max": 1.0},
+        "cohere_monthly_limit": {"type": int, "min": 0},
     }
 
     for param, rules in _VALIDATION_RULES.items():
@@ -259,6 +263,59 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
             valid = False
 
         if not valid:
+            default_val = DEFAULT_CONFIG.get(param)
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            validated[param] = default_val
+
+    # --- Enum rules ---
+    _ENUM_RULES: Dict[str, set] = {
+        "fusion_strategy": {"rrf", "weighted", "cascade", "layered_rrf"},
+        "reranking_strategy": {"local", "cohere", "hybrid_auto"},
+        "search_type": {"vector", "hybrid"},
+    }
+    for param, allowed in _ENUM_RULES.items():
+        if param not in validated:
+            continue
+        value = validated[param]
+        if not isinstance(value, str) or value not in allowed:
+            default_val = DEFAULT_CONFIG.get(param)
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            validated[param] = default_val
+
+    # --- Boolean rules ---
+    _BOOL_FIELDS = [
+        "mastery_injection_enabled",
+        "staleness_check_enabled",
+        "multi_query_enabled",
+        "progressive_scope_enabled",
+        "neighbor_expansion_enabled",
+        "tag_jaccard_bridge_enabled",
+        "enable_cost_monitoring",
+        "enable_caching",
+    ]
+    for param in _BOOL_FIELDS:
+        if param not in validated:
+            continue
+        value = validated[param]
+        if not isinstance(value, bool):
+            default_val = DEFAULT_CONFIG.get(param)
+            _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
+            validated[param] = default_val
+
+    # --- String rules (model names must be non-empty strings) ---
+    _STRING_FIELDS = [
+        "reranker_model_name",
+        "reranker_torch_dtype",
+        "quality_check_model",
+        "rewrite_model",
+        "multi_query_model",
+        "ocr_model",
+    ]
+    for param in _STRING_FIELDS:
+        if param not in validated:
+            continue
+        value = validated[param]
+        if not isinstance(value, str) or not value.strip():
             default_val = DEFAULT_CONFIG.get(param)
             _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val

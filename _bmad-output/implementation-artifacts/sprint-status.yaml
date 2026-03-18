@@ -64,16 +64,16 @@ development_status:
   2-1-dead-code-cleanup-config-fix: done
   2-2-search-channel-repair-activation: done
   2-3-bge-m3-migration-chunking-upgrade: done
-  2-4-chinese-search-hybrid-retrieval: ready-for-dev
-  2-5-reranker-fusion-upgrade: ready-for-dev
-  2-6-crag-quality-gate-safe-degradation: ready-for-dev
-  2-7-file-fingerprint-incremental-index: ready-for-dev
-  2-8-metadata-filter-neighbor-expansion: ready-for-dev
-  2-9-image-retrieval-pipeline: ready-for-dev
+  2-4-chinese-search-hybrid-retrieval: done
+  2-5-reranker-fusion-upgrade: done
+  2-6-crag-quality-gate-safe-degradation: done
+  2-7-file-fingerprint-incremental-index: done
+  2-8-metadata-filter-neighbor-expansion: done
+  2-9-image-retrieval-pipeline: done
   2-10-context-compression-mastery-injection: ready-for-dev
   2-11-search-pipeline-configurable: ready-for-dev
   2-12-full-rebuild-acceptance-test: ready-for-dev
-  2-13-prompt-version-regression-test: ready-for-dev
+  2-13-prompt-version-regression-test: done
   epic-2-retrospective: optional
 
   # ══════════════════════════════════════════════════════
