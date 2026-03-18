@@ -198,13 +198,14 @@ async def create_exam_node(
     exam_node_id = str(uuid.uuid4())
 
     try:
+        from app.config import settings
         from app.services.canvas_service import CanvasService
 
-        canvas_svc = CanvasService()
+        canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
 
         # Get source node position for auto-placement
         if position_x is None or position_y is None:
-            source_node = await canvas_svc.get_node(source_node_id)
+            _, source_node = await canvas_svc.find_node_across_canvases(source_node_id)
             if source_node:
                 # Place the exam node below and to the right of the source
                 position_x = source_node.get("x", 0) + 300
@@ -213,9 +214,9 @@ async def create_exam_node(
                 position_x = position_x or 0
                 position_y = position_y or 0
 
-        # Create the exam node
-        await canvas_svc.create_node(
-            canvas_id=canvas_id,
+        # Create the exam node via CanvasService.add_node
+        await canvas_svc.add_node(
+            canvas_name=canvas_id,
             node_data={
                 "id": exam_node_id,
                 "type": "text",
@@ -228,10 +229,10 @@ async def create_exam_node(
             },
         )
 
-        # Create edge from source to exam node
+        # Create edge from source to exam node via CanvasService.add_edge
         edge_id = str(uuid.uuid4())
-        await canvas_svc.create_edge(
-            canvas_id=canvas_id,
+        await canvas_svc.add_edge(
+            canvas_name=canvas_id,
             edge_data={
                 "id": edge_id,
                 "fromNode": source_node_id,

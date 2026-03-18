@@ -1,0 +1,206 @@
+/**
+ * ChatPanel — AI conversation panel with streaming and persistent history.
+ * Story 3-3: Chat Panel UI + Streaming
+ *
+ * Features:
+ * - Per-node conversation history persisted in Dexie (AC-4)
+ * - Real-time streaming with typewriter effect via ClaudeEngine (AC-2)
+ * - Markdown rendering for AI responses via react-markdown (AC-3)
+ * - Auto-scroll to latest message
+ * - Lazy loading: initial 50 messages, IntersectionObserver for older (AC-4)
+ * - 2s first-token timeout with "Thinking..." indicator (AC-6)
+ * - Input bar with Enter/Shift+Enter/Escape shortcuts (AC-5)
+ * - Text selection toolbar for Add Tip / Pull to Node
+ *
+ * Callers:
+ * - App.tsx renders this in the right sidebar when a node is selected
+ *
+ * Wiring:
+ * - useChatStore (Zustand) — all message state + streaming actions
+ * - MessageBubble — individual message rendering
+ * - InputBar — text input with keyboard shortcuts
+ * - StreamingIndicator — animated streaming feedback
+ * - SelectionToolbar — text selection actions
+ * - TipsList — displays saved tips for the node
+ */
+
+import { useEffect, useRef, useCallback } from 'react';
+import type { Node } from '@xyflow/react';
+import { useChatStore } from '../stores/chat-store';
+import { MessageBubble } from './chat/MessageBubble';
+import { InputBar } from './chat/InputBar';
+import { StreamingIndicator } from './chat/StreamingIndicator';
+import { SelectionToolbar } from './chat/SelectionToolbar';
+import { TipsList } from './chat/TipsList';
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface ChatPanelProps {
+  selectedNode: Node;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Component
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export function ChatPanel({ selectedNode }: ChatPanelProps) {
+  const nodeId = selectedNode.id;
+  const nodeTitle =
+    ((selectedNode.data as Record<string, unknown>).title as string) || 'Untitled';
+
+  // ── Store bindings ────────────────────────────────────────────────────
+
+  const messages = useChatStore((s) => s.messages);
+  const isStreaming = useChatStore((s) => s.isStreaming);
+  const engineUnavailable = useChatStore((s) => s.engineUnavailable);
+  const waitingForFirstToken = useChatStore((s) => s.waitingForFirstToken);
+  const hasMore = useChatStore((s) => s.hasMore);
+  const switchNode = useChatStore((s) => s.switchNode);
+  const loadMore = useChatStore((s) => s.loadMore);
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const clearHistory = useChatStore((s) => s.clearHistory);
+
+  // ── Refs ──────────────────────────────────────────────────────────────
+
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  // ── Switch node on selection change ───────────────────────────────────
+
+  useEffect(() => {
+    switchNode(nodeId);
+  }, [nodeId, switchNode]);
+
+  // ── Auto-scroll to bottom on new messages ─────────────────────────────
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  // ── Lazy loading: IntersectionObserver on top sentinel ────────────────
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    const container = scrollContainerRef.current;
+    if (!sentinel || !container || !hasMore) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+          // Save scroll position before loading
+          const prevScrollHeight = container.scrollHeight;
+          loadMore().then(() => {
+            // Restore scroll position after prepending older messages
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - prevScrollHeight;
+          });
+        }
+      },
+      { root: container, threshold: 0.1 },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadMore]);
+
+  // ── Send handler ──────────────────────────────────────────────────────
+
+  const handleSend = useCallback(
+    (text: string) => {
+      sendMessage(text, nodeTitle);
+    },
+    [sendMessage, nodeTitle],
+  );
+
+  // ── Clear handler ─────────────────────────────────────────────────────
+
+  const handleClear = useCallback(() => {
+    clearHistory();
+  }, [clearHistory]);
+
+  // ── Render ────────────────────────────────────────────────────────────
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 shrink-0">
+        <h3 className="text-sm font-medium text-gray-700 truncate">
+          Chat: {nodeTitle}
+        </h3>
+        {messages.length > 0 && (
+          <button
+            onClick={handleClear}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            title="Clear chat history"
+          >
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Engine unavailable banner */}
+      {engineUnavailable && (
+        <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 shrink-0">
+          <p className="text-xs text-amber-700">
+            Claude Code not available. Run via Tauri desktop app to enable AI chat.
+          </p>
+        </div>
+      )}
+
+      {/* Messages list */}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-3 py-3 space-y-3"
+      >
+        {/* Lazy loading sentinel — triggers loadMore when visible */}
+        {hasMore && (
+          <div ref={sentinelRef} className="flex justify-center py-2">
+            <span className="text-xs text-gray-300">Loading older messages...</span>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {messages.length === 0 && !hasMore && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-sm text-gray-400 text-center">
+              Ask anything about &quot;{nodeTitle}&quot;
+            </p>
+          </div>
+        )}
+
+        {/* Message bubbles */}
+        {messages.map((msg) => (
+          <MessageBubble key={msg.id} message={msg} />
+        ))}
+
+        {/* Streaming indicator */}
+        {isStreaming && (
+          <StreamingIndicator waitingForFirstToken={waitingForFirstToken} />
+        )}
+
+        {/* Scroll anchor */}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Tips section (collapsible, below messages) */}
+      <div className="shrink-0 border-t border-gray-100 px-3 py-2 max-h-40 overflow-y-auto">
+        <TipsList nodeId={nodeId} />
+      </div>
+
+      {/* Input bar */}
+      <InputBar
+        isStreaming={isStreaming}
+        engineUnavailable={engineUnavailable}
+        nodeTitle={nodeTitle}
+        onSend={handleSend}
+      />
+
+      {/* Text selection toolbar (floating, appears on text select) */}
+      <SelectionToolbar nodeId={nodeId} />
+    </div>
+  );
+}

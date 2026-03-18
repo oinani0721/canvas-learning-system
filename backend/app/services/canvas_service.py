@@ -13,6 +13,7 @@ Story 30.5: Canvas CRUD Operations Memory Trigger
 [Source: docs/architecture/EPIC-11-BACKEND-ARCHITECTURE.md#Layer-2-服务层]
 [Source: docs/stories/30.5.story.md]
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -64,7 +65,7 @@ class CanvasService:
         self,
         canvas_base_path: str = None,
         memory_client: Optional[MemoryService] = None,
-        session_id: Optional[str] = None
+        session_id: Optional[str] = None,
     ):
         """
         Initialize CanvasService.
@@ -119,7 +120,7 @@ class CanvasService:
         canvas_name: str,
         node_id: Optional[str] = None,
         edge_id: Optional[str] = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """
         Write Canvas event to JSON fallback file.
@@ -142,7 +143,7 @@ class CanvasService:
                 "edge_id": edge_id,
                 "timestamp": datetime.now().isoformat(),
                 "session_id": self._session_id,
-                **kwargs
+                **kwargs,
             }
 
             # Read existing events or create new list
@@ -159,15 +160,12 @@ class CanvasService:
 
             # [Review M2] Truncate oldest events when exceeding max limit
             if len(events) > self._max_fallback_events:
-                events = events[-self._max_fallback_events:]
+                events = events[-self._max_fallback_events :]
 
             # Ensure parent directory exists
             self._fallback_file_path.parent.mkdir(parents=True, exist_ok=True)
 
-            self._fallback_file_path.write_text(
-                json.dumps(events, ensure_ascii=False, indent=2),
-                encoding="utf-8"
-            )
+            self._fallback_file_path.write_text(json.dumps(events, ensure_ascii=False, indent=2), encoding="utf-8")
             self._fallback_count += 1
 
         except Exception as e:
@@ -185,11 +183,11 @@ class CanvasService:
             ValidationError: If canvas name contains dangerous path traversal patterns
         """
         # Block absolute paths
-        if canvas_name.startswith('/'):
+        if canvas_name.startswith("/"):
             raise ValidationError(f"Absolute path not allowed: {canvas_name}")
 
         # Block dangerous patterns
-        dangerous_patterns = ['..', '\\', '\0', '//', '/./']
+        dangerous_patterns = ["..", "\\", "\0", "//", "/./"]
         for pattern in dangerous_patterns:
             if pattern in canvas_name:
                 raise ValidationError(f"Invalid canvas path: {canvas_name}")
@@ -208,7 +206,7 @@ class CanvasService:
         #   - "Canvas/Math53/Lecture5" (standard format)
         #   - "Canvas/Math53/Lecture5.canvas" (with .canvas extension)
         #   - "KP13-线性逼近与微分.md" (incorrect .md extension from Obsidian)
-        normalized_name = canvas_name.removesuffix('.canvas').removesuffix('.md')
+        normalized_name = canvas_name.removesuffix(".canvas").removesuffix(".md")
         logger.debug(f"Canvas path normalized: '{canvas_name}' -> '{normalized_name}'")
         return Path(self.canvas_base_path) / f"{normalized_name}.canvas"
 
@@ -240,7 +238,7 @@ class CanvasService:
         node_id: Optional[str] = None,
         edge_id: Optional[str] = None,
         node_data: Optional[Dict[str, Any]] = None,
-        edge_data: Optional[Dict[str, Any]] = None
+        edge_data: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Trigger memory event asynchronously (fire-and-forget).
@@ -263,9 +261,7 @@ class CanvasService:
         if self._memory_client is None:
             # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
-                self._write_canvas_event_fallback(
-                    event_type.value, canvas_name, node_id=node_id, edge_id=edge_id
-                )
+                self._write_canvas_event_fallback(event_type.value, canvas_name, node_id=node_id, edge_id=edge_id)
                 logger.warning("Memory client unavailable, writing to JSON fallback")
             else:
                 logger.warning("Memory client unavailable, skipping event trigger")
@@ -274,32 +270,19 @@ class CanvasService:
         try:
             # Build context for metadata extraction
             context = CanvasEventContext(
-                canvas_name=canvas_name,
-                node_id=node_id,
-                edge_id=edge_id,
-                node_data=node_data,
-                edge_data=edge_data
+                canvas_name=canvas_name, node_id=node_id, edge_id=edge_id, node_data=node_data, edge_data=edge_data
             )
 
             # [Review H1] Fire-and-forget with timeout + fallback on timeout/error
-            asyncio.create_task(
-                self._safe_write_memory_event(event_type, context)
-            )
+            asyncio.create_task(self._safe_write_memory_event(event_type, context))
             logger.debug(f"Triggered memory event: {event_type.value} for {canvas_name}")
 
         except Exception as e:
             # Task 4: Silent degradation - log but don't raise
-            logger.error(
-                f"Memory event trigger failed: {event_type.value} "
-                f"for {canvas_name}: {e}"
-            )
+            logger.error(f"Memory event trigger failed: {event_type.value} for {canvas_name}: {e}")
             # Don't re-raise - CRUD operation should succeed
 
-    async def _safe_write_memory_event(
-        self,
-        event_type: CanvasEventType,
-        context: CanvasEventContext
-    ) -> None:
+    async def _safe_write_memory_event(self, event_type: CanvasEventType, context: CanvasEventContext) -> None:
         """
         [Review H1] Wrapper that catches TimeoutError at the wait_for level.
 
@@ -310,30 +293,19 @@ class CanvasService:
         try:
             await asyncio.wait_for(
                 self._write_memory_event(event_type, context),
-                timeout=0.5  # 500ms timeout per ADR-0003
+                timeout=0.5,  # 500ms timeout per ADR-0003
             )
         except asyncio.TimeoutError:
-            logger.warning(
-                f"Memory write timed out for {event_type.value}: {context.canvas_name}"
-            )
+            logger.warning(f"Memory write timed out for {event_type.value}: {context.canvas_name}")
             self._try_fallback_write(event_type, context)
         except asyncio.CancelledError:
-            logger.warning(
-                f"Memory write cancelled for {event_type.value}: {context.canvas_name}"
-            )
+            logger.warning(f"Memory write cancelled for {event_type.value}: {context.canvas_name}")
             self._try_fallback_write(event_type, context)
         except Exception as e:
-            logger.warning(
-                f"Memory write failed for {event_type.value}: "
-                f"{context.canvas_name}: {e}"
-            )
+            logger.warning(f"Memory write failed for {event_type.value}: {context.canvas_name}: {e}")
             self._try_fallback_write(event_type, context)
 
-    async def _write_memory_event(
-        self,
-        event_type: CanvasEventType,
-        context: CanvasEventContext
-    ) -> None:
+    async def _write_memory_event(self, event_type: CanvasEventType, context: CanvasEventContext) -> None:
         """
         Write memory event to MemoryService (called by fire-and-forget task).
 
@@ -359,39 +331,27 @@ class CanvasService:
                 canvas_path=canvas_path,
                 node_id=context.node_id,
                 edge_id=context.edge_id,
-                metadata=metadata
+                metadata=metadata,
             )
 
         except asyncio.TimeoutError:
-            logger.warning(
-                f"Memory write timed out for {event_type.value}: {context.canvas_name}"
-            )
+            logger.warning(f"Memory write timed out for {event_type.value}: {context.canvas_name}")
             # Story 38.5 AC-2: Fallback on timeout
             self._try_fallback_write(event_type, context)
         except Exception as e:
             # Story 38.5 AC-2: Fallback on error (upgraded from silent degradation)
-            logger.warning(
-                f"Memory write failed for {event_type.value}: "
-                f"{context.canvas_name}: {e}"
-            )
+            logger.warning(f"Memory write failed for {event_type.value}: {context.canvas_name}: {e}")
             self._try_fallback_write(event_type, context)
 
-    def _try_fallback_write(
-        self, event_type: "CanvasEventType", context: "CanvasEventContext"
-    ) -> None:
+    def _try_fallback_write(self, event_type: "CanvasEventType", context: "CanvasEventContext") -> None:
         """Story 38.5 AC-2: Try writing to JSON fallback after Neo4j failure."""
         if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
             self._write_canvas_event_fallback(
-                event_type.value, context.canvas_name,
-                node_id=context.node_id, edge_id=context.edge_id
+                event_type.value, context.canvas_name, node_id=context.node_id, edge_id=context.edge_id
             )
-            logger.warning(
-                f"Event {event_type.value} written to JSON fallback for {context.canvas_name}"
-            )
+            logger.warning(f"Event {event_type.value} written to JSON fallback for {context.canvas_name}")
 
-    def _trigger_lancedb_index(
-        self, canvas_name: str, node_id: str | None = None
-    ) -> None:
+    def _trigger_lancedb_index(self, canvas_name: str, node_id: str | None = None) -> None:
         """
         Story 38.1 AC-1: Trigger LanceDB index update (fire-and-forget with debounce).
 
@@ -407,21 +367,12 @@ class CanvasService:
 
             svc = get_lancedb_index_service()
             if svc is not None:
-                svc.schedule_index(
-                    canvas_name, self.canvas_base_path, trigger_node_id=node_id
-                )
+                svc.schedule_index(canvas_name, self.canvas_base_path, trigger_node_id=node_id)
         except Exception as e:
-            logger.warning(
-                f"[Story 38.1] Failed to schedule LanceDB index for {canvas_name}: {e}"
-            )
+            logger.warning(f"[Story 38.1] Failed to schedule LanceDB index for {canvas_name}: {e}")
 
     async def _sync_edge_to_neo4j(
-        self,
-        canvas_path: str,
-        edge_id: str,
-        from_node_id: str,
-        to_node_id: str,
-        edge_label: Optional[str] = None
+        self, canvas_path: str, edge_id: str, from_node_id: str, to_node_id: str, edge_label: Optional[str] = None
     ) -> Optional[bool]:
         """
         Sync edge to Neo4j with retry mechanism (fire-and-forget).
@@ -449,8 +400,7 @@ class CanvasService:
             # Story 38.5 AC-1/AC-4: Upgrade to WARNING + JSON fallback
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 self._write_canvas_event_fallback(
-                    "edge_sync", canvas_path, edge_id=edge_id,
-                    from_node_id=from_node_id, to_node_id=to_node_id
+                    "edge_sync", canvas_path, edge_id=edge_id, from_node_id=from_node_id, to_node_id=to_node_id
                 )
                 logger.warning("Memory client unavailable, writing edge to JSON fallback")
             else:
@@ -463,8 +413,7 @@ class CanvasService:
             # Story 38.5 AC-2/AC-4: Upgrade to WARNING + JSON fallback
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
                 self._write_canvas_event_fallback(
-                    "edge_sync", canvas_path, edge_id=edge_id,
-                    from_node_id=from_node_id, to_node_id=to_node_id
+                    "edge_sync", canvas_path, edge_id=edge_id, from_node_id=from_node_id, to_node_id=to_node_id
                 )
                 logger.warning("Neo4j unreachable, event written to JSON fallback")
             else:
@@ -476,7 +425,7 @@ class CanvasService:
             stop=stop_after_attempt(3),
             wait=wait_exponential(multiplier=1, min=1, max=4),
             retry=retry_if_exception_type(Exception),
-            reraise=True  # We catch RetryError at outer level
+            reraise=True,  # We catch RetryError at outer level
         )
         async def _do_sync() -> bool:
             result = await neo4j.create_edge_relationship(
@@ -484,7 +433,7 @@ class CanvasService:
                 edge_id=edge_id,
                 from_node_id=from_node_id,
                 to_node_id=to_node_id,
-                edge_label=edge_label
+                edge_label=edge_label,
             )
             if not result:
                 raise Exception("Neo4j returned False")
@@ -492,10 +441,7 @@ class CanvasService:
 
         try:
             result = await _do_sync()
-            logger.debug(
-                f"Edge synced to Neo4j: {edge_id} "
-                f"({from_node_id} -> {to_node_id})"
-            )
+            logger.debug(f"Edge synced to Neo4j: {edge_id} ({from_node_id} -> {to_node_id})")
             return result
         except Exception as e:
             # AC-4: Silent degradation after all retries exhausted
@@ -517,10 +463,7 @@ class CanvasService:
             )
             return None  # Fire-and-forget: don't raise
 
-    async def sync_all_edges_to_neo4j(
-        self,
-        canvas_name: str
-    ) -> Dict[str, Any]:
+    async def sync_all_edges_to_neo4j(self, canvas_name: str) -> Dict[str, Any]:
         """
         Sync all Canvas edges to Neo4j (idempotent operation).
 
@@ -564,7 +507,7 @@ class CanvasService:
                 "synced_count": 0,
                 "failed_count": 0,
                 "skipped_count": 0,
-                "sync_time_ms": 0.0
+                "sync_time_ms": 0.0,
             }
 
         # ADR-0004: Semaphore limits concurrent Neo4j connections
@@ -579,26 +522,18 @@ class CanvasService:
                         edge_id=edge["id"],
                         from_node_id=edge["fromNode"],
                         to_node_id=edge["toNode"],
-                        edge_label=edge.get("label")
+                        edge_label=edge.get("label"),
                     )
                 except Exception as e:
-                    logger.warning(
-                        f"Edge sync failed in batch: {edge.get('id')}, error: {e}"
-                    )
+                    logger.warning(f"Edge sync failed in batch: {edge.get('id')}, error: {e}")
                     return None
 
         # ADR-009: return_exceptions=True for partial failure handling
-        results = await asyncio.gather(
-            *[sync_single_edge(edge) for edge in edges],
-            return_exceptions=True
-        )
+        results = await asyncio.gather(*[sync_single_edge(edge) for edge in edges], return_exceptions=True)
 
         # Calculate statistics
         synced_count = sum(1 for r in results if r is True)
-        failed_count = sum(
-            1 for r in results
-            if r is None or isinstance(r, Exception)
-        )
+        failed_count = sum(1 for r in results if r is None or isinstance(r, Exception))
         skipped_count = sum(1 for r in results if r is False)
 
         elapsed_ms = (time.time() - start_time) * 1000
@@ -616,7 +551,7 @@ class CanvasService:
             "synced_count": synced_count,
             "failed_count": failed_count,
             "skipped_count": skipped_count,
-            "sync_time_ms": elapsed_ms
+            "sync_time_ms": elapsed_ms,
         }
 
     async def read_canvas(self, canvas_name: str) -> Dict[str, Any]:
@@ -641,11 +576,11 @@ class CanvasService:
         def _read_file() -> Dict[str, Any]:
             if not canvas_path.exists():
                 raise CanvasNotFoundException(f"Canvas not found: {canvas_name}")
-            with open(canvas_path, 'r', encoding='utf-8') as f:
+            with open(canvas_path, "r", encoding="utf-8") as f:
                 return json.load(f)
 
         data = await asyncio.to_thread(_read_file)
-        data['name'] = canvas_name
+        data["name"] = canvas_name
         return data
 
     async def write_canvas(self, canvas_name: str, canvas_data: Dict[str, Any]) -> bool:
@@ -677,7 +612,7 @@ class CanvasService:
 
             def _write_file() -> bool:
                 canvas_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(canvas_path, 'w', encoding='utf-8') as f:
+                with open(canvas_path, "w", encoding="utf-8") as f:
                     json.dump(canvas_data, f, indent=2, ensure_ascii=False)
                 return True
 
@@ -720,11 +655,7 @@ class CanvasService:
 
         return await asyncio.to_thread(_list_files)
 
-    async def add_node(
-        self,
-        canvas_name: str,
-        node_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def add_node(self, canvas_name: str, node_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Add a node to a Canvas.
 
@@ -755,10 +686,7 @@ class CanvasService:
 
         # Story 30.5 AC-30.5.1: Trigger node_created memory event (fire-and-forget)
         await self._trigger_memory_event(
-            event_type=CanvasEventType.NODE_CREATED,
-            canvas_name=canvas_name,
-            node_id=new_node["id"],
-            node_data=new_node
+            event_type=CanvasEventType.NODE_CREATED, canvas_name=canvas_name, node_id=new_node["id"], node_data=new_node
         )
 
         # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
@@ -766,12 +694,7 @@ class CanvasService:
 
         return new_node
 
-    async def update_node(
-        self,
-        canvas_name: str,
-        node_id: str,
-        node_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def update_node(self, canvas_name: str, node_id: str, node_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Update a node in a Canvas.
 
@@ -806,7 +729,7 @@ class CanvasService:
                     event_type=CanvasEventType.NODE_UPDATED,
                     canvas_name=canvas_name,
                     node_id=node_id,
-                    node_data=updated_node
+                    node_data=updated_node,
                 )
 
                 # Story 38.1 AC-1: Trigger LanceDB auto-index (fire-and-forget, debounced)
@@ -842,8 +765,7 @@ class CanvasService:
 
         # Also remove related edges
         canvas_data["edges"] = [
-            e for e in canvas_data.get("edges", [])
-            if e.get("fromNode") != node_id and e.get("toNode") != node_id
+            e for e in canvas_data.get("edges", []) if e.get("fromNode") != node_id and e.get("toNode") != node_id
         ]
 
         await self.write_canvas(canvas_name, canvas_data)
@@ -853,11 +775,7 @@ class CanvasService:
 
         return True
 
-    async def get_nodes_by_color(
-        self,
-        canvas_name: str,
-        color: str
-    ) -> List[Dict[str, Any]]:
+    async def get_nodes_by_color(self, canvas_name: str, color: str) -> List[Dict[str, Any]]:
         """
         Get all nodes with a specific color.
 
@@ -869,16 +787,9 @@ class CanvasService:
             List of matching nodes
         """
         canvas_data = await self.read_canvas(canvas_name)
-        return [
-            node for node in canvas_data.get("nodes", [])
-            if node.get("color") == color
-        ]
+        return [node for node in canvas_data.get("nodes", []) if node.get("color") == color]
 
-    async def add_edge(
-        self,
-        canvas_name: str,
-        edge_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    async def add_edge(self, canvas_name: str, edge_data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Add an edge between two nodes.
 
@@ -907,10 +818,7 @@ class CanvasService:
 
         # Story 30.5 AC-30.5.2: Trigger edge_created memory event (fire-and-forget)
         await self._trigger_memory_event(
-            event_type=CanvasEventType.EDGE_CREATED,
-            canvas_name=canvas_name,
-            edge_id=new_edge["id"],
-            edge_data=new_edge
+            event_type=CanvasEventType.EDGE_CREATED, canvas_name=canvas_name, edge_id=new_edge["id"], edge_data=new_edge
         )
 
         # Story 36.3: Fire-and-forget Neo4j edge sync
@@ -923,7 +831,7 @@ class CanvasService:
                     edge_id=new_edge["id"],
                     from_node_id=new_edge["fromNode"],
                     to_node_id=new_edge["toNode"],
-                    edge_label=new_edge.get("label")
+                    edge_label=new_edge.get("label"),
                 )
             )
             logger.debug(f"Scheduled edge sync to Neo4j: {new_edge['id']}")
@@ -952,10 +860,7 @@ class CanvasService:
         canvas_data = await self.read_canvas(canvas_name)
 
         original_count = len(canvas_data.get("edges", []))
-        canvas_data["edges"] = [
-            e for e in canvas_data.get("edges", [])
-            if e.get("id") != edge_id
-        ]
+        canvas_data["edges"] = [e for e in canvas_data.get("edges", []) if e.get("id") != edge_id]
 
         if len(canvas_data.get("edges", [])) == original_count:
             return False
@@ -965,9 +870,7 @@ class CanvasService:
         # Story 36.3 P0 Fix: Fire-and-forget Neo4j edge deletion sync
         # Symmetric with add_edge() which syncs creation via _sync_edge_to_neo4j()
         try:
-            asyncio.create_task(
-                self._delete_edge_from_neo4j(edge_id)
-            )
+            asyncio.create_task(self._delete_edge_from_neo4j(edge_id))
             logger.debug(f"Scheduled edge deletion sync to Neo4j: {edge_id}")
         except Exception as e:
             logger.warning(f"Failed to schedule edge deletion sync to Neo4j: {e}")
@@ -989,9 +892,7 @@ class CanvasService:
         """
         if self._memory_client is None:
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
-                self._write_canvas_event_fallback(
-                    "edge_delete", "", edge_id=edge_id
-                )
+                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
                 logger.warning("Memory client unavailable, writing edge deletion to JSON fallback")
             else:
                 logger.warning("Memory client not configured, skipping edge deletion sync")
@@ -1000,9 +901,7 @@ class CanvasService:
         neo4j = self._memory_client.neo4j
         if neo4j is None:
             if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
-                self._write_canvas_event_fallback(
-                    "edge_delete", "", edge_id=edge_id
-                )
+                self._write_canvas_event_fallback("edge_delete", "", edge_id=edge_id)
                 logger.warning("Neo4j unreachable, edge deletion written to JSON fallback")
             else:
                 logger.warning("Neo4j client not available, skipping edge deletion sync")
@@ -1018,6 +917,68 @@ class CanvasService:
         except Exception as e:
             logger.error(f"Failed to delete edge {edge_id} from Neo4j: {e}")
             return None
+
+    async def find_node_across_canvases(
+        self,
+        node_id: str,
+    ) -> tuple:
+        """
+        Find a node by ID across all canvases.
+
+        Story 3.2: MCP tools identify nodes by node_id alone without canvas_name.
+        This method searches all canvas files to locate the node.
+
+        Args:
+            node_id: The unique node identifier.
+
+        Returns:
+            Tuple of (canvas_name, node_dict) if found, or (None, None) if not found.
+        """
+        canvases = await self.list_canvases()
+        for canvas_name in canvases:
+            try:
+                canvas_data = await self.read_canvas(canvas_name)
+                for node in canvas_data.get("nodes", []):
+                    if node.get("id") == node_id:
+                        return (canvas_name, node)
+            except Exception:
+                continue
+        return (None, None)
+
+    async def find_edges_for_node(
+        self,
+        node_id: str,
+        canvas_name: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Find all edges connected to a node (as source or target).
+
+        Story 3.2: Used by assemble_acp to discover related concepts.
+
+        Args:
+            node_id: The node identifier.
+            canvas_name: Optional canvas name to search in. If not provided,
+                         searches all canvases.
+
+        Returns:
+            List of edge dicts connected to the node.
+        """
+        matching_edges: List[Dict[str, Any]] = []
+
+        if canvas_name:
+            canvas_names = [canvas_name]
+        else:
+            canvas_names = await self.list_canvases()
+
+        for cname in canvas_names:
+            try:
+                canvas_data = await self.read_canvas(cname)
+                for edge in canvas_data.get("edges", []):
+                    if edge.get("fromNode") == node_id or edge.get("toNode") == node_id:
+                        matching_edges.append(edge)
+            except Exception:
+                continue
+        return matching_edges
 
     async def cleanup(self) -> None:
         """

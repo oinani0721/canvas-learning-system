@@ -3,7 +3,8 @@
  * Story 3.1: Claude Code CLI Integration (AC-3, AC-4)
  *
  * Persists the mapping between canvas node IDs and Claude Code session IDs.
- * Uses a JSON file in the plugin data directory (Obsidian-native approach).
+ * Uses a JSON file in the plugin data directory (Obsidian-native approach,
+ * no SQLite dependency needed).
  *
  * Schema: nodeId -> { sessionId, createdAt, lastActiveAt }
  *
@@ -17,7 +18,7 @@ import { dirname, join } from 'path';
 // Types
 // ═══════════════════════════════════════════════════════════════════════════════
 
-interface SessionRecord {
+export interface SessionRecord {
   sessionId: string;
   createdAt: string;
   lastActiveAt: string;
@@ -40,6 +41,16 @@ interface SessionStoreData {
  *
  * Data is stored as a JSON file at:
  *   .obsidian/plugins/canvas-learning-system/node-sessions.json
+ *
+ * Callers:
+ *   - ClaudeCodeEngine.sendMessage() — reads sessionId for --resume,
+ *     writes new sessionId after first response
+ *   - ClaudeCodeEngine.getSessionId() — delegates to this store
+ *   - ClaudeCodeEngine.destroy() — calls deleteSession
+ *   - Plugin main.ts onload — constructs via pluginDataDir
+ *
+ * Wiring: Instantiated by ClaudeCodeEngine constructor.
+ * No additional wiring needed for Story 3.1.
  */
 export class SessionStore {
   private filePath: string;
@@ -102,6 +113,7 @@ export class SessionStore {
    * @param nodeId - The canvas node identifier.
    */
   async deleteSession(nodeId: string): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-dynamic-delete
     delete this.data.sessions[nodeId];
     this.save();
   }

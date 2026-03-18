@@ -1,14 +1,23 @@
 /**
  * Canvas Learning System - MCP Configuration Generator
  * Story 3.1: Task 5 (MCP Config Preload)
- * Story 3.2: Task 5 (MCP Config Dynamic Injection)
  *
  * Generates the `canvas-mcp.json` configuration file that tells Claude Code
  * how to connect to the backend MCP server. The config is injected via
  * `--mcp-config` when spawning the CLI process.
  *
- * [Source: _bmad-output/implementation-artifacts/3-2-mcp-tool-exposure-backend-api.md#Task 5]
+ * The specific MCP tools exposed are implemented in Story 3.2; this module
+ * only generates the transport configuration.
+ *
  * [Source: _bmad-output/implementation-artifacts/3-1-claude-code-cli-per-node-session.md#Task 5]
+ *
+ * Callers:
+ *   - Plugin main.ts onload — calls writeMcpConfig() to generate the config
+ *     file, then passes the path to ClaudeCodeEngine constructor
+ *
+ * Wiring:
+ *   - Plugin onload: const mcpPath = writeMcpConfig(pluginDataDir, backendUrl)
+ *   - Plugin onload: new ClaudeCodeEngine(pluginDataDir, mcpPath)
  */
 
 import { existsSync, mkdirSync, writeFileSync } from 'fs';
@@ -42,8 +51,6 @@ interface McpConfig {
 /**
  * Generate the MCP configuration JSON content.
  *
- * Story 3.2 AC-5: Config format follows Claude Code `--mcp-config` spec.
- *
  * @param backendUrl - The FastAPI backend base URL (default: http://localhost:8001)
  * @returns The MCP configuration as a formatted JSON string.
  */
@@ -70,9 +77,6 @@ export function generateMcpConfig(
 
 /**
  * Write the MCP configuration file to the plugin data directory.
- *
- * Story 3.2 AC-5: Config file is written to the plugin's data directory
- * so it can be referenced via `--mcp-config` when spawning Claude Code.
  *
  * @param pluginDataDir - Absolute path to the plugin data directory.
  *   Typically: `${vault}/.obsidian/plugins/canvas-learning-system/`

@@ -142,10 +142,11 @@ async def generate_question(
 
     try:
         # Get node content for question generation
+        from app.config import settings
         from app.services.canvas_service import CanvasService
 
-        canvas_svc = CanvasService()
-        node_data = await canvas_svc.get_node(node_id)
+        canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
+        canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
 
         if node_data is None:
             return GenerateQuestionOutput(
@@ -184,24 +185,23 @@ async def generate_question(
         if question_type is None:
             question_type = "comprehension"
 
-        # Use the Agent/LLM service to generate the question
+        # Use QuestionGenerator service to generate the question
         node_title = node_data.get("text", node_data.get("title", "Unknown"))
-        node_content = node_data.get("content", node_data.get("text", ""))
 
         try:
-            from app.dependencies import get_agent_service
+            from app.services.question_generator import QuestionGenerator
 
-            agent_svc = await get_agent_service()
-            # Use the agent's question generation capability
-            question_result = await agent_svc.generate_question(
-                concept=node_title,
-                context=node_content,
-                difficulty=difficulty,
-                question_type=question_type,
+            generator = QuestionGenerator()
+            proficiency = None
+            if mastery_data and hasattr(mastery_data, "p_mastery"):
+                proficiency = mastery_data.p_mastery
+            questions = generator.generate_questions(
+                node=node_data,
+                effective_proficiency=proficiency,
             )
-            q_text = question_result.get("question", "")
-            ref_answer = question_result.get("reference_answer")
-        except (ImportError, AttributeError):
+            q_text = questions[0] if questions else f"Please explain the concept of '{node_title}' in your own words."
+            ref_answer = None
+        except (ImportError, Exception):
             # Fallback: generate a basic question from the content
             q_text = f"Please explain the concept of '{node_title}' in your own words."
             ref_answer = None
@@ -319,40 +319,17 @@ async def score_answer(
             logger.warning(f"[Story 6.4] SCORE_SUBMITTED event failed: {evt_err}")
 
     except ImportError as e:
-        # Fallback to AgentService if AutoScorer not available
-        logger.info(f"[Story 6.4] AutoScorer not available, falling back to AgentService: {e}")
-        try:
-            from app.dependencies import get_agent_service
-
-            agent_svc = await get_agent_service()
-            score_result = await agent_svc.score_answer(
-                question_id=question_id,
-                student_answer=student_answer,
-                node_id=node_id,
-            )
-            score = score_result.get("score", 0.0)
-            feedback = score_result.get("feedback", "")
-            if score >= 0.9:
-                grade = 4
-            elif score >= 0.6:
-                grade = 3
-            elif score >= 0.3:
-                grade = 2
-            else:
-                grade = 1
-            is_correct = grade >= 3
-        except (ImportError, AttributeError) as fallback_err:
-            logger.warning(f"[Story 3.2] score_answer: no scoring service available: {fallback_err}")
-            return ScoreAnswerOutput(
-                question_id=question_id,
-                score=0.0,
-                grade=1,
-                feedback="Scoring service is not available",
-                is_correct=False,
-                pipeline_token="",
-                status="service_unavailable",
-                message=str(fallback_err),
-            ).model_dump()
+        logger.warning(f"[Story 3.2] score_answer: AutoScorer not available: {e}")
+        return ScoreAnswerOutput(
+            question_id=question_id,
+            score=0.0,
+            grade=1,
+            feedback="Scoring service is not available",
+            is_correct=False,
+            pipeline_token="",
+            status="service_unavailable",
+            message=str(e),
+        ).model_dump()
     except Exception as e:
         logger.error(f"[Story 6.4] score_answer error: {e}")
         return ScoreAnswerOutput(
@@ -408,10 +385,11 @@ async def assemble_acp(
     asyncio.create_task(guardian.record_tool_call("assemble_acp", "", node_id))
 
     try:
+        from app.config import settings
         from app.services.canvas_service import CanvasService
 
-        canvas_svc = CanvasService()
-        node_data = await canvas_svc.get_node(node_id)
+        canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
+        canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
 
         if node_data is None:
             return AssembleAcpOutput(
@@ -429,13 +407,13 @@ async def assemble_acp(
         related_concepts: List[str] = []
         if include_related:
             try:
-                edges = await canvas_svc.get_edges_for_node(node_id)
+                edges = await canvas_svc.find_edges_for_node(node_id, canvas_name=canvas_name)
                 for edge in edges:
-                    target_id = edge.get("toNode", edge.get("target_node_id", ""))
-                    source_id = edge.get("fromNode", edge.get("source_node_id", ""))
+                    target_id = edge.get("toNode", "")
+                    source_id = edge.get("fromNode", "")
                     related_id = target_id if target_id != node_id else source_id
                     if related_id:
-                        related_node = await canvas_svc.get_node(related_id)
+                        _, related_node = await canvas_svc.find_node_across_canvases(related_id)
                         if related_node:
                             related_concepts.append(related_node.get("text", related_node.get("title", "")))
             except Exception as e:
