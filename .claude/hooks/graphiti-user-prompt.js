@@ -30,6 +30,7 @@ process.stdin.on('end', () => {
     if (isImplScene) {
       msg += '\n⛔ 实施场景[DD-03/04]: Context7+WebSearch查证成熟案例→参考落地→LSP检查→禁止mock';
       msg += '\n⛔ 开发完成后必须：(1) 启动独立 Agent 对抗性代码审查→记录[Code-Review] (2) commit + push backup';
+      msg += '\n⛔ DD-11 管道打通性：并行Agent完成后，主Agent必须检查每个新函数是否有调用方。无调用方=死代码，必须接线。';
     }
 
     if (isNewFeature) {

@@ -87,6 +87,13 @@ process.stdin.on('end', () => {
       block('⛔ 开发完成但未安排代码审查或提交。Story 开发后必须：(1) 启动独立 Agent 对抗性审查 (2) commit + push 到 backup。');
     }
 
+    // 2c. ⛔ DD-11 并行Agent完成后未验证管道打通性
+    const parallelAgentsDone = /并行.*完成|Agent.*全部完成|3.*个.*Agent.*完成|两个.*Agent.*完成/i.test(msg);
+    const mentionedWiring = /接线|管道.*打通|调用链|调用方|Grep.*调用|wir(e|ing)|pipeline.*connect/i.test(msg);
+    if (parallelAgentsDone && !mentionedWiring && !mentionedReview && !isRetry) {
+      block('⛔ DD-11 并行Agent完成但未验证管道打通性。必须检查每个新函数是否有调用方（Grep验证），无调用方=死代码，必须接线。');
+    }
+
     // ===== 低优先级检测（stop_hook_active 时跳过，防无限循环）=====
     if (isRetry) { process.exit(0); }
 
