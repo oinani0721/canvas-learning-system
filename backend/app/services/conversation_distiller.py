@@ -267,7 +267,7 @@ class ConversationDistiller:
 
             # Persist summary
             if result.summary:
-                await memory_svc.record_learning_event(
+                await memory_svc.record_knowledge_entity(
                     event_type="conversation_distillation",
                     content=f"Distilled summary for node {node_id}: {result.summary}",
                     metadata={
@@ -282,7 +282,7 @@ class ConversationDistiller:
 
             # Persist tips
             for tip in result.tips:
-                await memory_svc.record_learning_event(
+                await memory_svc.record_knowledge_entity(
                     event_type="learning_tip",
                     content=f"Tip: {tip.title} | Content: {tip.content}",
                     metadata={
@@ -316,7 +316,7 @@ class ConversationDistiller:
 
             # Persist Q&A highlights
             for qa in result.qa_highlights:
-                await memory_svc.record_learning_event(
+                await memory_svc.record_knowledge_entity(
                     event_type="qa_highlight",
                     content=f"Q: {qa.question} | A: {qa.answer}",
                     metadata={

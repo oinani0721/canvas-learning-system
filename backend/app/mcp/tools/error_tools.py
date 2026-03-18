@@ -28,9 +28,7 @@ class RecordErrorInput(BaseModel):
 
     node_id: str = Field(..., description="The canvas node identifier.")
     session_id: str = Field(..., description="The dialogue session identifier.")
-    error_description: str = Field(
-        ..., description="Description of the student's understanding error."
-    )
+    error_description: str = Field(..., description="Description of the student's understanding error.")
     context: str = Field(
         default="",
         description="Dialogue context where the error was detected.",
@@ -84,9 +82,7 @@ async def record_error(
         Dict with classification result and storage status.
     """
     guardian = get_audit_guardian()
-    asyncio.create_task(
-        guardian.record_tool_call("record_error", session_id, node_id)
-    )
+    asyncio.create_task(guardian.record_tool_call("record_error", session_id, node_id))
 
     try:
         from app.graphiti.entity_types import ERROR_TYPE_DESCRIPTIONS
@@ -112,8 +108,8 @@ async def record_error(
 
             memory_svc = await get_memory_service()
 
-            # Record the misconception as a learning event
-            await memory_svc.record_learning_event(
+            # Record the misconception as a knowledge entity
+            await memory_svc.record_knowledge_entity(
                 event_type="misconception",
                 content=(
                     f"Error type: {type_info.get('label_zh', result.error_type.value)} | "
@@ -132,10 +128,7 @@ async def record_error(
                 },
                 group_id=DEFAULT_GROUP_ID,
             )
-            logger.info(
-                f"[Story 3.6] Misconception recorded: type={result.error_type.value} "
-                f"node={node_id}"
-            )
+            logger.info(f"[Story 3.6] Misconception recorded: type={result.error_type.value} node={node_id}")
         except Exception as e:
             logger.warning(f"[Story 3.6] Graphiti write failed (non-fatal): {e}")
 

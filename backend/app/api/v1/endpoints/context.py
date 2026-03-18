@@ -1,25 +1,31 @@
 """
 Canvas Learning System - Context API Endpoint
-Story 3.4: Learning Context Auto-Injection (AC-1, AC-2, Task 5)
+Story 3.4: Learning Context Auto-Injection (AC-1, AC-2, AC-4, Task 5)
 
 GET /api/v1/context/{node_id}
+GET /api/v1/context/{node_id}?format=markdown
 
 Returns Tier 1 (current node full) + Tier 2 (adjacent node summaries)
-learning context data for injection into Claude Code's system prompt.
+learning context data for injection into Claude Code's --append-system-prompt.
 
-Data sources:
-- Neo4j (via Neo4jClient): node metadata, mastery data, edge reasons, neighbors
-- Graphiti: Tips, error records (searched via graphiti_client)
+Data sources (via LearningContextService):
+- MasteryStore (Neo4j EntityNode): p_mastery, fsrs_stability, next_review
+- MemoryService (in-memory episodes): tips, error records
+- LearningMemoryClient: supplementary learning memories
+- Neo4jClient (Cypher): edge reasons, 1-hop neighbor summaries
 
 30s cache per node to avoid redundant queries on rapid message sends.
+Supports ?format=markdown for direct --append-system-prompt injection.
 
 [Source: _bmad-output/implementation-artifacts/3-4-learning-context-auto-injection.md#Task 5]
 """
 
 import logging
 import time
+from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
@@ -78,40 +84,15 @@ class ContextResponse(BaseModel):
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Neo4j Client Access (same pattern as profile.py)
+# Cache (30s TTL per node — AC-4 dynamic update)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-
-def _get_neo4j_client():
-    """Get Neo4j client for Cypher queries. Returns None if unavailable."""
-    try:
-        from app.clients.neo4j_client import get_neo4j_client
-        return get_neo4j_client()
-    except Exception as e:
-        logger.warning("Neo4j client unavailable: %s", e)
-        return None
-
-
-def _get_graphiti():
-    """Get Graphiti client for memory search. Returns None if unavailable."""
-    try:
-        from app.clients.graphiti_client import get_graphiti_client
-        return get_graphiti_client()
-    except Exception as e:
-        logger.warning("Graphiti client unavailable: %s", e)
-        return None
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Cache (30s TTL per node)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-_context_cache: dict[str, tuple[float, ContextResponse]] = {}
+_context_cache: dict[str, tuple[float, dict]] = {}
 CACHE_TTL_SECONDS = 30.0
 
 
-def _get_cached(node_id: str) -> ContextResponse | None:
-    """Return cached context if still fresh (within TTL)."""
+def _get_cached(node_id: str) -> dict | None:
+    """Return cached context dict if still fresh (within TTL)."""
     entry = _context_cache.get(node_id)
     if entry is None:
         return None
@@ -122,9 +103,39 @@ def _get_cached(node_id: str) -> ContextResponse | None:
     return response
 
 
-def _set_cache(node_id: str, response: ContextResponse) -> None:
-    """Cache a context response."""
+def _set_cache(node_id: str, response: dict) -> None:
+    """Cache a context response dict."""
     _context_cache[node_id] = (time.time(), response)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Dict -> Pydantic conversion
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+def _dict_to_response(ctx: dict) -> ContextResponse:
+    """Convert raw dict from LearningContextService to Pydantic response model."""
+    tier1_raw = ctx.get("tier1", {})
+    tier2_raw = ctx.get("tier2", {})
+
+    tier1 = Tier1Context(
+        node_name=tier1_raw.get("node_name", ctx.get("node_id", "")),
+        mastery=MasteryInfo(**(tier1_raw.get("mastery", {}))),
+        tips=[TipInfo(**t) for t in tier1_raw.get("tips", [])],
+        errors=[ErrorInfo(**e) for e in tier1_raw.get("errors", [])],
+        edge_reasons=[EdgeReasonInfo(**er) for er in tier1_raw.get("edge_reasons", [])],
+    )
+
+    tier2 = Tier2Context(
+        neighbors=[NeighborInfo(**nb) for nb in tier2_raw.get("neighbors", [])],
+    )
+
+    return ContextResponse(
+        node_id=ctx.get("node_id", ""),
+        node_name=ctx.get("node_name", ""),
+        tier1=tier1,
+        tier2=tier2,
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -139,8 +150,28 @@ context_router = APIRouter()
     response_model=ContextResponse,
     summary="Get learning context for a node (Tier 1 + Tier 2)",
     tags=["Context"],
+    responses={
+        200: {
+            "description": "Learning context (JSON or Markdown)",
+            "content": {
+                "application/json": {},
+                "text/plain": {"example": "## 当前节点：贝叶斯定理\n### 精通度\n- BKT掌握概率: 0.45"},
+            },
+        }
+    },
 )
-async def get_node_context(node_id: str) -> ContextResponse:
+async def get_node_context_endpoint(
+    node_id: str,
+    format: Optional[str] = Query(
+        default=None,
+        description='Response format: omit for JSON, "markdown" for plain-text Markdown '
+        "(ready for --append-system-prompt).",
+    ),
+    group_id: Optional[str] = Query(
+        default=None,
+        description="Subject isolation namespace. Defaults to app-level DEFAULT_GROUP_ID.",
+    ),
+):
     """
     Fetch the learning context for a specific node.
 
@@ -149,165 +180,27 @@ async def get_node_context(node_id: str) -> ContextResponse:
 
     Story 3.4 AC-1: Data structured for --append-system-prompt injection.
     Story 3.4 AC-2: Tier 1 = full, Tier 2 = summary, Tier 3 = on-demand (not here).
+    Story 3.4 AC-4: Each call re-assembles context (cache TTL 30s ensures freshness).
+
+    Query params:
+        format: "markdown" returns plain-text Markdown; default returns JSON.
+        group_id: override subject namespace for multi-subject isolation.
     """
+    from app.services.learning_context_service import (
+        format_as_markdown,
+        get_node_context,
+    )
+
     # Check cache first
     cached = _get_cached(node_id)
-    if cached is not None:
-        return cached
+    if cached is None:
+        cached = await get_node_context(node_id=node_id, group_id=group_id)
+        _set_cache(node_id, cached)
 
-    # Assemble Tier 1: current node full context
-    tier1 = await _assemble_tier1(node_id)
+    # Return Markdown if requested
+    if format and format.lower() == "markdown":
+        md_text = format_as_markdown(cached)
+        return PlainTextResponse(content=md_text, media_type="text/plain; charset=utf-8")
 
-    # Assemble Tier 2: adjacent node summaries
-    tier2 = await _assemble_tier2(node_id)
-
-    response = ContextResponse(
-        node_id=node_id,
-        node_name=tier1.node_name,
-        tier1=tier1,
-        tier2=tier2,
-    )
-
-    _set_cache(node_id, response)
-    return response
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# Data Assembly
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-async def _assemble_tier1(node_id: str) -> Tier1Context:
-    """
-    Assemble Tier 1 context: full data for the current node.
-
-    Sources: Neo4j (node name, mastery, edge reasons) + Graphiti (tips, errors).
-    Degrades gracefully: returns empty data if services are unavailable.
-    """
-    node_name = node_id  # Default fallback
-    mastery = MasteryInfo()
-    tips: list[TipInfo] = []
-    errors: list[ErrorInfo] = []
-    edge_reasons: list[EdgeReasonInfo] = []
-
-    # --- Fetch node name + mastery + edges from Neo4j ---
-    client = _get_neo4j_client()
-    if client is not None:
-        try:
-            # Get node name and mastery data
-            node_query = (
-                "MATCH (n:Concept {id: $id}) RETURN n.name AS name, "
-                "n.p_mastery AS p_mastery, n.fsrs_stability AS stability, "
-                "n.fsrs_next_review AS next_review"
-            )
-            node_result = await client.execute_query(node_query, {"id": node_id})
-            if node_result and len(node_result) > 0:
-                record = node_result[0]
-                node_name = record.get("name") or node_id
-                mastery = MasteryInfo(
-                    p_mastery=record.get("p_mastery"),
-                    stability=record.get("stability"),
-                    next_review=record.get("next_review"),
-                )
-
-            # Get edge reasons (relationships from/to this node)
-            edge_query = (
-                "MATCH (n:Concept {id: $id})-[r]-(m:Concept) "
-                "RETURN m.name AS neighbor, r.reason AS reason "
-                "LIMIT 10"
-            )
-            edge_result = await client.execute_query(edge_query, {"id": node_id})
-            for rec in (edge_result or []):
-                if rec.get("neighbor"):
-                    edge_reasons.append(
-                        EdgeReasonInfo(
-                            neighbor_name=rec["neighbor"],
-                            reason=rec.get("reason") or "",
-                        )
-                    )
-        except Exception as e:
-            logger.warning(
-                "Failed to fetch node data from Neo4j for %s: %s", node_id, e
-            )
-
-    # --- Fetch tips and errors from Graphiti ---
-    graphiti = _get_graphiti()
-    if graphiti is not None:
-        try:
-            # Search for tips related to this node
-            tip_results = await graphiti.search(
-                query=f"tips for concept {node_id}",
-                num_results=20,
-            )
-            for fact in (tip_results or []):
-                fact_text = getattr(fact, 'fact', None) or getattr(fact, 'content', None)
-                if fact_text:
-                    tips.append(
-                        TipInfo(
-                            content=fact_text,
-                            category="tip",
-                            annotated_at=str(getattr(fact, 'created_at', '')),
-                        )
-                    )
-
-            # Search for error records
-            error_results = await graphiti.search(
-                query=f"errors mistakes for concept {node_id}",
-                num_results=10,
-            )
-            for fact in (error_results or []):
-                fact_text = getattr(fact, 'fact', None) or getattr(fact, 'content', None)
-                if fact_text:
-                    errors.append(
-                        ErrorInfo(
-                            error_type="learning_error",
-                            description=fact_text,
-                            remedy="",
-                        )
-                    )
-        except Exception as e:
-            logger.warning(
-                "Failed to fetch Graphiti data for %s: %s", node_id, e
-            )
-
-    return Tier1Context(
-        node_name=node_name,
-        mastery=mastery,
-        tips=tips,
-        errors=errors,
-        edge_reasons=edge_reasons,
-    )
-
-
-async def _assemble_tier2(node_id: str) -> Tier2Context:
-    """
-    Assemble Tier 2 context: 1-hop neighbor summaries from Neo4j.
-    Degrades gracefully: returns empty neighbors if Neo4j is unavailable.
-    """
-    neighbors: list[NeighborInfo] = []
-
-    client = _get_neo4j_client()
-    if client is not None:
-        try:
-            query = (
-                "MATCH (n:Concept {id: $id})-[r]-(m:Concept) "
-                "RETURN m.name AS name, m.effective_proficiency AS mastery, "
-                "r.reason AS reason "
-                "LIMIT 10"
-            )
-            result = await client.execute_query(query, {"id": node_id})
-            for rec in (result or []):
-                if rec.get("name"):
-                    neighbors.append(
-                        NeighborInfo(
-                            name=rec["name"],
-                            mastery_level=rec.get("mastery"),
-                            edge_reason=rec.get("reason") or "",
-                        )
-                    )
-        except Exception as e:
-            logger.warning(
-                "Failed to fetch neighbors from Neo4j for %s: %s", node_id, e
-            )
-
-    return Tier2Context(neighbors=neighbors)
+    # Default: return JSON via Pydantic model
+    return _dict_to_response(cached)

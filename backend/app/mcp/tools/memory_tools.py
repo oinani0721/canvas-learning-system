@@ -230,7 +230,7 @@ async def record_calibration(
         if difficulty:
             calibration_data["difficulty"] = difficulty
 
-        await memory_svc.record_learning_event(
+        await memory_svc.record_knowledge_entity(
             event_type="calibration",
             content=f"Calibration: predicted={predicted_score:.2f} actual={actual_score:.2f} gap={calibration_gap:.2f}",
             metadata=calibration_data,

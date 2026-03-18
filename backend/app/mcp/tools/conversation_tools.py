@@ -124,8 +124,8 @@ async def archive_conversation(
 
         archive_content = " | ".join(content_parts)
 
-        # Record as learning event
-        await memory_svc.record_learning_event(
+        # Record as knowledge entity
+        await memory_svc.record_knowledge_entity(
             event_type="conversation_archive",
             content=archive_content,
             metadata={

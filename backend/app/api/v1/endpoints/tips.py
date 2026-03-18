@@ -89,7 +89,7 @@ async def save_tip(request: SaveTipRequest) -> Dict[str, Any]:
         # Build tip content for Graphiti
         tags_str = ", ".join(request.tags) if request.tags else "none"
 
-        await memory_svc.record_learning_event(
+        await memory_svc.record_knowledge_entity(
             event_type="learning_tip",
             content=(
                 f"Tip: {request.title} | Content: {request.content} | "

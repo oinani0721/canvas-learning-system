@@ -337,7 +337,7 @@ class ArchiveManager:
 
             memory_svc = await get_memory_service()
 
-            await memory_svc.record_learning_event(
+            await memory_svc.record_knowledge_entity(
                 event_type="archive_marker",
                 content=(
                     f"Archived {len(messages)} messages for node {node_id} "

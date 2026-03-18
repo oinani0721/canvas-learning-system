@@ -57,7 +57,7 @@ from app.clients.graphiti_client import (
     get_learning_memory_client,
 )
 from app.core.subject_config import (
-    DEFAULT_SUBJECT,
+    DEFAULT_SUBJECT_ID as DEFAULT_SUBJECT,
     SKIP_DIRECTORIES_LOWER,
     build_group_id,
     extract_subject_from_canvas_path,
@@ -1309,6 +1309,77 @@ class MemoryService:
             "batch_avg_latency_ms": round(avg_latency, 2),
             "timestamp": datetime.now().isoformat()
         }
+
+    async def record_knowledge_entity(
+        self,
+        event_type: str,
+        content: str,
+        metadata: Optional[Dict[str, Any]] = None,
+        group_id: Optional[str] = None,
+    ) -> str:
+        """
+        Record a knowledge entity (tip or misconception) as an episode.
+
+        Story 3.6: Tips annotation and error archiving.
+        - Tips (event_type="learning_tip"): user-selected dialogue text
+        - Misconceptions (event_type="misconception"): agent-detected errors
+
+        Written to in-memory episode cache and Neo4j if connected.
+        Uses the Graphiti bridge for Claude Code compatibility.
+
+        Args:
+            event_type: Entity type ("learning_tip" or "misconception").
+            content: Human-readable summary of the entity.
+            metadata: Structured data (tip_id/misconception_id, tags, etc.).
+            group_id: Namespace group for subject isolation.
+
+        Returns:
+            str: Generated episode ID.
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        entity_id = f"{event_type}-{uuid.uuid4().hex[:16]}"
+        resolved_group_id = group_id or DEFAULT_GROUP_ID
+        meta = metadata or {}
+
+        episode = {
+            "episode_id": entity_id,
+            "content": content,
+            "episode_type": event_type,
+            "node_id": meta.get("node_id", ""),
+            "timestamp": datetime.now().isoformat(),
+            "group_id": resolved_group_id,
+            "metadata": meta,
+        }
+
+        self._episodes.append(episode)
+        if len(self._episodes) > self.MAX_EPISODE_CACHE:
+            self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
+
+        # Write to Neo4j if connected
+        if self.neo4j.stats.get("initialized", False):
+            try:
+                await self.neo4j.record_episode({
+                    "episode_id": entity_id,
+                    "user_id": event_type,
+                    "canvas_path": "",
+                    "node_id": meta.get("node_id", ""),
+                    "concept": meta.get("title", content[:80]),
+                    "agent_type": event_type,
+                    "timestamp": episode["timestamp"],
+                    "group_id": resolved_group_id,
+                })
+            except Exception as e:
+                logger.warning(
+                    f"[Story 3.6] Neo4j write for {event_type} failed (non-fatal): {e}"
+                )
+
+        logger.info(
+            f"[Story 3.6] Recorded {event_type}: id={entity_id} "
+            f"group={resolved_group_id}"
+        )
+        return entity_id
 
     async def record_temporal_event(
         self,

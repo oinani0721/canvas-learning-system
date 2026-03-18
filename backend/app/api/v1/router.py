@@ -36,6 +36,7 @@ from app.api.v1.endpoints.profile import profile_router
 from app.api.v1.endpoints.rag import rag_router
 from app.api.v1.endpoints.review import review_router
 from app.api.v1.endpoints.rollback import rollback_router
+from app.api.v1.endpoints.skills import skills_router  # Story 3.5
 from app.api.v1.endpoints.subjects import subjects_router  # Story 1.9
 from app.api.v1.endpoints.suggestions import suggestions_router  # Story 3.7
 from app.api.v1.endpoints.sync import sync_router  # Story 1.5
@@ -376,6 +377,19 @@ router.include_router(
     prefix="/archive",
     tags=["Archive"],
     responses={500: {"description": "Archive service error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Skills Routes (Story 3.5)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Story 3.5: /命令技能集成 — list, get, refresh skill command templates
+# [Source: _bmad-output/implementation-artifacts/3-5-skill-command-integration.md]
+router.include_router(
+    skills_router,
+    prefix="/skills",
+    tags=["Skills"],
+    responses={404: {"description": "Skill not found"}, 500: {"description": "Skill registry error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════
