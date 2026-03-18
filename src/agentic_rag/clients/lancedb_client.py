@@ -1201,8 +1201,9 @@ class LanceDBClient:
             chunk_count = await self.add_documents(table_name, documents)
             total_chunks_indexed += chunk_count
 
-            # Update fingerprint
-            content_hash = self._compute_file_hash(md_file)
+            # Update fingerprint — use in-memory content to avoid TOCTOU race
+            # (file may have changed on disk between read and hash)
+            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
             self._update_fingerprint(rel_path, content_hash, chunk_count)
 
             if LOGURU_ENABLED:
@@ -1280,11 +1281,21 @@ class LanceDBClient:
         if vault_path:
             rel_path = os.path.relpath(file_path, vault_path).replace("\\", "/")
         else:
-            # Fallback: use parent directory as vault_path
-            rel_path = os.path.relpath(file_path, os.path.dirname(file_path)).replace("\\", "/")
+            # H2 fix: vault_path=None fallback — use file's parent directory
+            # instead of os.path.relpath(file, dirname(file)) which always yields
+            # just the filename, losing all directory structure (re-introducing C8 bug).
+            vault_path = os.path.dirname(file_path)
+            rel_path = os.path.basename(file_path)
+            if LOGURU_ENABLED:
+                logger.warning(
+                    f"[INDEX] vault_path not provided for index_single_file({file_path}), "
+                    f"falling back to parent dir: {vault_path}"
+                )
 
         # Check fingerprint — skip if unchanged
-        content_hash = self._compute_file_hash(file_path)
+        # H1 fix: Compute hash from in-memory content (already read above)
+        # to avoid TOCTOU race where file changes between read and hash.
+        content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
         stored_fps = self._get_all_fingerprints()
         if rel_path in stored_fps and stored_fps[rel_path] == content_hash:
             if LOGURU_ENABLED:

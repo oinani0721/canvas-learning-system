@@ -638,6 +638,19 @@ def _fuse_layered_rrf(
         logger.debug(f"[_fuse_layered_rrf] Group '{group_name}': {len(group_fused)} docs, top-1 RRF={top1_score:.4f}")
 
     # Step 2: Z-score cross-group normalization
+    # Collect all group RRF scores to compute a global fallback mean/std for single-doc groups
+    all_rrf_scores: List[float] = []
+    for results in group_results.values():
+        for r in results:
+            all_rrf_scores.append(r["score"])
+
+    global_mean = sum(all_rrf_scores) / len(all_rrf_scores) if all_rrf_scores else 0.0
+    global_std = (
+        math.sqrt(sum((s - global_mean) ** 2 for s in all_rrf_scores) / len(all_rrf_scores))
+        if len(all_rrf_scores) > 1
+        else 1.0
+    )
+
     all_normalized: List[SearchResult] = []
     for group_name, results in group_results.items():
         if not results:
@@ -650,6 +663,10 @@ def _fuse_layered_rrf(
         for result in results:
             if std_score > 0:
                 z_score = (result["score"] - mean_score) / std_score
+            elif len(results) == 1 and global_std > 0:
+                # M1 fix: single-doc group — use global mean/std so the lone result
+                # gets a meaningful z-score instead of being flattened to 0.
+                z_score = (result["score"] - global_mean) / global_std
             else:
                 z_score = 0.0
             result["score"] = z_score

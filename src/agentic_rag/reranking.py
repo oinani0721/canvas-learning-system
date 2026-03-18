@@ -338,6 +338,8 @@ def get_reranker(
     Story 2.5 AC-2: Lazy-loaded singleton factory for LocalReranker.
 
     First call initializes the model; subsequent calls return the cached instance.
+    If requested model_name or torch_dtype differs from the cached instance,
+    logs a warning (requires restart to pick up new config).
     Returns None if sentence-transformers is not installed (graceful degradation).
 
     Args:
@@ -350,6 +352,29 @@ def get_reranker(
     global _reranker_instance, _reranker_init_flag
 
     if _reranker_instance is not None:
+        # Story 2.5 H2 fix: Detect config mismatch on cached singleton
+        if _reranker_instance.model_name != model_name:
+            logger.warning(
+                f"[get_reranker] Requested model_name={model_name} differs from "
+                f"cached={_reranker_instance.model_name}. Reinitializing reranker."
+            )
+            _reranker_instance = None
+            _reranker_init_flag = False
+            return get_reranker(model_name=model_name, torch_dtype=torch_dtype)
+        dtype_map = {"float16": "float16", "bfloat16": "bfloat16", "float32": "float32"}
+        cached_dtype = next(
+            (k for k, v in {"float16": torch.float16, "bfloat16": torch.bfloat16, "float32": torch.float32}.items()
+             if _reranker_instance._torch_dtype == v),
+            "unknown",
+        )
+        if cached_dtype != dtype_map.get(torch_dtype, torch_dtype):
+            logger.warning(
+                f"[get_reranker] Requested torch_dtype={torch_dtype} differs from "
+                f"cached={cached_dtype}. Reinitializing reranker."
+            )
+            _reranker_instance = None
+            _reranker_init_flag = False
+            return get_reranker(model_name=model_name, torch_dtype=torch_dtype)
         return _reranker_instance
 
     if _reranker_init_flag:

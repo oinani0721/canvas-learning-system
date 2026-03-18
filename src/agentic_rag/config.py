@@ -158,11 +158,11 @@ DEFAULT_SOURCE_WEIGHTS = {
 
 # Story 2.5: 默认分层 RRF 融合组映射
 # Dense 组: 笔记内容的语义和关键词匹配
-# Graph 组: 知识图谱结构和链接关系
+# Graph 组: 知识图谱结构、链接关系和教材结构化知识
 # Personal 组: 用户个人笔记和多模态内容
 DEFAULT_FUSION_GROUPS: Dict[str, List[str]] = {
-    "dense": ["lancedb", "textbook"],
-    "graph": ["graphiti", "cross_canvas"],
+    "dense": ["lancedb"],
+    "graph": ["graphiti", "cross_canvas", "textbook"],
     "personal": ["vault_notes", "multimodal"],
 }
 

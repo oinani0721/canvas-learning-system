@@ -62,7 +62,7 @@ lancedb>=0.14.0
 
 # Reranking (Story 12.8)
 # ✅ For local cross-encoder reranking with bge-reranker-base
-sentence-transformers>=2.2.0
+sentence-transformers>=3.0.0
 
 # Knowledge Graph (Story 12.1, 22.x)
 # ✅ Verified from ADR-003: Neo4j for Graphiti knowledge graph
