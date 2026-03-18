@@ -103,6 +103,35 @@ export interface ChatMessage {
   metadata?: string;
 }
 
+/**
+ * Local exam session record for IndexedDB.
+ * Story 6.1 AC-5: exam-state store backed by Dexie liveQuery.
+ */
+export interface ExamSessionLocal {
+  /** Exam session UUID (from backend). */
+  id: string;
+  /** Source canvas board ID. */
+  sourceCanvasId: string;
+  /** Exam mode: point_to_point | comprehensive | mixed. */
+  examMode: string;
+  /** Session status: idle | in_progress | paused | completed. */
+  status: string;
+  /** ISO-8601 start time. */
+  startTime: string;
+  /** ISO-8601 end time (null if ongoing). */
+  endTime?: string;
+  /** List of examined node IDs. */
+  examinedNodes: string[];
+  /** List of discovered node IDs (recursive exam). */
+  discoveredNodes: string[];
+  /** Optional single-node target. */
+  targetNodeId?: string;
+  /** Currently active node being examined. */
+  currentNodeId?: string;
+  /** ISO-8601 creation timestamp. */
+  createdAt: string;
+}
+
 // --- Database Class ---
 
 class CanvasLearningDB extends Dexie {
@@ -112,6 +141,7 @@ class CanvasLearningDB extends Dexie {
   sync_outbox!: EntityTable<SyncOutboxEntry, 'id'>;
   chat_messages!: EntityTable<ChatMessage, 'id'>;
   crash_recovery!: EntityTable<CrashRecoveryEntry, 'id'>;
+  exam_sessions!: EntityTable<ExamSessionLocal, 'id'>;
 
   constructor() {
     super('CanvasLearningDB');
@@ -149,6 +179,17 @@ class CanvasLearningDB extends Dexie {
       sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
       chat_messages: 'id, nodeId, role, createdAt',
       crash_recovery: 'id, nodeId',
+    });
+
+    // v5: exam_sessions table for Story 6.1 AC-5 (exam-state store)
+    this.version(5).stores({
+      canvas_boards: 'id, name, subjectId, createdAt, updatedAt',
+      canvas_nodes: 'id, canvasId, type, title, x, y, indexStatus, createdAt, updatedAt',
+      canvas_edges: 'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
+      sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
+      chat_messages: 'id, nodeId, role, createdAt',
+      crash_recovery: 'id, nodeId',
+      exam_sessions: 'id, sourceCanvasId, status, createdAt',
     });
   }
 }

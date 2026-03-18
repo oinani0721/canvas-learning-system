@@ -129,7 +129,7 @@ class RubricDimension(BaseModel):
 
 
 class AutoScoreResult(BaseModel):
-    """AutoSCORE evaluation result (Story 6.4 AC-2, AC-3)."""
+    """AutoSCORE evaluation result (Story 6.4 AC-2, AC-3, Story 6.9 faithfulness)."""
 
     node_id: str
     exam_id: str
@@ -145,6 +145,24 @@ class AutoScoreResult(BaseModel):
     low_confidence_dimensions: List[str] = Field(default_factory=list)
     feedback_summary: str = ""
     scored_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    # Story 6.9: Scoring Faithfulness fields (AC-1, AC-2)
+    faithfulness_score: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Combined faithfulness score (grounding + consistency) / 2"
+    )
+    faithfulness_passed: bool = Field(
+        default=True, description="True if faithfulness_score >= 0.85 and not overall low confidence"
+    )
+    evidence_grounding_score: float = Field(default=1.0, ge=0.0, le=1.0, description="Stage 1 evidence grounding score")
+    score_consistency_score: float = Field(
+        default=1.0, ge=0.0, le=1.0, description="Stage 2 score-evidence consistency score"
+    )
+    faithfulness_details: Dict[str, Any] = Field(
+        default_factory=dict, description="Detailed faithfulness check results"
+    )
+    verified: bool = Field(
+        default=True, description="False if faithfulness check failed; score pending re-verification"
+    )
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

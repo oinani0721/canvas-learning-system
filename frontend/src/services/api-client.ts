@@ -539,6 +539,69 @@ export class ApiClient {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // Story 6.1-6.2: Exam Board APIs
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Story 6.1 AC-1: Create a new exam session from source canvas.
+   */
+  async startExam(sourceCanvasId: string, examMode: string, targetNodeId?: string): Promise<Record<string, unknown> | null> {
+    try {
+      return await this.post<Record<string, unknown>>('/api/v1/exam/start', {
+        source_canvas_id: sourceCanvasId,
+        exam_mode: examMode,
+        target_node_id: targetNodeId || null,
+      });
+    } catch (err) {
+      console.error('[Story 6.1] startExam failed:', err);
+      return null;
+    }
+  }
+
+  /**
+   * Story 6.2 AC-2: Analyze canvas content for mode recommendation.
+   */
+  async analyzeCanvas(canvasId: string, targetNodeId?: string): Promise<{ contentType: string; recommendedMode: string; confidence: number } | null> {
+    try {
+      return await this.post<{ contentType: string; recommendedMode: string; confidence: number }>('/api/v1/exam/analyze-canvas', {
+        canvas_id: canvasId,
+        target_node_id: targetNodeId || null,
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Story 6.5 AC-2: Sync discovered node back to source canvas.
+   */
+  async syncExamNode(
+    examId: string,
+    payload: {
+      examId: string;
+      sourceCanvasId: string;
+      nodeId: string;
+      nodeText: string;
+      sourceNodeId: string;
+      suggestedRelation?: string;
+    },
+  ): Promise<Record<string, unknown> | null> {
+    try {
+      return await this.post<Record<string, unknown>>(`/api/v1/exam/${examId}/sync-node`, {
+        exam_id: payload.examId,
+        source_canvas_id: payload.sourceCanvasId,
+        node_id: payload.nodeId,
+        node_text: payload.nodeText,
+        source_node_id: payload.sourceNodeId,
+        suggested_relation: payload.suggestedRelation || 'related_to',
+      });
+    } catch (err) {
+      console.error('[Story 6.5] syncExamNode failed:', err);
+      return null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // Story 1.6: Image Index API (AC-4)
   // ═══════════════════════════════════════════════════════════════════════════
 

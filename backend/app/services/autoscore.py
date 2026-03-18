@@ -19,7 +19,7 @@ import logging
 import statistics
 from typing import Any, Dict, List, Optional
 
-from app.middleware.prompt_injection_guard import check_input, check_output
+from app.middleware.prompt_injection_guard import check_input
 from app.models.exam_models import AutoScoreResult, RubricDimension
 from app.services.prompt_registry import get_prompt_registry
 
@@ -51,29 +51,47 @@ class AutoScorer:
     """
 
     def __init__(self) -> None:
-        content = self._load_prompt_via_registry()
-        self._stage1_prompt = self._extract_section(content, section="stage1")
-        self._stage2_prompt = self._extract_section(content, section="stage2")
+        self._stage1_prompt = self._load_stage_prompt("stage1")
+        self._stage2_prompt = self._load_stage_prompt("stage2")
 
-    def _load_prompt_via_registry(self) -> str:
-        """Load autoscore prompt template via PromptRegistry.
+    def _load_stage_prompt(self, stage: str) -> str:
+        """Load stage-specific scoring prompt template.
 
-        Story 2.13 AC-2: All prompt access through PromptRegistry.get().
-        Falls back to empty string if registry not loaded (startup order).
+        Tries PromptRegistry first (versioned files), then falls back to
+        direct file loading from prompts/scoring/ directory.
+        Story 2.13 AC-2: Prompt access through PromptRegistry when available.
         """
+        # Strategy 1: PromptRegistry (for versioned files like autoscore_v1.md)
         try:
             registry = get_prompt_registry()
-            return registry.get("autoscore")
-        except Exception as e:
-            logger.warning(
-                "[Story 2.13] Failed to load autoscore prompt via PromptRegistry: %s",
-                e,
-            )
-            return ""
+            combined = registry.get("autoscore")
+            if combined:
+                section = self._extract_section(combined, stage)
+                if section:
+                    return section
+        except Exception:
+            pass
+
+        # Strategy 2: Direct file load from prompts/scoring/
+        from pathlib import Path
+
+        prompts_dir = Path(__file__).parent.parent / "prompts" / "scoring"
+        file_map = {
+            "stage1": prompts_dir / "stage1_evidence.md",
+            "stage2": prompts_dir / "stage2_rubric.md",
+        }
+        path = file_map.get(stage)
+        if path and path.exists():
+            content = path.read_text(encoding="utf-8")
+            logger.info(f"[Story 6.4] Loaded {stage} prompt from {path}")
+            return content
+
+        logger.warning(f"[Story 6.4] No prompt found for {stage}")
+        return ""
 
     @staticmethod
     def _extract_section(content: str, section: str) -> str:
-        """Extract a stage section from the autoscore prompt content."""
+        """Extract a stage section from a combined autoscore prompt content."""
         if not content:
             return ""
         marker = "## 阶段二"
@@ -123,10 +141,18 @@ class AutoScorer:
                 exam_id=exam_id,
                 question_id=question_id,
                 evidence_points=["Input blocked by safety filter"],
-                concept_accuracy=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
-                reasoning_quality=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
-                knowledge_coverage=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
-                knowledge_integration=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
+                concept_accuracy=RubricDimension(
+                    score=0, justification="Safety filter blocked input", low_confidence=True
+                ),
+                reasoning_quality=RubricDimension(
+                    score=0, justification="Safety filter blocked input", low_confidence=True
+                ),
+                knowledge_coverage=RubricDimension(
+                    score=0, justification="Safety filter blocked input", low_confidence=True
+                ),
+                knowledge_integration=RubricDimension(
+                    score=0, justification="Safety filter blocked input", low_confidence=True
+                ),
                 overall_score=0,
                 grade=1,
                 confidence="low",
@@ -190,9 +216,28 @@ class AutoScorer:
             feedback_summary=evidence.get("overall_observation", ""),
         )
 
+        # Story 6.9: Scoring faithfulness deep check (AC-1 through AC-4)
+        # Runs asynchronously after scoring; gates SCORE_SUBMITTED event emission.
+        try:
+            from app.services.scoring_faithfulness import get_scoring_faithfulness_checker
+
+            checker = get_scoring_faithfulness_checker()
+            faith_result = await checker.run_full_check(result, conversation_segment)
+
+            result.faithfulness_score = faith_result.faithfulness_score
+            result.faithfulness_passed = faith_result.faithfulness_passed
+            result.evidence_grounding_score = faith_result.evidence_grounding_score
+            result.score_consistency_score = faith_result.score_consistency_score
+            result.faithfulness_details = faith_result.to_dict()
+            result.verified = faith_result.faithfulness_passed
+        except Exception as faith_err:
+            logger.warning(f"[Story 6.9] Scoring faithfulness check failed (non-fatal): {faith_err}")
+            # On failure, default to verified=True (don't block scoring pipeline)
+
         logger.info(
             f"[Story 6.4] AutoSCORE completed: node={node_id} "
-            f"grade={grade} overall={overall}/12 confidence={confidence}"
+            f"grade={grade} overall={overall}/12 confidence={confidence} "
+            f"faithfulness_passed={result.faithfulness_passed}"
         )
 
         return result

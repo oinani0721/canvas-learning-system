@@ -48,6 +48,20 @@ class GenerateQuestionInput(BaseModel):
         description="Question type: 'recall', 'comprehension', 'application', 'analysis'. "
         "If not provided, auto-selects based on learning stage.",
     )
+    # Story 6.3: Exam context for full ACP pipeline
+    exam_id: Optional[str] = Field(
+        None,
+        description="Exam session ID. When provided, uses the full Story 6.3 FSRS+BKT+KG "
+        "selection + ACP + 5-layer prompt pipeline instead of template-based generation.",
+    )
+    exam_mode: Optional[str] = Field(
+        None,
+        description="Exam mode: 'point_to_point', 'comprehensive', 'mixed'. Only used when exam_id is provided.",
+    )
+    source_canvas_id: Optional[str] = Field(
+        None,
+        description="Source canvas board ID for target node selection. Only used when exam_id is provided.",
+    )
 
 
 class GenerateQuestionOutput(BaseModel):
@@ -119,9 +133,16 @@ async def generate_question(
     session_id: str,
     difficulty: Optional[str] = None,
     question_type: Optional[str] = None,
+    exam_id: Optional[str] = None,
+    exam_mode: Optional[str] = None,
+    source_canvas_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Generate a question for a canvas node based on its content and mastery level.
+
+    When exam_id is provided, uses the full Story 6.3 pipeline:
+    FSRS+BKT+KG target selection -> ACP assembly -> 5-layer prompt -> LLM.
+    Otherwise falls back to template-based generation (Story 4.2).
 
     This is the entry point of the pipeline. Returns a pipeline_token (token_A)
     that must be passed to score_answer.
@@ -142,6 +163,49 @@ async def generate_question(
     token_mgr = get_pipeline_token_manager()
 
     try:
+        # Story 6.3: When exam_id is provided, use the full ACP pipeline
+        if exam_id and source_canvas_id:
+            from app.models.exam_models import ExamMode
+            from app.services.exam_service import get_exam_service
+            from app.services.question_generator import QuestionGenerator
+
+            generator = QuestionGenerator()
+            mode = ExamMode(exam_mode) if exam_mode else ExamMode.MIXED
+
+            # Get examined nodes from the exam session
+            exam_svc = get_exam_service()
+            session = await exam_svc.get_session(exam_id)
+            examined = session.examined_nodes if session else list()
+
+            result = await generator.generate_exam_question(
+                exam_id=exam_id,
+                source_canvas_id=source_canvas_id,
+                exam_mode=mode,
+                target_node_id=node_id if node_id else None,
+                examined_nodes=examined,
+            )
+
+            # Record node as examined
+            if session and result.target_node_id:
+                await exam_svc.record_node_examined(exam_id, result.target_node_id)
+
+            pipeline_token = token_mgr.generate_token(
+                step_name="generate_question",
+                session_id=session_id,
+                node_id=result.target_node_id or node_id,
+                question_id=question_id,
+            )
+
+            return GenerateQuestionOutput(
+                question_id=question_id,
+                question_text=result.question_text,
+                question_type=result.question_type,
+                difficulty=result.difficulty_level,
+                pipeline_token=pipeline_token,
+                status="ok",
+            ).model_dump()
+
+        # Legacy path: template-based generation (Story 4.2)
         # Get node content for question generation
         from app.config import settings
         from app.services.canvas_service import CanvasService
@@ -214,6 +278,30 @@ async def generate_question(
             node_id=node_id,
             question_id=question_id,
         )
+
+        # Story 6.10 AC-1: Fire-and-forget difficulty matching evaluation
+        # Never blocks question delivery. Failure is silently logged.
+        try:
+            from app.services.difficulty_matcher import get_difficulty_matcher
+
+            matcher = get_difficulty_matcher()
+            effective_prof = 0.5  # Default proficiency
+            if mastery_data and hasattr(mastery_data, "p_mastery"):
+                effective_prof = mastery_data.p_mastery
+
+            async def _evaluate_difficulty() -> None:
+                try:
+                    await matcher.evaluate(
+                        node_id=node_id,
+                        question=q_text,
+                        proficiency=effective_prof,
+                    )
+                except Exception as diff_err:
+                    logger.error(f"[Story 6.10] Difficulty evaluation failed: {diff_err}")
+
+            asyncio.create_task(_evaluate_difficulty())
+        except Exception as diff_setup_err:
+            logger.debug(f"[Story 6.10] Difficulty matcher not available: {diff_setup_err}")
 
         return GenerateQuestionOutput(
             question_id=question_id,
@@ -317,26 +405,37 @@ async def score_answer(
         feedback = autoscore_result.feedback_summary
         is_correct = grade >= 3
 
-        # Story 6.4 AC-4: Emit SCORE_SUBMITTED event for BKT/FSRS update
-        try:
-            from app.models.canvas_events import LearningEvent, LearningEventType
-            from app.services.event_bus import get_event_bus
+        # Story 6.9 AC-4: Faithfulness gate — only emit SCORE_SUBMITTED if verified
+        # If faithfulness_passed is False or overall low confidence, don't update mastery.
+        faithfulness_passed = getattr(autoscore_result, "faithfulness_passed", True)
 
-            event_bus = get_event_bus()
-            score_event = LearningEvent(
-                event_type=LearningEventType.SCORE_SUBMITTED,
-                payload={
-                    "node_id": node_id,
-                    "session_id": session_id,
-                    "grade": grade,
-                    "is_correct": is_correct,
-                    "source": "autoscore",
-                },
-                source="autoscore",
+        if faithfulness_passed:
+            # Story 6.4 AC-4: Emit SCORE_SUBMITTED event for BKT/FSRS update
+            try:
+                from app.models.canvas_events import LearningEvent, LearningEventType
+                from app.services.event_bus import get_event_bus
+
+                event_bus = get_event_bus()
+                score_event = LearningEvent(
+                    event_type=LearningEventType.SCORE_SUBMITTED,
+                    payload={
+                        "node_id": node_id,
+                        "session_id": session_id,
+                        "grade": grade,
+                        "is_correct": is_correct,
+                        "source": "autoscore",
+                    },
+                    source="autoscore",
+                )
+                await event_bus.publish(score_event)
+            except Exception as evt_err:
+                logger.warning(f"[Story 6.4] SCORE_SUBMITTED event failed: {evt_err}")
+        else:
+            # Story 6.9 AC-4: Low faithfulness — record but don't update mastery
+            logger.warning(
+                f"[Story 6.9] SCORE_SUBMITTED suppressed for node={node_id}: "
+                f"faithfulness_passed=False (score={getattr(autoscore_result, 'faithfulness_score', 'N/A')})"
             )
-            await event_bus.publish(score_event)
-        except Exception as evt_err:
-            logger.warning(f"[Story 6.4] SCORE_SUBMITTED event failed: {evt_err}")
 
     except ImportError as e:
         logger.warning(f"[Story 3.2] score_answer: AutoScorer not available: {e}")

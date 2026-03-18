@@ -58,6 +58,11 @@ class CanvasEventType(str, Enum):
     # [Source: _bmad-output/implementation-artifacts/7-4-difficulty-matching-extraction-validation.md]
     DIFFICULTY_EVALUATED = "difficulty_evaluated"
 
+    # Story 6.10: Difficulty mismatch alert (Tier3 fire-and-forget)
+    # Triggered when consecutive_mismatches >= 3
+    # [Source: _bmad-output/implementation-artifacts/6-10-question-difficulty-matching.md]
+    DIFFICULTY_MISMATCH_ALERT = "difficulty_mismatch_alert"
+
 
 class CanvasEvent(BaseModel):
     """
@@ -179,6 +184,7 @@ class LearningEventType(str, Enum):
     # Tier 3 (P2) BEST_EFFORT — fire-and-forget
     RAG_WEIGHT_ADJUST = "rag_weight_adjust"
     UI_MASTERY_PUSH = "ui_mastery_push"
+    DIFFICULTY_MISMATCH_ALERT = "difficulty_mismatch_alert"
 
 
 class EventTier(str, Enum):
@@ -204,6 +210,7 @@ LEARNING_EVENT_TIER_MAP: Dict[LearningEventType, EventTier] = {
     LearningEventType.MEMORY_WRITE_REQUESTED: EventTier.TIER_2_IMPORTANT,
     LearningEventType.RAG_WEIGHT_ADJUST: EventTier.TIER_3_BEST_EFFORT,
     LearningEventType.UI_MASTERY_PUSH: EventTier.TIER_3_BEST_EFFORT,
+    LearningEventType.DIFFICULTY_MISMATCH_ALERT: EventTier.TIER_3_BEST_EFFORT,
 }
 
 

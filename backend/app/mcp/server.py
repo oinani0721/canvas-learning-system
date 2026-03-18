@@ -181,6 +181,9 @@ def _register_tool_routes(app: FastAPI) -> None:
             session_id=input.session_id,
             difficulty=input.difficulty,
             question_type=input.question_type,
+            exam_id=input.exam_id,
+            exam_mode=input.exam_mode,
+            source_canvas_id=input.source_canvas_id,
         )
 
     @app.post(

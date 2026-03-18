@@ -1,59 +1,720 @@
 # Canvas Learning System - Question Generator Service
-# PRD Story 4.2: Deep Verification Question Generation
-# [Source: docs/prd/FULL-PRD-REFERENCE.md - Story 4.2]
+# Story 6.3: AI Precise Question Generation (ACP Data Package)
+# Story 4.2: Legacy template-based generation (preserved for backward compat)
+#
+# Upgraded from template-only to FSRS+BKT+KG triangle selection + ACP assembly
+# + 5-layer Prompt (arXiv:2408.04394 PS4) + LLM-based question generation.
+#
+# [Source: _bmad-output/implementation-artifacts/6-3-ai-precise-question-acp.md]
 """
-Question Generator Service for Verification Canvas.
+QuestionGenerator: FSRS+BKT+KG target selection + ACP + 5-layer Prompt + LLM.
 
-Generates three types of questions based on node color:
-- Breakthrough (红色节点): Core concept questions for things not understood
-- Verification (紫色节点): Deep verification questions for partial understanding
-- Application (应用型): Practical application scenarios
+Story 6.3 AC-1: select_target_node() — triple-factor priority ranking.
+Story 6.3 AC-2: assemble_acp() — Graphiti + mastery_engine + archive aggregation.
+Story 6.3 AC-3: 5-layer prompt construction (PS4 strategy).
+Story 6.3 AC-5: generate_exam_question() — full pipeline entry point.
 
-[Source: PRD F8 + Story 4.2]
+Legacy: generate_questions() / generate_for_nodes() retained for Story 4.2 usage.
 """
 
+import json
+import logging
 import re
-from typing import Dict, List, Literal, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional
+
+from app.models.exam_models import (
+    ACPData,
+    ExamMode,
+    NodePriority,
+    QuestionGenerationResult,
+)
+
+logger = logging.getLogger(__name__)
 
 QuestionType = Literal["breakthrough", "verification", "application"]
+
+# Prompt template directory
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "exam"
+
+# FSRS+BKT+KG priority weights (Story 6.3 AC-1)
+W_MASTERY = 0.4
+W_RETRIEVABILITY = 0.3
+W_KG_RELEVANCE = 0.3
+
+# ACP token budget (Story 6.3 AC-2)
+ACP_MAX_CHARS = 9000  # ~3K tokens at ~3 chars/token
+
+
+def _load_prompt_file(filename: str) -> str:
+    """Load a prompt template file from the exam prompts directory."""
+    path = _PROMPTS_DIR / filename
+    if path.exists():
+        return path.read_text(encoding="utf-8")
+    logger.warning(f"[Story 6.3] Prompt file not found: {path}")
+    return ""
 
 
 class QuestionGenerator:
     """
-    PRD Story 4.2: Deep Verification Question Generation
-
-    - 突破型问题 (Breakthrough): 针对红色节点的核心疑问
-    - 检验型问题 (Verification): 验证紫色节点是否真正理解
-    - 应用型问题 (Application): 知识的实际应用场景
-
-    Each node generates 1-2 questions.
-    Question generation should complete within <5 seconds.
+    Dual-mode question generator:
+      - generate_exam_question(): Story 6.3 full pipeline (LLM-based)
+      - generate_questions(): Story 4.2 legacy template-based (kept for compat)
     """
 
-    # Question templates for different types
+    # Legacy templates (Story 4.2 — preserved for backward compatibility)
     BREAKTHROUGH_TEMPLATES = [
         "请用自己的话解释：{concept}",
         "{concept} 的核心原理是什么？",
         "为什么 {concept}？请从根本原因分析",
         "如果要向初学者解释 {concept}，你会怎么说？",
     ]
-
     VERIFICATION_TEMPLATES = [
         "请详细描述 {concept} 的工作机制",
         "验证理解：{concept} 与什么概念相关？有何区别？",
         "{concept} 在什么情况下适用？什么情况下不适用？",
         "请举一个具体例子来说明 {concept}",
     ]
-
     APPLICATION_TEMPLATES = [
         "{concept} 可以应用在哪些实际场景中？",
         "如何使用 {concept} 解决实际问题？",
         "设计一个使用 {concept} 的案例",
     ]
 
-    def __init__(self):
-        """Initialize the question generator."""
+    def __init__(self) -> None:
+        """Initialize the question generator with 5-layer prompt templates."""
         self._template_index = 0
+        # Load 5-layer prompt templates once (Story 6.3 AC-3)
+        self._layer1 = _load_prompt_file("layer1_role.md")
+        self._layer2 = _load_prompt_file("layer2_mode.md")
+        self._layer4 = _load_prompt_file("layer4_rules.md")
+        self._layer5 = _load_prompt_file("layer5_scoring_preset.md")
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Story 6.3: Full Pipeline — Target Selection + ACP + LLM Generation
+    # ═══════════════════════════════════════════════════════════════════════
+
+    async def select_target_node(
+        self,
+        exam_id: str,
+        source_canvas_id: str,
+        exam_mode: ExamMode,
+        examined_nodes: Optional[List[str]] = None,
+        target_node_id: Optional[str] = None,
+    ) -> Optional[NodePriority]:
+        """Select the weakest node for examination using FSRS+BKT+KG.
+
+        Story 6.3 AC-1: Triple-factor priority ranking.
+        priority = W1*(1-p_mastery) + W2*(1-R) + W3*kg_relevance
+
+        Args:
+            exam_id: Current exam session ID.
+            source_canvas_id: Original canvas board ID.
+            exam_mode: Examination mode for strategy selection.
+            examined_nodes: Nodes already examined this session (deprioritized).
+            target_node_id: If specified, skip selection and use this node.
+
+        Returns:
+            NodePriority for the selected target, or None if no nodes available.
+        """
+        if target_node_id:
+            mastery_data = await self._get_mastery_data(target_node_id)
+            return NodePriority(
+                node_id=target_node_id,
+                priority_score=1.0,
+                p_mastery=mastery_data.get("p_mastery", 0.1),
+                retrievability=mastery_data.get("retrievability", 1.0),
+                kg_relevance=1.0,
+            )
+
+        examined = set(examined_nodes or list())
+
+        # Get all nodes from the source canvas
+        nodes = await self._get_canvas_nodes(source_canvas_id)
+        if not nodes:
+            return None
+
+        priorities: List[NodePriority] = list()
+        for node in nodes:
+            node_id = node.get("id", "")
+            if not node_id:
+                continue
+
+            mastery_data = await self._get_mastery_data(node_id)
+            p_mastery = mastery_data.get("p_mastery", 0.1)
+            retrievability = mastery_data.get("retrievability", 1.0)
+            kg_relevance = await self._get_kg_relevance(node_id, source_canvas_id)
+
+            priority = (
+                W_MASTERY * (1.0 - p_mastery)
+                + W_RETRIEVABILITY * (1.0 - retrievability)
+                + W_KG_RELEVANCE * kg_relevance
+            )
+
+            already_examined = node_id in examined
+            if already_examined:
+                priority *= 0.3  # Demote already-examined nodes
+
+            priorities.append(
+                NodePriority(
+                    node_id=node_id,
+                    priority_score=round(priority, 4),
+                    p_mastery=p_mastery,
+                    retrievability=retrievability,
+                    kg_relevance=kg_relevance,
+                    already_examined=already_examined,
+                )
+            )
+
+        if not priorities:
+            return None
+
+        priorities.sort(key=lambda p: p.priority_score, reverse=True)
+        selected = priorities[0]
+
+        logger.info(
+            f"[Story 6.3] Target node selected: {selected.node_id} "
+            f"priority={selected.priority_score} p_mastery={selected.p_mastery} "
+            f"R={selected.retrievability} kg={selected.kg_relevance}"
+        )
+        return selected
+
+    async def assemble_acp(self, node_id: str) -> ACPData:
+        """Assemble Assessment Context Package from multiple data sources.
+
+        Story 6.3 AC-2: Aggregates Tips, error history, edge reasons,
+        mastery data, and conversation summary. Token budget: 3K tokens.
+
+        Args:
+            node_id: Target node for ACP assembly.
+
+        Returns:
+            ACPData with assembled context.
+        """
+        acp = ACPData(node_id=node_id)
+
+        # 1. Get node content from canvas
+        node_data = await self._get_node_content(node_id)
+        acp.node_content = self._truncate(node_data.get("text", ""), 1000)
+
+        # Classify content type
+        k_signals, p_signals = self._classify_content(acp.node_content)
+        if p_signals > k_signals:
+            acp.node_type = "problem_type"
+
+        # 2. Get mastery data from mastery_engine
+        mastery = await self._get_mastery_data(node_id)
+        acp.p_mastery = mastery.get("p_mastery", 0.1)
+        acp.retrievability = mastery.get("retrievability", 1.0)
+        acp.effective_proficiency = mastery.get("effective_proficiency", 0.0)
+        acp.mastery_level = mastery.get("mastery_level", 0.0)
+        acp.mastery_label = mastery.get("mastery_label", "Not Assessed")
+
+        # 3. Get Tips from Graphiti
+        acp.student_tips = await self._get_tips(node_id)
+
+        # 4. Get error history from Graphiti
+        acp.error_history = await self._get_error_history(node_id)
+
+        # 5. Get edge reasons from Graphiti
+        acp.edge_reasons = await self._get_edge_reasons(node_id)
+
+        # 6. Get conversation summary (Tier 2 summary level)
+        acp.conversation_summary = await self._get_conversation_summary(node_id)
+
+        # Token budget enforcement
+        self._enforce_token_budget(acp)
+
+        logger.info(
+            f"[Story 6.3] ACP assembled for node {node_id}: "
+            f"tips={len(acp.student_tips)} errors={len(acp.error_history)} "
+            f"edges={len(acp.edge_reasons)} mastery={acp.mastery_label}"
+        )
+        return acp
+
+    def build_5_layer_prompt(self, acp: ACPData, exam_mode: ExamMode) -> str:
+        """Construct the 5-layer prompt for LLM question generation.
+
+        Story 6.3 AC-3: Bloom's Taxonomy PS4 strategy (arXiv:2408.04394).
+        Layer 1 (static): Examiner role
+        Layer 2 (user-selected): Exam mode
+        Layer 3 (dynamic): ACP student data
+        Layer 4 (static): Question rules
+        Layer 5 (static): Scoring preset
+
+        Args:
+            acp: Assembled ACP data package.
+            exam_mode: User-selected examination mode.
+
+        Returns:
+            Complete prompt string for LLM.
+        """
+        # Layer 1: Role
+        layer1 = self._layer1 or "你是一位经验丰富的学习考官，通过精准提问检验学生理解深度。"
+
+        # Layer 2: Mode (substitute variable)
+        layer2 = (
+            self._layer2.replace("{{exam_mode}}", exam_mode.value)
+            if self._layer2
+            else (f"当前考察模式: {exam_mode.value}")
+        )
+
+        # Layer 3: ACP (dynamic)
+        layer3 = self._format_acp_layer(acp)
+
+        # Layer 4: Rules
+        layer4 = self._layer4 or "一次只出一道题，从弱点出题，不暗示答案。"
+
+        # Layer 5: Scoring preset
+        layer5 = self._layer5 or "题目将按4维4分制Rubric评分，需有区分度。"
+
+        prompt = f"{layer1}\n\n---\n{layer2}\n\n---\n### 学生数据（ACP）\n{layer3}\n\n---\n{layer4}\n\n---\n{layer5}"
+        return prompt
+
+    async def generate_exam_question(
+        self,
+        exam_id: str,
+        source_canvas_id: str,
+        exam_mode: ExamMode,
+        target_node_id: Optional[str] = None,
+        examined_nodes: Optional[List[str]] = None,
+    ) -> QuestionGenerationResult:
+        """Full Story 6.3 pipeline: select target -> assemble ACP -> 5-layer prompt -> LLM.
+
+        Story 6.3 AC-5: MCP generate_question entry point.
+
+        Args:
+            exam_id: Exam session ID.
+            source_canvas_id: Original canvas board ID.
+            exam_mode: User-selected examination mode.
+            target_node_id: Optional specific node to question.
+            examined_nodes: Nodes already examined this session.
+
+        Returns:
+            QuestionGenerationResult with question text, target node, difficulty, etc.
+        """
+        # Step 1: Select target node
+        target = await self.select_target_node(
+            exam_id=exam_id,
+            source_canvas_id=source_canvas_id,
+            exam_mode=exam_mode,
+            examined_nodes=examined_nodes,
+            target_node_id=target_node_id,
+        )
+
+        if not target:
+            return QuestionGenerationResult(
+                question_text="所有节点均已考察完毕，考察结束。",
+                target_node_id="",
+                difficulty_level="N/A",
+                difficulty_rationale="No unexamined nodes remaining",
+            )
+
+        # Step 2: Assemble ACP
+        acp = await self.assemble_acp(target.node_id)
+
+        # Step 3: Build 5-layer prompt
+        system_prompt = self.build_5_layer_prompt(acp, exam_mode)
+
+        # Step 4: Call LLM for question generation
+        question_result = await self._call_llm_for_question(
+            system_prompt=system_prompt,
+            acp=acp,
+            target=target,
+        )
+
+        question_result.target_node_id = target.node_id
+
+        # Determine difficulty level from mastery
+        if acp.effective_proficiency < 0.3:
+            question_result.difficulty_level = "easy"
+        elif acp.effective_proficiency < 0.5:
+            question_result.difficulty_level = "medium-easy"
+        elif acp.effective_proficiency < 0.7:
+            question_result.difficulty_level = "medium-hard"
+        else:
+            question_result.difficulty_level = "hard"
+
+        question_result.difficulty_rationale = (
+            f"p_mastery={target.p_mastery:.2f} R={target.retrievability:.2f} "
+            f"effective_proficiency={acp.effective_proficiency:.2f}"
+        )
+
+        logger.info(
+            f"[Story 6.3] Question generated for node {target.node_id}: difficulty={question_result.difficulty_level}"
+        )
+        return question_result
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Internal Helpers
+    # ═══════════════════════════════════════════════════════════════════════
+
+    def _format_acp_layer(self, acp: ACPData) -> str:
+        """Format ACP data into Layer 3 prompt text."""
+        parts: List[str] = list()
+
+        parts.append(f"**目标节点**: {acp.node_content[:200]}")
+        parts.append(f"**节点类型**: {acp.node_type}")
+        parts.append(
+            f"**精通度**: effective_proficiency={acp.effective_proficiency:.2f}, "
+            f"p_mastery={acp.p_mastery:.2f}, retrievability={acp.retrievability:.2f}, "
+            f"level={acp.mastery_label}"
+        )
+
+        if acp.student_tips:
+            tips_str = "; ".join(acp.student_tips[:5])
+            parts.append(f"**学生标注(Tips)**: {tips_str}")
+
+        if acp.error_history:
+            errors = list()
+            for err in acp.error_history[:4]:
+                err_type = err.get("error_type", "unknown")
+                err_desc = err.get("description", "")[:100]
+                errors.append(f"  - [{err_type}] {err_desc}")
+            parts.append("**历史错误**:\n" + "\n".join(errors))
+
+        if acp.edge_reasons:
+            edges_str = "; ".join(acp.edge_reasons[:5])
+            parts.append(f"**概念关系(Edge理由)**: {edges_str}")
+
+        if acp.conversation_summary:
+            parts.append(f"**对话历史摘要**: {acp.conversation_summary[:500]}")
+
+        return "\n".join(parts)
+
+    async def _call_llm_for_question(
+        self,
+        system_prompt: str,
+        acp: ACPData,
+        target: NodePriority,
+    ) -> QuestionGenerationResult:
+        """Call LLM to generate a question based on 5-layer prompt + ACP.
+
+        Uses LiteLLM unified call layer with the configured model.
+        """
+        user_message = (
+            f"请基于以上学生数据，为知识节点「{acp.node_content[:100]}」出一道考察题。\n"
+            f"要求：一次一题、难度匹配精通度（{acp.mastery_label}）、不暗示答案。\n\n"
+            f"以 JSON 格式返回：\n"
+            '{"question_text": "题目内容", "question_type": "explanation|comparison|application|analysis", '
+            '"target_bloom_level": "remember|understand|apply|analyze|evaluate|create", '
+            '"target_error_type": "可选,学生历史主要错误类型", '
+            '"scoring_hints": "评分时重点关注的方面"}'
+        )
+
+        try:
+            from litellm import acompletion
+
+            from app.config import settings
+
+            model = getattr(settings, "SCORING_MODEL", None) or getattr(
+                settings, "LLM_MODEL", "gemini/gemini-2.0-flash"
+            )
+
+            response = await acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                temperature=0.5,
+                response_format={"type": "json_object"},
+            )
+
+            content = response.choices[0].message.content
+            result_data = json.loads(content)
+
+            return QuestionGenerationResult(
+                question_text=result_data.get("question_text", ""),
+                question_type=result_data.get("question_type", "explanation"),
+                target_bloom_level=result_data.get("target_bloom_level", "understand"),
+                target_error_type=result_data.get("target_error_type"),
+                scoring_hints=result_data.get("scoring_hints", ""),
+            )
+
+        except Exception as e:
+            logger.error(f"[Story 6.3] LLM question generation failed: {e}")
+            # Fallback to template-based question
+            concept = acp.node_content[:50] if acp.node_content else "this concept"
+            fallback_q = self._generate_fallback_question(concept, acp.effective_proficiency)
+            return QuestionGenerationResult(
+                question_text=fallback_q,
+                question_type="explanation",
+                target_bloom_level="understand",
+                difficulty_rationale=f"LLM fallback: {e}",
+            )
+
+    def _generate_fallback_question(self, concept: str, proficiency: float) -> str:
+        """Generate a template-based fallback question when LLM is unavailable."""
+        if proficiency < 0.3:
+            return f"请用自己的话解释：{concept}"
+        elif proficiency < 0.5:
+            return f"请详细描述 {concept} 的工作机制"
+        elif proficiency < 0.7:
+            return f"{concept} 在什么情况下适用？什么情况下不适用？"
+        else:
+            return f"设计一个使用 {concept} 的实际案例"
+
+    async def _get_canvas_nodes(self, canvas_id: str) -> List[Dict[str, Any]]:
+        """Get all nodes from a canvas for target selection."""
+        try:
+            from app.services.canvas_service import CanvasService
+
+            canvas_svc = CanvasService()
+            nodes = await canvas_svc.get_nodes_by_canvas(canvas_id)
+            return nodes if nodes else list()
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get canvas nodes: {e}")
+            return list()
+
+    async def _get_node_content(self, node_id: str) -> Dict[str, Any]:
+        """Get a single node's content data."""
+        try:
+            from app.config import settings
+            from app.services.canvas_service import CanvasService
+
+            canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
+            _canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
+            return node_data if node_data else dict()
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get node content: {e}")
+            return dict()
+
+    async def _get_mastery_data(self, node_id: str) -> Dict[str, Any]:
+        """Get mastery data for a node from mastery_engine."""
+        try:
+            from app.api.v1.endpoints.mastery import _get_store
+
+            store = _get_store()
+            concept = await store.get_concept(node_id)
+            if concept:
+                return {
+                    "p_mastery": getattr(concept, "p_mastery", 0.1),
+                    "retrievability": getattr(concept, "retrievability", 1.0),
+                    "effective_proficiency": getattr(concept, "effective_proficiency", 0.0),
+                    "mastery_level": getattr(concept, "mastery_level", 0.0),
+                    "mastery_label": getattr(concept, "mastery_label", "Not Assessed"),
+                }
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get mastery data: {e}")
+        return {
+            "p_mastery": 0.1,
+            "retrievability": 1.0,
+            "effective_proficiency": 0.0,
+            "mastery_level": 0.0,
+            "mastery_label": "Not Assessed",
+        }
+
+    async def _get_kg_relevance(self, node_id: str, canvas_id: str) -> float:
+        """Compute KG-based relevance score for a node.
+
+        Nodes with more connections to high-mastery neighbors but low self-mastery
+        represent structural knowledge gaps — these get higher relevance scores.
+        """
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+
+            client = get_neo4j_client()
+            query = """
+            MATCH (n:CanvasNode {uuid: $node_id})-[r]-(neighbor:CanvasNode)
+            WHERE neighbor.canvas_id = $canvas_id
+            RETURN count(neighbor) AS degree
+            """
+            records = await client.run_query(query, node_id=node_id, canvas_id=canvas_id)
+            if records:
+                data = records[0] if isinstance(records[0], dict) else records[0].data()
+                degree = data.get("degree", 0)
+                # Normalize: more connections = higher relevance, capped at 1.0
+                return min(1.0, degree / 5.0)
+        except Exception as e:
+            logger.debug(f"[Story 6.3] KG relevance query failed: {e}")
+        return 0.5  # Default moderate relevance
+
+    async def _get_tips(self, node_id: str) -> List[str]:
+        """Get user-annotated Tips from Graphiti for a node."""
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+
+            client = get_neo4j_client()
+            query = """
+            MATCH (e:EpisodicNode)
+            WHERE e.source_description = 'tip'
+              AND e.node_id = $node_id
+            RETURN e.content AS content
+            ORDER BY e.created_at DESC
+            LIMIT 5
+            """
+            records = await client.run_query(query, node_id=node_id)
+            tips: List[str] = list()
+            for record in records or list():
+                data = record if isinstance(record, dict) else record.data()
+                content = data.get("content", "")
+                if content:
+                    tips.append(content)
+            return tips
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get tips: {e}")
+            return list()
+
+    async def _get_error_history(self, node_id: str) -> List[Dict[str, str]]:
+        """Get 4-type error history from Graphiti for a node."""
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+
+            client = get_neo4j_client()
+            query = """
+            MATCH (e:EpisodicNode)
+            WHERE e.source_description = 'error_record'
+              AND e.node_id = $node_id
+            RETURN e.error_type AS error_type, e.description AS description
+            ORDER BY e.created_at DESC
+            LIMIT 4
+            """
+            records = await client.run_query(query, node_id=node_id)
+            errors: List[Dict[str, str]] = list()
+            for record in records or list():
+                data = record if isinstance(record, dict) else record.data()
+                errors.append(
+                    {
+                        "error_type": data.get("error_type", "unknown"),
+                        "description": data.get("description", ""),
+                    }
+                )
+            return errors
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get error history: {e}")
+            return list()
+
+    async def _get_edge_reasons(self, node_id: str) -> List[str]:
+        """Get edge relationship reasons from Graphiti for a node."""
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+
+            client = get_neo4j_client()
+            query = """
+            MATCH (n:CanvasNode {uuid: $node_id})-[r]->(m:CanvasNode)
+            WHERE r.rationale IS NOT NULL
+            RETURN r.rationale AS rationale
+            LIMIT 5
+            """
+            records = await client.run_query(query, node_id=node_id)
+            reasons: List[str] = list()
+            for record in records or list():
+                data = record if isinstance(record, dict) else record.data()
+                rationale = data.get("rationale", "")
+                if rationale:
+                    reasons.append(rationale)
+            return reasons
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get edge reasons: {e}")
+            return list()
+
+    async def _get_conversation_summary(self, node_id: str) -> str:
+        """Get Tier 2 conversation summary from archive."""
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+
+            client = get_neo4j_client()
+            query = """
+            MATCH (e:EpisodicNode)
+            WHERE e.source_description = 'conversation_archive'
+              AND e.node_id = $node_id
+            RETURN e.summary AS summary
+            ORDER BY e.created_at DESC
+            LIMIT 1
+            """
+            records = await client.run_query(query, node_id=node_id)
+            if records:
+                data = records[0] if isinstance(records[0], dict) else records[0].data()
+                return data.get("summary", "")
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to get conversation summary: {e}")
+        return ""
+
+    def _enforce_token_budget(self, acp: ACPData) -> None:
+        """Enforce 3K token budget on ACP data.
+
+        Truncates longest fields first to stay within budget.
+        Protects formulas ($...$) and code blocks from mid-token splits.
+        """
+        total_chars = (
+            len(acp.node_content)
+            + len(acp.conversation_summary)
+            + sum(len(t) for t in acp.student_tips)
+            + sum(len(e.get("description", "")) for e in acp.error_history)
+            + sum(len(r) for r in acp.edge_reasons)
+        )
+
+        if total_chars <= ACP_MAX_CHARS:
+            return
+
+        # Truncation priority: conversation_summary > node_content > tips
+        if len(acp.conversation_summary) > 500:
+            acp.conversation_summary = self._truncate(acp.conversation_summary, 500)
+        if len(acp.node_content) > 800:
+            acp.node_content = self._truncate(acp.node_content, 800)
+        if len(acp.student_tips) > 3:
+            acp.student_tips = acp.student_tips[:3]
+        if len(acp.error_history) > 3:
+            acp.error_history = acp.error_history[:3]
+        if len(acp.edge_reasons) > 3:
+            acp.edge_reasons = acp.edge_reasons[:3]
+
+    @staticmethod
+    def _truncate(text: str, max_len: int) -> str:
+        """Truncate text preserving sentence boundaries and formula blocks."""
+        if len(text) <= max_len:
+            return text
+        # Try to break at sentence boundary
+        truncated = text[:max_len]
+        last_period = max(
+            truncated.rfind("。"),
+            truncated.rfind(". "),
+            truncated.rfind("\n"),
+        )
+        if last_period > max_len * 0.5:
+            return truncated[: last_period + 1]
+        return truncated + "..."
+
+    @staticmethod
+    def _classify_content(text: str) -> tuple[int, int]:
+        """Count knowledge vs problem signals in text (shared with ExamService)."""
+        knowledge_keywords = [
+            "定义",
+            "概念",
+            "原理",
+            "特征",
+            "性质",
+            "分类",
+            "是指",
+            "定义为",
+            "指的是",
+            "含义",
+            "本质",
+        ]
+        problem_keywords = [
+            "求",
+            "计算",
+            "证明",
+            "解",
+            "例题",
+            "练习",
+            "应用",
+            "推导",
+            "解答",
+            "已知",
+            "求解",
+        ]
+        k_count = sum(1 for kw in knowledge_keywords if kw in text)
+        p_count = sum(1 for kw in problem_keywords if kw in text)
+        latex_count = len(re.findall(r"\$[^$]+\$", text))
+        if latex_count > 2:
+            p_count += latex_count
+        return k_count, p_count
+
+    # ═══════════════════════════════════════════════════════════════════════
+    # Legacy Story 4.2: Template-based question generation (backward compat)
+    # ═══════════════════════════════════════════════════════════════════════
 
     def generate_questions(
         self,
@@ -61,87 +722,50 @@ class QuestionGenerator:
         question_type: Optional[QuestionType] = None,
         effective_proficiency: Optional[float] = None,
     ) -> List[str]:
-        """
-        Generate 1-2 verification questions for a single node.
+        """Generate 1-2 template-based questions for a node.
 
-        Args:
-            node: Canvas node dict with 'text' and 'color' fields
-            question_type: Optional override for question type
-            effective_proficiency: Optional mastery proficiency (0.0-1.0), overrides color-based heuristic
-
-        Returns:
-            List of 1-2 question strings
-
-        PRD Story 4.2 AC:
-        - 每个节点生成1-2个问题
-        - 问题生成耗时<5秒
+        Legacy Story 4.2 method — preserved for backward compatibility
+        with MCP tool generate_question in exam_tools.py.
         """
         content = node.get("text", "").strip()
         color = node.get("color", "")
-
-        # Skip empty nodes
         if not content:
-            return []
-
-        # Extract core concept from content
+            return list()
         concept = self._extract_concept(content)
-
-        # Determine question type: mastery proficiency (preferred) > color (fallback)
         if question_type is None:
             if effective_proficiency is not None:
-                # Mastery-aware: use proficiency thresholds
                 if effective_proficiency < 0.40:
-                    question_type = "breakthrough"  # Shaky
+                    question_type = "breakthrough"
                 elif effective_proficiency < 0.70:
-                    question_type = "verification"  # Developing
+                    question_type = "verification"
                 else:
-                    question_type = "application"   # Proficient/Mastered
-            elif color == "4":  # Red - not understood
+                    question_type = "application"
+            elif color == "4":
                 question_type = "breakthrough"
-            elif color == "3":  # Purple - partial understanding
+            elif color == "3":
                 question_type = "verification"
             else:
                 question_type = "application"
-
-        # Select templates based on type
         templates = self._get_templates(question_type)
-
-        # Generate questions using templates
-        questions = []
-        for template in templates[:2]:  # Max 2 questions
+        questions = list()
+        for template in templates[:2]:
             question = template.format(concept=concept)
             questions.append(question)
-
         return questions
 
     def _extract_concept(self, content: str) -> str:
-        """
-        Extract the core concept from node content.
-
-        Handles various content formats:
-        - Simple text: use as-is
-        - Markdown headers: extract header text
-        - Multi-line: use first line
-        - Long content: truncate to key phrase
-        """
-        # Remove markdown formatting
-        content = re.sub(r'^#+\s*', '', content)  # Remove headers
-        content = re.sub(r'\*\*([^*]+)\*\*', r'\1', content)  # Remove bold
-        content = re.sub(r'\*([^*]+)\*', r'\1', content)  # Remove italic
-
-        # Get first line if multi-line
-        first_line = content.split('\n')[0].strip()
-
-        # Truncate if too long (keep first 50 chars)
+        """Extract core concept from node content text."""
+        content = re.sub(r"^#+\s*", "", content)
+        content = re.sub(r"\*\*([^*]+)\*\*", r"\1", content)
+        content = re.sub(r"\*([^*]+)\*", r"\1", content)
+        first_line = content.split("\n")[0].strip()
         if len(first_line) > 50:
-            # Try to find a natural break point
-            break_points = ['. ', '，', '：', '。', ' - ']
+            break_points = [". ", "，", "：", "。", " - "]
             for bp in break_points:
                 idx = first_line.find(bp)
                 if 10 < idx < 50:
                     return first_line[:idx]
             return first_line[:50] + "..."
-
         return first_line if first_line else content[:50]
 
     def _get_templates(self, question_type: QuestionType) -> List[str]:
@@ -153,20 +777,9 @@ class QuestionGenerator:
         else:
             return self.APPLICATION_TEMPLATES
 
-    def generate_for_nodes(
-        self,
-        nodes: List[Dict]
-    ) -> Dict[str, List[str]]:
-        """
-        Generate questions for multiple nodes.
-
-        Args:
-            nodes: List of Canvas nodes
-
-        Returns:
-            Dict mapping node_id to list of questions
-        """
-        result = {}
+    def generate_for_nodes(self, nodes: List[Dict]) -> Dict[str, List[str]]:
+        """Generate questions for multiple nodes (Story 4.2 batch)."""
+        result: Dict[str, List[str]] = {}
         for node in nodes:
             node_id = node.get("id", "")
             if node_id:

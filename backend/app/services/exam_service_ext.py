@@ -19,6 +19,7 @@ from app.config import DEFAULT_GROUP_ID
 from app.models.exam_models import (
     COGNITIVE_LOAD_MESSAGES,
     COGNITIVE_LOAD_THRESHOLDS,
+    DiscoveredNode,
     ExamCompleteRequest,
     ExamCompleteResponse,
     ExamNodeSyncRequest,
@@ -116,10 +117,53 @@ async def sync_node_to_source_canvas(
         logger.warning(f"[Story 6.5] Edge creation failed (non-fatal): {e}")
         edge_created = False
 
+    # Story 6.5 AC-7: Track discovered node with full metadata (depth, timestamp, source)
     session = await self.get_session(request.exam_id)
     if session and request.node_id not in session.discovered_nodes:
         session.discovered_nodes.append(request.node_id)
         self._sessions[request.exam_id] = session
+
+    # Persist DiscoveredNode record to Neo4j for Story 6.8 exam record
+    try:
+        # Compute recursion depth: check if source_node_id is itself a discovered node
+        depth = 1
+        if session:
+            for existing_id in session.discovered_nodes:
+                if existing_id == request.source_node_id:
+                    # Source was itself discovered — increment depth
+                    depth += 1
+                    break
+
+        # DiscoveredNode model validates the data; we persist directly to Neo4j
+        DiscoveredNode(
+            node_id=request.node_id,
+            source_node_id=request.source_node_id,
+            depth=depth,
+            source_exam_id=request.exam_id,
+        )
+
+        discovered_query = """
+        MERGE (d:EpisodicNode {uuid: $disc_id})
+        SET d.source_description = 'discovered_node',
+            d.node_id = $node_id,
+            d.source_node_id = $source_node_id,
+            d.depth = $depth,
+            d.source_exam_id = $exam_id,
+            d.group_id = $group_id,
+            d.created_at = datetime($created_at)
+        """
+        await client.run_query(
+            discovered_query,
+            disc_id=f"disc_{request.exam_id}_{request.node_id}",
+            node_id=request.node_id,
+            source_node_id=request.source_node_id,
+            depth=depth,
+            exam_id=request.exam_id,
+            group_id=group_id,
+            created_at=now_iso,
+        )
+    except Exception as e:
+        logger.debug(f"[Story 6.5] DiscoveredNode record save failed (non-fatal): {e}")
 
     logger.info(
         f"[Story 6.5] Node {request.node_id} synced to canvas {request.source_canvas_id} from exam {request.exam_id}"

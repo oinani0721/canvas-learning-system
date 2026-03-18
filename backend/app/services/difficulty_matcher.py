@@ -38,6 +38,7 @@ logger = logging.getLogger(__name__)
 WINDOW_SIZE = 50
 MATCH_THRESHOLD = 0.7
 DIFFICULTY_MARGIN = 0.2
+CONSECUTIVE_MISMATCH_ALERT_THRESHOLD = 3
 
 # Few-shot prompt for LLM difficulty estimation
 _DIFFICULTY_PROMPT = """You are an educational assessment expert. Estimate the difficulty of the following question on a scale from 0.0 (trivial) to 1.0 (extremely hard).
@@ -119,6 +120,8 @@ class DifficultyMatcher:
         self._window: Deque[bool] = deque(maxlen=WINDOW_SIZE)
         self._initialized = False
         self._init_lock = asyncio.Lock()
+        # Story 6.10 AC-3: Consecutive mismatch counter for alert triggering
+        self._consecutive_mismatches: int = 0
 
     # ───────────────────────────────────────────────────────────────────────
     # Init
@@ -283,7 +286,13 @@ class DifficultyMatcher:
         # 5. Update sliding window
         self._window.append(matched)
 
-        # 6. Check alert threshold
+        # 6. Story 6.10 AC-3: Track consecutive mismatches
+        if matched:
+            self._consecutive_mismatches = 0
+        else:
+            self._consecutive_mismatches += 1
+
+        # 7. Check alert threshold
         stats = self.get_stats()
         if not stats.is_healthy:
             logger.warning(
@@ -292,7 +301,47 @@ class DifficultyMatcher:
                 f"(window: {stats.total_in_window} questions)"
             )
 
+        # 8. Story 6.10 AC-3: Fire DIFFICULTY_MISMATCH_ALERT on 3 consecutive mismatches
+        if self._consecutive_mismatches >= CONSECUTIVE_MISMATCH_ALERT_THRESHOLD:
+            await self._emit_mismatch_alert(node_id, proficiency, stats.match_rate)
+            self._consecutive_mismatches = 0  # Reset after alert
+
         return record
+
+    async def _emit_mismatch_alert(
+        self,
+        node_id: str,
+        proficiency: float,
+        match_rate: float,
+    ) -> None:
+        """Emit DIFFICULTY_MISMATCH_ALERT event via EventBus (Tier 3 best-effort).
+
+        [Source: Story 6.10 AC-3, Task 3.2]
+        """
+        try:
+            from app.models.canvas_events import LearningEvent, LearningEventType
+            from app.services.event_bus import get_event_bus
+
+            event_bus = get_event_bus()
+            alert_event = LearningEvent(
+                event_type=LearningEventType.DIFFICULTY_MISMATCH_ALERT,
+                payload={
+                    "node_id": node_id,
+                    "proficiency": proficiency,
+                    "match_rate": match_rate,
+                    "consecutive_mismatches": CONSECUTIVE_MISMATCH_ALERT_THRESHOLD,
+                    "adjustment": "inject target_difficulty_hint into ACP Layer 3",
+                },
+                source="difficulty_matcher",
+            )
+            await event_bus.publish(alert_event)
+            logger.warning(
+                f"[Story 6.10] DIFFICULTY_MISMATCH_ALERT fired: "
+                f"node={node_id} proficiency={proficiency:.3f} "
+                f"match_rate={match_rate:.2%} consecutive={CONSECUTIVE_MISMATCH_ALERT_THRESHOLD}"
+            )
+        except Exception as e:
+            logger.error(f"[Story 6.10] Failed to emit DIFFICULTY_MISMATCH_ALERT: {e}")
 
     # ───────────────────────────────────────────────────────────────────────
     # Statistics
