@@ -1492,12 +1492,22 @@ class LanceDBClient:
                 tbl = self._db.open_table(table_name)
                 self._tables_cache[table_name] = tbl
 
+            # Collect doc_ids already in results to avoid duplicates
+            existing_doc_ids: set = set()
+            for r in results:
+                existing_doc_ids.add(r.get("doc_id", ""))
+
             for link_name in linked_files:
                 try:
-                    where_clause = f"canvas_file LIKE '%{link_name}%'"
+                    escaped_link = self._escape_like(link_name)
+                    where_clause = f"canvas_file LIKE '%{escaped_link}%'"
                     rows = tbl.search().where(where_clause).limit(3).to_list()
                     for row in rows:
                         neighbor_doc = dict(row)
+                        doc_id = neighbor_doc.get("doc_id", "")
+                        if doc_id in existing_doc_ids:
+                            continue
+                        existing_doc_ids.add(doc_id)
                         orig_score = neighbor_doc.get("_distance", 0.5)
                         decayed_distance = orig_score / score_decay if score_decay > 0 else orig_score
                         neighbor_doc["_distance"] = decayed_distance
@@ -1540,7 +1550,9 @@ class LanceDBClient:
             if table_name not in self._tables_cache:
                 self._tables_cache[table_name] = self._db.open_table(table_name)
             tbl = self._tables_cache[table_name]
-            df = tbl.to_pandas()
+            # Story 2-8 H5: Only select course and tags_str columns to avoid
+            # loading full content/vector columns into memory.
+            df = tbl.to_pandas(columns=["course", "tags_str"])
 
             if "course" not in df.columns or "tags_str" not in df.columns:
                 return list()
@@ -1571,6 +1583,226 @@ class LanceDBClient:
             return related
         except Exception:
             return list()
+
+    async def progressive_scope_search(
+        self,
+        query: str,
+        course_id: str,
+        table_name: str = "vault_notes",
+        num_results: int = 10,
+        min_results_threshold: int = 5,
+        query_type: str = "hybrid",
+        subject: Optional[str] = None,
+        canvas_file: Optional[str] = None,
+        tag_jaccard_bridge_enabled: bool = False,
+        tag_jaccard_threshold: float = 0.3,
+        category: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Story 2.8 AC-3: Progressive 4-stage cascading scope search.
+
+        When searching within a specific course, if insufficient results are found,
+        automatically expands to broader scopes:
+          Stage 1: Same course (course = course_id)
+          Stage 2: Related courses (Tag Jaccard similarity > threshold)
+          Stage 3: Same category (category column match)
+          Stage 4: Full library (no filter)
+
+        Each result is tagged with scope_level (1-4) in metadata.
+        Expansion stops when results >= min_results_threshold.
+
+        Args:
+            query: Search query text.
+            course_id: Current course ID for initial scope.
+            table_name: LanceDB table name.
+            num_results: Target number of results.
+            min_results_threshold: Stop expanding when this many results found.
+            query_type: Search type ("vector" or "hybrid").
+            subject: Optional subject filter.
+            canvas_file: Optional canvas file filter.
+            tag_jaccard_bridge_enabled: Whether to use Tag Jaccard for stage 2.
+            tag_jaccard_threshold: Jaccard similarity threshold for related courses.
+            category: Optional category for stage 3 filtering.
+
+        Returns:
+            List of search results with scope_level in metadata.
+        """
+        all_results: List[Dict[str, Any]] = []  # noqa: C408
+        seen_doc_ids: set = set()
+
+        def _tag_and_collect(results: List[Dict[str, Any]], scope: int) -> int:
+            """Tag results with scope_level and collect unique ones."""
+            added = 0
+            for r in results:
+                doc_id = r.get("doc_id", "")
+                if doc_id in seen_doc_ids:
+                    continue
+                seen_doc_ids.add(doc_id)
+                r.setdefault("metadata", {})["scope_level"] = scope
+                all_results.append(r)
+                added += 1
+            return added
+
+        # Stage 1: Same course
+        stage1 = await self.search(
+            query=query,
+            table_name=table_name,
+            num_results=num_results,
+            query_type=query_type,
+            course_id=course_id,
+            subject=subject,
+            canvas_file=canvas_file,
+        )
+        _tag_and_collect(stage1, scope=1)
+
+        if len(all_results) >= min_results_threshold:
+            if LOGURU_ENABLED:
+                logger.debug(f"[progressive] Stage 1 sufficient: {len(all_results)} results for course={course_id}")
+            return all_results[:num_results]
+
+        # Stage 2: Related courses via Tag Jaccard
+        if tag_jaccard_bridge_enabled and course_id:
+            related_courses = await self.find_related_courses(
+                current_course=course_id,
+                table_name=table_name,
+                threshold=tag_jaccard_threshold,
+            )
+            for related_course in related_courses:
+                if len(all_results) >= min_results_threshold:
+                    break
+                stage2 = await self.search(
+                    query=query,
+                    table_name=table_name,
+                    num_results=num_results,
+                    query_type=query_type,
+                    course_id=related_course,
+                    subject=subject,
+                    canvas_file=canvas_file,
+                )
+                _tag_and_collect(stage2, scope=2)
+
+            if LOGURU_ENABLED:
+                logger.debug(
+                    f"[progressive] Stage 2 done: {len(all_results)} results (related_courses={related_courses})"
+                )
+
+            if len(all_results) >= min_results_threshold:
+                return all_results[:num_results]
+
+        # Stage 3: Same category
+        if category:
+            stage3 = await self._search_by_category(
+                query=query,
+                category=category,
+                table_name=table_name,
+                num_results=num_results,
+                query_type=query_type,
+                subject=subject,
+            )
+            _tag_and_collect(stage3, scope=3)
+
+            if LOGURU_ENABLED:
+                logger.debug(f"[progressive] Stage 3 done: {len(all_results)} results (category={category})")
+
+            if len(all_results) >= min_results_threshold:
+                return all_results[:num_results]
+
+        # Stage 4: Full library (no course/category filter)
+        stage4 = await self.search(
+            query=query,
+            table_name=table_name,
+            num_results=num_results,
+            query_type=query_type,
+            subject=subject,
+            canvas_file=canvas_file,
+        )
+        _tag_and_collect(stage4, scope=4)
+
+        if LOGURU_ENABLED:
+            logger.debug(f"[progressive] Stage 4 done: {len(all_results)} total results")
+
+        return all_results[:num_results]
+
+    async def _search_by_category(
+        self,
+        query: str,
+        category: str,
+        table_name: str = "vault_notes",
+        num_results: int = 10,
+        query_type: str = "hybrid",
+        subject: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Story 2.8 AC-3 Stage 3: Search by category column.
+
+        Uses a WHERE clause on the 'category' column for pre-filtering.
+
+        Args:
+            query: Search query text.
+            category: Category value to filter on.
+            table_name: LanceDB table name.
+            num_results: Number of results to return.
+            query_type: Search type.
+            subject: Optional subject filter.
+
+        Returns:
+            List of search results filtered by category.
+        """
+        if self._db is None:
+            return self._convert_to_search_results([])
+
+        try:
+            if table_name in self._tables_cache:
+                table = self._tables_cache[table_name]
+            else:
+                table = self._db.open_table(table_name)
+                self._tables_cache[table_name] = table
+        except Exception:
+            return self._convert_to_search_results([])
+
+        # Build where clauses: category filter + optional subject
+        clauses: List[str] = [f"category = '{self._escape_sql(category)}'"]
+        if subject:
+            clauses.append(f"subject = '{self._escape_sql(subject)}'")
+
+        all_raw: List[Dict[str, Any]] = []  # noqa: C408
+
+        if query_type == "hybrid" and isinstance(query, str):
+            query_vector = await self._get_query_vector(query)
+            vector_results: List[Dict] = []  # noqa: C408
+            fts_results: List[Dict] = []  # noqa: C408
+
+            if query_vector is not None:
+                try:
+                    vq = table.search(query_vector).limit(num_results * 2)
+                    vq = self._apply_where_clauses(vq, clauses)
+                    vector_results = vq.to_list()
+                except Exception:
+                    pass
+
+            try:
+                tokenized_query = _jieba_tokenize(query)
+                fq = table.search(tokenized_query, query_type="fts").limit(num_results * 2)
+                fq = self._apply_where_clauses(fq, clauses)
+                fts_results = fq.to_list()
+            except Exception:
+                pass
+
+            if vector_results or fts_results:
+                all_raw = self._rrf_fuse(vector_results, fts_results, num_results)
+                return self._convert_to_search_results(all_raw)
+
+        # Fallback to vector search
+        query_vector = await self._get_query_vector(query)
+        if query_vector is not None:
+            try:
+                sq = table.search(query_vector).limit(num_results)
+                sq = self._apply_where_clauses(sq, clauses)
+                all_raw = sq.to_list()
+            except Exception:
+                pass
+
+        return self._convert_to_search_results(all_raw)
 
     @staticmethod
     def _split_md_by_heading(
@@ -1885,6 +2117,19 @@ class LanceDBClient:
         """Escape single quotes for SQL WHERE clauses to prevent injection."""
         return value.replace("'", "''")
 
+    @staticmethod
+    def _escape_like(value: str) -> str:
+        """
+        Story 2-8 H4: Escape LIKE wildcards (% and _) in addition to single quotes.
+
+        When a value is used inside a LIKE pattern, literal '%' and '_' characters
+        must be escaped to prevent unintended wildcard matching.
+        """
+        escaped = value.replace("'", "''")
+        escaped = escaped.replace("%", "\\%")
+        escaped = escaped.replace("_", "\\_")
+        return escaped
+
     def _build_where_filters(
         self,
         canvas_file: Optional[str] = None,
@@ -1911,7 +2156,8 @@ class LanceDBClient:
         if course_id:
             clauses.append(f"course = '{self._escape_sql(course_id)}'")
         if tags:
-            tag_conditions = " OR ".join(f"tags_str LIKE '%{self._escape_sql(tag)}%'" for tag in tags)
+            # Story 2-8 H4: Use _escape_like for LIKE patterns to escape % and _
+            tag_conditions = " OR ".join(f"tags_str LIKE '%{self._escape_like(tag)}%'" for tag in tags)
             clauses.append(f"({tag_conditions})")
         return clauses
 

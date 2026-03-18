@@ -137,7 +137,7 @@ class MultimodalContent:
         thumbnail_path: Optional path to thumbnail image
         extracted_text: Optional OCR-extracted text (for images/PDFs)
         description: Optional AI-generated description
-        vector: Optional 768-dimensional embedding vector
+        vector: Optional 1024-dimensional embedding vector (bge-m3 Dense)
         source_location: Optional page number (PDF) or timestamp (audio/video)
         updated_at: Optional last update timestamp
         metadata: Additional metadata (dimensions, duration, etc.)
@@ -152,7 +152,7 @@ class MultimodalContent:
     thumbnail_path: Optional[str] = None
     extracted_text: Optional[str] = None
     description: Optional[str] = None
-    vector: Optional[list[float]] = None  # 768-dimensional
+    vector: Optional[list[float]] = None  # 1024-dimensional (bge-m3 Dense)
     source_location: Optional[str] = None
     updated_at: Optional[datetime] = None
     metadata: MultimodalMetadata = field(default_factory=MultimodalMetadata)
@@ -164,9 +164,10 @@ class MultimodalContent:
             self.media_type = MediaType(self.media_type)
 
         # Validate vector dimensions if present
-        if self.vector is not None and len(self.vector) != 768:
+        # Story 2.9 AC-3: Unified to bge-m3 1024d
+        if self.vector is not None and len(self.vector) != 1024:
             raise ValueError(
-                f"Vector must have 768 dimensions, got {len(self.vector)}"
+                f"Vector must have 1024 dimensions (bge-m3), got {len(self.vector)}"
             )
 
     def to_dict(self) -> dict:
@@ -244,7 +245,7 @@ class MultimodalContent:
             "thumbnail_path": self.thumbnail_path or "",
             "extracted_text": self.extracted_text or "",
             "description": self.description or "",
-            "vector": self.vector or [0.0] * 768,
+            "vector": self.vector or [0.0] * 1024,
             "source_location": self.source_location or "",
             "created_at": self.created_at.isoformat(),
             "metadata": self.metadata.to_dict(),
@@ -272,7 +273,7 @@ class MultimodalContent:
     @property
     def has_vector(self) -> bool:
         """Check if content has embedding vector."""
-        return self.vector is not None and len(self.vector) == 768
+        return self.vector is not None and len(self.vector) == 1024
 
     @property
     def has_extracted_text(self) -> bool:

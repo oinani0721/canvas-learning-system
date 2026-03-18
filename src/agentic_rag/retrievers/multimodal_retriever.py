@@ -32,23 +32,28 @@ from typing import Any, Dict, List, Optional, Protocol, TypedDict
 # Exceptions
 # ============================================================
 
+
 class MultimodalRetrieverError(Exception):
     """Base exception for MultimodalRetriever errors."""
+
     pass
 
 
 class MultimodalRetrievalTimeout(MultimodalRetrieverError):
     """Raised when retrieval times out."""
+
     pass
 
 
 class VectorizationError(MultimodalRetrieverError):
     """Raised when query vectorization fails."""
+
     pass
 
 
 class SearchError(MultimodalRetrieverError):
     """Raised when vector search fails."""
+
     pass
 
 
@@ -56,8 +61,10 @@ class SearchError(MultimodalRetrieverError):
 # Data Types
 # ============================================================
 
+
 class MediaType(str, Enum):
     """多模态内容类型"""
+
     IMAGE = "image"
     PDF = "pdf"
     AUDIO = "audio"
@@ -86,6 +93,7 @@ class MultimodalResult:
         metadata: 额外元数据
         retrieved_at: 检索时间戳
     """
+
     id: str
     media_type: MediaType
     file_path: str
@@ -135,6 +143,7 @@ class MultimodalResult:
 
 class MultimodalSearchResult(TypedDict):
     """LanceDB search result type hint"""
+
     id: str
     media_type: str
     file_path: str
@@ -151,15 +160,12 @@ class MultimodalSearchResult(TypedDict):
 # Protocol for dependency injection
 # ============================================================
 
+
 class LanceDBClientProtocol(Protocol):
     """Protocol for LanceDB client dependency injection."""
 
     async def similarity_search(
-        self,
-        table_name: str,
-        query_vector: List[float],
-        top_k: int = 10,
-        filter: Optional[Dict[str, Any]] = None
+        self, table_name: str, query_vector: List[float], top_k: int = 10, filter: Optional[Dict[str, Any]] = None
     ) -> List[Dict[str, Any]]:
         """Search for similar vectors."""
         ...
@@ -177,6 +183,7 @@ class VectorizerProtocol(Protocol):
 # Configuration
 # ============================================================
 
+
 @dataclass
 class MultimodalRetrieverConfig:
     """
@@ -191,20 +198,20 @@ class MultimodalRetrieverConfig:
         default_media_types: 默认搜索的媒体类型
         multimodal_table: LanceDB表名
     """
+
     top_k: int = 5
     min_score: float = 0.5
     timeout_seconds: float = 2.0
     enable_cache: bool = True
     cache_ttl_seconds: int = 300
-    default_media_types: List[MediaType] = field(
-        default_factory=lambda: [MediaType.IMAGE, MediaType.PDF]
-    )
+    default_media_types: List[MediaType] = field(default_factory=lambda: [MediaType.IMAGE, MediaType.PDF])
     multimodal_table: str = "multimodal_content"
 
 
 # ============================================================
 # Cache Implementation
 # ============================================================
+
 
 class RetrievalCache:
     """Simple in-memory cache for retrieval results."""
@@ -222,9 +229,7 @@ class RetrievalCache:
         return hashlib.md5(f"{vec_sig}:{types_sig}".encode()).hexdigest()
 
     def get(
-        self,
-        query_vector: List[float],
-        media_types: Optional[List[str]] = None
+        self, query_vector: List[float], media_types: Optional[List[str]] = None
     ) -> Optional[List[MultimodalResult]]:
         """Get cached results if available and not expired."""
         key = self._make_key(query_vector, media_types)
@@ -236,12 +241,7 @@ class RetrievalCache:
                 del self._cache[key]
         return None
 
-    def set(
-        self,
-        query_vector: List[float],
-        media_types: Optional[List[str]],
-        results: List[MultimodalResult]
-    ) -> None:
+    def set(self, query_vector: List[float], media_types: Optional[List[str]], results: List[MultimodalResult]) -> None:
         """Cache results."""
         # Evict oldest if at capacity
         if len(self._cache) >= self._max_size:
@@ -264,6 +264,7 @@ class RetrievalCache:
 # ============================================================
 # MultimodalRetriever
 # ============================================================
+
 
 class MultimodalRetriever:
     """
@@ -291,7 +292,7 @@ class MultimodalRetriever:
         self,
         lancedb_client: LanceDBClientProtocol,
         vectorizer: Optional[VectorizerProtocol] = None,
-        config: Optional[MultimodalRetrieverConfig] = None
+        config: Optional[MultimodalRetrieverConfig] = None,
     ):
         """
         Initialize MultimodalRetriever.
@@ -308,17 +309,14 @@ class MultimodalRetriever:
         # Initialize cache if enabled
         self._cache: Optional[RetrievalCache] = None
         if self.config.enable_cache:
-            self._cache = RetrievalCache(
-                max_size=100,
-                ttl_seconds=self.config.cache_ttl_seconds
-            )
+            self._cache = RetrievalCache(max_size=100, ttl_seconds=self.config.cache_ttl_seconds)
 
     async def retrieve(
         self,
         query_vector: List[float],
         media_types: Optional[List[MediaType]] = None,
         top_k: Optional[int] = None,
-        min_score: Optional[float] = None
+        min_score: Optional[float] = None,
     ) -> List[MultimodalResult]:
         """
         检索多模态内容
@@ -327,7 +325,7 @@ class MultimodalRetriever:
         AC 6.8.4: 超时降级 (≤2秒)
 
         Args:
-            query_vector: 查询向量 (768维)
+            query_vector: 查询向量 (1024维, bge-m3 Dense)
             media_types: 过滤的媒体类型 (默认: image, pdf)
             top_k: 返回数量 (默认: config.top_k)
             min_score: 最小相关度 (默认: config.min_score)
@@ -347,10 +345,7 @@ class MultimodalRetriever:
         media_types = media_types or self.config.default_media_types
 
         # Convert MediaType enum to string list for filtering
-        type_strs = [
-            mt.value if isinstance(mt, MediaType) else mt
-            for mt in media_types
-        ]
+        type_strs = [mt.value if isinstance(mt, MediaType) else mt for mt in media_types]
 
         # Check cache first
         if self._cache:
@@ -367,14 +362,13 @@ class MultimodalRetriever:
             # Execute search with timeout
             results = await asyncio.wait_for(
                 self._execute_search(query_vector, top_k * 2, search_filter),  # Fetch extra for filtering
-                timeout=self.config.timeout_seconds
+                timeout=self.config.timeout_seconds,
             )
 
         except asyncio.TimeoutError:
             elapsed = time.time() - start_time
             raise MultimodalRetrievalTimeout(
-                f"Multimodal retrieval timed out after {elapsed:.2f}s "
-                f"(limit: {self.config.timeout_seconds}s)"
+                f"Multimodal retrieval timed out after {elapsed:.2f}s (limit: {self.config.timeout_seconds}s)"
             )
 
         except Exception as e:
@@ -397,7 +391,7 @@ class MultimodalRetriever:
         query_text: str,
         media_types: Optional[List[MediaType]] = None,
         top_k: Optional[int] = None,
-        min_score: Optional[float] = None
+        min_score: Optional[float] = None,
     ) -> List[MultimodalResult]:
         """
         通过文本查询检索多模态内容
@@ -416,8 +410,7 @@ class MultimodalRetriever:
         """
         if not self.vectorizer:
             raise VectorizationError(
-                "Vectorizer not configured. Pass vectorizer to constructor "
-                "or use retrieve() with pre-computed vectors."
+                "Vectorizer not configured. Pass vectorizer to constructor or use retrieve() with pre-computed vectors."
             )
 
         try:
@@ -425,19 +418,14 @@ class MultimodalRetriever:
         except Exception as e:
             raise VectorizationError(f"Failed to vectorize query: {e}") from e
 
-        return await self.retrieve(
-            query_vector=query_vector,
-            media_types=media_types,
-            top_k=top_k,
-            min_score=min_score
-        )
+        return await self.retrieve(query_vector=query_vector, media_types=media_types, top_k=top_k, min_score=min_score)
 
     async def batch_retrieve(
         self,
         query_vectors: List[List[float]],
         media_types: Optional[List[MediaType]] = None,
         top_k: Optional[int] = None,
-        max_concurrent: int = 5
+        max_concurrent: int = 5,
     ) -> List[List[MultimodalResult]]:
         """
         批量检索多模态内容
@@ -456,11 +444,7 @@ class MultimodalRetriever:
         async def retrieve_with_semaphore(qv: List[float]) -> List[MultimodalResult]:
             async with semaphore:
                 try:
-                    return await self.retrieve(
-                        query_vector=qv,
-                        media_types=media_types,
-                        top_k=top_k
-                    )
+                    return await self.retrieve(query_vector=qv, media_types=media_types, top_k=top_k)
                 except Exception:
                     return []
 
@@ -468,24 +452,14 @@ class MultimodalRetriever:
         return await asyncio.gather(*tasks)
 
     async def _execute_search(
-        self,
-        query_vector: List[float],
-        top_k: int,
-        filter: Optional[Dict[str, Any]]
+        self, query_vector: List[float], top_k: int, filter: Optional[Dict[str, Any]]
     ) -> List[Dict[str, Any]]:
         """Execute vector similarity search."""
         return await self.lancedb.similarity_search(
-            table_name=self.config.multimodal_table,
-            query_vector=query_vector,
-            top_k=top_k,
-            filter=filter
+            table_name=self.config.multimodal_table, query_vector=query_vector, top_k=top_k, filter=filter
         )
 
-    def _format_results(
-        self,
-        raw_results: List[Dict[str, Any]],
-        min_score: float
-    ) -> List[MultimodalResult]:
+    def _format_results(self, raw_results: List[Dict[str, Any]], min_score: float) -> List[MultimodalResult]:
         """
         格式化检索结果
 
@@ -526,14 +500,24 @@ class MultimodalRetriever:
                 relevance_score=score,
                 related_concepts=r.get("related_concepts", []),
                 metadata={
-                    k: v for k, v in r.items()
-                    if k not in {
-                        "id", "doc_id", "media_type", "file_path",
-                        "_distance", "distance", "related_concepts",
-                        "content", "description", "thumbnail_path",
-                        "page_number", "chapter"
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    not in {
+                        "id",
+                        "doc_id",
+                        "media_type",
+                        "file_path",
+                        "_distance",
+                        "distance",
+                        "related_concepts",
+                        "content",
+                        "description",
+                        "thumbnail_path",
+                        "page_number",
+                        "chapter",
                     }
-                }
+                },
             )
 
             formatted.append(result)
@@ -585,11 +569,7 @@ class MultimodalRetriever:
             # Default: description or content
             return result.get("description", result.get("content", ""))[:200]
 
-    def _get_source_location(
-        self,
-        result: Dict[str, Any],
-        media_type: MediaType
-    ) -> Optional[str]:
+    def _get_source_location(self, result: Dict[str, Any], media_type: MediaType) -> Optional[str]:
         """
         获取来源位置
 
@@ -630,13 +610,14 @@ class MultimodalRetriever:
 # Convenience Function
 # ============================================================
 
+
 async def retrieve_multimodal(
     lancedb_client: LanceDBClientProtocol,
     query_vector: List[float],
     media_types: Optional[List[MediaType]] = None,
     top_k: int = 5,
     min_score: float = 0.5,
-    timeout_seconds: float = 2.0
+    timeout_seconds: float = 2.0,
 ) -> List[MultimodalResult]:
     """
     便捷函数: 检索多模态内容
@@ -663,14 +644,11 @@ async def retrieve_multimodal(
         top_k=top_k,
         min_score=min_score,
         timeout_seconds=timeout_seconds,
-        enable_cache=False  # No cache for one-off retrievals
+        enable_cache=False,  # No cache for one-off retrievals
     )
 
     retriever = MultimodalRetriever(lancedb_client, config=config)
-    return await retriever.retrieve(
-        query_vector=query_vector,
-        media_types=media_types
-    )
+    return await retriever.retrieve(query_vector=query_vector, media_types=media_types)
 
 
 # ============================================================
@@ -696,11 +674,12 @@ async def _get_multimodal_lancedb_client() -> Optional["LanceDBClientProtocol"]:
         # Try to import and initialize LanceDBClient
         from agentic_rag.clients import LanceDBClient
         from agentic_rag.config import LANCEDB_CONFIG
+
         _multimodal_lancedb_client = LanceDBClient(
             db_path=LANCEDB_CONFIG["db_path"],
             timeout_ms=2000,  # AC 6.8.4: 2秒超时
             batch_size=5,
-            enable_fallback=True
+            enable_fallback=True,
         )
         await _multimodal_lancedb_client.initialize()
         return _multimodal_lancedb_client
@@ -726,8 +705,7 @@ def _extract_query_from_state(state: Dict[str, Any]) -> str:
 
 
 async def multimodal_retrieval_node(
-    state: Dict[str, Any],
-    lancedb_client: Optional[LanceDBClientProtocol] = None
+    state: Dict[str, Any], lancedb_client: Optional[LanceDBClientProtocol] = None
 ) -> Dict[str, Any]:
     """
     LangGraph多模态检索节点
@@ -787,50 +765,75 @@ async def multimodal_retrieval_node(
         }
 
     try:
-        # Story 35.8: Search multimodal content table
-        # Use text search via client's search_multimodal method if available
-        if hasattr(client, "search_multimodal"):
-            raw_results = await client.search_multimodal(
+        # Story 2-9 H1: Use LanceDBClient.search() which is the standard
+        # search interface. The previous code called search_multimodal() and
+        # similarity_search() which do not exist on LanceDBClient.
+        # LanceDBClient.search() handles text-to-vector conversion internally
+        # via _get_query_vector() and supports hybrid search.
+        if hasattr(client, "search"):
+            raw_results = await client.search(
                 query=query,
+                table_name="multimodal_content",
                 canvas_file=canvas_file,
                 num_results=5,
-                media_types=["image", "pdf", "audio", "video"]
+                query_type="hybrid",
             )
-        elif hasattr(client, "similarity_search"):
-            # Fallback: Use similarity_search with text query
-            # This requires the client to handle text-to-vector conversion
-            raw_results = await client.similarity_search(
-                table_name="multimodal_content",
-                query_vector=[],  # Empty - client should handle text
-                top_k=5,
-                filter=None
+        elif hasattr(client, "search_multimodal"):
+            raw_results = await client.search_multimodal(
+                query=query, canvas_file=canvas_file, num_results=5, media_types=["image", "pdf", "audio", "video"]
             )
         else:
             # No compatible method - return empty
             raw_results = []
 
-        # Format results to match MultimodalResultItem schema (Story 35.8 AC 35.8.1)
+        # Story 2.2 Task 5: Format results to standard SearchResult format
+        # SearchResult = {doc_id, content, score, metadata}
         formatted_results = []
         for r in raw_results:
             # Convert distance to score if needed
             distance = r.get("_distance", r.get("distance", 1.0))
             score = 1.0 / (1.0 + distance) if distance >= 0 else 0.0
 
+            doc_id = r.get("doc_id", r.get("id", f"multimodal_{id(r)}"))
+            content = r.get("content_preview", r.get("content", r.get("thumbnail_path", "")))
+            file_path = r.get("file_path", r.get("path", ""))
+            media_type = r.get("media_type", "image")
+
+            # Story 2.9 AC-5: Propagate source_type and node_id for image OCR results
+            source_type = r.get("source_type", media_type)
+            node_id = r.get("node_id", "")
+
             formatted_result = {
-                "id": r.get("id", r.get("doc_id", "")),
-                "media_type": r.get("media_type", "image"),
-                "path": r.get("file_path", r.get("path", "")),
-                "thumbnail": r.get("thumbnail_path", r.get("content_preview", "")),
-                "relevance_score": score,
+                "doc_id": doc_id,
+                "content": content if content else f"[{media_type}] {file_path}",
+                "score": score,
                 "metadata": {
-                    k: v for k, v in r.items()
-                    if k not in {"id", "doc_id", "media_type", "file_path", "path",
-                                "_distance", "distance", "thumbnail_path", "content_preview"}
+                    "source": "multimodal",
+                    "source_type": source_type,
+                    "media_type": media_type,
+                    "file_path": file_path,
+                    "node_id": node_id,
+                    "thumbnail": r.get("thumbnail_path", r.get("content_preview", "")),
                 },
-                # Preserve original fields for fusion compatibility
-                "file_path": r.get("file_path", r.get("path", "")),
-                "content_preview": r.get("content_preview", r.get("thumbnail_path", "")),
             }
+            # Preserve any extra metadata from raw result
+            for k, v in r.items():
+                if k not in {
+                    "id",
+                    "doc_id",
+                    "media_type",
+                    "file_path",
+                    "path",
+                    "_distance",
+                    "distance",
+                    "thumbnail_path",
+                    "content_preview",
+                    "content",
+                    "source_type",
+                    "node_id",
+                }:
+                    formatted_result["metadata"][k] = v
+
             formatted_results.append(formatted_result)
 
         latency_ms = (time.time() - start_time) * 1000

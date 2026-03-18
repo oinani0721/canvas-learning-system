@@ -58,7 +58,7 @@ class MultimodalStore:
             lancedb_client: LanceDB client instance
             graphiti_client: Graphiti client instance
             storage_base_path: Base path for file storage
-            vector_dim: Dimension of embedding vectors (default: 768)
+            vector_dim: Dimension of embedding vectors (default: 1024, bge-m3 Dense)
         """
         self.lancedb_client = lancedb_client
         self.graphiti_client = graphiti_client
@@ -142,7 +142,7 @@ class MultimodalStore:
         """
         Add content to LanceDB table.
 
-        Verified from Story 6.3 (AC 6.3.1): LanceDB table with 768-dim vectors
+        Verified from Story 6.3 (AC 6.3.1): LanceDB table with 1024-dim vectors (bge-m3)
         """
         record = content.to_lancedb_record()
 
@@ -271,7 +271,7 @@ class MultimodalStore:
         Search content by vector similarity.
 
         Args:
-            query_vector: 768-dimensional query vector
+            query_vector: 1024-dimensional query vector (bge-m3 Dense)
             media_types: Optional filter by media types
             top_k: Maximum number of results
             min_score: Minimum similarity score

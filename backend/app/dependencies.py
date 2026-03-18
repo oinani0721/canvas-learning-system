@@ -917,12 +917,36 @@ async def get_multimodal_service_dep(settings: SettingsDep) -> MultimodalService
     if settings.canvas_base_path:
         storage_base_path = str(_PathLib(settings.canvas_base_path) / "multimodal")
 
-    # D5 Degradation: Try to inject MultimodalStore, fall back gracefully
+    # D5 Degradation: Try to inject MultimodalStore with real LanceDB client
+    # Story 2.9 AC-4: Fix dependency injection — inject LanceDB client so
+    # MultimodalStore operations return real data instead of empty lists.
     multimodal_store = None
     try:
-        from src.agentic_rag.storage.multimodal_store import MultimodalStore as _MMStore
-        multimodal_store = _MMStore()
-        logger.info("MultimodalStore injected — vector search and Neo4j enabled")
+        # Story 2-9 H3: Use path without src. prefix — src/ is already in
+        # sys.path (added at line 812), so direct agentic_rag import works.
+        from agentic_rag.storage.multimodal_store import MultimodalStore as _MMStore
+
+        # Attempt to create and inject a real LanceDB client
+        # Story 2-9 H2: Must await initialize() after creation so LanceDB
+        # tables and connection are ready before MultimodalStore uses them.
+        lancedb_client = None
+        try:
+            from agentic_rag.clients.lancedb_client import LanceDBClient as _LDBClient
+            lancedb_client = _LDBClient()
+            await lancedb_client.initialize()
+            logger.info("LanceDBClient created and initialized for MultimodalStore injection")
+        except Exception as e_ldb:
+            logger.warning(f"LanceDBClient not available for MultimodalStore: {e_ldb}")
+            lancedb_client = None
+
+        multimodal_store = _MMStore(
+            lancedb_client=lancedb_client,
+            vector_dim=1024,  # Story 2.9 AC-3: bge-m3 1024d
+        )
+        if lancedb_client:
+            logger.info("MultimodalStore injected with LanceDB client — vector search enabled")
+        else:
+            logger.warning("MultimodalStore injected without LanceDB client — vector search disabled")
     except ImportError:
         logger.warning(
             "MultimodalStore not available (agentic_rag not installed) — "

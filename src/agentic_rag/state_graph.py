@@ -219,9 +219,13 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
     """
     Route based on quality grade — Story 2.6 AC-3/AC-4
 
-    - low quality + rewrite_count < 2: rewrite_query (loop back for re-retrieval)
-    - medium/high quality OR rewrite_count >= 2: faithfulness_check (final gate)
+    - low quality + NOT safe_degradation: rewrite_query (loop back for re-retrieval)
+    - medium/high quality OR safe_degradation set: faithfulness_check (final gate)
     - safe_degradation is set in check_quality node (not here, per LangGraph convention)
+
+    Uses safe_degradation flag from state (set by check_quality based on config-driven
+    max_rewrite_iterations) rather than hardcoding max_rewrite here, so the router
+    stays in sync with runtime config.
 
     Story 7.1: Routes to faithfulness_check instead of END for final quality gate.
 
@@ -230,23 +234,22 @@ def route_after_quality_check(state: CanvasRAGState) -> Literal["rewrite_query",
     """
     quality_grade = state.get("quality_grade")
     rewrite_count = state.get("rewrite_count", 0)
-    max_rewrite = 2
+    safe_degradation = state.get("safe_degradation", False)
 
     logger.debug(
-        f"[route_after_quality_check] quality={quality_grade}, rewrite_count={rewrite_count}, max={max_rewrite}"
+        f"[route_after_quality_check] quality={quality_grade}, "
+        f"rewrite_count={rewrite_count}, safe_degradation={safe_degradation}"
     )
 
-    # Low quality and rewrite budget remaining
-    if quality_grade == "low" and rewrite_count < max_rewrite:
+    # Low quality and NOT yet degraded -> rewrite and retry
+    if quality_grade == "low" and not safe_degradation:
         logger.debug("[route_after_quality_check] -> rewrite_query (low quality, can retry)")
         return "rewrite_query"
 
-    # Acceptable quality or max rewrites reached -> faithfulness check
-    safe_deg = state.get("safe_degradation", False)
-    if rewrite_count >= max_rewrite:
+    # Acceptable quality or safe degradation triggered -> faithfulness check
+    if safe_degradation:
         logger.debug(
-            f"[route_after_quality_check] -> faithfulness_check "
-            f"(max rewrite reached: {rewrite_count}, safe_degradation={safe_deg})"
+            f"[route_after_quality_check] -> faithfulness_check (safe_degradation=True after {rewrite_count} rewrites)"
         )
     else:
         logger.debug(f"[route_after_quality_check] -> faithfulness_check (quality acceptable: {quality_grade})")
@@ -344,9 +347,11 @@ async def rewrite_query(state: CanvasRAGState) -> dict:
         logger.warning(f"[rewrite_query] LLM rewrite failed: {e}, using keyword fallback")
 
     # Fallback: jieba keyword extraction or simple expansion
+    # Story 2-6 M6: `import jieba` does not auto-import `jieba.analyse`;
+    # explicitly import `jieba.analyse` for extract_tags to work.
     if not llm_rewrite_success:
         try:
-            import jieba
+            import jieba.analyse
 
             keywords = jieba.analyse.extract_tags(current_query, topK=5)
             if keywords:
