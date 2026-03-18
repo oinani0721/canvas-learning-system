@@ -23,7 +23,7 @@ interface ConversationMessage {
   content: string;
 }
 
-/** localStorage key for the fallback API key. */
+/** sessionStorage key for the fallback API key (not persisted across sessions for security). */
 const FALLBACK_API_KEY_STORAGE = 'canvas-learning-fallback-api-key';
 
 /** Per-node conversation history for session continuity. */
@@ -50,17 +50,17 @@ export class ApiKeyEngine {
   // API Key Management
   // ═══════════════════════════════════════════════════════════════════════════
 
-  /** Get the stored fallback API key. */
+  /** Get the stored fallback API key (sessionStorage — not persisted across browser sessions). */
   static getApiKey(): string {
-    return localStorage.getItem(FALLBACK_API_KEY_STORAGE) ?? '';
+    return sessionStorage.getItem(FALLBACK_API_KEY_STORAGE) ?? '';
   }
 
-  /** Store the fallback API key. */
+  /** Store the fallback API key in sessionStorage (cleared when browser tab closes). */
   static setApiKey(key: string): void {
     if (key.trim()) {
-      localStorage.setItem(FALLBACK_API_KEY_STORAGE, key);
+      sessionStorage.setItem(FALLBACK_API_KEY_STORAGE, key);
     } else {
-      localStorage.removeItem(FALLBACK_API_KEY_STORAGE);
+      sessionStorage.removeItem(FALLBACK_API_KEY_STORAGE);
     }
   }
 

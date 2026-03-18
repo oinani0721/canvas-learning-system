@@ -374,6 +374,9 @@ class ArchiveManager:
         """
         Get conversation messages for a node from the memory service.
 
+        Searches memory episodes by node_id and filters for conversation-type
+        episodes (those with role field or conversation episode_type).
+
         Args:
             node_id: The canvas node identifier.
 
@@ -385,24 +388,32 @@ class ArchiveManager:
 
         memory_svc = await get_memory_service()
 
-        # Search for conversation episodes for this node
+        # Search for episodes related to this node
         results = await memory_svc.search_memories(
-            query=f"conversation node:{node_id}",
+            query=node_id,
             group_id=DEFAULT_GROUP_ID,
-            max_results=100,
+            max_results=200,
         )
 
         messages: List[Dict[str, Any]] = []
         if isinstance(results, list):
             for item in results:
-                if isinstance(item, dict):
-                    messages.append(
-                        {
-                            "role": item.get("role", "user"),
-                            "content": item.get("content", item.get("fact", "")),
-                            "timestamp": item.get("timestamp", item.get("created_at", "")),
-                        }
-                    )
+                if not isinstance(item, dict):
+                    continue
+                # Filter for conversation-type episodes by checking node_id match
+                ep_node_id = item.get("node_id") or item.get("metadata", {}).get("node_id", "")
+                if ep_node_id != node_id:
+                    continue
+                # Skip archive markers to avoid re-processing
+                if item.get("episode_type") == "archive_marker":
+                    continue
+                messages.append(
+                    {
+                        "role": item.get("role", "user"),
+                        "content": item.get("content", item.get("fact", "")),
+                        "timestamp": item.get("timestamp", item.get("created_at", "")),
+                    }
+                )
 
         return messages
 
@@ -415,7 +426,9 @@ class ArchiveManager:
         """
         Mark messages as archived (non-destructive).
 
-        Messages are flagged with `status: archived` but not deleted.
+        Records an archive marker in memory with message timestamps
+        so that subsequent check_and_archive calls can detect already-archived
+        conversations and avoid re-processing.
 
         Args:
             node_id: The canvas node identifier.
@@ -428,6 +441,15 @@ class ArchiveManager:
 
             memory_svc = await get_memory_service()
 
+            # Collect message timestamps to identify the archived range
+            msg_timestamps = [
+                msg.get("timestamp", msg.get("created_at", ""))
+                for msg in messages
+                if msg.get("timestamp") or msg.get("created_at")
+            ]
+            newest_ts = max(msg_timestamps) if msg_timestamps else ""
+            oldest_ts = min(msg_timestamps) if msg_timestamps else ""
+
             await memory_svc.record_knowledge_entity(
                 event_type="archive_marker",
                 content=(f"Archived {len(messages)} messages for node {node_id} to {tier} tier"),
@@ -436,8 +458,19 @@ class ArchiveManager:
                     "tier": tier,
                     "message_count": len(messages),
                     "archived_at": datetime.now(timezone.utc).isoformat(),
+                    "oldest_message_ts": oldest_ts,
+                    "newest_message_ts": newest_ts,
                 },
                 group_id=DEFAULT_GROUP_ID,
+            )
+
+            # Update internal archive log to prevent re-archiving
+            self._archive_log[node_id] = ArchiveStatus(
+                node_id=node_id,
+                tier=ArchiveTier(tier),
+                message_count=len(messages),
+                estimated_tokens=self._estimate_tokens(messages),
+                last_archived_at=datetime.now(timezone.utc).isoformat(),
             )
 
         except Exception as e:

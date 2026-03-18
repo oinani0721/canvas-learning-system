@@ -34,6 +34,7 @@ import { db, type ChatMessage, type ChatMessageRole } from '../services/dexie-db
 import { type StreamEvent } from '../services/claude-engine';
 import { EngineFallbackManager, type ActiveEngine } from '../services/engine-fallback';
 import { CrashRecoveryManager, type RecoveryStatus } from '../services/crash-recovery';
+import { ApiClient } from '../services/api-client';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constants
@@ -51,6 +52,14 @@ const FIRST_TOKEN_TIMEOUT_MS = 2000;
 
 let fallbackManager: EngineFallbackManager | null = null;
 let crashRecovery: CrashRecoveryManager | null = null;
+let chatApiClient: ApiClient | null = null;
+
+function getChatApiClient(): ApiClient {
+  if (!chatApiClient) {
+    chatApiClient = new ApiClient();
+  }
+  return chatApiClient;
+}
 
 function getFallbackManager(): EngineFallbackManager {
   if (!fallbackManager) {
@@ -417,11 +426,39 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // (StreamingIndicator reads this to show "Thinking..." vs bouncing dots)
     }, FIRST_TOKEN_TIMEOUT_MS);
 
-    // Story 4-1/4-2: Edge mode uses edge-specific system prompt
+    // Story 3-4: Fetch learning context before sending message (best-effort, non-blocking on failure)
+    let learningContext = '';
     const { chatMode: currentMode, currentEdge } = get();
-    const systemPrompt = currentMode === 'edge' && currentEdge
+    if (currentMode !== 'edge') {
+      try {
+        // Use raw fetch because ?format=markdown returns text/plain, not JSON.
+        // Read backend URL from settings (same pattern as useBackendStatus).
+        const settingsRaw = localStorage.getItem('canvas-learning-settings');
+        const backendUrl = settingsRaw
+          ? (JSON.parse(settingsRaw) as { backendUrl?: string }).backendUrl || 'http://localhost:8001'
+          : 'http://localhost:8001';
+        const ctxUrl = `${backendUrl}/api/v1/context/${encodeURIComponent(nodeId)}?format=markdown`;
+        const ctxResp = await fetch(ctxUrl, { method: 'GET' });
+        if (ctxResp.ok) {
+          const ctxText = await ctxResp.text();
+          if (ctxText) {
+            learningContext = ctxText;
+          }
+        }
+      } catch {
+        // Non-blocking: context unavailable doesn't prevent chat
+      }
+    }
+
+    // Story 4-1/4-2: Edge mode uses edge-specific system prompt
+    const baseSystemPrompt = currentMode === 'edge' && currentEdge
       ? buildEdgeSystemPrompt(currentEdge)
       : `You are helping the user learn about "${nodeTitle}". This is a knowledge node in their Canvas Learning System. Provide clear, educational responses. If the node has specific content, reference it in your explanations.`;
+
+    // Inject learning context into system prompt if available
+    const systemPrompt = learningContext
+      ? `${baseSystemPrompt}\n\n## Learning Context\n${learningContext}`
+      : baseSystemPrompt;
 
     // Accumulator for streaming content (avoids repeated store reads)
     let accumulated = '';
@@ -514,7 +551,28 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                     ? JSON.stringify({ sessionId: event.sessionId, costUsd: event.costUsd })
                     : undefined,
                 };
-                saveMessage(finalMsg);
+                saveMessage(finalMsg).catch((err) =>
+                  console.error('[chat-store] Failed to persist assistant message:', err)
+                );
+
+                // Story 4-1/4-2: Record edge rationale when edge dialog completes
+                const { chatMode: doneMode, currentEdge: doneEdge } = get();
+                if (doneMode === 'edge' && doneEdge && finalContent) {
+                  const client = getChatApiClient();
+                  client.recordEdgeRationale({
+                    edgeId: doneEdge.edgeId,
+                    sourceNodeId: doneEdge.sourceNodeId,
+                    targetNodeId: doneEdge.targetNodeId,
+                    sourceConcept: doneEdge.sourceNodeName,
+                    targetConcept: doneEdge.targetNodeName,
+                    relationType: 'related_to',
+                    rationaleText: finalContent,
+                    confidence: 0.5,
+                  }).catch((err) =>
+                    console.warn('[Story 4-2] Edge rationale recording failed:', err)
+                  );
+                }
+
                 set((state) => ({
                   isStreaming: false,
                   waitingForFirstToken: false,
@@ -741,6 +799,15 @@ function setupEngineListeners(): void {
   const recovery = getCrashRecovery();
   recovery.onStatusChange((status) => {
     useChatStore.setState({ recoveryStatus: status });
+  });
+
+  // Story 4-2: Set up edge label update callback on the API client
+  const client = getChatApiClient();
+  client.setEdgeLabelUpdateCallback((edgeId: string, relationType: string) => {
+    console.info(`[Story 4-2] Edge label update: edge=${edgeId} type=${relationType}`);
+    // The edge label update is dispatched via WebSocket from the backend
+    // after recordEdgeRationale succeeds. Consumers (e.g. canvas store)
+    // can listen to this callback via the ApiClient instance.
   });
 }
 

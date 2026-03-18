@@ -240,7 +240,7 @@ class GraphitiClient:
         try:
             from graphiti_core import Graphiti
 
-            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7689")
+            neo4j_uri = os.getenv("NEO4J_URI", "bolt://localhost:7691")
             neo4j_user = os.getenv("NEO4J_USER", "neo4j")
             neo4j_password = os.getenv("NEO4J_PASSWORD", "neo4j")
 
@@ -524,8 +524,7 @@ class GraphitiClient:
         """
         添加学习历程到Graphiti知识图谱
 
-        ✅ Story 12.1 AC 2: add_episode()接口实现
-        ✅ Verified from graphiti-memory MCP: mcp__graphiti-memory__add_episode
+        Story 2.2 Task 4: 使用graphiti_core SDK的add_episode接口。
 
         Args:
             content: 学习内容/对话内容
@@ -542,16 +541,15 @@ class GraphitiClient:
             # ✅ AC 1.3: 设置超时
             timeout_seconds = self.timeout_ms / 1000.0
 
-            if self._graphiti_available:
-                episode_id = await self._add_episode_via_mcp(
+            if self._graphiti_available and self._graphiti_instance is not None:
+                episode_id = await self._add_episode_via_graphiti_core(
                     content=content, canvas_file=canvas_file, metadata=metadata, timeout=timeout_seconds
                 )
                 return episode_id
             else:
-                # Fallback: 在非MCP环境中返回模拟ID
                 if LOGURU_ENABLED:
-                    logger.warning("GraphitiClient.add_episode: MCP not available, returning mock episode_id")
-                return f"mock_episode_{datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    logger.warning("GraphitiClient.add_episode: graphiti_core not available")
+                return None
 
         except asyncio.TimeoutError:
             if LOGURU_ENABLED:
@@ -563,7 +561,7 @@ class GraphitiClient:
                 logger.error(f"GraphitiClient.add_episode error: {e}")
             return None
 
-    async def _add_episode_via_mcp(
+    async def _add_episode_via_graphiti_core(
         self,
         content: str,
         canvas_file: Optional[str] = None,
@@ -571,10 +569,9 @@ class GraphitiClient:
         timeout: float = 0.2,
     ) -> Optional[str]:
         """
-        通过MCP工具添加episode
+        通过graphiti_core SDK添加episode
 
-        ✅ Verified from graphiti-memory MCP:
-        - mcp__graphiti-memory__add_episode: 添加对话记忆片段到知识图谱
+        Story 2.2 Task 4: 替换MCP为graphiti_core SDK调用。
 
         Args:
             content: 学习内容
@@ -586,38 +583,56 @@ class GraphitiClient:
             episode_id or None
         """
         try:
-            # 构建episode内容 (canvas_file用于元数据，不修改content)
-            # 如果有canvas_file，记录在元数据中
-            _ = canvas_file  # 保留参数，用于未来扩展
+            import uuid
 
-            # 调用MCP工具
-            try:
-                # 注意: 在实际Claude Code环境中，这会调用真实的MCP工具
-                # mcp__graphiti-memory__add_episode(content=content)
+            # Build group_id from canvas_file for scoped storage
+            group_id = canvas_file if canvas_file else "default"
 
-                # 模拟MCP调用 (在测试环境中)
-                episode_id = f"episode_{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+            # Build episode name from content prefix
+            episode_name = content[:80] if content else "learning_episode"
 
-                if LOGURU_ENABLED:
-                    logger.info(f"GraphitiClient.add_episode: content='{content[:50]}...', episode_id={episode_id}")
+            # Use graphiti_core add_episode API with timeout
+            add_coro = self._graphiti_instance.add_episode(
+                name=episode_name,
+                episode_body=content,
+                group_id=group_id,
+                source_description=f"canvas_learning:{canvas_file or 'unknown'}",
+            )
+            result = await asyncio.wait_for(add_coro, timeout=timeout)
 
-                return episode_id
+            # Extract episode_id from result
+            if result and hasattr(result, "uuid"):
+                episode_id = result.uuid
+            else:
+                episode_id = f"episode_{uuid.uuid4().hex[:12]}"
 
-            except Exception as e:
-                if LOGURU_ENABLED:
-                    logger.error(f"MCP add_episode failed: {e}")
-                return None
+            if LOGURU_ENABLED:
+                logger.info(f"GraphitiClient.add_episode: content='{content[:50]}...', episode_id={episode_id}")
+
+            return episode_id
+
+        except asyncio.TimeoutError:
+            if LOGURU_ENABLED:
+                logger.warning(f"graphiti_core add_episode timed out ({timeout}s)")
+            raise
+
+        except ImportError:
+            if LOGURU_ENABLED:
+                logger.warning("graphiti_core not available for add_episode")
+            return None
 
         except Exception as e:
             if LOGURU_ENABLED:
-                logger.error(f"_add_episode_via_mcp failed: {e}")
+                logger.error(f"graphiti_core add_episode failed: {e}")
             return None
 
     async def add_memory(self, key: str, content: str, importance: int = 5, tags: Optional[List[str]] = None) -> bool:
         """
-        添加记忆到Graphiti
+        添加记忆到Graphiti (通过 add_episode 实现)
 
-        ✅ Verified from graphiti-memory MCP: mcp__graphiti-memory__add_memory
+        Story 2.2 Task 4: 使用graphiti_core SDK。
+        graphiti_core没有独立的 add_memory API，
+        通过 add_episode 将记忆作为 episode 存储。
 
         Args:
             key: 记忆的唯一标识符
@@ -632,17 +647,31 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._graphiti_available:
-                # 调用 mcp__graphiti-memory__add_memory
-                # 参数: key, content, metadata: {importance, tags}
+            if self._graphiti_available and self._graphiti_instance is not None:
+                timeout_seconds = self.timeout_ms / 1000.0
+
+                # Use add_episode as the underlying storage mechanism
+                episode_body = f"[memory:{key}] {content}"
+                add_coro = self._graphiti_instance.add_episode(
+                    name=key,
+                    episode_body=episode_body,
+                    group_id="canvas-memories",
+                    source_description=f"memory:importance={importance}",
+                )
+                await asyncio.wait_for(add_coro, timeout=timeout_seconds)
 
                 if LOGURU_ENABLED:
                     logger.info(f"GraphitiClient.add_memory: key={key}, importance={importance}")
                 return True
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("add_memory: MCP not available")
+                    logger.warning("add_memory: graphiti_core not available")
                 return False
+
+        except asyncio.TimeoutError:
+            if LOGURU_ENABLED:
+                logger.warning(f"add_memory timed out ({self.timeout_ms}ms)")
+            return False
 
         except Exception as e:
             if LOGURU_ENABLED:
@@ -651,9 +680,11 @@ class GraphitiClient:
 
     async def add_relationship(self, entity1: str, entity2: str, relationship_type: str) -> bool:
         """
-        添加实体关系到Graphiti
+        添加实体关系到Graphiti (通过 add_episode 存储关系描述)
 
-        ✅ Verified from graphiti-memory MCP: mcp__graphiti-memory__add_relationship
+        Story 2.2 Task 4: 使用graphiti_core SDK。
+        graphiti_core 自动从 episode 文本中提取实体和关系，
+        因此通过 add_episode 存储关系描述来创建关系。
 
         Args:
             entity1: 第一个实体
@@ -667,14 +698,31 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._graphiti_available:
+            if self._graphiti_available and self._graphiti_instance is not None:
+                timeout_seconds = self.timeout_ms / 1000.0
+
+                # graphiti_core extracts entities and relationships from episode text
+                relationship_text = f"{entity1} {relationship_type} {entity2}"
+                add_coro = self._graphiti_instance.add_episode(
+                    name=f"rel:{entity1}->{entity2}",
+                    episode_body=relationship_text,
+                    group_id="canvas-relationships",
+                    source_description=f"relationship:{relationship_type}",
+                )
+                await asyncio.wait_for(add_coro, timeout=timeout_seconds)
+
                 if LOGURU_ENABLED:
                     logger.info(f"GraphitiClient.add_relationship: {entity1} --[{relationship_type}]--> {entity2}")
                 return True
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("add_relationship: MCP not available")
+                    logger.warning("add_relationship: graphiti_core not available")
                 return False
+
+        except asyncio.TimeoutError:
+            if LOGURU_ENABLED:
+                logger.warning(f"add_relationship timed out ({self.timeout_ms}ms)")
+            return False
 
         except Exception as e:
             if LOGURU_ENABLED:
@@ -722,25 +770,26 @@ class GraphitiClient:
             await self.initialize()
 
         try:
-            if self._graphiti_available:
-                # 存储Canvas实体节点
+            if self._graphiti_available and self._graphiti_instance is not None:
+                # 存储Canvas实体节点 (使用 add_memory 将信息作为 episode 存储)
                 await self.add_memory(
                     key=f"canvas:{source_canvas_id}",
                     content=f"源Canvas: {source_canvas_id}",
-                    metadata={"type": "source_canvas", "canvas_id": source_canvas_id},
+                    importance=5,
                 )
+
+                extra_info = metadata or {}
+                verification_content = (
+                    f"检验白板: {verification_canvas_id}, 来源: {source_canvas_id}, "
+                    f"日期: {review_date}, 节点数: {node_count}"
+                )
+                if extra_info:
+                    verification_content += f", 额外信息: {extra_info}"
 
                 await self.add_memory(
                     key=f"verification:{verification_canvas_id}",
-                    content=f"检验白板: {verification_canvas_id}, 来源: {source_canvas_id}, 日期: {review_date}",
-                    metadata={
-                        "type": "verification_canvas",
-                        "canvas_id": verification_canvas_id,
-                        "source_canvas": source_canvas_id,
-                        "review_date": review_date,
-                        "node_count": node_count,
-                        **(metadata or {}),
-                    },
+                    content=verification_content,
+                    importance=7,
                 )
 
                 # 存储关联关系
@@ -757,7 +806,7 @@ class GraphitiClient:
                 return True
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("store_review_canvas_relationship: MCP not available")
+                    logger.warning("store_review_canvas_relationship: graphiti_core not available")
                 return False
 
         except Exception as e:
@@ -828,7 +877,7 @@ class GraphitiClient:
                 return history
             else:
                 if LOGURU_ENABLED:
-                    logger.warning("query_review_history: MCP not available")
+                    logger.warning("query_review_history: graphiti_core not available")
                 return []
 
         except Exception as e:
@@ -849,13 +898,12 @@ class GraphitiClient:
 
 # =============================================================================
 # Story 36.1 AC-36.1.5: Re-exports from unified backend location
-# [Source: docs/stories/36.1.story.md#Task-6]
 #
-# This module provides MCP-based GraphitiClient for Claude Code environments.
+# This module provides graphiti_core SDK-based GraphitiClient.
 # For Neo4j-based operations, import from the unified backend location.
 #
 # Usage:
-#   # MCP-based client (this file)
+#   # graphiti_core SDK client (this file)
 #   from src.agentic_rag.clients.graphiti_client import GraphitiClient
 #
 #   # Neo4j-based clients (unified backend)
@@ -894,7 +942,7 @@ except ImportError:
 # =============================================================================
 
 __all__ = [
-    # MCP-based client (this file)
+    # graphiti_core SDK client (this file)
     "GraphitiClient",
     # Entity types
     "EntityType",

@@ -177,10 +177,17 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     Uses classify_query_intent to determine which retrieval channels to activate.
     Falls back to all 6 routes if routing fails.
 
+    Story 2.10 fix: When multi_queries is populated by multi_query_rewrite_node,
+    creates Send objects for each rewritten query (broadening recall). Otherwise
+    uses the original query from messages.
+
     Returns:
         List[Send]: Send objects for parallel execution
     """
-    # Extract query
+    # Story 2.10 fix: Check for multi-query rewrites first
+    multi_queries = state.get("multi_queries")
+
+    # Extract original query for intent classification
     messages = state.get("messages", [])
     query = ""
     if messages:
@@ -190,11 +197,31 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
     # L1 routing with exception safety
     try:
         intent = classify_query_intent(query)
+    except Exception as e:
+        logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to comprehensive")
+        intent = "comprehensive"
+
+    # Story 2.10: If multi_queries exist, create Sends for each query variant
+    # Each query variant gets its own set of retrieval channels based on intent
+    if multi_queries and len(multi_queries) > 1:
+        all_sends: list[Send] = []
+        for mq in multi_queries:
+            # Create a state copy with the rewritten query as the last message
+            query_state = {**state, "messages": [{"role": "user", "content": mq}]}
+            sends_for_query = _build_sends_for_intent(intent, query_state)
+            all_sends.extend(sends_for_query)
+        logger.info(
+            f"[fan_out_retrieval] Multi-query L1 routing: intent={intent}, "
+            f"queries={len(multi_queries)}, total_sends={len(all_sends)}"
+        )
+        return all_sends
+
+    # Single query path (original behavior)
+    try:
         sends = _build_sends_for_intent(intent, state)
         logger.info(f"[fan_out_retrieval] L1 routing: intent={intent}, channels={len(sends)}, query='{query[:50]}'")
     except Exception as e:
         logger.warning(f"[fan_out_retrieval] L1 routing failed: {e}, falling back to all 6 channels")
-        intent = "comprehensive"
         sends = [
             Send("retrieve_graphiti", state),
             Send("retrieve_lancedb", state),
@@ -204,9 +231,6 @@ def fan_out_retrieval(state: CanvasRAGState) -> list[Send]:
             Send("retrieve_vault_notes", state),
         ]
 
-    # Store routing info in state (via return — not directly, but logged for traceability)
-    # Note: fan_out_retrieval returns Send objects, can't update state directly.
-    # query_intent and routing_strategy are set in check_quality node from state.
     logger.debug(f"[fan_out_retrieval] Created {len(sends)} Send objects for intent={intent}")
     return sends
 

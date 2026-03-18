@@ -105,6 +105,14 @@
     }
   }
 
+  // ── Double-click header → open chat panel (Story 3.3) ──────────────
+
+  function handleHeaderDoubleClick(e: MouseEvent) {
+    e.stopPropagation();
+    e.preventDefault();
+    canvasState.openNodeChat(node.id, node.title || node.content.slice(0, 30) || node.id);
+  }
+
   // ── Body editing ──────────────────────────────────────────────────────
 
   function startEditing(e: MouseEvent) {
@@ -173,11 +181,12 @@
   <!-- Story 5.2 mastery color indicator -->
   <NodeColorIndicator nodeId={node.id} />
 
-  <!-- Header: drag handle -->
+  <!-- Header: drag handle (double-click → open chat) -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div
     class="cl-canvas-node-header"
     onmousedown={startDrag}
+    ondblclick={handleHeaderDoubleClick}
   >
     {node.title || '未命名节点'}
   </div>

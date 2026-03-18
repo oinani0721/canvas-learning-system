@@ -28,33 +28,22 @@ from app.services.calibration_tracker import (
     get_calibration_summary,
     record_calibration,
 )
-from app.services.mastery_engine import MasteryEngine, load_mastery_config
-from app.services.mastery_store import MasteryStore
+from app.services.mastery_engine import get_mastery_engine
+from app.services.mastery_store import get_mastery_store
 
 logger = logging.getLogger(__name__)
 
 mastery_router = APIRouter()
 
-# Singleton instances (initialized on first request)
-_engine: MasteryEngine | None = None
-_store: MasteryStore | None = None
+
+def _get_engine():
+    """Delegate to the service-level singleton."""
+    return get_mastery_engine()
 
 
-def _get_engine() -> MasteryEngine:
-    global _engine
-    if _engine is None:
-        _engine = MasteryEngine(load_mastery_config())
-    return _engine
-
-
-def _get_store() -> MasteryStore:
-    global _store
-    if _store is None:
-        from app.clients.neo4j_client import get_neo4j_client
-
-        client = get_neo4j_client()
-        _store = MasteryStore(client)
-    return _store
+def _get_store():
+    """Delegate to the service-level singleton."""
+    return get_mastery_store()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

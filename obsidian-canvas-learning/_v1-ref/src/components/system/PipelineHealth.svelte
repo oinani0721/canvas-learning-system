@@ -11,6 +11,7 @@
    */
 
   import { onMount, onDestroy } from "svelte";
+  import { requestUrl } from "obsidian";
 
   // ─── Types ────────────────────────────────────────────────────────────
 
@@ -78,9 +79,9 @@
     loading = true;
     error = null;
     try {
-      const res = await fetch(`${apiBase}/api/v1/system/pipeline-health`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const res = await requestUrl({ url: `${apiBase}/api/v1/system/pipeline-health` });
+      if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+      const json = res.json;
       health = json.data;
     } catch (e: any) {
       error = e.message || "Failed to fetch pipeline health";

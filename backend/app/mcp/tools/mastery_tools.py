@@ -123,12 +123,13 @@ async def query_mastery(node_id: str) -> Dict[str, Any]:
     asyncio.create_task(guardian.record_tool_call("query_mastery", "", node_id))
 
     try:
-        from app.api.v1.endpoints.mastery import _get_engine, _get_store
+        from app.services.mastery_engine import get_mastery_engine
+        from app.services.mastery_store import get_mastery_store
 
-        engine = _get_engine()
+        engine = get_mastery_engine()
 
         # Query the concept state from the mastery store
-        store = _get_store()
+        store = get_mastery_store()
         concept = await store.get_concept(node_id)
 
         if concept is None:
@@ -207,10 +208,11 @@ async def update_fsrs(
         ).model_dump()
 
     try:
-        from app.api.v1.endpoints.mastery import _get_engine, _get_store
+        from app.services.mastery_engine import get_mastery_engine
+        from app.services.mastery_store import get_mastery_store
 
-        engine = _get_engine()
-        store = _get_store()
+        engine = get_mastery_engine()
+        store = get_mastery_store()
 
         concept = await store.get_concept(node_id)
         if concept is None:
@@ -293,10 +295,11 @@ async def update_bkt(
         ).model_dump()
 
     try:
-        from app.api.v1.endpoints.mastery import _get_engine, _get_store
+        from app.services.mastery_engine import get_mastery_engine
+        from app.services.mastery_store import get_mastery_store
 
-        engine = _get_engine()
-        store = _get_store()
+        engine = get_mastery_engine()
+        store = get_mastery_store()
 
         concept = await store.get_concept(node_id)
         if concept is None:

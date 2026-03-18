@@ -1,0 +1,221 @@
+{
+  "meta": {
+    "agent": "W1-D",
+    "task": "decision cluster relationship scan",
+    "timestamp": "2026-03-17T11:00:00Z",
+    "searches_executed": 8,
+    "total_facts_analyzed": 240
+  },
+  "decision_clusters": [
+    {
+      "cluster_name": "C1: Platform/Shell Evolution (Obsidian -> Tauri)",
+      "core_decision_id": "independent-desktop-app-tauri",
+      "related_decision_ids": [
+        "detach-from-obsidian-canvas",
+        "svelte-framework-selection",
+        "svelte-replaced-by-react",
+        "obsidian-components-replaced-by-shadcn",
+        "pure-ts-priority-svelte4-conditional",
+        "5-epic-plan"
+      ],
+      "evolution": "Phase 1 (03-11~03-12): Svelte chosen for Obsidian plugin -> Phase 2 (03-15): User decided to detach from Obsidian Canvas entirely, frontend redesign required -> Phase 3 (03-17 early): Pure TypeScript + Obsidian native API adopted, Svelte 5 rejected, Svelte 4 conditional -> Phase 4 (03-17 ~09:00): 6-agent research recommends Tauri 2.0 + React + ReactFlow -> Phase 5 (03-17 ~09:43): Confirmed: independent desktop app using Tauri 2.0, React, ReactFlow, local JSON. Svelte completely replaced by React. Obsidian components replaced by shadcn/ui -> Phase 6 (03-17 ~10:47): Tauri desktop app successfully compiled and launched, ReactFlow controls verified working.",
+      "key_facts": [
+        "Svelte was originally chosen for Obsidian plugin frontend (03-12)",
+        "User decided frontend must detach from Obsidian Canvas (03-15)",
+        "Pure TS priority + Svelte4 conditional decision made (03-17 06:57)",
+        "6-agent research recommended Tauri 2.0 + ReactFlow (03-17 09:22)",
+        "Svelte replaced by React (03-17 09:39)",
+        "Obsidian components replaced by shadcn/ui (03-17 09:39)",
+        "Independent desktop app confirmed using Tauri 2.0 (03-17 09:43)",
+        "Tauri app compiled and launched successfully (03-17 10:46)",
+        "ReactFlow integrated and running in Tauri (03-17 10:47)"
+      ]
+    },
+    {
+      "cluster_name": "C2: Frontend Architecture Pattern (Frontend-first + Backend sync)",
+      "core_decision_id": "frontend-first-backend-sync",
+      "related_decision_ids": [
+        "whiteboard-data-storage-local-json",
+        "frontend-local-first-architecture",
+        "node-data-format-design",
+        "5-dimension-mastery-display"
+      ],
+      "evolution": "Phase 1 (03-15 09:32): Storage architecture research recommended Frontend-first + Backend sync -> Phase 2 (03-15 09:37): New node data format adopted this architecture -> Phase 3 (03-15 09:52): Frontend rebuild confirmed with Frontend-first + Backend sync, Svelte technology -> Phase 4 (03-17 09:26): Local JSON files recommended for whiteboard data storage (Plan A), Tauri integrates more naturally with local JSON -> Phase 5 (03-17 09:43): Confirmed: local JSON file storage as part of independent desktop app architecture.",
+      "key_facts": [
+        "Frontend-first + Backend sync recommended for storage (03-15)",
+        "Frontend rebuild confirmed to detach from Obsidian Canvas (03-15)",
+        "Backend impact assessed as 'local adjustment' not 'major refactor' (03-15)",
+        "Local JSON file storage recommended (Plan A) for whiteboard data (03-17)",
+        "Tauri naturally integrates with local JSON files (03-17)",
+        "Architecture boundaries define 5 rules for frontend component communication (03-16)"
+      ]
+    },
+    {
+      "cluster_name": "C3: Framework/UI Technology Selection (Svelte -> Pure TS -> React)",
+      "core_decision_id": "svelte-to-react-transition",
+      "related_decision_ids": [
+        "svelte-framework-selection-original",
+        "react-rejected-for-obsidian",
+        "pure-ts-obsidian-native-api",
+        "svelte5-rejected",
+        "svelte4-conditional",
+        "react-adopted-for-tauri",
+        "shadcn-ui-replacement"
+      ],
+      "evolution": "Phase 1 (03-11~03-12): Svelte chosen, React explicitly rejected for Obsidian plugin -> Phase 2 (03-17 06:57): Technical decision: Pure TS first, avoid Svelte 5, use Svelte 4 only for complex UI -> Phase 3 (03-17 07:05): Svelte 5 framework rejected, pure TypeScript + official esbuild template chosen -> Phase 4 (03-17 08:22): Decision to maintain 'Pure TS priority + Svelte4 conditional' reaffirmed -> Phase 5 (03-17 09:39): Complete reversal - Svelte replaced by React. This was driven by the platform shift from Obsidian plugin to Tauri standalone app, where React ecosystem (ReactFlow) is stronger -> Phase 6 (03-17 09:43): Independent app confirmed: Tauri + React + ReactFlow + shadcn/ui.",
+      "key_facts": [
+        "React was originally rejected for Obsidian plugin (03-12)",
+        "Svelte was chosen as suitable for Obsidian plugin development",
+        "Svelte 5 explicitly rejected, Svelte 4 conditional (03-17)",
+        "Platform shift to Tauri enabled React re-adoption (03-17 09:39)",
+        "ReactFlow (React-based) is the whiteboard engine, driving React choice",
+        "Svelte Flow exists as a port of ReactFlow but React original has stronger ecosystem",
+        "shadcn/ui replaces Obsidian native components"
+      ]
+    },
+    {
+      "cluster_name": "C4: 5-Epic Planning and Implementation Structure",
+      "core_decision_id": "5-epic-planning",
+      "related_decision_ids": [
+        "epic-a-desktop-whiteboard",
+        "epic-b-dashboard-backend",
+        "epic-d-exam-whiteboard",
+        "v1-ref-component-reuse",
+        "14-mvp-requirements-coverage"
+      ],
+      "evolution": "Phase 1 (03-17 08:01): Initial 5-Epic structure proposed with pure TypeScript architecture -> Phase 2 (03-17 09:29): 5-Epic plan based on confirmed tech stack (Tauri, React, ReactFlow, local JSON) -> Phase 3 (03-17 09:43): Final architecture confirmed, Story 1.1 will set up Tauri+React+ReactFlow scaffolding -> Phase 4 (03-17 09:47+): Implementation began, Tauri dev environment created and verified.",
+      "key_facts": [
+        "5-Epic plan covers all 14 MVP requirements",
+        "Epic A: Desktop app + whiteboard basics (addresses requirement #1)",
+        "Epic B: Dashboard + backend connection",
+        "Epic D: Exam whiteboard",
+        "Can reuse v1-ref components: api-client, context-assembler, canvas-math, skill-registry, types",
+        "5-Epic plan awaiting user confirmation (as of 03-17 09:29)",
+        "Previous 7-Epic structure was confirmed by user (03-16 22:46) but superseded"
+      ]
+    },
+    {
+      "cluster_name": "C5: Obsidian Canvas Detachment Decision",
+      "core_decision_id": "detach-from-obsidian-canvas",
+      "related_decision_ids": [
+        "no-longer-use-canvas-files",
+        "no-longer-use-canvas-node-edge-system",
+        "plugin-will-not-use-obsidian-canvas-view",
+        "self-built-whiteboard-confirmed",
+        "prd-states-no-obsidian-canvas"
+      ],
+      "evolution": "Phase 1 (03-15 00:04): Initial proposal to detach from Obsidian Canvas -> Phase 2 (03-15 00:05): User decided frontend needs redesign, detach from Obsidian Canvas framework -> Phase 3 (03-15 00:12): Correction - 'completely leave Obsidian' was a misunderstanding; still an Obsidian plugin but not using native Canvas -> Phase 4 (03-15 00:14): Decision rejects continuing Obsidian Canvas interaction paradigm -> Phase 5 (03-16 10:23): User confirms whiteboard is completely self-built, new plugin not based on Obsidian native Canvas extension -> Phase 6 (03-17 09:43): Final form: not even an Obsidian plugin anymore, but an independent Tauri desktop application.",
+      "key_facts": [
+        "Obsidian plugin will no longer use .canvas files (03-15, expired)",
+        "Obsidian plugin will no longer use Canvas node/edge system (03-15, expired)",
+        "Correction: 'completely leave Obsidian' was misunderstanding (03-15)",
+        "PRD states no longer using Obsidian native Canvas (03-16)",
+        "User confirmed whiteboard is completely self-built (03-16)",
+        "Final evolution: from Obsidian plugin to independent Tauri desktop app (03-17)",
+        "Multiple Graphiti records confirm abandonment of Obsidian native Canvas"
+      ]
+    },
+    {
+      "cluster_name": "C6: Session D Frontend Refactor Brainstorming Lineage",
+      "core_decision_id": "session-d-frontend-refactor",
+      "related_decision_ids": [
+        "session-d-brainstorming",
+        "session-d-pencil-design",
+        "frontend-refactor-summary-doc",
+        "image-processing-v1-scope",
+        "group-aggregation-v1-inclusion"
+      ],
+      "evolution": "Phase 1 (03-12 02:31): Session D initiated for frontend refactor brainstorming -> Phase 2 (03-12 06:38): Delivered 5 reference paradigms and 3 Pencil prompts -> Phase 3 (03-12 23:15): Pencil design rebuild phase - decisions on image processing V1 scope, Group aggregation included in V1, Solution B rejected -> Phase 4 (03-13 01:50): Session D was mistakenly identified as Session B at some point -> Phase 5 (03-14 21:10): Summary document output covering 13 brainstorming documents, direction changes, dependencies -> Phase 6 (03-14 04:12): Follow-up action to deep explore existing plugin frontend architecture with risk assessment review dimension.",
+      "key_facts": [
+        "Session D focused specifically on frontend refactor",
+        "Delivered 5 reference paradigms and multiple Pencil prompts",
+        "Solution B was rejected in the design phase",
+        "Summary compiled 13 brainstorming documents",
+        "Covered direction changes and dependencies in output doc",
+        "Had review dimensions including risk assessment",
+        "Was the foundational research that led to all subsequent architecture decisions"
+      ]
+    }
+  ],
+  "supersedes_chains": [
+    {
+      "chain": "Svelte framework (03-12) -> Pure TS + Svelte4 conditional (03-17 06:57) -> React (via Tauri platform shift, 03-17 09:39)",
+      "description": "The original Svelte selection was first superseded by a pure TypeScript priority approach that only used Svelte 4 conditionally. Then the entire framework decision was superseded when the platform shifted from Obsidian plugin to Tauri standalone app, making React the natural choice due to ReactFlow ecosystem."
+    },
+    {
+      "chain": "React rejected for Obsidian (03-12) -> React adopted for Tauri (03-17 09:39)",
+      "description": "React was originally explicitly rejected when the target was Obsidian plugin development. This rejection became obsolete when the platform shifted to Tauri, where React's ecosystem advantages (ReactFlow, shadcn/ui) made it the preferred choice."
+    },
+    {
+      "chain": "Obsidian plugin architecture (original) -> Detach from Obsidian Canvas (03-15) -> Still Obsidian plugin but self-built whiteboard (03-15~03-16) -> Independent Tauri desktop app (03-17)",
+      "description": "The deployment target evolved through multiple stages: from Obsidian plugin using native Canvas, to Obsidian plugin with self-built whiteboard, to finally a completely independent Tauri 2.0 desktop application."
+    },
+    {
+      "chain": "7-Epic structure confirmed (03-16 22:46) -> 5-Epic structure proposed (03-17 08:01) -> 5-Epic with Tauri/React/ReactFlow (03-17 09:29)",
+      "description": "The 7-Epic structure was confirmed by user but later superseded by a 5-Epic structure that reflected the new Tauri/React architecture. The 5-Epic was further refined based on confirmed tech stack choices."
+    },
+    {
+      "chain": "6-source RRF fusion scheme (original) -> Community-validated approach (03-13 01:27)",
+      "description": "The original 6-source RRF fusion scheme in nodes.py was overturned in favor of a community-validated approach during the S3 Pipeline post-processing brainstorming."
+    },
+    {
+      "chain": "Local desktop app uses Obsidian (03-17 03:48) -> Independent Tauri desktop app (03-17 09:43)",
+      "description": "Initially the local desktop app concept still involved Obsidian. This was superseded by the fully independent Tauri 2.0 desktop application architecture."
+    },
+    {
+      "chain": "Frontend-first + Backend sync with Svelte store (03-15 09:32) -> Frontend-first with React + local JSON (03-17 09:43)",
+      "description": "The Frontend-first architecture pattern was preserved, but the implementation technology shifted from Svelte store to React state management with local JSON file storage in the Tauri context."
+    },
+    {
+      "chain": "Decision-Review: Direct deletion plan -> Rejected (03-15 07:46)",
+      "description": "A direct deletion plan was rejected in favor of a more cautious approach."
+    }
+  ],
+  "critical_cross_cluster_dependencies": [
+    {
+      "from_cluster": "C5 (Obsidian Detachment)",
+      "to_cluster": "C1 (Platform Evolution to Tauri)",
+      "dependency_type": "ENABLES",
+      "description": "The decision to detach from Obsidian Canvas was the prerequisite that eventually enabled the shift to Tauri. Without detaching from Obsidian's native Canvas, the platform shift would not have been possible."
+    },
+    {
+      "from_cluster": "C1 (Platform Evolution to Tauri)",
+      "to_cluster": "C3 (Framework Selection Svelte->React)",
+      "dependency_type": "DRIVES",
+      "description": "The platform shift from Obsidian to Tauri directly drove the framework switch from Svelte to React. ReactFlow (React-based) is the whiteboard engine, and Tauri + React is a more mature combination than Tauri + Svelte."
+    },
+    {
+      "from_cluster": "C3 (Framework Selection)",
+      "to_cluster": "C4 (5-Epic Planning)",
+      "dependency_type": "CONSTRAINS",
+      "description": "The 5-Epic plan was explicitly 'based on confirmed tech stack (Tauri, React, ReactFlow, local JSON)'. Any change in framework selection would invalidate the Epic structure."
+    },
+    {
+      "from_cluster": "C2 (Frontend-first Architecture)",
+      "to_cluster": "C4 (5-Epic Planning)",
+      "dependency_type": "INFORMS",
+      "description": "The Frontend-first + Backend sync architecture pattern informs how each Epic structures its data flow, particularly the local JSON storage approach in Epic A."
+    },
+    {
+      "from_cluster": "C6 (Session D Brainstorming)",
+      "to_cluster": "C5 (Obsidian Detachment)",
+      "dependency_type": "PRECEDES",
+      "description": "Session D's deep exploration of frontend refactor options (03-12) was the foundational research that ultimately led to the decision to detach from Obsidian Canvas (03-15)."
+    },
+    {
+      "from_cluster": "C5 (Obsidian Detachment)",
+      "to_cluster": "C3 (Framework Selection)",
+      "dependency_type": "INVALIDATES_PRIOR",
+      "description": "Detaching from Obsidian Canvas invalidated the original rationale for choosing Svelte (which was selected specifically because it was more suitable for Obsidian plugin development). This opened the door for re-evaluating React."
+    }
+  ],
+  "warnings_for_wave2": [
+    "W1: The React adoption (03-17) directly contradicts the earlier React rejection (03-12). Wave 2 must recognize this is NOT inconsistency but a valid evolution driven by the platform shift from Obsidian to Tauri.",
+    "W2: The 'Pure TS + Svelte4 conditional' decision (03-17 08:22) was made just hours before being superseded by React (03-17 09:39). This rapid succession may cause confusion - they are NOT conflicting decisions but sequential evolution within the same day.",
+    "W3: Multiple facts about 'Frontend-first + Backend sync' reference Svelte store, but the implementation has shifted to React. The architectural PATTERN is preserved; only the implementation technology changed.",
+    "W4: The 5-Epic plan references were marked as expired/invalid at 03-17 09:43-09:45, suggesting a revision happened. The current state is the refined version based on confirmed Tauri+React+ReactFlow stack.",
+    "W5: There are expired facts about 'Obsidian plugin will no longer use .canvas files' etc. These expired because the scope expanded further - it's no longer just 'not using Canvas' but 'not an Obsidian plugin at all'.",
+    "W6: Session D frontend refactor (C6) outputs are the genealogical ancestor of ALL other clusters. Any decision analysis should trace back to Session D's findings as the research foundation.",
+    "W7: The 7-Epic structure was user-confirmed (03-16) but superseded by 5-Epic (03-17). Wave 2 should reference the 5-Epic as current, not the 7-Epic."
+  ]
+}

@@ -185,17 +185,12 @@ class ConversationDistiller:
         import litellm
 
         from app.config import settings
+        from app.core.litellm_config import format_litellm_model
 
-        # Use the configured model (ideally a Flash/lite model for cost)
+        # Use the standard format_litellm_model utility for provider-agnostic model strings
         provider = settings.AI_PROVIDER
         model_name = settings.AI_MODEL_NAME
-
-        if provider == "google":
-            model = f"gemini/{model_name}"
-        elif provider == "openrouter":
-            model = f"openrouter/{model_name}"
-        else:
-            model = model_name
+        model = format_litellm_model(provider, model_name)
 
         prompt = DISTILLATION_PROMPT.format(
             conversation_text=conversation_text

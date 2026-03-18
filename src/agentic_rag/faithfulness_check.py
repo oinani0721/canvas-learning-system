@@ -448,15 +448,22 @@ async def faithfulness_check(state: dict) -> dict:
             "faithfulness_degraded": False,
         }
 
-    # ── Build context from reranked results ──
-    reranked = state.get("reranked_results", list())
-    context_parts = []
-    for doc in reranked:
-        content = doc.get("content", "") if isinstance(doc, dict) else ""
-        if content.strip():
-            context_parts.append(content)
-
-    context = "\n\n---\n\n".join(context_parts)
+    # ── Build context: prefer compressed_context (Story 2.10), fall back to reranked ──
+    compressed = state.get("compressed_context")
+    if compressed and compressed.strip():
+        context = compressed
+        context_parts = [compressed]
+        logger.debug(
+            f"[faithfulness_check] Using compressed_context ({len(compressed)} chars)"
+        )
+    else:
+        reranked = state.get("reranked_results", list())
+        context_parts = []
+        for doc in reranked:
+            content = doc.get("content", "") if isinstance(doc, dict) else ""
+            if content.strip():
+                context_parts.append(content)
+        context = "\n\n---\n\n".join(context_parts)
 
     if not context.strip():
         logger.debug("[faithfulness_check] No context available, marking as degraded")
@@ -583,3 +590,12 @@ def _log_faithfulness_result(result: FaithfulnessResult, answer: str) -> None:
         )
     except Exception as e:
         logger.error(f"[faithfulness_check] Failed to emit structured log: {e}")
+
+    # Story 7.1: Record score for health_monitor aggregation
+    try:
+        from app.middleware.llm_call_logger import get_llm_call_logger
+
+        get_llm_call_logger().record_faithfulness_score(result.score)
+    except Exception:
+        # Best-effort: don't let monitoring integration break the pipeline
+        pass

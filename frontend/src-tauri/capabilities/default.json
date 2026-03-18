@@ -1,0 +1,87 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Capability for the main window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "shell:allow-kill",
+    "shell:allow-stdin-write",
+    "fs:allow-read",
+    "fs:allow-write",
+    "fs:allow-exists",
+    "fs:allow-mkdir",
+    "fs:allow-read-dir",
+    "fs:allow-remove",
+    "fs:allow-rename",
+    "fs:allow-copy-file",
+    "fs:scope-app-local-data",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        { "path": "$HOME/**" },
+        { "path": "$APPDATA/**" },
+        { "path": "$TEMP/**" }
+      ]
+    },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "claude-cli",
+          "cmd": "claude",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "docker",
+          "cmd": "docker",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "docker-compose-v1",
+          "cmd": "docker-compose",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    },
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "claude-cli",
+          "cmd": "claude",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "docker",
+          "cmd": "docker",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "docker-compose-v1",
+          "cmd": "docker-compose",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "xcopy",
+          "cmd": "xcopy",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "cp",
+          "cmd": "cp",
+          "args": true,
+          "sidecar": false
+        }
+      ]
+    }
+  ]
+}

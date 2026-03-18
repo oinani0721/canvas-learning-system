@@ -8,8 +8,8 @@ Architecture:
 - Layer 2: LanceDB向量数据库 (语义检索)
 - Layer 3: Temporal Memory (FSRS遗忘曲线 + 学习行为)
 
-Active modules: state_graph, nodes, config, state, retrievers/, clients/, models/
-Archived (Story 2.1): fusion/, observability/, reranking, quality/, quality_nodes/,
+Active modules: state_graph, nodes, config, state, reranking, retrievers/, clients/, models/
+Archived (Story 2.1): fusion/, observability/, quality/, quality_nodes/,
   routing/, parallel_retrieval, traced_nodes, env_config → _bmad-output/archive/
 
 Author: Canvas Learning System Team

@@ -1,0 +1,292 @@
+{
+  "agent": "W2-H",
+  "role": "Edge Cases & Known Limitations Researcher",
+  "timestamp": "2026-03-17T00:00:00Z",
+  "research_topic": "Tauri+React+ReactFlow+shadcn/ui known issues and limitations",
+  "decisions_context": ["DE-1", "DE-2", "DE-3", "DE-4", "DE-5"],
+
+  "known_limitations": [
+    {
+      "id": "KL-01",
+      "area": "Tauri 2.0 Windows WebView2",
+      "severity": "HIGH",
+      "title": "WebView2 runtime detection and installation UX issues",
+      "description": "On Windows 7/10 (pre-Win11), WebView2 is not preinstalled. Tauri's installer must download and install it, but the process has multiple known problems: (1) GetAvailableBrowserVersionString does not account for fixed-version runtime via WEBVIEW2_BROWSER_EXECUTABLE_FOLDER env var, causing false 'Could not find the WebView2 Runtime' dialogs; (2) The MSI installer may fail on Win7 if TLS 1.2 is not enabled; (3) The installer UX resembles malware-ridden installers to end users.",
+      "impact": "Users on older Windows versions may fail to install or launch the app. Bad installer UX may cause users to abandon installation.",
+      "mitigation": "Target Windows 10 21H2+ as minimum (WebView2 is auto-installed via Windows Update). Bundle WebView2 Evergreen Bootstrapper. Test installer flow on clean Win10 VMs. Consider NSIS installer over MSI for better UX.",
+      "sources": [
+        "https://github.com/tauri-apps/tauri/issues/13817",
+        "https://github.com/tauri-apps/tauri/issues/4389",
+        "https://github.com/tauri-apps/tauri/discussions/4774"
+      ]
+    },
+    {
+      "id": "KL-02",
+      "area": "Tauri 2.0 Windows WebView2",
+      "severity": "MEDIUM",
+      "title": "WebView2 fails under Windows Administrator Protection",
+      "description": "With Microsoft's Administrator Protection feature (rolling out in Windows Insider builds), Tauri computes the wrong user data directory for WebView2 when running elevated. WebView2 fails to start because it cannot read/write its user data directory under elevated Administrator Protection.",
+      "impact": "App will fail to launch for users running it as administrator on newer Windows Insider builds. Will become more widespread as feature reaches stable.",
+      "mitigation": "Monitor Tauri issue #13926 for fixes. Avoid requiring admin privileges. Document that running as admin may cause issues on Windows Insider builds.",
+      "sources": [
+        "https://github.com/tauri-apps/tauri/issues/13926"
+      ]
+    },
+    {
+      "id": "KL-03",
+      "area": "Tauri 2.0 Windows WebView2",
+      "severity": "MEDIUM",
+      "title": "Cross-platform rendering engine differences (Chromium vs WebKit)",
+      "description": "Tauri uses WebView2 (Chromium) on Windows, WKWebView (WebKit) on macOS, and WebKitGTK on Linux. Each engine has different CSS/JS feature support, font rendering, and animation behavior. WKWebView versions are tied to macOS versions (not auto-updating like WebView2's evergreen model), meaning macOS users on older OS versions get older WebKit features.",
+      "impact": "CSS/JS that works perfectly on Windows may render differently or break on macOS/Linux. Font rendering differences across platforms. Animation timing differences.",
+      "mitigation": "Test on all three platforms. Use only widely-supported CSS features. Avoid WebKit-specific or Chromium-specific CSS. Use feature detection where needed. Set minimum macOS version to ensure adequate WebKit support.",
+      "sources": [
+        "https://v2.tauri.app/reference/webview-versions/",
+        "https://github.com/tauri-apps/tauri/discussions/12311"
+      ]
+    },
+    {
+      "id": "KL-04",
+      "area": "ReactFlow Large Graph Performance",
+      "severity": "HIGH",
+      "title": "ReactFlow DOM-based rendering limits around ~1000 nodes",
+      "description": "ReactFlow is DOM-based, not canvas-based. Approximately 1000 nodes is the practical limit depending on node complexity. Key performance bottlenecks: (1) Node movements trigger frequent state updates causing unnecessary re-renders; (2) If node states are accidentally made interdependent, the entire graph re-renders on any change; (3) Deep component trees inside custom nodes compound the problem; (4) Pan/zoom operations become laggy with hundreds of complex nodes.",
+      "impact": "For a learning system canvas with potentially 500+ knowledge nodes with rich content (progress bars, status indicators, labels), performance degradation is very likely. Users will experience lag during panning, zooming, and node interactions.",
+      "mitigation": "MUST implement from day one: (1) Wrap ALL custom nodes/edges in React.memo; (2) Use Zustand for state management (NOT useState/useReducer/Context); (3) Enable onlyRenderVisibleElements; (4) Use snapToGrid=[25,25] to reduce state update frequency; (5) Implement node collapsing/grouping for large canvases; (6) Keep custom node components lightweight; (7) Consider virtualization for node lists within nodes.",
+      "sources": [
+        "https://reactflow.dev/learn/advanced-use/performance",
+        "https://github.com/xyflow/xyflow/discussions/4975",
+        "https://github.com/wbkd/react-flow/issues/3044",
+        "https://github.com/wbkd/react-flow/issues/967",
+        "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b"
+      ]
+    },
+    {
+      "id": "KL-05",
+      "area": "ReactFlow Large Graph Performance",
+      "severity": "MEDIUM",
+      "title": "Custom node re-render cascading problem",
+      "description": "Performance issues in ReactFlow are often architectural and hard to fix retroactively. If heavy components are placed as children within the main ReactFlow component, or if custom nodes reference shared state without proper memoization, the entire graph can lose smoothness. Fixing this after the fact requires significant code restructuring.",
+      "impact": "If the initial architecture does not account for this, mid-project performance optimization becomes extremely costly. Features like mastery color indicators, progress overlays, and status badges on nodes can each introduce re-render paths.",
+      "mitigation": "Establish a strict custom node architecture from sprint 1: (1) No shared mutable state inside node components; (2) All data passed via node.data props, never from context; (3) React.memo with custom comparison function on every node type; (4) Separate 'frequently changing' data (e.g., drag position) from 'rarely changing' data (e.g., mastery level).",
+      "sources": [
+        "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b",
+        "https://www.synergycodes.com/blog/guide-to-optimize-react-flow-project-performance"
+      ]
+    },
+    {
+      "id": "KL-06",
+      "area": "Tauri React HMR",
+      "severity": "MEDIUM",
+      "title": "HMR instability in Tauri dev environment",
+      "description": "Multiple known HMR issues: (1) Tauri can start multiple Cargo build processes simultaneously when changing code rapidly, causing 3-5 minute lock contention delays; (2) WebView may reload 3-4 times randomly without code changes; (3) WebSocket connections for HMR can fail with 'failed to connect to websocket' errors; (4) Framework-specific configs (e.g., Next.js assetPrefix) can break HMR entirely. Note: HMR is handled by Vite, not Tauri, but the interaction creates unique issues.",
+      "impact": "Developer experience degradation. Frequent unexpected reloads lose application state during development. Build lock contention slows iteration speed significantly.",
+      "mitigation": "Use Vite as the frontend bundler (best HMR support with Tauri). Ensure devUrl is correctly configured in tauri.conf.json. Keep frontend assets in a dedicated directory. Do not use framework features that conflict with Tauri's dev server proxy (e.g., avoid assetPrefix). Consider configuring Rust watch to exclude non-Rust files.",
+      "sources": [
+        "https://github.com/tauri-apps/tauri/discussions/11732",
+        "https://github.com/tauri-apps/tauri/discussions/5948",
+        "https://github.com/tauri-apps/tauri/issues/9804",
+        "https://github.com/tauri-apps/tauri/issues/10603"
+      ]
+    },
+    {
+      "id": "KL-07",
+      "area": "Tauri Shell Plugin Cross-Platform",
+      "severity": "HIGH",
+      "title": "Shell command execution differs significantly across platforms",
+      "description": "Critical cross-platform differences: (1) GUI apps on macOS and Linux do NOT inherit $PATH from shell dotfiles (.bashrc, .zshrc), requiring fix-path-env-rs crate; (2) Windows requires .exe extension on sidecars (auto-added), preventing .bat/.sh files as sidecars; (3) Sidecar binaries need platform-specific suffixes (-x86_64-unknown-linux-gnu, -aarch64-apple-darwin, etc.); (4) No built-in sidecar lifecycle management (crash detection, auto-restart, health checking, graceful shutdown must be manually implemented); (5) Shell allowlist scope configuration is strict and must enumerate all allowed commands.",
+      "impact": "For the Canvas Learning System that needs to spawn Claude CLI / backend processes, PATH issues on macOS/Linux could prevent finding executables. Windows batch script execution requires workarounds. Sidecar lifecycle management requires significant boilerplate.",
+      "mitigation": "Use fix-path-env-rs crate to inherit PATH on macOS/Linux. Compile sidecars as standalone binaries for each platform triple. Implement custom sidecar lifecycle manager in Rust with health checks and restart logic. Pre-configure shell allowlist for all needed commands. Test CLI spawning on all three platforms.",
+      "sources": [
+        "https://v2.tauri.app/plugin/shell/",
+        "https://v2.tauri.app/develop/sidecar/",
+        "https://github.com/tauri-apps/tauri/discussions/6005",
+        "https://github.com/tauri-apps/plugins-workspace/issues/3062",
+        "https://github.com/tauri-apps/tauri/discussions/3600"
+      ]
+    },
+    {
+      "id": "KL-08",
+      "area": "shadcn/ui in Tauri WebView",
+      "severity": "LOW",
+      "title": "No major rendering issues reported, but cross-engine CSS differences apply",
+      "description": "No specific shadcn/ui + Tauri WebView rendering issues were found in community reports. The tauri-ui template (agmmnn/tauri-ui) demonstrates working integration. However, shadcn/ui v4.0 (March 2026) introduced unified Radix UI package and RTL support. General cross-platform WebView rendering differences (KL-03) still apply to shadcn/ui components. Recently, upgrading to both Tauri 2 + shadcn/ui latest + TailwindCSS v4 simultaneously has been reported as problematic.",
+      "impact": "Low risk for rendering issues specifically from shadcn/ui. Main risk is from attempting to upgrade all dependencies simultaneously.",
+      "mitigation": "Use tauri-ui template as reference for known-working configuration. Start with stable shadcn/ui version rather than bleeding edge. Upgrade dependencies one at a time, not all simultaneously. Test components on all target platforms.",
+      "sources": [
+        "https://github.com/agmmnn/tauri-ui",
+        "https://github.com/agmmnn/tauri-ui/issues/21",
+        "https://ui.shadcn.com/docs/changelog"
+      ]
+    },
+    {
+      "id": "KL-09",
+      "area": "TailwindCSS v4 Configuration",
+      "severity": "MEDIUM",
+      "title": "TailwindCSS v4 has significant breaking changes affecting Tauri builds",
+      "description": "Major v4 breaking changes: (1) PostCSS plugin moved from tailwindcss to @tailwindcss/postcss; (2) @tailwind directives replaced by @import 'tailwindcss'; (3) JavaScript config (tailwind.config.js) replaced by CSS-first @theme configuration; (4) Gradient utility naming convention changed (affects virtually every project using gradients); (5) postcss-import and autoprefixer are now built-in and should be removed; (6) Automated migration tool works 'okay-ish' with many edge cases requiring manual fixes; (7) Programmatic class names (e.g., 'bg-gradient-to-' + direction) cannot be detected by the codemod; (8) Third-party plugins may not be v4-compatible.",
+      "impact": "If starting fresh with v4, minimal impact (just use @tailwindcss/vite plugin). If migrating existing code or using community templates based on v3, significant configuration work needed. shadcn/ui components may have v3-style configuration that needs updating.",
+      "mitigation": "Start with TailwindCSS v4 from the beginning using @tailwindcss/vite plugin (not PostCSS). Use CSS-first @theme configuration. Avoid tailwind.config.js entirely. Verify shadcn/ui components are v4-compatible before adding. Do NOT attempt to migrate from v3 mid-project. Use v4's dedicated Vite plugin for best performance (full rebuilds <100ms, incremental builds in single-digit ms).",
+      "sources": [
+        "https://tailwindcss.com/docs/upgrade-guide",
+        "https://designrevision.com/blog/tailwind-4-migration",
+        "https://github.com/tailwindlabs/tailwindcss/discussions/16517",
+        "https://tailwindcss.com/blog/tailwindcss-v4"
+      ]
+    },
+    {
+      "id": "KL-10",
+      "area": "Tauri IPC Performance",
+      "severity": "HIGH",
+      "title": "IPC is ~40x slower on Windows than macOS for large payloads",
+      "description": "Benchmarked Tauri v2 binary IPC: ~5ms on macOS but ~200ms on Windows for 10MB of data. Root causes: (1) IPC uses JSON-RPC-like protocol with mandatory JSON serialization for all arguments and return values; (2) Even 'serialization-free' IPC in v2 still uses the fetch API internally; (3) Only Windows WebView2 supports shared memory, but it's reported as 'weirdly slow'; (4) No streaming support in WebView2's custom protocol APIs; (5) Improvements are limited by current system webview technology across all platforms.",
+      "impact": "Critical for the Canvas Learning System: large knowledge graph data, chat message streams, and canvas state synchronization all go through IPC. 200ms overhead per large IPC call on Windows could cause visible UI lag. Frequent small calls add up.",
+      "mitigation": "Batch multiple small IPC calls into single calls. Keep IPC payload sizes small (<100KB per call). Use Tauri events (push from Rust) instead of polling from frontend. For large data like knowledge graphs, implement incremental/delta updates instead of full state transfers. Consider keeping frequently-accessed read-only data in frontend state (Zustand) to minimize IPC round-trips. Profile IPC performance early on Windows.",
+      "sources": [
+        "https://github.com/tauri-apps/tauri/discussions/11915",
+        "https://github.com/tauri-apps/tauri/discussions/5690",
+        "https://github.com/orgs/tauri-apps/discussions/5511",
+        "https://github.com/tauri-apps/wry/issues/275"
+      ]
+    },
+    {
+      "id": "KL-11",
+      "area": "Tauri CSP Configuration",
+      "severity": "MEDIUM",
+      "title": "CSP auto-injection conflicts with dynamic content and external URLs",
+      "description": "Tauri automatically parses all frontend assets at compile time and injects nonce/hash-based CSP, overriding even explicit 'unsafe-inline' declarations. Known issues: (1) Inline scripts are hashed, making dynamic script injection impossible without dangerousDisableAssetCspModification; (2) External URLs in windows trigger CSP errors when accessing ipc.localhost; (3) Event handlers require 'unsafe-hashes' which Tauri doesn't automatically add; (4) connect-src must explicitly include 'ipc: http://ipc.localhost' for IPC to work; (5) Disabling CSP modification via dangerousDisableAssetCspModification removes Tauri's XSS protection.",
+      "impact": "Dynamic content loading (e.g., rendering user markdown, loading external resources, injecting runtime scripts) may be blocked by CSP. IPC calls from external URLs fail. Over-aggressive CSP can break third-party libraries that rely on inline styles/scripts.",
+      "mitigation": "Configure CSP explicitly in tauri.conf.json with required directives (connect-src for IPC, style-src for CSS). Move all inline scripts to external files. Use Tauri's nonce system instead of inline styles where possible. If dangerousDisableAssetCspModification is needed, implement manual CSP headers as replacement. Test CSP configuration with browser devtools on each platform. For shadcn/ui: verify that Radix UI's dynamic style injection works under Tauri's CSP.",
+      "sources": [
+        "https://v2.tauri.app/security/csp/",
+        "https://github.com/tauri-apps/tauri/issues/8476",
+        "https://github.com/tauri-apps/tauri/issues/9827",
+        "https://github.com/tauri-apps/tauri/issues/3583"
+      ]
+    },
+    {
+      "id": "KL-12",
+      "area": "Tauri 2.0 Fixed Runtime Development",
+      "severity": "LOW",
+      "title": "Fixed WebView2 runtime not found during development",
+      "description": "When using a fixed (non-evergreen) version of WebView2 runtime, Tauri's development mode cannot locate the runtime directory correctly. This only affects developers who choose to bundle a specific WebView2 version instead of relying on the evergreen updater.",
+      "impact": "Only relevant if choosing to bundle a fixed WebView2 version. Most projects should use the evergreen runtime.",
+      "mitigation": "Use the evergreen WebView2 runtime (default). Only use fixed runtime if absolutely required for enterprise environments with strict version control.",
+      "sources": [
+        "https://github.com/tauri-apps/tauri/issues/7373"
+      ]
+    }
+  ],
+
+  "cross_cutting_concerns": [
+    {
+      "id": "CC-01",
+      "title": "Windows is the weakest platform for Tauri performance",
+      "description": "Multiple limitations converge on Windows: 200ms IPC overhead for large payloads (vs 5ms macOS), WebView2 runtime detection issues, Administrator Protection bugs, and CSP/WebView2 interaction problems. Since the Canvas Learning System's primary user base is likely on Windows (Obsidian desktop users), this is the platform that needs the most testing and optimization.",
+      "recommendation": "Make Windows the primary test platform. Profile all IPC-heavy operations on Windows first. Set up Windows CI/CD early."
+    },
+    {
+      "id": "CC-02",
+      "title": "Performance budget must be established early",
+      "description": "ReactFlow's ~1000 node DOM limit combined with Tauri's Windows IPC overhead means the system has a tight performance budget. Both client-side rendering and client-server communication have hard ceilings that cannot be easily raised later.",
+      "recommendation": "Define maximum supported node count (e.g., 500 nodes with rich content). Implement performance benchmarks from sprint 1. Architect IPC calls to be small and infrequent. Use delta/incremental updates for canvas state."
+    },
+    {
+      "id": "CC-03",
+      "title": "Cross-platform testing is non-negotiable",
+      "description": "Three different rendering engines (Chromium/WebView2, WebKit/WKWebView, WebKitGTK), three different PATH inheritance behaviors, three different shell environments, and three different IPC performance profiles mean that testing on a single platform gives false confidence.",
+      "recommendation": "Set up CI with matrix builds for Windows, macOS, and Linux from sprint 1. Create a cross-platform test checklist. Prioritize Windows and macOS testing (likely highest user population)."
+    },
+    {
+      "id": "CC-04",
+      "title": "Start with TailwindCSS v4 + @tailwindcss/vite, never mix v3 patterns",
+      "description": "TailwindCSS v4's breaking changes are significant enough that mixing v3 and v4 patterns (config files, directives, plugin setup) will cause subtle and hard-to-debug build issues. Starting fresh with v4 avoids all migration pain.",
+      "recommendation": "Use @tailwindcss/vite plugin from day one. CSS-first @theme only. No tailwind.config.js. Verify all shadcn/ui components are v4-compatible before adoption."
+    }
+  ],
+
+  "risk_matrix": {
+    "high_risk_items": [
+      "KL-01: WebView2 runtime detection on Win7/Win10",
+      "KL-04: ReactFlow 500+ node performance ceiling",
+      "KL-07: Shell plugin PATH/sidecar cross-platform differences",
+      "KL-10: IPC 200ms Windows overhead for large payloads"
+    ],
+    "medium_risk_items": [
+      "KL-02: Administrator Protection WebView2 failure",
+      "KL-03: Cross-platform rendering engine differences",
+      "KL-06: HMR instability in Tauri dev environment",
+      "KL-09: TailwindCSS v4 breaking changes",
+      "KL-11: CSP auto-injection conflicts"
+    ],
+    "low_risk_items": [
+      "KL-05: Custom node re-render cascading (preventable with good architecture)",
+      "KL-08: shadcn/ui WebView rendering (no major issues reported)",
+      "KL-12: Fixed WebView2 runtime dev mode (use evergreen instead)"
+    ]
+  },
+
+  "recommended_actions_priority": [
+    {
+      "priority": "P0",
+      "action": "Establish ReactFlow performance architecture from sprint 1",
+      "rationale": "KL-04 and KL-05 are nearly impossible to fix retroactively. React.memo, Zustand, node data separation must be foundational.",
+      "effort": "Low (architecture decisions, not code volume)"
+    },
+    {
+      "priority": "P0",
+      "action": "Design IPC protocol with small payloads and delta updates",
+      "rationale": "KL-10 Windows 200ms overhead makes large IPC calls unacceptable. Must be designed into the architecture, not bolted on.",
+      "effort": "Medium (requires careful API design)"
+    },
+    {
+      "priority": "P1",
+      "action": "Implement fix-path-env-rs and sidecar lifecycle management",
+      "rationale": "KL-07 PATH issues will silently break CLI spawning on macOS/Linux. No workaround exists at runtime.",
+      "effort": "Low (crate integration + lifecycle boilerplate)"
+    },
+    {
+      "priority": "P1",
+      "action": "Configure CSP correctly for IPC + shadcn/ui from the start",
+      "rationale": "KL-11 CSP issues are confusing to debug and platform-specific. Getting it right early prevents mysterious failures.",
+      "effort": "Low (configuration, not code)"
+    },
+    {
+      "priority": "P1",
+      "action": "Set up cross-platform CI (Windows + macOS + Linux)",
+      "rationale": "CC-03 makes single-platform testing dangerous. Catch rendering and shell differences early.",
+      "effort": "Medium (CI configuration)"
+    },
+    {
+      "priority": "P2",
+      "action": "Use TailwindCSS v4 with @tailwindcss/vite from day one",
+      "rationale": "CC-04 prevents migration pain entirely. v4 is faster and simpler when starting fresh.",
+      "effort": "Low (project setup choice)"
+    },
+    {
+      "priority": "P2",
+      "action": "Target Windows 10 21H2+ as minimum OS version",
+      "rationale": "KL-01 Win7/early Win10 issues are not worth solving. WebView2 auto-installs on Win10 21H2+.",
+      "effort": "None (policy decision)"
+    }
+  ],
+
+  "search_queries_executed": [
+    "Tauri 2 known issues limitations Windows WebView2 2024 2025 2026",
+    "ReactFlow 500 nodes performance optimization limitations large graph",
+    "Tauri React HMR hot reload issues dev server 2024 2025",
+    "Tauri shell plugin Windows macOS Linux differences command execution",
+    "shadcn ui Tauri WebView rendering issues CSS compatibility 2024 2025",
+    "TailwindCSS v4 Tauri build configuration problems vite 2025 2026",
+    "Tauri IPC inter-process communication performance benchmark limitations overhead",
+    "Tauri CSP content security policy configuration issues WebView2 problems",
+    "Tauri shell plugin sidecar Windows cmd.exe shell differences cross-platform issues",
+    "ReactFlow performance 1000 nodes lag freeze onlyRenderVisibleElements workaround",
+    "Tauri 2 WebView2 Windows version compatibility rendering differences Safari webkit",
+    "Tauri IPC Windows 200ms slow WebView2 performance workaround binary",
+    "Tauri 2 CSP disable workaround inline script style nonce hash problems",
+    "TailwindCSS v4 breaking changes migration pitfalls postcss removed config 2025",
+    "Tauri shell command execute cross platform path differences env variables",
+    "ReactFlow Tauri desktop app known issues integration problems"
+  ]
+}

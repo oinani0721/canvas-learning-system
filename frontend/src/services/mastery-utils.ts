@@ -107,12 +107,22 @@ export function getMasteryLabel(status: MasteryStatus): string {
 /**
  * Map backend mastery level (0-4) to MasteryStatus.
  */
+/**
+ * Map backend mastery level (0-4) to MasteryStatus.
+ *
+ * Backend levels (from MASTERY_LABELS):
+ *   0 = Not Assessed -> unlearned
+ *   1 = Shaky        -> weak
+ *   2 = Developing   -> learning
+ *   3 = Proficient   -> learning  (proficient but NOT yet mastered)
+ *   4 = Mastered     -> mastered
+ */
 export function masteryLevelToStatus(level: number | null): MasteryStatus {
   switch (level) {
     case 0: return 'unlearned';
     case 1: return 'weak';
     case 2: return 'learning';
-    case 3: return 'mastered';
+    case 3: return 'learning';
     case 4: return 'mastered';
     default: return 'unlearned';
   }

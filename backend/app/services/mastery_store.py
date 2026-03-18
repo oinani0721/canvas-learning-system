@@ -116,20 +116,32 @@ class MasteryStore:
         topic: str = "",
         name: str = "",
         group_id: str = DEFAULT_GROUP_ID,
+        bkt_difficulty: str = "medium",
     ) -> ConceptState:
         """
         Get existing concept or create a new one with defaults.
 
+        Uses BKT P_L0 (prior probability) from DEFAULT_BKT_PARAMS to
+        initialize p_mastery based on the concept's difficulty level.
+
         Used by API endpoints when a concept_id is referenced for the first time.
         """
+        from app.models.mastery_state import DEFAULT_BKT_PARAMS
+
         existing = await self.get_concept(concept_id, group_id)
         if existing:
             return existing
+
+        # Initialize p_mastery from BKT P_L0 for the given difficulty
+        params = DEFAULT_BKT_PARAMS.get(bkt_difficulty, DEFAULT_BKT_PARAMS["medium"])
+        initial_p_mastery = params["P_L0"]
 
         concept = ConceptState(
             concept_id=concept_id,
             topic=topic or "Unknown",
             name=name or concept_id,
+            p_mastery=initial_p_mastery,
+            bkt_difficulty=bkt_difficulty,
         )
         await self.save_concept(concept, group_id)
         return concept
@@ -431,3 +443,25 @@ class MasteryStore:
             if nid is not None:
                 node_ids.append(nid)
         return node_ids
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Service-level singleton accessor
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_store_instance: MasteryStore | None = None
+
+
+def get_mastery_store() -> MasteryStore:
+    """Get or create the singleton MasteryStore instance.
+
+    Provides a service-layer accessor so that event handlers and other
+    services don't need to import private helpers from API endpoint modules.
+    """
+    global _store_instance
+    if _store_instance is None:
+        from app.clients.neo4j_client import get_neo4j_client
+
+        client = get_neo4j_client()
+        _store_instance = MasteryStore(client)
+    return _store_instance

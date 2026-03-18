@@ -82,7 +82,7 @@ function computeReviewNodes(concepts: MasteryConceptResponse[]): ReviewNode[] {
       masteryLevel: c.masteryLevel,
       masteryColor: c.masteryColor,
       effectiveProficiency: c.effectiveProficiency,
-      freshness: c.freshness as 'fresh' | 'due' | 'overdue' | 'stale',
+      freshness: c.freshness as 'fresh' | 'recent' | 'due' | 'overdue',
       lastReviewedAt: c.lastInteractionTs ?? undefined,
       dueDate: c.fsrsDueDate ?? undefined,
       overdueDays,

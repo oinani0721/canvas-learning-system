@@ -1,0 +1,644 @@
+{
+  "meta": {
+    "agent": "W2-I",
+    "role": "Implementation Details Deep-Diver",
+    "timestamp": "2026-03-17T00:00:00Z",
+    "decisions_referenced": ["DE-1", "DE-2", "DE-3", "DE-4", "DE-5"],
+    "sources_consulted": {
+      "context7": [
+        "/websites/v2_tauri_app (Tauri 2.0 official docs, 5406 snippets, benchmark 78.17)",
+        "/websites/reactflow_dev (React Flow official docs, 1169 snippets, benchmark 79.39)",
+        "/shadcn/ui (shadcn/ui docs, 1649 snippets, benchmark 81.18)"
+      ],
+      "web_search_queries": [
+        "Tauri 2 React project structure best practices 2025 2026",
+        "ReactFlow custom node edge best practices knowledge graph 2025",
+        "Tauri shell plugin docker-compose management example code 2025",
+        "Catppuccin TailwindCSS theme integration 2025",
+        "Tauri 2 tauri.conf.json CSP content security policy recommended configuration 2025",
+        "React 19 Vite Tauri 2 build configuration vite.config.ts best practices 2025",
+        "tauri-plugin-shell JavaScript Command create spawn execute child process output stderr stdout example",
+        "Catppuccin tailwindcss v4 plugin configuration mocha latte theme switcher CSS variables",
+        "Tauri 2 capabilities permissions default.json security model ACL plugin permissions explained 2025",
+        "dannysmith tauri-template React 19 project structure",
+        "ReactFlow zustand store custom node data typescript type safety",
+        "Catppuccin shadcn ui integration theme CSS variables oklch color mapping"
+      ]
+    }
+  },
+
+  "topic_1_tauri_react_project_structure": {
+    "title": "Tauri 2.0 + React Recommended Project Structure and Configuration",
+    "reference_template": "dannysmith/tauri-template (production-ready, Tauri v2 + React 19 + TypeScript)",
+    "recommended_structure": {
+      "root": {
+        "package.json": "Frontend dependencies, scripts (dev, build, tauri dev, tauri build)",
+        "vite.config.ts": "Vite config with Tauri-specific settings",
+        "tsconfig.json": "TypeScript root config with path aliases",
+        "tsconfig.app.json": "App-specific TS config (Vite reads this)",
+        "tsconfig.node.json": "Node/Vite tooling TS config",
+        "tailwind.config.ts": "TailwindCSS configuration (v3) or tailwind.css (v4)",
+        "components.json": "shadcn/ui component configuration",
+        "index.html": "Vite entry HTML"
+      },
+      "src/": {
+        "main.tsx": "React entry point",
+        "App.tsx": "Root component with providers",
+        "components/": {
+          "ui/": "shadcn/ui generated components",
+          "canvas/": "ReactFlow canvas components (custom nodes, edges)",
+          "layout/": "Layout components (sidebar, header, panels)",
+          "shared/": "Shared/reusable components"
+        },
+        "hooks/": "Custom React hooks",
+        "stores/": "Zustand stores for global state",
+        "services/": "API clients, Tauri command wrappers",
+        "types/": "TypeScript type definitions",
+        "lib/": "Utility functions, helpers",
+        "styles/": "Global CSS, theme variables"
+      },
+      "src-tauri/": {
+        "Cargo.toml": "Rust dependencies including tauri, tauri-plugin-shell, etc.",
+        "tauri.conf.json": "Tauri configuration (app metadata, security, plugins)",
+        "build.rs": "Tauri build script",
+        "capabilities/": {
+          "default.json": "Default capability with permissions for all windows"
+        },
+        "icons/": "Application icons",
+        "src/": {
+          "main.rs": "Desktop entry point (main fn)",
+          "lib.rs": "Shared library code (mobile entry point), plugin registration",
+          "commands/": "Tauri command modules (Rust functions callable from JS)",
+          "state.rs": "Application state management (Tauri managed state)"
+        }
+      }
+    },
+    "key_configuration_files": {
+      "tauri.conf.json_skeleton": {
+        "productName": "Canvas Learning System",
+        "version": "0.1.0",
+        "identifier": "com.canvas-learning.app",
+        "build": {
+          "frontendDist": "../dist",
+          "devUrl": "http://localhost:5173",
+          "beforeDevCommand": "npm run dev",
+          "beforeBuildCommand": "npm run build"
+        },
+        "app": {
+          "windows": [
+            {
+              "title": "Canvas Learning System",
+              "width": 1280,
+              "height": 800,
+              "resizable": true,
+              "fullscreen": false
+            }
+          ],
+          "security": {
+            "csp": "SEE_TOPIC_5_CSP_CONFIGURATION"
+          }
+        },
+        "plugins": {
+          "shell": {
+            "open": true
+          }
+        }
+      }
+    },
+    "state_management_recommendation": {
+      "approach": "Three-layer state management (community best practice from dannysmith/tauri-template)",
+      "layers": {
+        "component_state": "React useState/useReducer for local UI state",
+        "global_ui_state": "Zustand for cross-component shared state (sidebar open, active view, theme)",
+        "server_state": "TanStack Query for async data fetching, caching, and sync with backend"
+      },
+      "rationale": "Zustand is lightweight (~1KB), has no providers/context needed, integrates well with React 19, and ReactFlow internally uses Zustand for its own store."
+    },
+    "type_safe_bridge": {
+      "recommendation": "tauri-specta for auto-generating TypeScript types from Rust commands",
+      "benefit": "Full autocomplete and compile-time checking for Tauri IPC calls",
+      "alternative": "Manual type definitions in src/types/ if tauri-specta adds too much complexity initially"
+    }
+  },
+
+  "topic_2_reactflow_custom_nodes_edges": {
+    "title": "ReactFlow Custom Nodes/Edges Best Practices for Knowledge Graph Whiteboard",
+    "package": "@xyflow/react (ReactFlow rebranded as XyFlow)",
+    "version_note": "Use @xyflow/react (not the legacy 'reactflow' package)",
+
+    "custom_node_implementation": {
+      "pattern": "Define custom node components as separate files, register via nodeTypes object",
+      "type_safety": {
+        "define_node_data_type": "type KnowledgeNodeData = { label: string; mastery: number; status: 'not_started' | 'learning' | 'mastered'; lastReview?: Date; }",
+        "define_node_type": "type KnowledgeNode = Node<KnowledgeNodeData, 'knowledge'>",
+        "type_guard": "function isKnowledgeNode(node: Node): node is KnowledgeNode { return node.type === 'knowledge'; }"
+      },
+      "example_custom_node": {
+        "description": "A knowledge concept node with mastery indicator, handles for connections",
+        "key_elements": [
+          "React.memo() wrapper for performance",
+          "Handle components for source/target connections (Position.Top, Position.Bottom, Position.Left, Position.Right)",
+          "NodeProps<KnowledgeNodeData> typing for props",
+          "Conditional styling based on mastery level",
+          "NodeToolbar for contextual actions"
+        ],
+        "code_pattern": "const KnowledgeNode = memo(({ data, selected }: NodeProps<KnowledgeNodeData>) => { return (<div className={cn('knowledge-node', selected && 'selected')}><Handle type='target' position={Position.Top} /><div className='node-content'><span>{data.label}</span><MasteryBadge level={data.mastery} /></div><Handle type='source' position={Position.Bottom} /></div>); }); KnowledgeNode.displayName = 'KnowledgeNode';"
+      },
+      "nodeTypes_registration": {
+        "pattern": "Define nodeTypes OUTSIDE the component (or useMemo) to prevent re-creation on every render",
+        "code": "const nodeTypes = { knowledge: KnowledgeNode, topic: TopicNode, resource: ResourceNode }; // MUST be stable reference"
+      }
+    },
+
+    "custom_edge_implementation": {
+      "pattern": "Custom edges can render any React component along the edge path",
+      "types_available": ["default (bezier)", "straight", "step", "smoothstep", "floating (custom)"],
+      "recommended_for_knowledge_graph": {
+        "type": "floating edge with labels",
+        "reason": "Floating edges connect to node borders dynamically, not fixed handle positions - better for organic graph layouts",
+        "label_support": "EdgeLabelRenderer for rendering interactive labels on edges (relationship type, strength)"
+      },
+      "edgeTypes_registration": "const edgeTypes = { relationship: RelationshipEdge }; // MUST be stable reference outside component"
+    },
+
+    "performance_critical_patterns": {
+      "memoize_components": {
+        "rule": "ALL custom node and edge components MUST use React.memo()",
+        "reason": "ReactFlow triggers frequent re-renders on node drag/viewport change"
+      },
+      "memoize_callbacks": {
+        "rule": "ALL event handler functions passed to <ReactFlow> MUST use useCallback()",
+        "affected_props": ["onConnect", "onNodesChange", "onEdgesChange", "onNodeClick", "onEdgeClick"]
+      },
+      "stable_type_references": {
+        "rule": "nodeTypes and edgeTypes objects MUST be defined outside the component or wrapped in useMemo",
+        "anti_pattern": "Defining nodeTypes inside render function causes all nodes to unmount/remount every render"
+      },
+      "viewport_culling": {
+        "prop": "onlyRenderVisibleElements={true}",
+        "benefit": "Only renders nodes/edges visible in the viewport - major perf gain for 500+ nodes"
+      },
+      "css_optimization": {
+        "rule": "Avoid complex CSS (animations, shadows, gradients) on node components when dealing with 200+ nodes",
+        "alternative": "Use simple borders and background colors; add effects only on hover/selection"
+      }
+    },
+
+    "layout_integration": {
+      "recommended_libraries": [
+        {
+          "name": "elkjs",
+          "use_case": "Hierarchical/layered layouts for directed knowledge graphs",
+          "integration": "Calculate positions with ELK, apply to ReactFlow nodes"
+        },
+        {
+          "name": "dagre",
+          "use_case": "Simpler DAG layouts, lighter weight than ELK",
+          "integration": "Well-documented ReactFlow example in official docs"
+        }
+      ],
+      "manual_layout": "Allow users to manually drag nodes and persist positions - essential for a whiteboard experience"
+    },
+
+    "store_integration": {
+      "reactflow_internal_store": "ReactFlow uses Zustand internally - accessible via useStore() hook",
+      "external_store_pattern": {
+        "recommendation": "Use a separate Zustand store for app-level graph state, sync with ReactFlow via controlled mode",
+        "controlled_mode": "Pass nodes/edges as props + onNodesChange/onEdgesChange handlers for full control",
+        "type_safe_store": "type GraphStore = { nodes: KnowledgeNode[]; edges: Edge[]; addNode: (node: KnowledgeNode) => void; updateNodeMastery: (id: string, mastery: number) => void; }"
+      }
+    }
+  },
+
+  "topic_3_shadcn_tailwind_configuration": {
+    "title": "shadcn/ui + TailwindCSS in Tauri Recommended Configuration",
+
+    "installation_steps": {
+      "step_1": "Create Vite+React project (already done via create-tauri-app)",
+      "step_2_tailwind": {
+        "command": "npm install -D tailwindcss @tailwindcss/vite",
+        "note": "For Tailwind v4, use CSS-first config instead of tailwind.config.ts"
+      },
+      "step_3_path_aliases": {
+        "tsconfig_json": {
+          "compilerOptions": {
+            "baseUrl": ".",
+            "paths": { "@/*": ["./src/*"] }
+          }
+        },
+        "tsconfig_app_json": "MUST also include the same paths config (Vite reads this file)",
+        "vite_config": "Install vite-tsconfig-paths plugin OR manually configure resolve.alias: { '@': path.resolve(__dirname, './src') }"
+      },
+      "step_4_shadcn_init": {
+        "command": "npx shadcn@latest init",
+        "prompts": {
+          "style": "Default or New York",
+          "base_color": "Slate (will be overridden by Catppuccin)",
+          "css_variables": "Yes",
+          "react_server_components": "No (Tauri is client-only)"
+        }
+      },
+      "step_5_add_components": "npx shadcn@latest add button card dialog dropdown-menu input etc."
+    },
+
+    "components_json_configuration": {
+      "schema": "https://ui.shadcn.com/schema.json",
+      "style": "default",
+      "rsc": false,
+      "tsx": true,
+      "tailwind": {
+        "config": "",
+        "css": "src/styles/globals.css",
+        "baseColor": "slate"
+      },
+      "aliases": {
+        "components": "@/components",
+        "utils": "@/lib/utils",
+        "ui": "@/components/ui",
+        "lib": "@/lib",
+        "hooks": "@/hooks"
+      }
+    },
+
+    "css_configuration": {
+      "globals_css_structure": {
+        "description": "For Tailwind v4, the CSS file IS the config",
+        "imports": [
+          "@import 'tailwindcss';",
+          "@import 'tw-animate-css';",
+          "@import 'shadcn/tailwind.css';"
+        ],
+        "custom_variant": "@custom-variant dark (&:is(.dark *));",
+        "theme_inline": "Map CSS variables to Tailwind color tokens via @theme inline { --color-background: var(--background); ... }",
+        "root_variables": "Define :root { } and .dark { } with oklch color values",
+        "base_layer": "@layer base { * { @apply border-border outline-ring/50; } body { @apply bg-background text-foreground; } }"
+      }
+    },
+
+    "dark_mode_support": {
+      "mechanism": "Class-based dark mode (add 'dark' class to <html>)",
+      "theme_provider": {
+        "description": "shadcn provides a ThemeProvider component using React Context",
+        "features": ["Persists theme to localStorage", "Supports 'light', 'dark', 'system' modes", "Uses matchMedia for system theme detection"],
+        "wrapper": "<ThemeProvider defaultTheme='system' storageKey='canvas-learning-theme'><App /></ThemeProvider>"
+      },
+      "mode_toggle": "shadcn ModeToggle component with DropdownMenu for switching themes"
+    },
+
+    "recommended_shadcn_components_for_project": [
+      "button", "card", "dialog", "dropdown-menu", "input", "label",
+      "popover", "select", "separator", "sheet (sidebar panel)",
+      "tabs", "toast/sonner", "tooltip", "badge", "command (cmd+k palette)",
+      "context-menu (right-click on nodes)", "slider (mastery level)",
+      "progress", "skeleton (loading states)", "scroll-area",
+      "resizable (panel layouts)", "sidebar"
+    ]
+  },
+
+  "topic_4_tauri_shell_plugin_docker": {
+    "title": "Tauri Shell Plugin for Managing Docker Compose",
+
+    "setup": {
+      "rust_cargo_toml": "tauri-plugin-shell = \"2\"",
+      "rust_lib_rs": "tauri::Builder::default().plugin(tauri_plugin_shell::init())",
+      "js_package": "npm install @tauri-apps/plugin-shell",
+      "capabilities_config": {
+        "file": "src-tauri/capabilities/default.json",
+        "permissions_needed": [
+          "shell:allow-execute",
+          "shell:allow-spawn"
+        ]
+      }
+    },
+
+    "capability_configuration_for_docker": {
+      "file": "src-tauri/capabilities/default.json",
+      "content": {
+        "$schema": "../gen/schemas/desktop-schema.json",
+        "identifier": "main-capability",
+        "description": "Capability for the main window",
+        "windows": ["main"],
+        "permissions": [
+          "core:default",
+          {
+            "identifier": "shell:allow-execute",
+            "allow": [
+              {
+                "name": "docker-compose-up",
+                "cmd": "docker-compose",
+                "args": ["-f", { "validator": "\\S+" }, "up", "-d"],
+                "sidecar": false
+              },
+              {
+                "name": "docker-compose-down",
+                "cmd": "docker-compose",
+                "args": ["-f", { "validator": "\\S+" }, "down"],
+                "sidecar": false
+              },
+              {
+                "name": "docker-compose-ps",
+                "cmd": "docker-compose",
+                "args": ["-f", { "validator": "\\S+" }, "ps", "--format", "json"],
+                "sidecar": false
+              },
+              {
+                "name": "docker-compose-logs",
+                "cmd": "docker-compose",
+                "args": ["-f", { "validator": "\\S+" }, "logs", "--tail", { "validator": "\\d+" }],
+                "sidecar": false
+              },
+              {
+                "name": "docker-info",
+                "cmd": "docker",
+                "args": ["info", "--format", "json"],
+                "sidecar": false
+              }
+            ]
+          }
+        ]
+      }
+    },
+
+    "javascript_api_patterns": {
+      "execute_and_wait": {
+        "description": "Run docker-compose command and wait for completion",
+        "code": "import { Command } from '@tauri-apps/plugin-shell';\n\nasync function dockerComposeUp(composeFile: string): Promise<{ code: number; stdout: string; stderr: string }> {\n  const command = Command.create('docker-compose-up', [composeFile]);\n  const output = await command.execute();\n  return { code: output.code, stdout: output.stdout, stderr: output.stderr };\n}"
+      },
+      "spawn_with_streaming": {
+        "description": "Start docker-compose and stream logs in real-time",
+        "code": "import { Command } from '@tauri-apps/plugin-shell';\n\nasync function streamDockerLogs(composeFile: string, onLine: (line: string) => void): Promise<void> {\n  const command = Command.create('docker-compose-logs', [composeFile, '100']);\n  command.stdout.on('data', (line: string) => onLine(line));\n  command.stderr.on('data', (line: string) => onLine(`[stderr] ${line}`));\n  command.on('error', (error: string) => console.error('Process error:', error));\n  command.on('close', (data) => console.log('Process exited with code', data.code));\n  await command.spawn();\n}"
+      },
+      "check_docker_status": {
+        "description": "Check if Docker daemon is running",
+        "code": "async function isDockerRunning(): Promise<boolean> {\n  try {\n    const command = Command.create('docker-info');\n    const output = await command.execute();\n    return output.code === 0;\n  } catch {\n    return false;\n  }\n}"
+      }
+    },
+
+    "important_notes": [
+      "On some systems, you may need to use the full path to docker-compose (e.g., /usr/local/bin/docker-compose) instead of just 'docker-compose'",
+      "The validator regex in args prevents command injection by restricting argument patterns",
+      "Each command name (docker-compose-up, etc.) must exactly match what you pass to Command.create()",
+      "Consider using 'docker compose' (v2 subcommand) instead of 'docker-compose' for newer Docker Desktop versions",
+      "For Windows, the cmd may need to be 'docker-compose.exe' or the full path"
+    ],
+
+    "cross_platform_handling": {
+      "recommendation": "Create a Rust command that detects the platform and returns the correct docker path",
+      "pattern": "Tauri command in Rust determines OS -> returns appropriate docker binary path -> JS uses that path",
+      "alternative": "Bundle docker-compose.yml path relative to app data dir using Tauri's path plugin"
+    }
+  },
+
+  "topic_5_csp_configuration": {
+    "title": "Tauri tauri.conf.json CSP Configuration Recommended Values",
+
+    "principles": [
+      "Start strict, loosen only as needed",
+      "Tauri auto-appends nonces/hashes for bundled code at compile time",
+      "Only worry about CSP for your app-specific external resources",
+      "Avoid 'unsafe-inline' for scripts; use nonces/hashes instead",
+      "'unsafe-inline' for styles is sometimes necessary (inline Tailwind, ReactFlow)"
+    ],
+
+    "recommended_csp_for_canvas_learning": {
+      "default-src": "'self' customprotocol: asset:",
+      "script-src": "'self'",
+      "style-src": "'self' 'unsafe-inline'",
+      "img-src": "'self' asset: http://asset.localhost blob: data:",
+      "font-src": "'self' data:",
+      "connect-src": "ipc: http://ipc.localhost http://localhost:* ws://localhost:*",
+      "worker-src": "'self' blob:",
+      "media-src": "'self' asset: http://asset.localhost"
+    },
+
+    "explanation_per_directive": {
+      "default-src": "Fallback for all resource types. 'self' + Tauri custom protocols",
+      "script-src": "'self' only - Tauri auto-adds nonces for inline scripts at build time",
+      "style-src": "'unsafe-inline' needed for Tailwind's runtime styles and ReactFlow's inline positioning",
+      "img-src": "blob: and data: needed for canvas screenshots, node thumbnails",
+      "connect-src": "ipc: for Tauri IPC, localhost:* for local backend API calls and WebSocket connections",
+      "worker-src": "blob: needed if using Web Workers for heavy computation"
+    },
+
+    "when_to_adjust": {
+      "external_fonts": "Add https://fonts.gstatic.com to font-src and https://fonts.googleapis.com to style-src",
+      "external_images": "Add specific CDN domains to img-src",
+      "wasm": "Add 'wasm-unsafe-eval' to script-src if using WebAssembly"
+    },
+
+    "config_location": "tauri.conf.json > app > security > csp"
+  },
+
+  "topic_6_react19_vite_tauri_build": {
+    "title": "React 19 + Vite + Tauri Build Configuration Best Practices",
+
+    "vite_config_ts": {
+      "recommended_configuration": {
+        "description": "Complete vite.config.ts for Tauri 2 + React 19",
+        "plugins": [
+          "@vitejs/plugin-react-swc (SWC-based React plugin, faster than Babel)",
+          "vite-tsconfig-paths (auto-resolve TypeScript path aliases)"
+        ],
+        "key_settings": {
+          "clearScreen": false,
+          "server.port": 5173,
+          "server.strictPort": true,
+          "server.host": "process.env.TAURI_DEV_HOST || false",
+          "server.hmr": "{ protocol: 'ws', host: process.env.TAURI_DEV_HOST || 'localhost' }",
+          "envPrefix": ["VITE_", "TAURI_ENV_*"],
+          "build.target": "['es2021', 'chrome100', 'safari14']",
+          "build.minify": "!process.env.TAURI_ENV_DEBUG ? 'esbuild' : false",
+          "build.sourcemap": "!!process.env.TAURI_ENV_DEBUG"
+        }
+      },
+      "code_template": "import { defineConfig } from 'vite';\nimport react from '@vitejs/plugin-react-swc';\nimport tsconfigPaths from 'vite-tsconfig-paths';\n\nconst host = process.env.TAURI_DEV_HOST;\n\nexport default defineConfig({\n  plugins: [react(), tsconfigPaths()],\n  clearScreen: false,\n  server: {\n    port: 5173,\n    strictPort: true,\n    host: host || false,\n    hmr: host ? { protocol: 'ws', host, port: 5174 } : undefined,\n  },\n  envPrefix: ['VITE_', 'TAURI_ENV_'],\n  build: {\n    target: ['es2021', 'chrome100', 'safari14'],\n    minify: !process.env.TAURI_ENV_DEBUG ? 'esbuild' : false,\n    sourcemap: !!process.env.TAURI_ENV_DEBUG,\n  },\n});"
+    },
+
+    "tsconfig_setup": {
+      "tsconfig_json": {
+        "files": [],
+        "references": [
+          { "path": "./tsconfig.app.json" },
+          { "path": "./tsconfig.node.json" }
+        ]
+      },
+      "tsconfig_app_json": {
+        "compilerOptions": {
+          "target": "ES2021",
+          "lib": ["ES2021", "DOM", "DOM.Iterable"],
+          "module": "ESNext",
+          "moduleResolution": "bundler",
+          "jsx": "react-jsx",
+          "strict": true,
+          "baseUrl": ".",
+          "paths": { "@/*": ["./src/*"] },
+          "types": ["vite/client"]
+        },
+        "include": ["src"]
+      }
+    },
+
+    "dependency_optimization": {
+      "optimizeDeps_include": ["react", "react-dom", "@xyflow/react", "zustand"],
+      "rationale": "Pre-bundle large dependencies for faster dev server startup"
+    },
+
+    "build_targets": {
+      "es2021_chrome100_safari14": "Tauri WebView minimum targets (WebView2 on Windows = Chromium, WebKit on macOS)",
+      "no_ssr": "Tauri is client-only, no SSR considerations needed"
+    }
+  },
+
+  "topic_7_catppuccin_tailwind_integration": {
+    "title": "Catppuccin Theme in TailwindCSS Integration",
+
+    "package": "@catppuccin/tailwindcss",
+    "install": "npm install -D @catppuccin/tailwindcss",
+
+    "flavors": {
+      "latte": "Light mode (warm, pastel light theme)",
+      "frappe": "Medium-dark mode",
+      "macchiato": "Dark mode (medium contrast)",
+      "mocha": "Darkest mode (highest contrast, recommended default dark)"
+    },
+
+    "integration_approach_tailwind_v4": {
+      "description": "CSS-first approach for Tailwind v4",
+      "css_imports": "@import '@catppuccin/tailwindcss/mocha.css';",
+      "flavor_switching": "Apply flavor class to HTML element: <html class='mocha'> or <html class='latte'>",
+      "usage_in_markup": "bg-ctp-base text-ctp-text border-ctp-surface0"
+    },
+
+    "integration_approach_tailwind_v3": {
+      "tailwind_config": {
+        "plugins": ["require('@catppuccin/tailwindcss')({ prefix: 'ctp', defaultFlavour: 'latte' })"]
+      },
+      "dark_mode_class": "className='latte dark:mocha'",
+      "body_example": "<body className='dark:mocha latte bg-ctp-base text-ctp-text'>"
+    },
+
+    "bridging_catppuccin_with_shadcn": {
+      "approach": "Map Catppuccin colors to shadcn CSS variables using oklch conversion",
+      "description": "shadcn uses oklch-based CSS variables (--background, --foreground, --primary, etc.). Map Catppuccin flavor colors to these variables.",
+      "mapping_strategy": {
+        "root_latte": {
+          "--background": "Catppuccin Latte base -> oklch equivalent",
+          "--foreground": "Catppuccin Latte text -> oklch equivalent",
+          "--primary": "Catppuccin Latte blue -> oklch equivalent",
+          "--primary-foreground": "Catppuccin Latte base -> oklch equivalent",
+          "--secondary": "Catppuccin Latte surface0 -> oklch equivalent",
+          "--muted": "Catppuccin Latte surface1 -> oklch equivalent",
+          "--accent": "Catppuccin Latte lavender -> oklch equivalent",
+          "--destructive": "Catppuccin Latte red -> oklch equivalent",
+          "--border": "Catppuccin Latte surface2 -> oklch equivalent",
+          "--card": "Catppuccin Latte mantle -> oklch equivalent",
+          "--popover": "Catppuccin Latte crust -> oklch equivalent"
+        },
+        "dark_mocha": {
+          "--background": "Catppuccin Mocha base -> oklch equivalent",
+          "--foreground": "Catppuccin Mocha text -> oklch equivalent",
+          "--primary": "Catppuccin Mocha blue -> oklch equivalent",
+          "--secondary": "Catppuccin Mocha surface0 -> oklch equivalent",
+          "etc": "..."
+        }
+      },
+      "implementation_options": [
+        {
+          "option": "A: Manual oklch mapping in globals.css",
+          "description": "Manually convert Catppuccin hex values to oklch and set in :root/.dark CSS variables",
+          "pros": "Full control, no extra dependencies, works with shadcn as-is",
+          "cons": "Manual conversion work for all 4 flavors x ~25 variables"
+        },
+        {
+          "option": "B: Use @catppuccin/tailwindcss plugin + CSS variable bridge",
+          "description": "Use the Catppuccin plugin for direct Catppuccin class usage, plus a bridge CSS file that aliases ctp variables to shadcn variables",
+          "pros": "Both systems work - direct ctp- classes AND shadcn components pick up theme",
+          "cons": "Two theming systems running in parallel, potential confusion"
+        },
+        {
+          "option": "C: Catppuccin-flavored shadcn theme generator",
+          "description": "Use tweakcn.com or gradient.page theme generator to create a Catppuccin-inspired shadcn theme",
+          "pros": "Simplest, single theming system, all shadcn components themed correctly",
+          "cons": "May not be pixel-perfect Catppuccin, harder to switch between all 4 flavors"
+        }
+      ],
+      "recommendation": "Option A (manual oklch mapping) for the initial MVP. It provides exact Catppuccin colors in shadcn's native system with no extra dependencies. Support Latte (light) and Mocha (dark) first, add Frappe/Macchiato later."
+    },
+
+    "catppuccin_color_reference": {
+      "note": "Key color names used across all flavors",
+      "colors": [
+        "rosewater", "flamingo", "pink", "mauve", "red", "maroon",
+        "peach", "yellow", "green", "teal", "sky", "sapphire",
+        "blue", "lavender", "text", "subtext1", "subtext0",
+        "overlay2", "overlay1", "overlay0",
+        "surface2", "surface1", "surface0",
+        "base", "mantle", "crust"
+      ]
+    },
+
+    "theme_switcher": {
+      "description": "Extend shadcn ThemeProvider to support 4 Catppuccin flavors",
+      "type_definition": "type Theme = 'latte' | 'frappe' | 'macchiato' | 'mocha' | 'system'",
+      "mechanism": "Toggle CSS class on <html> element: 'latte' (light) vs 'mocha' (dark), each having their own CSS variable block"
+    }
+  },
+
+  "cross_cutting_concerns": {
+    "dev_workflow": {
+      "dev_command": "npm run tauri dev (starts both Vite dev server and Tauri window)",
+      "build_command": "npm run tauri build (produces native binary with bundled frontend)",
+      "hot_reload": "Vite HMR works in Tauri WebView - instant updates during development"
+    },
+
+    "testing_strategy": {
+      "unit_tests": "Vitest for React component and store tests",
+      "e2e_tests": "Tauri has built-in WebDriver support, or use Playwright",
+      "tauri_command_mocking": "Mock Tauri IPC in tests using @tauri-apps/api/mocks"
+    },
+
+    "recommended_additional_packages": {
+      "state": ["zustand", "@tanstack/react-query"],
+      "routing": ["@tanstack/react-router (file-based routing, type-safe)"],
+      "icons": ["lucide-react (shadcn default icon library)"],
+      "animation": ["tw-animate-css (shadcn animation dependency)"],
+      "utilities": ["clsx + tailwind-merge (via shadcn's cn() utility)", "date-fns (date formatting)"]
+    },
+
+    "file_naming_conventions": {
+      "components": "PascalCase.tsx (e.g., KnowledgeNode.tsx)",
+      "hooks": "camelCase with use prefix (e.g., useGraphStore.ts)",
+      "stores": "camelCase with Store suffix (e.g., graphStore.ts)",
+      "types": "camelCase.ts in types/ directory",
+      "utilities": "camelCase.ts in lib/ directory"
+    }
+  },
+
+  "summary": {
+    "confidence_levels": {
+      "topic_1_project_structure": "HIGH - Verified via official Tauri docs + dannysmith/tauri-template production template",
+      "topic_2_reactflow": "HIGH - Verified via official ReactFlow (@xyflow/react) docs with extensive code examples",
+      "topic_3_shadcn_tailwind": "HIGH - Verified via official shadcn/ui docs with Vite-specific installation guide and CSS variable system",
+      "topic_4_shell_plugin_docker": "MEDIUM-HIGH - Shell plugin API well-documented, but docker-compose specific scoped permissions are our design (follows Tauri security patterns)",
+      "topic_5_csp": "HIGH - Verified via official Tauri security documentation",
+      "topic_6_build_config": "HIGH - Verified via official Tauri Vite guide + community best practices",
+      "topic_7_catppuccin": "MEDIUM-HIGH - @catppuccin/tailwindcss is official and well-maintained, but bridging with shadcn oklch variables requires manual mapping work"
+    },
+    "key_risks": [
+      "Catppuccin-to-shadcn color bridging requires careful oklch conversion for all 4 flavors (~100 variable mappings total)",
+      "Docker binary paths differ across OS (Windows/macOS/Linux) - needs platform detection in Tauri commands",
+      "ReactFlow performance with 500+ nodes needs careful memoization discipline from day one",
+      "Tailwind v4 CSS-first config is relatively new - some shadcn component installation may need workarounds"
+    ],
+    "recommended_bootstrap_sequence": [
+      "1. npm create tauri-app@latest -- --template react-ts (scaffolds project)",
+      "2. Configure vite.config.ts with SWC + path aliases",
+      "3. Install and configure TailwindCSS v4",
+      "4. Run npx shadcn@latest init + add core components",
+      "5. Create Catppuccin oklch variable mappings in globals.css (Latte + Mocha)",
+      "6. Install @xyflow/react + create basic ReactFlow canvas",
+      "7. Add tauri-plugin-shell + configure Docker Compose capabilities",
+      "8. Set up Zustand stores for graph state and app state"
+    ]
+  }
+}

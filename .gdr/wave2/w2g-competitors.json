@@ -1,0 +1,380 @@
+{
+  "meta": {
+    "agent": "W2-G",
+    "role": "Competitor & Benchmark Analyst",
+    "timestamp": "2026-03-17T13:30:00Z",
+    "research_topic": "Canvas Learning System Tauri+React+ReactFlow tech selection vs comparable tools",
+    "search_queries_executed": 16
+  },
+
+  "category_1_knowledge_management_tools": {
+    "summary": "Knowledge management tools overwhelmingly use Electron for desktop, but diverge on frontend frameworks. Obsidian uniquely avoids major frameworks; Logseq and Roam use ClojureScript+DataScript; Notion uses React+Redux. All local-first tools (Obsidian, Logseq) rely on Markdown+local files, validating the desktop-first approach.",
+
+    "obsidian": {
+      "shell": "Electron (desktop), Capacitor (mobile)",
+      "frontend_framework": "None (vanilla JS, custom DOM creation via createEl/createDiv)",
+      "editor": "CodeMirror 6 (heavily customized)",
+      "state_management": "Custom (no React/Vue/Angular)",
+      "rendering": "Markdown-it/Remark (parsing), Prism.js (syntax), Mermaid.js (diagrams), KaTeX/MathJax (math), Lucide (icons)",
+      "storage": "Local Markdown files, plugin-accessible vault API",
+      "plugin_system": "Plugin API with TypeScript, community ecosystem 1800+ plugins",
+      "key_insight": "Obsidian proves a vanilla JS approach can succeed at scale, but requires immense custom work. Plugin developers must use Obsidian's DOM API (createEl, not document.createElement), which is a constraint our plugin must respect (DD-06).",
+      "relevance_to_project": "HIGH - Our Obsidian plugin must conform to Obsidian's non-framework DOM API. The standalone Tauri app is independent."
+    },
+
+    "logseq": {
+      "shell": "Electron (desktop), Capacitor (mobile), Web",
+      "frontend_framework": "ClojureScript + Rum (React wrapper for Clojure)",
+      "state_management": "DataScript (in-memory Datalog DB) + Clojure atoms",
+      "build_system": "Shadow-CLJS + Webpack + PostCSS/Tailwind + Gulp",
+      "storage": "Local Markdown/Org-mode files",
+      "plugin_system": "Plugin API via ClojureScript interop",
+      "key_insight": "Logseq's use of DataScript for in-memory graph querying is notable - similar to our knowledge graph needs. However, ClojureScript is a niche choice that limits contributor pool.",
+      "relevance_to_project": "MEDIUM - DataScript's graph-first approach validates in-memory graph stores for knowledge tools, but our React+Zustand approach is more mainstream."
+    },
+
+    "roam_research": {
+      "shell": "Web-only (no desktop app, Electron planned but never shipped)",
+      "frontend_framework": "ClojureScript + Reagent (React wrapper)",
+      "state_management": "DataScript (Datomic port for frontend)",
+      "database": "Datomic (backend), DataScript (frontend)",
+      "query_language": "Datalog",
+      "key_insight": "Roam pioneered the graph-structured note approach. Its Datalog query language is powerful but has a steep learning curve. The web-only model limits offline capability.",
+      "relevance_to_project": "LOW - Web-only is opposite to our desktop-first approach. The Datalog model is interesting but we use Neo4j/Graphiti instead."
+    },
+
+    "notion": {
+      "shell": "Electron (desktop), Web, native mobile (React Native)",
+      "frontend_framework": "React + Next.js + TypeScript",
+      "state_management": "Redux",
+      "api_layer": "GraphQL",
+      "storage": "Cloud-first (proprietary database)",
+      "editor": "Custom block editor",
+      "key_insight": "Notion's Electron wrapper around web client is the most common desktop pattern. React+Redux+TypeScript is the most mainstream stack. However, Notion bundles 100MB+ due to Electron+Chromium.",
+      "relevance_to_project": "MEDIUM - Validates React+TypeScript for complex knowledge tools. Our Tauri approach avoids Notion's bundle size problem (~2.5MB vs ~85MB)."
+    },
+
+    "remnote": {
+      "shell": "Electron (desktop), Web, mobile",
+      "frontend_framework": "React (confirmed via job postings and community)",
+      "key_features": "Spaced repetition flashcards integrated with notes",
+      "storage": "Cloud-synced with local cache",
+      "key_insight": "RemNote's integrated spaced repetition (FSRS-like) is directly relevant to our learning system's mastery tracking. However, detailed architecture is not publicly documented.",
+      "relevance_to_project": "HIGH conceptually - Our FSRS mastery system mirrors RemNote's core value prop of integrated SRS in knowledge management."
+    }
+  },
+
+  "category_2_whiteboard_canvas_tools": {
+    "summary": "Whiteboard tools split between HTML Canvas rendering (Excalidraw) and DOM-based rendering (tldraw). Miro uses WebGL/WebAssembly/C++ for extreme performance. For our knowledge graph visualization needs, DOM-based rendering (ReactFlow's approach) is more appropriate since we need interactive HTML content in nodes, not just shapes.",
+
+    "excalidraw": {
+      "framework": "React + TypeScript",
+      "rendering": "HTML Canvas (2D context) via Rough.js for hand-drawn aesthetic",
+      "build_tool": "Vite",
+      "styling": "@emotion/react, @emotion/styled, open-color",
+      "collaboration": "Real-time via WebSocket",
+      "embeddable": "Yes, exported as React component (client-side only, no SSR)",
+      "codebase_size": "118,978 lines TypeScript",
+      "key_insight": "Canvas rendering gives performance but limits interactivity of individual elements. Excalidraw is application-first, embeddable-second. Not ideal for rich interactive nodes.",
+      "relevance_to_project": "LOW - Canvas rendering is wrong for knowledge graph nodes that need rich HTML content (AI chat, mastery indicators, etc.)."
+    },
+
+    "tldraw": {
+      "framework": "React + TypeScript (SDK-first approach)",
+      "rendering": "DOM-based (regular DOM tree, not HTML Canvas), with WebGL for performance at scale",
+      "performance_optimization": "Shape indicators rendered via 2D Canvas instead of SVG (25x faster for selection/hover)",
+      "architecture": "Data store -> Editor -> Canvas component -> culling/sorting -> shape-specific renderers",
+      "embeddable": "Yes, SDK-first design",
+      "key_insight": "tldraw's hybrid approach (DOM for rich content + WebGL for performance) is closest to our needs. Their SDK-first philosophy enables embedding in other apps.",
+      "relevance_to_project": "MEDIUM - tldraw's DOM+WebGL hybrid validates that DOM rendering works for canvas apps with rich interactive content. ReactFlow takes a similar DOM approach."
+    },
+
+    "miro": {
+      "rendering": "WebAssembly + WebGL + C++ (bypasses HTML/CSS entirely)",
+      "architecture": "Spatial graph data model, tile-based partitioning for infinite canvas, viewport-based loading",
+      "platform": "Web + Electron desktop wrapper",
+      "developer_sdk": "JavaScript Web SDK + REST APIs + Live Embed framework",
+      "key_insight": "Miro's extreme approach (WASM+WebGL+C++) is necessary for massive collaborative boards with 1000s of elements but is massive overkill for a learning tool with ~50-200 knowledge nodes.",
+      "relevance_to_project": "LOW - Our scale (~50-200 nodes) doesn't justify WASM/WebGL complexity. ReactFlow's DOM approach is sufficient and much simpler to develop."
+    }
+  },
+
+  "category_3_ai_education_desktop_tools": {
+    "summary": "AI desktop tools universally use Python backends (FastAPI dominant) with web frontends. AnythingLLM is the only one using Electron for true desktop deployment. Khoj uses Django+FastAPI hybrid. PrivateGPT is API-only with FastAPI+LlamaIndex. All validate the FastAPI backend + web frontend pattern that our project uses.",
+
+    "khoj": {
+      "backend": "Python: Django 5.1 + FastAPI (hybrid) + Uvicorn",
+      "database": "PostgreSQL + pgvector (vector search)",
+      "frontend": "Web-based (Next.js)",
+      "desktop": "No native desktop app; server-client architecture",
+      "obsidian_integration": "Yes, official Obsidian plugin for search/chat",
+      "llm_support": "Multi-provider (GPT, Claude, Gemini, Llama, Qwen, Mistral)",
+      "key_insight": "Khoj's Obsidian plugin model (plugin talks to server) is similar to our architecture. Their Django+FastAPI hybrid is unusual but works for combining admin UI with async API.",
+      "relevance_to_project": "HIGH - Direct competitor model. Our project similarly has Obsidian plugin + backend server. Key difference: we add Tauri standalone app + knowledge graph visualization."
+    },
+
+    "anythingllm": {
+      "desktop": "Electron (full desktop app)",
+      "frontend": "React + Vite.js (SPA)",
+      "backend": "Node.js + Express (port 3001)",
+      "collector": "Separate Node.js service (port 8888) for document ingestion",
+      "storage": "Built-in vector DB options (LanceDB, Chroma, etc.)",
+      "architecture": "Monorepo with 3 components: frontend + server + collector",
+      "key_insight": "AnythingLLM is the closest to a 'full desktop AI app' model. Uses Electron+React which is the exact pattern we're replacing with Tauri+React for better performance and smaller bundle.",
+      "relevance_to_project": "HIGH - Direct comparison target. We offer knowledge graph + learning features they lack. Our Tauri approach gives 10-40x smaller bundle and 5-10x less RAM."
+    },
+
+    "privategpt": {
+      "backend": "Python: FastAPI (OpenAI-compatible API)",
+      "rag_engine": "LlamaIndex",
+      "frontend": "Minimal (Gradio UI optional)",
+      "desktop": "No desktop app; API-first with Docker deployment",
+      "sdks": "Python SDK (pgpt_python) + TypeScript SDK",
+      "deployment": "Docker Compose with CPU/CUDA/macOS profiles",
+      "key_insight": "PrivateGPT is the most focused: pure RAG API, no UI frills. Validates FastAPI+LlamaIndex as the standard AI backend pattern. Their lack of UI is a gap we fill.",
+      "relevance_to_project": "MEDIUM - Validates our FastAPI backend pattern. We go far beyond PrivateGPT with knowledge graph visualization, mastery tracking, and rich desktop UI."
+    }
+  },
+
+  "category_4_tauri_success_stories": {
+    "summary": "Successful Tauri apps consistently use React or Vue for frontend with Rust for heavy backend logic. The Tauri+React pattern is well-proven (Clash Verge, Spacedrive). Key success factor: leveraging Rust for performance-critical operations while keeping UI in familiar web tech. Bundle sizes 2-10MB vs Electron's 85-150MB. RAM usage 30-40MB idle vs Electron's 200-300MB.",
+
+    "clash_verge_rev": {
+      "shell": "Tauri 2.x",
+      "frontend": "React 19 + TypeScript + Material-UI",
+      "state_management": "Jotai (atomic state) + TanStack Query (server state)",
+      "routing": "TanStack Router",
+      "backend": "Rust (proxy core management, system tray, service mode)",
+      "key_insight": "Clash Verge proves Tauri+React+MUI can build a polished, production desktop app with complex system interactions. Their use of Jotai for atomic state is modern and performant.",
+      "relevance_to_project": "HIGH - Same stack pattern (Tauri+React+TypeScript). Validates the approach for production desktop apps. Their Jotai choice suggests we should consider Zustand/Jotai over Redux."
+    },
+
+    "spacedrive": {
+      "shell": "Tauri",
+      "frontend": "React + TypeScript",
+      "backend": "Rust (sdcore: filesystem, database, networking)",
+      "stack_name": "PRRTT (Prisma, Rust, React, TypeScript, Tauri)",
+      "orm": "Prisma (via prisma-client-rust)",
+      "ipc": "rspc (typesafe Rust->TypeScript function calls)",
+      "key_insight": "Spacedrive's rspc for typesafe Rust<->TypeScript IPC is notable - eliminates a class of frontend-backend integration bugs. Their PRRTT stack is the gold standard for Tauri+React apps.",
+      "relevance_to_project": "HIGH - Gold standard reference for Tauri+React architecture. rspc or similar typesafe IPC pattern is worth evaluating for our Rust<->React communication."
+    },
+
+    "appflowy": {
+      "desktop": "Tauri (emerging, replacing Flutter) + Flutter (current mobile)",
+      "web": "React + WebAssembly (shared Rust core via WASM)",
+      "backend": "Rust (shared core across all platforms)",
+      "strategy": "Multi-framework: Flutter for mobile, Tauri for desktop, React for web - shared Rust backend",
+      "key_insight": "AppFlowy's migration from Flutter to Tauri for desktop validates Tauri as the better desktop choice. Their WASM strategy for web shows Rust backend code can be shared across platforms.",
+      "relevance_to_project": "MEDIUM - Validates Tauri over Flutter for desktop. Their shared Rust core via WASM is aspirational but adds complexity we don't need for MVP."
+    },
+
+    "tauri_vs_electron_metrics": {
+      "bundle_size": {
+        "tauri": "~2.5 MB installer",
+        "electron": "~85 MB installer",
+        "ratio": "Tauri is ~34x smaller"
+      },
+      "memory_idle": {
+        "tauri": "30-40 MB",
+        "electron": "200-300 MB",
+        "ratio": "Tauri uses ~6-8x less RAM"
+      },
+      "startup_time": {
+        "tauri": "Under 500ms",
+        "electron": "1-2 seconds",
+        "ratio": "Tauri ~2-4x faster startup"
+      },
+      "security": {
+        "tauri": "Rust backend with opt-in narrow API access",
+        "electron": "Full Node.js + OS API access, requires discipline to lock down"
+      },
+      "cross_platform_caveat": "Tauri uses OS native WebView (Edge/WebKit), so minor CSS/font rendering differences across platforms. Electron bundles Chromium for 100% consistency.",
+      "ecosystem_maturity": "Electron powers 60% of cross-platform apps (2024 StackOverflow). Tauri 2.0 adoption up 35% YoY since late 2024 release.",
+      "recommendation": "For Canvas Learning System, Tauri is the clear winner: small bundle, low RAM (critical for always-on learning tool alongside other apps), fast startup, Rust backend for AI/graph processing."
+    }
+  },
+
+  "category_5_reactflow_production_tools": {
+    "summary": "ReactFlow (and its Vue port, Vue Flow) powers the visual editors in n8n, Langflow, and Flowise - all production-grade workflow tools. Key learning: ReactFlow scales well to hundreds of nodes with proper optimization (memoization, Zustand state, CSS simplification). n8n uses Vue Flow (Vue port); Langflow and Flowise use React Flow directly.",
+
+    "n8n": {
+      "frontend": "Vue 3 + TypeScript + Vite",
+      "canvas_library": "Vue Flow (Vue port of ReactFlow)",
+      "state_management": "Pinia stores",
+      "ui_framework": "Custom @n8n/design-system",
+      "architecture": "SPA with component-based modules: NodeView.vue -> Canvas.vue (Vue Flow host) -> CanvasNode.vue",
+      "data_flow": "useCanvasMapping (data transform) -> Vue Flow graph model -> useCanvasOperations (mutations)",
+      "key_insight": "n8n successfully uses Vue Flow for production workflow automation with 9M+ users. Their modular architecture (stores/components/API client clearly separated) is a good pattern.",
+      "relevance_to_project": "MEDIUM - Validates the flow-based canvas approach at production scale. We use ReactFlow directly (React, not Vue), but the architecture patterns transfer."
+    },
+
+    "langflow": {
+      "frontend": "React + ReactFlow + Node.js dev server",
+      "backend": "Python + FastAPI",
+      "architecture": "Three-tier package structure with clear separation",
+      "purpose": "Visual AI workflow builder using ReactFlow for drag-and-drop LangChain flow creation",
+      "key_insight": "Langflow directly uses ReactFlow for its core visual editor - the exact same library we plan to use. Their FastAPI+React+ReactFlow stack is remarkably similar to our planned architecture.",
+      "relevance_to_project": "VERY HIGH - Near-identical stack pattern (FastAPI backend + React+ReactFlow frontend). Key difference: Langflow is web-only; we add Tauri for desktop. Their architecture is a direct reference."
+    },
+
+    "flowise": {
+      "frontend": "React 18.2 + ReactFlow 11.5.6 + Material-UI 5.15 + Redux Toolkit",
+      "backend": "Node.js + LangChain",
+      "editor": "UIW React CodeMirror",
+      "architecture": "React SPA communicating with backend via HTTP APIs, ReactFlow for visual flow editor",
+      "state_management": "Redux Toolkit + ReactFlow's reactFlowInstance for graph state",
+      "key_insight": "Flowise uses the exact same React+ReactFlow+MUI combination we're considering. Their Redux Toolkit usage shows it works but Zustand would be lighter. reactFlowInstance handles graph state natively.",
+      "relevance_to_project": "VERY HIGH - Same frontend stack (React+ReactFlow+MUI). Flowise's architecture proves this combination works for production visual graph editors. Their recent work on 'simplified ReactFlow and context state synchronization' suggests this was a pain point to watch for."
+    },
+
+    "reactflow_production_lessons": {
+      "performance_optimization": {
+        "memoization": "Custom node/edge components MUST use React.memo. Callbacks via useCallback. Arrays/objects via useMemo.",
+        "state_management": "DO NOT use useState/useReducer/Context for diagram state. Use Zustand store with selector memoization for precise subscriptions.",
+        "large_graphs": "For deeply nested trees, use progressive disclosure (show limited nodes, expand on demand via hidden property).",
+        "css_performance": "Complex CSS (animations, shadows, gradients) degrades performance with many nodes. Simplify styles for large graphs.",
+        "edge_animations": "Disable stroke-dasharray for animated edges. Use controlled animation model instead.",
+        "layout_computation": "Do NOT compute force layouts every render. Toggle layouting on/off or compute only on data change."
+      },
+      "scaling_limits": {
+        "comfortable": "Up to ~500 nodes with proper optimization",
+        "stress_test": "ReactFlow provides official stress test example for benchmarking",
+        "profiling": "Use React DevTools Profiler with dozens of nodes while dragging to find bottlenecks"
+      },
+      "recommendation": "ReactFlow is well-suited for our knowledge graph of ~50-200 nodes. Key: use Zustand (not Redux/Context), memoize everything, progressive disclosure for large graphs."
+    }
+  },
+
+  "competitive_positioning_matrix": {
+    "description": "How Canvas Learning System compares to competitors across key dimensions",
+    "dimensions": {
+      "knowledge_graph_visualization": {
+        "our_project": "ReactFlow with custom knowledge nodes (mastery colors, AI chat, edge labels)",
+        "closest_competitor": "Logseq graph view (basic force-directed graph, no rich node content)",
+        "differentiation": "HIGH - No competitor combines interactive knowledge graph with AI tutoring and mastery tracking in a single canvas"
+      },
+      "ai_integration": {
+        "our_project": "Deep AI integration: dialog engine, context assembly, skill-based tutoring, exam generation",
+        "closest_competitor": "Khoj (AI search/chat in Obsidian) and AnythingLLM (RAG chat)",
+        "differentiation": "HIGH - Competitors do chat/search; we do structured learning with mastery tracking, exam generation, and knowledge graph-aware context"
+      },
+      "desktop_performance": {
+        "our_project": "Tauri (~2.5MB, ~30MB RAM, <500ms startup)",
+        "closest_competitor": "AnythingLLM Electron (~85MB, ~200MB RAM, ~1.5s startup)",
+        "differentiation": "HIGH - 34x smaller bundle, 6x less RAM, 3x faster startup"
+      },
+      "spaced_repetition": {
+        "our_project": "FSRS-based mastery tracking integrated with knowledge graph",
+        "closest_competitor": "RemNote (SRS + notes, but no graph visualization or AI tutoring)",
+        "differentiation": "MEDIUM-HIGH - RemNote has SRS but no graph; Anki has SRS but no knowledge management"
+      },
+      "whiteboard_canvas": {
+        "our_project": "ReactFlow-based knowledge canvas (not freeform drawing)",
+        "closest_competitor": "Excalidraw/tldraw (freeform drawing, no structured knowledge)",
+        "differentiation": "DIFFERENT CATEGORY - We're structured knowledge graph, they're freeform whiteboard"
+      }
+    }
+  },
+
+  "architecture_validation": {
+    "description": "Evidence that our Tauri+React+ReactFlow choice is well-validated by production tools",
+
+    "tauri_react_validated_by": [
+      "Clash Verge Rev (Tauri 2.x + React 19 + MUI) - millions of users",
+      "Spacedrive (Tauri + React + TypeScript) - PRRTT stack",
+      "AppFlowy (migrating from Flutter to Tauri for desktop)",
+      "Multiple smaller apps in awesome-tauri ecosystem"
+    ],
+
+    "reactflow_validated_by": [
+      "Langflow (React + ReactFlow + FastAPI) - 50k+ GitHub stars",
+      "Flowise (React 18 + ReactFlow 11 + MUI 5) - 35k+ GitHub stars",
+      "n8n (Vue Flow variant) - 9M+ users, 60k+ GitHub stars",
+      "Directory visualization tools using Tauri+React+ReactFlow specifically"
+    ],
+
+    "fastapi_backend_validated_by": [
+      "Langflow (FastAPI + Python backend for AI workflows)",
+      "PrivateGPT (FastAPI + LlamaIndex for RAG)",
+      "Khoj (FastAPI + Django hybrid for AI assistant)",
+      "Full-stack FastAPI template (official, 15k RPS benchmark)"
+    ],
+
+    "risk_assessment": {
+      "low_risk": [
+        "React + TypeScript frontend (industry standard, massive ecosystem)",
+        "FastAPI Python backend (proven for AI/ML applications)",
+        "ReactFlow for graph visualization (proven at production scale in Langflow/Flowise/n8n)"
+      ],
+      "medium_risk": [
+        "Tauri 2.x maturity (2.0 released late 2024, ecosystem still growing vs Electron)",
+        "Cross-platform WebView rendering differences (Edge on Windows, WebKit on macOS/Linux)",
+        "Tauri + ReactFlow specific combination (limited but exists, see directory visualization tool)"
+      ],
+      "mitigations": [
+        "Tauri has strong corporate backing and 35% YoY adoption growth",
+        "WebView differences are minor CSS/font issues, not functional blockers",
+        "ReactFlow is framework-agnostic React library; Tauri is framework-agnostic shell - no inherent conflict"
+      ]
+    }
+  },
+
+  "key_recommendations": {
+    "state_management": "Use Zustand (not Redux/Context) based on ReactFlow official guidance and Spacedrive's pattern. Clash Verge uses Jotai which is also excellent.",
+    "ipc_pattern": "Evaluate rspc or similar typesafe IPC for Tauri Rust<->React communication (Spacedrive pattern).",
+    "ui_framework": "Material-UI is validated by both Clash Verge and Flowise for Tauri/ReactFlow apps. Alternative: Tailwind (used by Logseq, Spacedrive).",
+    "reactflow_optimization": "Implement memoization strategy from day 1. Use Zustand for ReactFlow state. Plan progressive disclosure for graphs > 100 nodes.",
+    "reference_architectures": [
+      "Langflow: FastAPI + React + ReactFlow (closest to our backend+frontend pattern)",
+      "Flowise: React + ReactFlow + MUI (closest to our frontend pattern)",
+      "Clash Verge: Tauri + React + MUI (closest to our desktop shell pattern)",
+      "Spacedrive: Tauri + React + Rust core (closest to our overall architecture)"
+    ]
+  },
+
+  "sources": {
+    "obsidian_tech_stack": "https://forum.obsidian.md/t/what-is-the-tech-stack-currently/833/3",
+    "obsidian_architecture": "https://deepwiki.com/obsidianmd/obsidian-help/1-obsidian-overview",
+    "obsidian_teardown": "https://medium.com/design-bootcamp/obsidian-app-in-depth-product-teardown-6d685930a367",
+    "logseq_codebase": "https://github.com/logseq/logseq/blob/master/CODEBASE_OVERVIEW.md",
+    "logseq_deepwiki": "https://deepwiki.com/logseq/logseq",
+    "logseq_electron": "https://deepwiki.com/logseq/logseq/8.1-electron-integration",
+    "roam_datascript": "https://github.com/tonsky/datascript",
+    "notion_tech_stack": "https://www.thesaastalk.com/what-programming-language-is-notion-written-in/",
+    "notion_performance": "https://3perf.com/blog/notion/",
+    "notion_architecture": "https://www.notionry.com/faq/what-programming-language-is-notion-written-in-and-what-technologies-contribute",
+    "excalidraw_github": "https://github.com/excalidraw/excalidraw",
+    "tldraw_sdk": "https://tldraw.dev/",
+    "tldraw_rendering": "https://deepwiki.com/tldraw/tldraw/3.1-canvas-rendering",
+    "tldraw_vs_excalidraw": "https://www.oreateai.com/blog/tldraw-vs-excalidraw-finding-your-digital-sketchpad-sweet-spot/60b6daa05d25787c2db0675d5f7d9471",
+    "miro_architecture": "https://www.educative.io/blog/miro-system-design",
+    "miro_tech_stack_quora": "https://www.quora.com/What-is-miro-coms-front-end-technology-stack-so-I-can-create-a-similar-canvas-application-with-high-performance",
+    "khoj_github": "https://github.com/khoj-ai/khoj",
+    "khoj_obsidian_plugin": "https://www.obsidianstats.com/plugins/khoj",
+    "anythingllm_github": "https://github.com/Mintplex-Labs/anything-llm",
+    "anythingllm_deepwiki": "https://deepwiki.com/Mintplex-Labs/anything-llm/1.1-architecture-overview",
+    "anythingllm_review": "https://skywork.ai/blog/anythingllm-review-2025-local-ai-rag-agents-setup/",
+    "privategpt_github": "https://github.com/zylon-ai/private-gpt",
+    "privategpt_zylon": "https://www.zylon.ai/private-gpt",
+    "clash_verge_deepwiki": "https://deepwiki.com/clash-verge-rev/clash-verge-rev/1-introduction-to-clash-verge-rev",
+    "clash_verge_github": "https://github.com/clash-verge-rev/clash-verge-rev",
+    "spacedrive_architecture": "https://stackfoss.medium.com/spacedrive-a-file-explorer-from-the-future-45b5732b4582",
+    "appflowy_tauri": "https://docs.appflowy.io/docs/documentation/software-contributions/architecture/frontend/frontend-tauri",
+    "appflowy_flutter_to_tauri": "https://github.com/AppFlowy-IO/AppFlowy/discussions/1746",
+    "tauri_vs_electron_comparison": "https://www.gethopp.app/blog/tauri-vs-electron",
+    "tauri_vs_electron_realworld": "https://www.levminer.com/blog/tauri-vs-electron",
+    "tauri_vs_electron_2025": "https://codeology.co.nz/articles/tauri-vs-electron-2025-desktop-development.html",
+    "tauri_architecture": "https://v2.tauri.app/concept/architecture/",
+    "n8n_frontend": "https://deepwiki.com/n8n-io/n8n/6.1-server-and-api-architecture",
+    "n8n_canvas": "https://deepwiki.com/n8n-io/n8n/6.2-workflow-canvas-and-node-management",
+    "langflow_github": "https://github.com/langflow-ai/langflow",
+    "flowise_github": "https://github.com/FlowiseAI/Flowise",
+    "flowise_deepwiki": "https://deepwiki.com/FlowiseAI/Flowise",
+    "flowise_ui_architecture": "https://deepwiki.com/FlowiseAI/Flowise/2.4-data-storage-and-persistence",
+    "reactflow_performance": "https://reactflow.dev/learn/advanced-use/performance",
+    "reactflow_optimization_guide": "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b",
+    "reactflow_large_graphs": "https://github.com/xyflow/xyflow/discussions/4975",
+    "tauri_react_reactflow_example": "https://medium.com/@nkwork1234/a-story-about-prototyping-a-desktop-directory-structure-visualization-tool-with-tauri-972f290ad2b7"
+  }
+}

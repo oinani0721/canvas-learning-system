@@ -56,6 +56,82 @@ class SaveTipResponse(BaseModel):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+class TipItem(BaseModel):
+    """A single tip in the GET response."""
+
+    tip_id: str
+    content: str
+    title: str
+    tags: List[str] = Field(default_factory=list)
+    node_id: str
+    created_at: str = ""
+
+
+class GetTipsResponse(BaseModel):
+    """Response from GET /tips endpoint."""
+
+    tips: List[TipItem]
+    total: int
+
+
+@tips_router.get(
+    "",
+    response_model=GetTipsResponse,
+    summary="Get tips for a node from Graphiti",
+    description="Retrieve all tip annotations for a given canvas node.",
+)
+async def get_tips(
+    node_id: str,
+) -> Dict[str, Any]:
+    """
+    Retrieve tips for a canvas node from Graphiti memory.
+
+    Story 3.6: GET endpoint for frontend to read saved tips.
+
+    Args:
+        node_id: The canvas node ID to fetch tips for.
+
+    Returns:
+        GetTipsResponse with list of tips and total count.
+    """
+    try:
+        from app.config import DEFAULT_GROUP_ID
+        from app.services.memory_service import get_memory_service
+
+        memory_svc = await get_memory_service()
+
+        # Search for tips related to this node
+        results = await memory_svc.search_memories(
+            query=f"learning_tip node_id:{node_id}",
+            group_id=DEFAULT_GROUP_ID,
+            limit=50,
+        )
+
+        tips: List[Dict[str, Any]] = []
+        for item in results:
+            metadata = item.get("metadata", {})
+            if metadata.get("node_id") == node_id and metadata.get("tip_id"):
+                tips.append(
+                    TipItem(
+                        tip_id=metadata["tip_id"],
+                        content=metadata.get("content", ""),
+                        title=metadata.get("title", "Untitled"),
+                        tags=metadata.get("tags", []),
+                        node_id=node_id,
+                        created_at=metadata.get("created_at", ""),
+                    ).model_dump()
+                )
+
+        return GetTipsResponse(
+            tips=tips,
+            total=len(tips),
+        ).model_dump()
+
+    except Exception as e:
+        logger.warning(f"[Story 3.6] Failed to get tips for node {node_id}: {e}")
+        return GetTipsResponse(tips=[], total=0).model_dump()
+
+
 @tips_router.post(
     "",
     response_model=SaveTipResponse,

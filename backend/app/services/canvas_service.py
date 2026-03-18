@@ -651,7 +651,11 @@ class CanvasService:
             base_path = Path(self.canvas_base_path)
             if not base_path.exists():
                 return []
-            return [f.stem for f in base_path.glob("*.canvas")]
+            # Use rglob to search subdirectories (Story 3.2 fix: nested canvas files)
+            return [
+                str(f.relative_to(base_path).with_suffix(""))
+                for f in base_path.rglob("*.canvas")
+            ]
 
         return await asyncio.to_thread(_list_files)
 

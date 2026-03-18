@@ -47,10 +47,11 @@ async def handle_score_submitted(event: LearningEvent) -> None:
         logger.warning("handle_score_submitted: missing node_id or grade in payload")
         return
 
-    from app.api.v1.endpoints.mastery import _get_engine, _get_store
+    from app.services.mastery_engine import get_mastery_engine
+    from app.services.mastery_store import get_mastery_store
 
-    engine = _get_engine()
-    store = _get_store()
+    engine = get_mastery_engine()
+    store = get_mastery_store()
 
     concept = await store.get_or_create_concept(
         concept_id=node_id,
@@ -112,10 +113,11 @@ async def handle_bkt_updated(event: LearningEvent) -> None:
         logger.warning("handle_bkt_updated: missing node_id in payload")
         return
 
-    from app.api.v1.endpoints.mastery import _get_engine, _get_store
+    from app.services.mastery_engine import get_mastery_engine
+    from app.services.mastery_store import get_mastery_store
 
-    store = _get_store()
-    engine = _get_engine()
+    store = get_mastery_store()
+    engine = get_mastery_engine()
 
     concept = await store.get_concept(node_id)
     if concept is None:
@@ -219,9 +221,9 @@ async def handle_calibration_recorded(event: LearningEvent) -> None:
         session_id=session_id,
     )
 
-    from app.api.v1.endpoints.mastery import _get_store
+    from app.services.mastery_store import get_mastery_store
 
-    store = _get_store()
+    store = get_mastery_store()
     await store.save_calibration_record(record)
 
     logger.info(

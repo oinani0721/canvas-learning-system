@@ -28,10 +28,10 @@ services:
       - NEO4J_dbms_memory_heap_max__size=1G
       - NEO4J_dbms_allow__upgrade=true
 
-    # NOTE: Using 7476/7689 to avoid conflict with spring-2026-courses (7474/7687)
+    # NOTE: Using 7478/7691 to avoid conflict with existing Neo4j instances (7474/7476/7687/7689)
     ports:
-      - "7476:7474"  # HTTP Browser - access at http://localhost:7476
-      - "7689:7687"  # Bolt Protocol - application connection
+      - "7478:7474"  # HTTP Browser - access at http://localhost:7478
+      - "7691:7687"  # Bolt Protocol - application connection
 
     volumes:
       - ./docker/neo4j/data:/data
@@ -65,11 +65,11 @@ services:
       - ./docker/ollama/models:/root/.ollama/models
 
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:11434/ || exit 1"]
-      interval: 30s
+      test: ["CMD", "ollama", "list"]
+      interval: 15s
       timeout: 10s
-      retries: 5
-      start_period: 20s
+      retries: 10
+      start_period: 30s
 
     restart: unless-stopped
 

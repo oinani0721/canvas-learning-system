@@ -29,6 +29,7 @@
 | 2026-03-18 | Code-Review | Story 1-8/2-2/1-11 审查 | ✅ 全部通过 | 1-8:安全修复后PASS(tauri-plugin-fs替代cmd/sh,7/7检查项)；2-2:PASS(Multimodal格式+去重+Graphiti写+Reranker+CRAG+改写,7/7)；1-11:PASS(None guard+健康监控+RAGAS NLI,7/7) |
 | 2026-03-18 | Code-Review | Story 2-3/1-9/2-4/2-13 审查 | ⚠️ 1-9+2-13需修复 | 2-3:可复用(2M1L);1-9:需修复(3C3H—cross_subject死代码+ContextVar未接入+driver泄漏);2-4:需修复minor(3M2L);2-13:需修复(2C2H—模板内容被丢弃只用1行+回归测试仅replay无live)。1-9/2-13 CRITICAL已修复(commit e12f592) |
 | 2026-03-18 | Code-Review | BMAD审查 Story 2-5/2-7 | ⚠️ 需修复 | 2-5:3H3M4L(requirements版本+fusion组映射+单例ignoreConfig+z-score单文档bias);2-7:3H4M2L(TOCTOU竞态+vault_path回退C8+零测试+全文件hash读) |
+| 2026-03-18 | Code-Review | BMAD全量补审38个Story | ⛔ 14C54H62M23L=153问题 | 关键：multi_query死数据(2-10)、归档无限循环(3-8)、3-1死代码(旧路径)、信号融合未接入(5-6)、get_nodes_by_canvas不存在(6-3)、score_answer空question(3-2/6-4) |
 | 2026-03-16 | 对话引擎 | Spawn官方CLI+订阅额度 | ✅ 确认(Review PENDING) | Claude Agent SDK spawn官方Claude Code CLI，用户订阅额度。参考Claudian/Pencil/Zed ACP。Fallback: API Key |
 | 2026-03-17 | DE-1 | Tauri+React+ReactFlow | ✅ 用户确认 | 独立桌面应用替代Obsidian插件。社区+学术双重验证(20+案例+20+论文) |
 | 2026-03-17 | DE-2 | UI全量重写 | ✅ 用户确认 | shadcn/ui+TailwindCSS+Catppuccin Mocha。80+Svelte文件删除。附：未来提供浅色切换 |

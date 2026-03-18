@@ -227,9 +227,9 @@ async def generate_question(
         # Get mastery data for difficulty matching
         mastery_data = None
         try:
-            from app.api.v1.endpoints.mastery import _get_store
+            from app.services.mastery_store import get_mastery_store
 
-            store = _get_store()
+            store = get_mastery_store()
             mastery_data = await store.get_concept(node_id)
         except (ImportError, Exception):
             pass
@@ -392,10 +392,26 @@ async def score_answer(
         from app.services.autoscore import get_auto_scorer
 
         scorer = get_auto_scorer()
+
+        # Story 3.2 fix: Retrieve question text from node content for scoring context.
+        # The pipeline token contains question_id but not question_text.
+        # Fetch concept content from canvas as scoring context.
+        question_context = ""
+        try:
+            from app.config import settings as app_settings
+            from app.services.canvas_service import CanvasService
+
+            ctx_canvas_svc = CanvasService(canvas_base_path=app_settings.canvas_base_path)
+            _, ctx_node_data = await ctx_canvas_svc.find_node_across_canvases(node_id)
+            if ctx_node_data:
+                question_context = ctx_node_data.get("text", ctx_node_data.get("content", ""))
+        except Exception as ctx_err:
+            logger.debug(f"[Story 3.2] Failed to get question context for scoring: {ctx_err}")
+
         autoscore_result = await scorer.evaluate(
             exam_id=session_id,
             node_id=node_id,
-            question_text="",  # Question text not stored in this flow
+            question_text=question_context,
             conversation_segment=student_answer,
             question_id=question_id,
         )
@@ -541,9 +557,9 @@ async def assemble_acp(
         # Get mastery level
         mastery_level = None
         try:
-            from app.api.v1.endpoints.mastery import _get_store
+            from app.services.mastery_store import get_mastery_store
 
-            store = _get_store()
+            store = get_mastery_store()
             concept_state = await store.get_concept(node_id)
             if concept_state:
                 mastery_level = concept_state.p_mastery

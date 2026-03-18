@@ -1,0 +1,568 @@
+{
+  "agent": "W2-C",
+  "task": "Engineering blogs and technical post-mortems for Tauri 2.0 + React + ReactFlow + shadcn/ui stack",
+  "timestamp": "2026-03-17",
+  "search_queries_executed": [
+    "Tauri 2 production deployment lessons learned blog 2024 2025",
+    "migrate Electron to Tauri experience blog post 2024 2025",
+    "ReactFlow complex canvas whiteboard architecture blog 2024 2025",
+    "shadcn ui large project maintenance experience blog 2024 2025",
+    "Tauri docker subprocess management engineering blog",
+    "Tauri React desktop application best practices 2024 2025",
+    "Tauri 2 sidecar process management spawn external process best practices",
+    "ReactFlow performance optimization large graph 1000 nodes custom node best practices",
+    "Tauri app auto update production experience cross platform signing",
+    "ReactFlow production lessons learned architecture decisions blog 2024",
+    "Firezone Tauri production experience engineering blog security desktop app",
+    "Evil Martians Tauri sidecar desktop app Rust engineering blog",
+    "UMLBoard Electron to Tauri migration IPC local storage lessons learned",
+    "shadcn ui copy paste architecture scaling drawbacks maintenance overhead",
+    "DoltHub blog Electron vs Tauri comparison experience 2025",
+    "Hopp app Tauri vs Electron performance bundle size real trade-offs blog",
+    "Tauri manage Docker containers from desktop app spawn docker compose",
+    "React 19 Vite desktop application build optimization Tauri 2024 2025",
+    "shadcn ui enterprise scale struggles design system collective",
+    "ReactFlow xyflow state management zustand custom nodes architecture pattern"
+  ],
+  "topics": {
+    "tauri2_production_deployment": {
+      "findings": [
+        {
+          "source": "Firezone Engineering Blog",
+          "url": "https://www.firezone.dev/blog/using-tauri",
+          "type": "production_case_study",
+          "summary": "Firezone (VPN security app) chose Tauri for Windows and Linux GUI clients because their core library connlib was already Rust. Key architectural decision: separated Tauri GUI process from connlib via IPC, putting a boundary between web engine code and cryptography code. This was a security win (systemd sandboxing) and also a convenience win (run without admin privileges). Architecture was copied to Windows where it coincidentally fixed a DNS control deactivation bug.",
+          "lessons": [
+            "IPC separation between GUI and security-critical code is a production-proven pattern",
+            "Tauri's Rust backend makes security isolation natural",
+            "Sandboxing model differs between Linux (systemd, strict) and Windows (less strict) -- plan for platform differences",
+            "Same architecture can yield unexpected bug fixes on different platforms"
+          ],
+          "relevance_to_canvas": "HIGH - Canvas Learning System also needs IPC between frontend and backend services (Docker containers). The security boundary pattern is directly applicable."
+        },
+        {
+          "source": "Evil Martians Blog (Martian Chronicles)",
+          "url": "https://evilmartians.com/chronicles/making-desktop-apps-with-revved-up-potential-rust-tauri-sidecar",
+          "type": "engineering_blog",
+          "date": "2025-04-22",
+          "summary": "Evil Martians built a desktop app with Tauri + sidecar, porting features from a preexisting web app while adding filesystem capabilities (file change monitoring). Framework provides productive development flow by catching many errors at compile time. Sidecar can be written in any language, running alongside the desktop app as a background process.",
+          "lessons": [
+            "Sidecar pattern enables polyglot architecture -- use the best language for each component",
+            "Tauri's compile-time error catching reduces runtime surprises in production",
+            "Filesystem watching capabilities work well when ported from web app context",
+            "Sidecar process can surpass the framework's built-in capabilities"
+          ],
+          "relevance_to_canvas": "HIGH - Directly validates the sidecar pattern for running Python/Docker backend alongside Tauri frontend."
+        },
+        {
+          "source": "Tauri Official Blog - Security Advisory",
+          "url": "https://v2.tauri.app/blog/tauri-2-0-0-release-candidate/",
+          "type": "official_blog",
+          "summary": "During Tauri 2.0 RC phase, a security advisory (CVE-2024-35222) required structural changes. The team concluded that reducing public API exposure was necessary before stable release to avoid future breaking changes. Some apps were deployed to production during beta, motivating these improvements.",
+          "lessons": [
+            "Do not deploy Tauri beta/RC to production -- wait for stable releases",
+            "Security model changes can require breaking API changes",
+            "Capability-based permission system (everything disabled by default) is the correct security posture"
+          ],
+          "relevance_to_canvas": "MEDIUM - Reminds us to use stable Tauri 2.0+ and properly configure the permission system."
+        },
+        {
+          "source": "Tauri v2 Auto-Update and Distribution Guide (Oflight)",
+          "url": "https://www.oflight.co.jp/en/columns/tauri-v2-auto-update-distribution",
+          "type": "engineering_guide",
+          "summary": "Production auto-update implementation using tauri-plugin-updater. Automated multi-platform builds, code signing, and GitHub Releases on tag push -- completing release in 5 minutes. Development teams report 70% reduction in user support inquiries with proper auto-update. Signing is mandatory (cannot be disabled).",
+          "lessons": [
+            "Auto-update is critical for desktop apps -- implement from day one",
+            "CI/CD pipeline with tauri-action automates cross-platform builds + signing + release",
+            "Update signature verification is mandatory in Tauri (security by design)",
+            "Static JSON on S3/GitHub Gist or dynamic update server are both viable patterns"
+          ],
+          "relevance_to_canvas": "HIGH - Canvas Learning System will need auto-update for desktop distribution."
+        },
+        {
+          "source": "Ship Your Tauri v2 App Like a Pro (DEV Community)",
+          "url": "https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-code-signing-for-macos-and-windows-part-12-3o9n",
+          "type": "engineering_guide",
+          "summary": "Two-part guide covering complete release pipeline: code signing certificates, automated cross-platform builds on GitHub Actions, and distribution. Authenticode signing uses signtool.exe, some projects use Azure Key Vault for cloud-based signing.",
+          "lessons": [
+            "macOS requires notarization in addition to code signing",
+            "Windows Authenticode signing is needed for trusted installation",
+            "Azure Key Vault is viable for team-based signing workflows",
+            "GitHub Actions is the standard CI/CD for Tauri cross-platform builds"
+          ],
+          "relevance_to_canvas": "MEDIUM - Distribution pipeline reference for future production releases."
+        }
+      ]
+    },
+    "electron_to_tauri_migration": {
+      "findings": [
+        {
+          "source": "UMLBoard Blog - Part 1: IPC",
+          "url": "https://www.umlboard.com/blog/moving-from-electron-to-tauri-1/",
+          "type": "migration_case_study",
+          "summary": "UMLBoard migrated their IPC messaging system from Electron/TypeScript to Tauri/Rust. Rust enums provide an elegant and type-safe way to implement message systems. Critical insight: since both Redux and IPC rely on plain serializable JSON objects, everything going through Redux dispatcher can also go through IPC channel -- reuse actions and payloads without additional DTOs.",
+          "lessons": [
+            "Redux actions can be directly reused as IPC messages (JSON serialization compatibility)",
+            "Rust enums are superior to TypeScript discriminated unions for IPC message types",
+            "Handle serialization errors when converting JSON to Rust enum variants",
+            "No need for separate DTO layer if frontend already uses serializable state"
+          ],
+          "relevance_to_canvas": "HIGH - Canvas Learning System will use React state management + Tauri IPC. Redux/Zustand action reuse pattern is directly applicable."
+        },
+        {
+          "source": "UMLBoard Blog - Part 2: Local Storage",
+          "url": "https://www.umlboard.com/blog/moving-from-electron-to-tauri-2/",
+          "type": "migration_case_study",
+          "summary": "UMLBoard ported local data storage from Electron's nedb (@seald-io/nedb, embedded single-file JSON DB) to Tauri. Used repository trait pattern to decouple application logic from database backend. Evaluated SurrealDB and BonsaiDB as Rust-native alternatives.",
+          "lessons": [
+            "Repository trait pattern enables swapping database backends without changing app logic",
+            "SurrealDB and BonsaiDB are viable Rust-native embedded database options",
+            "Moving from JavaScript embedded DB (nedb) to Rust DB requires architectural decoupling",
+            "Single-file JSON databases work for small data but consider proper embedded DB for growth"
+          ],
+          "relevance_to_canvas": "MEDIUM - Canvas data is primarily in Obsidian vault files, but local caching/settings storage will benefit from this pattern."
+        },
+        {
+          "source": "DoltHub Blog",
+          "url": "https://www.dolthub.com/blog/2025-11-13-electron-vs-tauri/",
+          "type": "comparison_blog",
+          "date": "2025-11-13",
+          "summary": "DoltHub found Tauri APIs fit more naturally in application code vs Electron's always-IPC approach. WebView compatibility issues across OS webviews are exceedingly rare for major operating systems. Backend language difference (Rust vs Node.js) is the main migration hurdle.",
+          "lessons": [
+            "Tauri's command pattern is more natural than Electron's mandatory IPC for everything",
+            "Cross-platform WebView compatibility is a non-issue in practice for major OSes",
+            "Rust learning curve is the primary barrier -- mitigate by keeping most logic in frontend",
+            "Don't need full Rust expertise -- basic command handlers and sidecar management suffice"
+          ],
+          "relevance_to_canvas": "HIGH - Validates that minimal Rust knowledge is sufficient when most logic stays in React frontend."
+        },
+        {
+          "source": "Hopp Blog",
+          "url": "https://www.gethopp.app/blog/tauri-vs-electron",
+          "type": "comparison_blog",
+          "summary": "Hopp (remote pair programming tool) chose Tauri for: ultra-low latency needs (Rust backend), built-in sidecar concept for external binary lifecycle management, and smaller bundle size. Initial Rust compilation is slower but subsequent builds are fast. Tauri's sidecar concept simplified managing screen streaming binary.",
+          "lessons": [
+            "Tauri sidecar concept simplifies external binary lifecycle management",
+            "Initial Rust compile times are slow -- use incremental compilation",
+            "Rust backend performance is critical for latency-sensitive operations",
+            "Bundle size advantage is significant: few MBs vs 150MB+ for Electron"
+          ],
+          "relevance_to_canvas": "HIGH - Validates sidecar pattern for managing external processes. Bundle size advantage matters for user experience."
+        },
+        {
+          "source": "Levminer Blog - Real World Comparison",
+          "url": "https://www.levminer.com/blog/tauri-vs-electron",
+          "type": "comparison_blog",
+          "summary": "Real-world application comparison showing Tauri app at ~3MB vs Electron at ~52MB. Performance benchmarks demonstrate significantly faster startup and lower memory usage.",
+          "lessons": [
+            "17x smaller bundle size in real-world application (3MB vs 52MB)",
+            "Startup time under 0.5s vs 1-2s for Electron",
+            "Memory usage ~30-40MB idle vs ~200MB for Electron",
+            "These advantages compound for user experience and distribution"
+          ],
+          "relevance_to_canvas": "MEDIUM - Confirms performance expectations for the migration decision."
+        }
+      ]
+    },
+    "reactflow_canvas_architecture": {
+      "findings": [
+        {
+          "source": "React Flow Official - Performance Guide",
+          "url": "https://reactflow.dev/learn/advanced-use/performance",
+          "type": "official_documentation",
+          "summary": "Official performance optimization guide covering memoization of custom nodes (React.memo), prop memoization (useMemo/useCallback), avoiding direct access to frequently-changing objects (nodes/edges/viewport), and CSS complexity reduction.",
+          "lessons": [
+            "MUST wrap custom node components in React.memo -- single most important optimization",
+            "Never access nodes/edges directly in components that don't need all of them -- use selectors",
+            "Store selected nodes separately instead of filtering from nodes array",
+            "Complex CSS (animations, shadows, gradients) significantly impacts performance at scale",
+            "Enable snapToGrid for fewer state updates during drag operations"
+          ],
+          "relevance_to_canvas": "CRITICAL - Canvas Learning System's core UI is a ReactFlow canvas. These optimizations are mandatory."
+        },
+        {
+          "source": "Synergy Codes - Ultimate Guide to Optimize React Flow Performance",
+          "url": "https://www.synergycodes.com/webbook/guide-to-optimize-react-flow-project-performance",
+          "type": "engineering_ebook",
+          "summary": "Comprehensive ebook covering: lazy rendering (hide nodes initially, render on expand), grid snapping for fewer state updates, CSS optimization for large node counts, and state management patterns that prevent full diagram re-renders.",
+          "lessons": [
+            "Lazy rendering: hide nodes initially, render on expand -- essential for large graphs",
+            "Grid snapping reduces state update frequency during drag operations",
+            "Bad state management causes entire diagram restarts instead of partial updates",
+            "Memoized objects must have stable dependencies -- unstable deps negate memoization",
+            "Separate node data from node position state to minimize re-render scope"
+          ],
+          "relevance_to_canvas": "CRITICAL - Learning canvas will have many nodes. Lazy rendering and state separation are essential patterns."
+        },
+        {
+          "source": "React Flow Official - State Management with Zustand",
+          "url": "https://reactflow.dev/learn/advanced-use/state-management",
+          "type": "official_documentation",
+          "summary": "React Flow already uses Zustand internally, making it the natural external state management choice. Recommended pattern: put nodes/edges/handlers in Zustand store for basic interactivity. Custom nodes access store actions directly instead of receiving callbacks via data prop.",
+          "lessons": [
+            "Zustand is the natural choice -- React Flow uses it internally",
+            "Put nodes, edges, and all change handlers in Zustand store",
+            "Custom nodes should access Zustand actions directly, not via data prop callbacks",
+            "Keep event handlers (onDrop etc.) in components with ReactFlowProvider context, not in store",
+            "Each custom node component wrapped with React.memo() to prevent cascading re-renders"
+          ],
+          "relevance_to_canvas": "CRITICAL - Zustand is the recommended state management for React Flow. This should be our default choice."
+        },
+        {
+          "source": "Pinpoint Engineering - Workflow Editor with Auto Layout",
+          "url": "https://medium.com/pinpoint-engineering/part-2-building-a-workflow-editor-with-react-flow-a-guide-to-auto-layout-and-complex-node-1aadae67a3a5",
+          "type": "production_case_study",
+          "summary": "Pinpoint Engineering built a production workflow editor. Created useAutoLayout custom hook for automatic layout recalculation on node add/remove/resize/reposition. Canvas stays centered and visually consistent during user interactions. Used Sideload Allowlist for efficient workflow updates.",
+          "lessons": [
+            "useAutoLayout hook pattern for automatic layout management",
+            "Canvas centering on structural changes improves UX significantly",
+            "Separate layout logic from business logic via custom hooks",
+            "Batch workflow updates through allowlist pattern for performance"
+          ],
+          "relevance_to_canvas": "HIGH - Learning canvas needs auto-layout. The useAutoLayout hook pattern is directly reusable."
+        },
+        {
+          "source": "React Flow Official - Whiteboard Features",
+          "url": "https://reactflow.dev/learn/advanced-use/whiteboard",
+          "type": "official_documentation",
+          "summary": "React Flow is not made for whiteboard applications but can integrate common whiteboard features like drawing capabilities for annotation alongside nodes and edges.",
+          "lessons": [
+            "React Flow is optimized for node-based UIs, not free-form drawing",
+            "Whiteboard features (drawing, annotation) are additive, not core",
+            "For canvas learning, stick to node-based interaction model -- don't try to make it a whiteboard",
+            "Custom nodes can contain any React content, including rich interactive elements"
+          ],
+          "relevance_to_canvas": "MEDIUM - Clarifies that Canvas Learning should use node-based paradigm, not whiteboard paradigm."
+        },
+        {
+          "source": "DEV Community - React Flow Optimization",
+          "url": "https://dev.to/tuannq/how-i-optimize-my-react-flow-application-5aoe",
+          "type": "engineering_blog",
+          "summary": "Practical optimization experience: identified that objects passed to ReactFlow must be memoized with useMemo, functions with useCallback. Direct node/edge access is the #1 performance killer. Store selected nodes in separate state field.",
+          "lessons": [
+            "Direct node/edge access in components is the #1 performance killer",
+            "All props to ReactFlow component must be memoized",
+            "Separate selection state from node/edge arrays",
+            "Use useStore hook with selectors for granular state access"
+          ],
+          "relevance_to_canvas": "HIGH - Practical optimization patterns to follow from day one."
+        }
+      ]
+    },
+    "shadcn_ui_maintenance": {
+      "findings": [
+        {
+          "source": "Design Systems Collective - Why shadcn/ui Struggles at Enterprise Scale",
+          "url": "https://www.designsystemscollective.com/why-shadcn-ui-struggles-at-enterprise-scale-9f7416f3af3f",
+          "type": "analysis_article",
+          "summary": "Front-end engineer explains hidden costs, performance pitfalls, and upkeep burdens of shadcn/ui at enterprise scale. Success depends less on the component library and more on Design Ops (processes + people + tools). Can become backbone of custom design system if properly forked with governance, versioning, and accessibility workflows.",
+          "lessons": [
+            "shadcn/ui at scale requires Design Ops: lint rules, style token mapping, periodic upstream sync",
+            "Without governance, copy-paste model accumulates tech debt rapidly",
+            "Fork and treat as internal design system, not as a dependency you modify directly",
+            "Implement versioning for your copied components to track drift from upstream",
+            "Accessibility workflows need explicit attention -- not automatic"
+          ],
+          "relevance_to_canvas": "HIGH - Canvas Learning System should treat shadcn/ui components as internal design system with governance from the start."
+        },
+        {
+          "source": "Internal Orbit - Honest shadcn UI Experience 2025",
+          "url": "https://internalorbit.com/tech/honest-shadcn-ui-experience-2025/",
+          "type": "experience_report",
+          "summary": "Dedicated developers just to maintain custom components. Each UI change or bug fix meant updating lots of code and retesting. Missing components (multi-select dropdowns, stepper forms, grouped checkboxes) required building from scratch.",
+          "lessons": [
+            "Budget maintenance time for customized components -- they diverge from upstream",
+            "Missing components require building from scratch using Radix primitives",
+            "Multi-select, stepper forms, grouped checkboxes are common gaps",
+            "Each customization creates a unique maintenance burden not shared by community"
+          ],
+          "relevance_to_canvas": "MEDIUM - Be aware of missing components and plan custom development time."
+        },
+        {
+          "source": "OpenReplay - Why Developers Switch to shadcn/ui",
+          "url": "https://blog.openreplay.com/developers-switching-shadcn-ui-react/",
+          "type": "analysis_article",
+          "summary": "Copy-paste architecture gives code ownership but makes maintenance harder. Localized parts differ from upstream, merges are manual, more repo-specific problems and long-term maintenance costs. Performance optimization (code splitting) requires manual effort.",
+          "lessons": [
+            "Code ownership advantage vs maintenance cost is the fundamental trade-off",
+            "Manual merge from upstream is a regular maintenance task",
+            "Code splitting for shadcn components must be done manually",
+            "shadcn excels when you want total control and have time to maintain"
+          ],
+          "relevance_to_canvas": "MEDIUM - Accept the trade-off: full control in exchange for maintenance responsibility."
+        },
+        {
+          "source": "shadcn-ui GitHub Discussion #9756",
+          "url": "https://github.com/shadcn-ui/ui/discussions/9756",
+          "type": "community_discussion",
+          "summary": "Community discussion on structuring shadcn-ui in large-scale production design systems. Safest way is to treat copied components as your internal design system, not as a dependency you modify directly.",
+          "lessons": [
+            "Create a components/ui/ directory that is treated as an internal library",
+            "Never modify copied components in place -- extend via wrapper components",
+            "Keep a manifest of which upstream version each component was copied from",
+            "Wrapper components allow customization without blocking upstream updates"
+          ],
+          "relevance_to_canvas": "HIGH - Concrete directory structure and wrapper pattern for maintainable shadcn/ui usage."
+        },
+        {
+          "source": "Makers Den - React UI Libraries 2025 Comparison",
+          "url": "https://makersden.io/blog/react-ui-libs-2025-comparing-shadcn-radix-mantine-mui-chakra",
+          "type": "comparison_article",
+          "summary": "Comprehensive comparison of React UI libraries. shadcn/ui is excellent for projects needing full control. For smaller teams needing speed, Ant Design or MUI save development time. shadcn is best when you have time to build and maintain components yourself.",
+          "lessons": [
+            "shadcn best for: full control, custom design system, accessibility requirements",
+            "Not best for: small teams, rapid prototyping, out-of-box completeness",
+            "Radix primitives (shadcn's foundation) are the most accessible in the ecosystem",
+            "Consider hybrid: shadcn for core components + pre-built library for complex widgets"
+          ],
+          "relevance_to_canvas": "MEDIUM - Validates shadcn choice for Canvas Learning (custom design system) while flagging gaps."
+        }
+      ]
+    },
+    "tauri_docker_management": {
+      "findings": [
+        {
+          "source": "Tauri GitHub Discussion #7991",
+          "url": "https://github.com/tauri-apps/tauri/discussions/7991",
+          "type": "community_discussion",
+          "summary": "Community discussion on using Tauri to start Docker containers. Key finding: when running docker commands from a built Tauri app, you MUST supply the full path to the Docker executable (e.g., /usr/local/bin/docker) -- relative 'docker' command won't work in built application.",
+          "lessons": [
+            "CRITICAL: Use full path to docker executable in built apps (PATH not inherited)",
+            "docker compose --build -d works in dev mode (pnpm tauri dev) but may fail in production build",
+            "Must detect Docker installation path at runtime for cross-platform compatibility",
+            "Consider docker socket API as alternative to CLI spawning"
+          ],
+          "relevance_to_canvas": "CRITICAL - Canvas Learning System needs to manage Docker containers. Full-path requirement is a must-know."
+        },
+        {
+          "source": "Dockerman App",
+          "url": "https://dockerman.app/en",
+          "type": "production_reference",
+          "summary": "Dockerman is a production Docker management UI built with Tauri + Rust. Provides real-time container stats monitoring, log viewing, container management with detailed inspection and terminal access. Proves the Tauri + Docker management pattern is viable in production.",
+          "lessons": [
+            "Tauri + Docker management is proven in production (Dockerman)",
+            "Real-time stats and log streaming are achievable",
+            "Container lifecycle management (start/stop/restart/remove) works",
+            "Terminal access to containers is possible from Tauri app"
+          ],
+          "relevance_to_canvas": "HIGH - Validates that Tauri can manage Docker containers in production. Dockerman is a reference implementation."
+        },
+        {
+          "source": "Tauri Official - Sidecar Documentation",
+          "url": "https://v2.tauri.app/develop/sidecar/",
+          "type": "official_documentation",
+          "summary": "Tauri's sidecar system embeds external binaries with target-triple suffix naming. Requires shell:allow-execute or shell:allow-spawn permissions in capabilities. Frontend spawns via @tauri-apps/plugin-shell. PyInstaller binaries have PID tracking issues (bootloader vs actual process).",
+          "lessons": [
+            "Sidecar binaries need target-triple suffix (e.g., my-sidecar-x86_64-unknown-linux-gnu)",
+            "shell:allow-execute for one-shot, shell:allow-spawn for long-running processes",
+            "PyInstaller-bundled Python has PID tracking issues -- consider alternatives",
+            "Sidecar permissions must be explicitly granted in capabilities/default.json"
+          ],
+          "relevance_to_canvas": "HIGH - If bundling Python backend as sidecar, be aware of PyInstaller PID issues."
+        },
+        {
+          "source": "tauri-sidecar-manager (Radical Data)",
+          "url": "https://github.com/radical-data/tauri-sidecar-manager",
+          "type": "open_source_plugin",
+          "summary": "Tauri plugin for managing sidecar processes: spawning, monitoring, health checks, auto-restart, and graceful shutdown. Addresses the gap that Tauri's built-in sidecar support requires significant boilerplate for production-ready lifecycle management.",
+          "lessons": [
+            "Production sidecar management needs: spawn, monitor, health check, auto-restart, graceful shutdown",
+            "Tauri's built-in sidecar support is basic -- need wrapper for production use",
+            "tauri-sidecar-manager plugin provides production-ready lifecycle management",
+            "Zombie process prevention when app closes is a critical concern"
+          ],
+          "relevance_to_canvas": "HIGH - Either use this plugin or implement equivalent lifecycle management for Docker/sidecar processes."
+        },
+        {
+          "source": "GitHub Issue #3062 - Sidecar Lifecycle Management Plugin",
+          "url": "https://github.com/tauri-apps/plugins-workspace/issues/3062",
+          "type": "feature_request",
+          "summary": "Feature request for official Tauri sidecar lifecycle management plugin. Confirms that the community widely needs: spawning, monitoring, health checks, auto-restart, and graceful shutdown for external binaries.",
+          "lessons": [
+            "Official lifecycle management is not yet built into Tauri -- must implement or use community plugin",
+            "Health checks for sidecar processes are a common production requirement",
+            "Auto-restart on crash is essential for reliability",
+            "Graceful shutdown prevents data corruption and zombie processes"
+          ],
+          "relevance_to_canvas": "MEDIUM - Confirms the gap and need for custom lifecycle management implementation."
+        }
+      ]
+    },
+    "react_vite_desktop_build": {
+      "findings": [
+        {
+          "source": "Tauri Official - Vite Integration",
+          "url": "https://v2.tauri.app/start/frontend/vite/",
+          "type": "official_documentation",
+          "summary": "Vite is a first-class frontend build tool for Tauri. Plenty of starter templates available. Since Tauri is frontend-agnostic, Vite's fast HMR and build optimizations apply directly.",
+          "lessons": [
+            "Vite is the recommended build tool for Tauri + React projects",
+            "Use official create-tauri-app templates for correct configuration",
+            "Vite HMR works seamlessly with Tauri dev mode",
+            "Frontend bundle optimization directly impacts Tauri app size (no browser bundled)"
+          ],
+          "relevance_to_canvas": "HIGH - Vite is the confirmed build tool choice for Canvas Learning System."
+        },
+        {
+          "source": "DasRoot Blog - Rust + React/Vue/Tauri Desktop Apps",
+          "url": "https://dasroot.net/posts/2026/02/rust-react-vue-tauri-desktop-apps/",
+          "type": "engineering_blog",
+          "date": "2026-02",
+          "summary": "Modern desktop app architecture combining Rust backend with React/Vue frontend via Tauri. Covers build optimization including tree-shaking, code splitting, lazy loading. Rust-specific optimizations: opt-level='z', LTO, strip symbols can reduce binary by 30-40%.",
+          "lessons": [
+            "Tree-shaking, code splitting, lazy loading -- every KB saved directly impacts download/startup",
+            "Rust build optimizations: opt-level='z' + lto=true + strip='symbols' = 30-40% smaller binary",
+            "Use terser for frontend minification in production builds",
+            "Configure Cargo.toml [profile.release] for production builds specifically"
+          ],
+          "relevance_to_canvas": "HIGH - Build optimization checklist for production release pipeline."
+        },
+        {
+          "source": "Tauri v2 Mobile Guide (Tasuke Hub)",
+          "url": "https://tasukehub.com/articles/tauri-v2-mobile-guide-2025?lang=en",
+          "type": "engineering_guide",
+          "summary": "Tauri 2.0 supports iOS and Android in addition to desktop. Same React + Vite frontend code can target mobile platforms. Plugin system extends functionality without core modifications.",
+          "lessons": [
+            "Same React codebase can target desktop AND mobile via Tauri 2.0",
+            "Plugin system (@tauri-apps/plugin-*) for platform-specific features",
+            "Consider mobile from the start -- responsive design pays off later",
+            "Platform-conditional code via Tauri's platform detection APIs"
+          ],
+          "relevance_to_canvas": "LOW - Mobile support is future consideration, not MVP priority."
+        },
+        {
+          "source": "LogRocket - Build Pomodoro Timer with Tauri + React + Vite",
+          "url": "https://blog.logrocket.com/build-pomodoro-timer-tauri-using-react-and-vite/",
+          "type": "tutorial",
+          "summary": "Step-by-step guide for Tauri + React + Vite integration. Covers project setup, IPC commands, state management, and build configuration. Good reference for initial project scaffold.",
+          "lessons": [
+            "Tauri commands should be thin wrappers -- keep logic in frontend when possible",
+            "Use invoke() for Rust commands, listen()/emit() for events",
+            "Vite config needs specific settings for Tauri: clearScreen: false, server.strictPort: true",
+            "TAURI_DEV_HOST env var needed for mobile development"
+          ],
+          "relevance_to_canvas": "MEDIUM - Good scaffold reference for initial project setup."
+        }
+      ]
+    }
+  },
+  "cross_cutting_lessons": {
+    "critical_patterns": [
+      {
+        "pattern": "Sidecar/IPC Architecture",
+        "evidence": ["Firezone", "Evil Martians", "Hopp", "UMLBoard"],
+        "lesson": "Separate heavy backend processes (Docker, Python services) from Tauri GUI via IPC. This is the dominant production pattern. Use sidecar for bundled binaries, Docker for containerized services, localhost HTTP/WebSocket for communication.",
+        "action": "Implement Tool-UI Bridge as Tauri command layer that communicates with Docker containers via HTTP/WS"
+      },
+      {
+        "pattern": "Zustand for ReactFlow State",
+        "evidence": ["React Flow official docs", "Synergy Codes", "Community discussions"],
+        "lesson": "React Flow uses Zustand internally. External state should also use Zustand for consistency. Custom nodes access Zustand actions directly. All node/edge data must be memoized.",
+        "action": "Use Zustand as the sole state management solution. Wrap all custom nodes in React.memo."
+      },
+      {
+        "pattern": "Docker Full-Path Requirement",
+        "evidence": ["Tauri GitHub Discussion #7991", "Dockerman app"],
+        "lesson": "Built Tauri apps don't inherit PATH. Must detect and use full path to docker/docker-compose executables. Test in built app, not just dev mode.",
+        "action": "Implement Docker path detection at app startup. Fallback to common installation paths per platform."
+      },
+      {
+        "pattern": "shadcn/ui as Internal Design System",
+        "evidence": ["Design Systems Collective", "GitHub Discussion #9756", "Internal Orbit"],
+        "lesson": "Copy components into components/ui/, never modify in place, extend via wrappers. Maintain upstream version manifest. Budget maintenance time for customizations.",
+        "action": "Create components/ui/ directory with wrapper pattern. Track upstream versions in manifest file."
+      },
+      {
+        "pattern": "Auto-Update from Day One",
+        "evidence": ["Oflight guide", "DEV Community guide", "Tauri official docs"],
+        "lesson": "Desktop apps without auto-update create massive support overhead. Implement tauri-plugin-updater early. CI/CD with tauri-action automates the entire release pipeline.",
+        "action": "Include auto-update in initial architecture. Set up GitHub Actions with tauri-action."
+      }
+    ],
+    "common_pitfalls": [
+      {
+        "pitfall": "ReactFlow performance death by re-render",
+        "frequency": "Very Common",
+        "description": "Accessing nodes/edges directly in components, not memoizing custom nodes, passing unstable references as props",
+        "mitigation": "React.memo on all custom nodes, Zustand selectors for granular access, useMemo/useCallback for all props"
+      },
+      {
+        "pitfall": "Docker commands fail in built Tauri app",
+        "frequency": "Common",
+        "description": "docker/docker-compose works in dev mode but fails in production build because PATH is not inherited",
+        "mitigation": "Always use absolute paths to Docker executables. Detect at runtime. Test with built app, not just dev."
+      },
+      {
+        "pitfall": "shadcn component drift from upstream",
+        "frequency": "Common",
+        "description": "Customized components diverge from upstream, making updates painful. No tracking of which version was copied.",
+        "mitigation": "Wrapper pattern (never modify copied files directly). Version manifest. Lint rules for style token consistency."
+      },
+      {
+        "pitfall": "Tauri sidecar zombie processes",
+        "frequency": "Common",
+        "description": "Sidecar processes not properly cleaned up when app closes, especially PyInstaller binaries (PID mismatch)",
+        "mitigation": "Implement graceful shutdown, use tauri-sidecar-manager or equivalent, avoid PyInstaller for sidecar binaries"
+      },
+      {
+        "pitfall": "Slow initial Rust compilation",
+        "frequency": "Universal",
+        "description": "First Tauri build takes minutes due to Rust compilation. Subsequent builds are fast (incremental).",
+        "mitigation": "Use incremental compilation. Set up CI caching for Rust target/. Developers: expect first build to be slow."
+      },
+      {
+        "pitfall": "WebView CSS inconsistencies",
+        "frequency": "Rare",
+        "description": "System WebView may not support latest CSS features uniformly across platforms",
+        "mitigation": "Test on all target platforms. Avoid bleeding-edge CSS. Use Tailwind for consistent cross-platform styling."
+      }
+    ],
+    "recommended_architecture_for_canvas": {
+      "summary": "Based on all blog findings, the recommended architecture is: Tauri 2.0 shell with React 19 + Vite frontend, ReactFlow for canvas rendering with Zustand state management, shadcn/ui as internal design system with wrapper pattern, Docker containers for backend services managed via full-path CLI commands or Docker socket API, IPC bridge between frontend and Rust commands for system operations.",
+      "stack_confidence": {
+        "tauri_2": "HIGH - Multiple production apps (Firezone, Dockerman, Hopp) validate the framework",
+        "react_flow": "HIGH - Well-documented performance patterns, Zustand integration is natural",
+        "shadcn_ui": "MEDIUM-HIGH - Excellent for custom design systems but requires governance discipline",
+        "docker_management": "MEDIUM - Works but requires careful implementation (full paths, lifecycle management)",
+        "vite_build": "HIGH - First-class Tauri integration, fast HMR, good production optimization"
+      }
+    }
+  },
+  "source_urls": [
+    "https://www.firezone.dev/blog/using-tauri",
+    "https://evilmartians.com/chronicles/making-desktop-apps-with-revved-up-potential-rust-tauri-sidecar",
+    "https://v2.tauri.app/blog/tauri-2-0-0-release-candidate/",
+    "https://www.oflight.co.jp/en/columns/tauri-v2-auto-update-distribution",
+    "https://dev.to/tomtomdu73/ship-your-tauri-v2-app-like-a-pro-code-signing-for-macos-and-windows-part-12-3o9n",
+    "https://www.umlboard.com/blog/moving-from-electron-to-tauri-1/",
+    "https://www.umlboard.com/blog/moving-from-electron-to-tauri-2/",
+    "https://www.dolthub.com/blog/2025-11-13-electron-vs-tauri/",
+    "https://www.gethopp.app/blog/tauri-vs-electron",
+    "https://www.levminer.com/blog/tauri-vs-electron",
+    "https://reactflow.dev/learn/advanced-use/performance",
+    "https://www.synergycodes.com/webbook/guide-to-optimize-react-flow-project-performance",
+    "https://reactflow.dev/learn/advanced-use/state-management",
+    "https://medium.com/pinpoint-engineering/part-2-building-a-workflow-editor-with-react-flow-a-guide-to-auto-layout-and-complex-node-1aadae67a3a5",
+    "https://reactflow.dev/learn/advanced-use/whiteboard",
+    "https://dev.to/tuannq/how-i-optimize-my-react-flow-application-5aoe",
+    "https://www.designsystemscollective.com/why-shadcn-ui-struggles-at-enterprise-scale-9f7416f3af3f",
+    "https://internalorbit.com/tech/honest-shadcn-ui-experience-2025/",
+    "https://blog.openreplay.com/developers-switching-shadcn-ui-react/",
+    "https://github.com/shadcn-ui/ui/discussions/9756",
+    "https://makersden.io/blog/react-ui-libs-2025-comparing-shadcn-radix-mantine-mui-chakra",
+    "https://github.com/tauri-apps/tauri/discussions/7991",
+    "https://dockerman.app/en",
+    "https://v2.tauri.app/develop/sidecar/",
+    "https://github.com/radical-data/tauri-sidecar-manager",
+    "https://github.com/tauri-apps/plugins-workspace/issues/3062",
+    "https://v2.tauri.app/start/frontend/vite/",
+    "https://dasroot.net/posts/2026/02/rust-react-vue-tauri-desktop-apps/",
+    "https://blog.logrocket.com/build-pomodoro-timer-tauri-using-react-and-vite/",
+    "https://medium.com/@samuelint/tauri-how-to-start-stop-a-sidecar-and-pipe-sidecar-stdout-stderr-to-app-logs-from-rust-8f81a92111ad",
+    "https://github.com/dieharders/example-tauri-v2-python-server-sidecar",
+    "https://blog.logrocket.com/tauri-electron-comparison-migration-guide/",
+    "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b",
+    "https://v2.tauri.app/plugin/updater/",
+    "https://v2.tauri.app/blog/tauri-20/"
+  ]
+}

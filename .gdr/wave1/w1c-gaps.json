@@ -1,0 +1,100 @@
+{
+  "scan_metadata": {
+    "agent": "W1-C",
+    "role": "knowledge_gap_scanner",
+    "timestamp": "2026-03-17T11:00:00Z",
+    "searches_executed": 7,
+    "total_facts_retrieved": 210
+  },
+  "coverage_gaps": [
+    {
+      "gap_topic": "Tauri+React+ReactFlow tech stack Decision-Review not formally recorded",
+      "why_missing": "Search 4 shows extensive facts about Tauri/React/ReactFlow being adopted (user confirmed switch to independent desktop app, scaffolding set up, first compile successful), but Search 5 shows no Decision-Review PENDING specifically for this frontend tech stack selection. The old Svelte Decision-Review was expired (invalid_at: 2026-03-15), yet no replacement Decision-Review was created for the Tauri+React+ReactFlow choice. The decision was made and executed but lacks the mandatory [Decision-Review] audit trail.",
+      "priority": "High"
+    },
+    {
+      "gap_topic": "shadcn/ui + TailwindCSS validation status unclear",
+      "why_missing": "Search 7 shows shadcn/ui was recommended by 6-agent research and is being used with TailwindCSS v4. However, the facts linking shadcn/ui to React are expired (invalid_at: 2026-03-17T09:39:53). The replacement fact says 'Obsidian components are replaced by shadcn/ui' but there is no Decision-Review or formal validation that shadcn/ui components work correctly within the Tauri+React context for all 14 MVP requirements. 87 shadcn components exist in Pencil design but no verification they map to actual implementation needs.",
+      "priority": "High"
+    },
+    {
+      "gap_topic": "Frontend-backend API integration design missing",
+      "why_missing": "Search 1 shows 'Frontend-first + Backend sync' approach adopted, and 'verification_graph/state_graph/react_agent decouple from frontend'. However, there are no facts describing the actual API contract between the new Tauri frontend and the existing Python backend. The backend was built for the old Obsidian plugin frontend. No facts about REST/WebSocket/IPC protocol decisions for Tauri-to-backend communication.",
+      "priority": "High"
+    },
+    {
+      "gap_topic": "Claude Code CLI spawning integration - no implementation details",
+      "why_missing": "Search 7 shows 'independent desktop application will integrate by spawning the Claude Code CLI' but there are zero facts about: (1) how the CLI process lifecycle is managed, (2) stdin/stdout parsing protocol, (3) error handling for CLI failures, (4) how CLI output maps to UI state. This is a core architectural dependency with no design depth.",
+      "priority": "High"
+    },
+    {
+      "gap_topic": "Local JSON storage design lacks specification",
+      "why_missing": "Search 7 confirms 'independent desktop application uses local JSON for data storage' but no facts describe: (1) JSON schema for whiteboard files, (2) concurrent access handling, (3) data migration from old format, (4) backup/recovery strategy, (5) file watching for external edits. Only one fact mentions 'WhiteboardFile' type defined in types.ts but no schema validation design.",
+      "priority": "Medium"
+    },
+    {
+      "gap_topic": "Obsidian plugin deprecation path undefined",
+      "why_missing": "Search 1 shows 'old frontend replaced by new frontend' and Search 7 shows 'Obsidian components replaced by shadcn/ui'. But the git status shows massive deletions in obsidian-canvas-learning/ (80+ files deleted). No facts document: (1) whether existing Obsidian users need a migration path, (2) whether the Obsidian plugin is fully deprecated or maintained in parallel, (3) what happens to the canvas-progress-tracker/obsidian-plugin/ code.",
+      "priority": "Medium"
+    },
+    {
+      "gap_topic": "5 PENDING Decision-Reviews from PRD validation unresolved",
+      "why_missing": "Search 5 reveals '5 PENDING Decision-Review items requiring independent validation sessions' (fact from PRD-Review). Specific pending dimensions include: (1) retrieval layer timing issues, (2) UX impact of status prompts, (3) Mode D image format/size limitations. These predate the Tauri pivot and may need re-evaluation in the new architecture context.",
+      "priority": "Medium"
+    },
+    {
+      "gap_topic": "ChatPanel and Edge dialog implementation complexity in new stack",
+      "why_missing": "Search 6 identifies ChatPanel and Edge dialog as MVP items with 'significant difference in implementation complexity' between old and new stacks. The fact notes the complexity comparison was done for Svelte4 vs pure-TS approaches, but no updated analysis exists for the React+ReactFlow implementation path now being used.",
+      "priority": "Medium"
+    },
+    {
+      "gap_topic": "Testing strategy for Tauri desktop app undefined",
+      "why_missing": "No facts across any of the 7 searches mention testing approaches for the new Tauri+React frontend. DD-07 requires adversarial testing with real data, but there is no mention of: (1) component testing framework (Vitest? Jest?), (2) E2E testing for desktop app (Playwright? WebDriver?), (3) Tauri-specific integration testing approach.",
+      "priority": "Medium"
+    },
+    {
+      "gap_topic": "Performance benchmarks for ReactFlow with large whiteboards missing",
+      "why_missing": "ReactFlow canvas is confirmed working (version 12.8.2, first compile successful), but no facts address performance with large node counts. The existing exam whiteboard design mentions node limits as a gap ('Gap4 node count unlimited still needs resolution'). No benchmarking or performance requirements defined for the new ReactFlow implementation.",
+      "priority": "Low"
+    },
+    {
+      "gap_topic": "Cross-platform Tauri build/distribution strategy absent",
+      "why_missing": "Search 7 shows successful Windows compilation (canvas-learning-frontend.exe) with VS Build Tools and Rustup setup. But no facts cover: (1) macOS/Linux build pipeline, (2) auto-update mechanism, (3) code signing, (4) distribution channel (GitHub releases? custom updater?). The user's platform is Windows 11 but DD-06 originally required cross-platform consideration.",
+      "priority": "Low"
+    },
+    {
+      "gap_topic": "Accessibility and theme compatibility for new UI",
+      "why_missing": "The old Obsidian plugin had strict CSS rules (DD-06: CSS variables for colors, theme compatibility, no hardcoded colors). The new shadcn/ui + TailwindCSS stack has different theming patterns. No facts document accessibility requirements or dark/light theme strategy for the standalone Tauri app.",
+      "priority": "Low"
+    }
+  ],
+  "existing_context_nodes": [
+    "Tauri 2.0 - confirmed as desktop shell, first compile successful",
+    "React - confirmed UI framework for independent desktop app",
+    "ReactFlow (@xyflow/react v12.8.2) - whiteboard engine, integrated and running",
+    "shadcn/ui - recommended by 6-agent research, replacing Obsidian components",
+    "TailwindCSS v4 - configured in frontend/ directory, part of validated stack",
+    "Local JSON storage - confirmed as data persistence layer",
+    "Claude Code CLI spawning - confirmed integration method",
+    "Frontend-first + Backend sync - adopted approach",
+    "5-Epic plan - based on confirmed tech selection and 14 MVP requirements",
+    "14 MVP core requirements - confirmed, architecture document based on these",
+    "2 underlying systems - confirmed as part of MVP essentials",
+    "87 shadcn components in Pencil design file",
+    "canvas-learning-frontend.exe - first successful compilation",
+    "WhiteboardFile type - defined in frontend/src/types.ts",
+    "App.tsx - contains ReactFlow canvas as basic layout",
+    "verification_graph/state_graph/react_agent - decoupled from frontend",
+    "Edge dialog - MVP requirement with complexity variance across stacks",
+    "ChatPanel - MVP requirement with complexity variance across stacks",
+    "Dashboard - MVP requirement with 3 core functions (whiteboard list, exam whiteboard list, 3 action buttons)",
+    "Decision-Review PENDING dimensions - retrieval timing, UX status prompts, Mode D image limits"
+  ],
+  "summary": {
+    "total_gaps_found": 12,
+    "high_priority": 4,
+    "medium_priority": 5,
+    "low_priority": 3,
+    "key_finding": "The project underwent a major architectural pivot from Obsidian plugin (Svelte) to independent Tauri desktop app (React+ReactFlow) around 2026-03-17. While the tech stack has been selected and scaffolding validated, critical gaps exist in: (1) no formal Decision-Review for the new stack, (2) undefined API contract between Tauri frontend and Python backend, (3) unspecified Claude Code CLI integration protocol, and (4) unresolved pre-pivot PENDING decisions that need re-evaluation."
+  }
+}

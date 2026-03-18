@@ -1,6 +1,6 @@
 # Story 7.2: LLM 调用日志与 Token 追踪
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -315,10 +315,30 @@ CREATE INDEX idx_llm_logs_status ON llm_call_logs(status);
 
 ### Agent Model Used
 
-(To be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
+- Context7 LiteLLM docs: confirmed CustomLogger + litellm.callbacks is the correct async callback pattern
+- Previous code used litellm.success_callback (sync-only list) which would not fire async callbacks
+
 ### Completion Notes List
 
+1. **Critical fix: LiteLLM callback registration** - Refactored `LLMCallLogger` to inherit from `litellm.integrations.custom_logger.CustomLogger` (was plain class). Async callbacks (`async_log_success_event` / `async_log_failure_event`) are now correctly invoked by LiteLLM SDK. Registration changed from `litellm.success_callback` (sync) to `litellm.callbacks` (supports CustomLogger instances). Reference: https://docs.litellm.ai/docs/observability/custom_callback
+2. **Graceful fallback** - If litellm is not installed, `_LiteLLMCustomLogger` falls back to `object`, and the logger still works via the manual `log_call()` API.
+3. **Extracted `_compute_latency_ms`** - Deduplicated latency calculation from on_success/on_failure into a shared static method.
+4. **All 5 tasks verified complete**: (1) LiteLLM callback registration, (2) LLMCallLogger completeness, (3) CostTracker SQLite persistence, (4) LLM Stats API endpoint, (5) Unit + integration tests.
+5. **Test coverage expanded**: Added tests for async_log_success_event/async_log_failure_event delegation, all 7 LiteLLM error classification mappings + fallback heuristics, API key whitelist serialization, error message truncation, task_type extraction paths, E2E callback-to-SQLite pipeline, API key absence in persisted rows.
+
 ### File List
+
+| File | Action | Description |
+|------|--------|-------------|
+| `backend/app/middleware/llm_call_logger.py` | Modified | Inherit from CustomLogger, add async_log_success/failure_event, extract _compute_latency_ms |
+| `backend/app/core/litellm_config.py` | Modified | Use litellm.callbacks instead of litellm.success_callback/failure_callback |
+| `backend/app/middleware/cost_tracker.py` | Verified | Complete: tables, indices, batch insert, aggregation, rotation, health probe |
+| `backend/app/api/v1/system.py` | Verified | Complete: GET /api/v1/system/llm-stats with period/task_type filtering |
+| `backend/app/main.py` | Verified | Complete: startup init + shutdown cleanup for CostTracker and LLMCallLogger |
+| `backend/tests/unit/test_llm_call_logger.py` | Modified | Added 12 new tests: async delegation, error classification, API key filtering, latency, task_type |
+| `backend/tests/unit/test_cost_tracker.py` | Verified | Complete: table creation, insert/query, rotation, health probe |
+| `backend/tests/integration/test_llm_stats_api.py` | Modified | Added TestCallbackToSQLiteE2E: 4 E2E tests for callback->SQLite pipeline and API key absence |

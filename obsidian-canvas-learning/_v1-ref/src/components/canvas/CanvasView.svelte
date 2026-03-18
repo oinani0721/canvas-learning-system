@@ -341,9 +341,12 @@
     if (tag === 'INPUT' || tag === 'TEXTAREA' || editable) return;
 
     if (e.key === 'Delete' || e.key === 'Backspace') {
+      // Stop propagation to prevent Obsidian from intercepting
+      e.stopPropagation();
       e.preventDefault();
       canvasState.deleteSelected();
     } else if (e.key === 'a' && (e.ctrlKey || e.metaKey)) {
+      e.stopPropagation();
       e.preventDefault();
       canvasState.selectAll();
     } else if (e.key === 'Escape') {
@@ -399,6 +402,36 @@
     const items = event.clipboardData?.items;
     if (!items) return;
 
+    // Check for text content first — if clipboard has text, let the
+    // default contenteditable paste handle it (or create a text node)
+    for (const item of items) {
+      if (item.type === 'text/plain' || item.type === 'text/html') {
+        // Text is present — don't treat as image paste.
+        // If the paste target is a contenteditable node body, let it through.
+        // If pasting on the canvas background, create a text node.
+        const tag = (event.target as HTMLElement)?.tagName;
+        const editable = (event.target as HTMLElement)?.isContentEditable;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || editable) {
+          return; // let default paste behavior handle it
+        }
+
+        // Pasting text on canvas background — create a new text node
+        event.preventDefault();
+        item.getAsString((text) => {
+          if (text.trim()) {
+            const pos = screenToCanvas(containerWidth / 2, containerHeight / 2, vp);
+            canvasState.addNode({
+              content: text,
+              x: pos.x - 100,
+              y: pos.y - 30,
+            });
+          }
+        });
+        return;
+      }
+    }
+
+    // No text found — check for images
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         event.preventDefault();

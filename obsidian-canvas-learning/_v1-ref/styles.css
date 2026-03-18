@@ -1,0 +1,175 @@
+/* Canvas Learning System - Base Styles
+ * Story 1.1: Plugin scaffold (AC-5)
+ *
+ * Naming convention: all custom classes use cl- prefix
+ * Colors reference Obsidian CSS variables for theme compatibility
+ */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * CSS Custom Properties (mapped from Obsidian variables)
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-root {
+  --cl-bg-primary: var(--background-primary);
+  --cl-bg-secondary: var(--background-secondary);
+  --cl-bg-modifier-border: var(--background-modifier-border);
+  --cl-text-normal: var(--text-normal);
+  --cl-text-muted: var(--text-muted);
+  --cl-text-faint: var(--text-faint);
+  --cl-text-accent: var(--text-accent);
+  --cl-interactive-accent: var(--interactive-accent);
+  --cl-interactive-accent-hover: var(--interactive-accent-hover);
+  --cl-font-ui: var(--font-interface);
+  --cl-radius-s: var(--radius-s, 4px);
+  --cl-radius-m: var(--radius-m, 8px);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Main View Container
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-main-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 12px;
+  background: var(--cl-bg-primary);
+  color: var(--cl-text-normal);
+  font-family: var(--cl-font-ui);
+}
+
+.cl-main-view__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--cl-bg-modifier-border);
+}
+
+.cl-main-view__title {
+  font-size: 1.1em;
+  font-weight: 600;
+  margin: 0;
+}
+
+.cl-main-view__content {
+  flex: 1;
+  overflow-y: auto;
+  padding-top: 12px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Status Indicator
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+.cl-status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cl-status-dot--online {
+  background-color: var(--color-green, #4caf50);
+}
+
+.cl-status-dot--offline {
+  background-color: var(--color-red, #f44336);
+}
+
+.cl-status-dot--unknown {
+  background-color: var(--cl-text-faint);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Layer 2: Mastery Color System (Story 5.2)
+ *
+ * 5-state mastery colors: unlearned / learning / weak / mastered / review
+ * Each state has a -border and -bar variant.
+ * Unlearned maps to Obsidian's native border color (no visual change).
+ * Color values chosen for:
+ *   - WCAG AA contrast (>= 3:1 against node background)
+ *   - Hue + luminance differentiation (accessible to color-vision deficiency)
+ *   - Dark theme: brighter values on dark backgrounds
+ *   - Light theme: deeper values on light backgrounds
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* --- Dark Theme --- */
+.theme-dark {
+  /* Unlearned: Obsidian default (no visual indicator) */
+  --cl-mastery-unlearned-border: var(--background-modifier-border);
+  --cl-mastery-unlearned-bar: transparent;
+
+  /* Learning (blue): has interaction, not yet examined */
+  --cl-mastery-learning-border: #5B8DEF;
+  --cl-mastery-learning-bar: #5B8DEF;
+
+  /* Weak (red/orange): exam proficiency < 0.4 */
+  --cl-mastery-weak-border: #E06356;
+  --cl-mastery-weak-bar: #E06356;
+
+  /* Mastered (green): exam proficiency >= 0.7 */
+  --cl-mastery-mastered-border: #4CAF50;
+  --cl-mastery-mastered-bar: #4CAF50;
+
+  /* Review (yellow): FSRS says review is due */
+  --cl-mastery-review-border: #F5A623;
+  --cl-mastery-review-bar: #F5A623;
+
+  /* Transition shorthand */
+  --cl-mastery-transition: border-color 300ms ease-in-out, box-shadow 300ms ease-in-out;
+}
+
+/* --- Light Theme --- */
+.theme-light {
+  --cl-mastery-unlearned-border: var(--background-modifier-border);
+  --cl-mastery-unlearned-bar: transparent;
+
+  --cl-mastery-learning-border: #3A6DD8;
+  --cl-mastery-learning-bar: #3A6DD8;
+
+  --cl-mastery-weak-border: #C4382B;
+  --cl-mastery-weak-bar: #C4382B;
+
+  --cl-mastery-mastered-border: #2E7D32;
+  --cl-mastery-mastered-bar: #2E7D32;
+
+  --cl-mastery-review-border: #D4880F;
+  --cl-mastery-review-bar: #D4880F;
+
+  --cl-mastery-transition: border-color 300ms ease-in-out, box-shadow 300ms ease-in-out;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+ * Story 3.3: Chat Panel Styles
+ *
+ * ChatPanel, MessageBubble, InputBar, StreamingIndicator, SkillSelector
+ * All classes prefixed with .cl-chat-*
+ * Colors reference Obsidian CSS variables for Light/Dark theme compatibility.
+ * ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Chat panel CSS variable mapping */
+.cl-chat-panel {
+  --cl-chat-bubble-user-bg: var(--interactive-accent);
+  --cl-chat-bubble-user-fg: var(--text-on-accent);
+  --cl-chat-bubble-agent-bg: var(--background-secondary);
+  --cl-chat-bubble-agent-fg: var(--text-normal);
+}
+
+/* Custom scrollbar for chat messages */
+.cl-chat-panel__messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-thumb {
+  background: var(--background-modifier-border);
+  border-radius: 3px;
+}
+
+.cl-chat-panel__messages::-webkit-scrollbar-thumb:hover {
+  background: var(--text-faint);
+}

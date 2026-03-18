@@ -128,8 +128,12 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
 
         memory_svc = await get_memory_service()
 
-        # Filter in-memory episodes by node_id
-        for episode in memory_svc._episodes:
+        # Use public search_memories() API instead of accessing private _episodes
+        episodes = await memory_svc.search_memories(
+            query=node_id,
+            max_results=MAX_TIPS + MAX_ERRORS,
+        )
+        for episode in episodes:
             ep_node_id = episode.get("node_id") or episode.get("metadata", {}).get("node_id", "")
             if ep_node_id != node_id:
                 continue

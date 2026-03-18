@@ -19,6 +19,7 @@
  * [Source: _bmad-output/implementation-artifacts/3-9-engine-fallback.md#Task 1]
  */
 
+import { requestUrl } from 'obsidian';
 import type {
   DialogEngine,
   EngineError,
@@ -139,7 +140,12 @@ export class ApiKeyEngine implements DialogEngine {
     this.activeControllers.set(nodeId, controller);
 
     try {
-      const response = await fetch(ANTHROPIC_API_URL, {
+      // Use Obsidian's requestUrl() to bypass Electron CSP restrictions.
+      // requestUrl() does not support streaming, so we use non-streaming mode.
+      // This is acceptable since API Key mode is a degraded fallback.
+      // Reference: Obsidian official API — requestUrl() runs at Node level.
+      const response = await requestUrl({
+        url: ANTHROPIC_API_URL,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -150,115 +156,55 @@ export class ApiKeyEngine implements DialogEngine {
           model: this.model,
           max_tokens: MAX_TOKENS,
           messages: history,
-          stream: true,
+          // Non-streaming: requestUrl doesn't support SSE ReadableStream
         }),
-        signal: controller.signal,
+        throw: false, // Don't throw on non-200, we handle errors manually
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
+      if (response.status === 429) {
+        const retryAfter = response.headers?.['retry-after'];
+        const engineError: EngineError = {
+          type: 'rate_limited',
+          message: 'API 额度已用完',
+          retryAfterSec: retryAfter ? parseInt(retryAfter, 10) : undefined,
+        };
+        this.emitError(engineError);
+        history.pop();
+        yield { type: 'error', error: engineError.message };
+        return;
+      }
 
-        // Detect rate limiting
-        if (response.status === 429) {
-          const retryAfter = response.headers.get('retry-after');
-          const engineError: EngineError = {
-            type: 'rate_limited',
-            message: 'API 额度已用完',
-            retryAfterSec: retryAfter ? parseInt(retryAfter, 10) : undefined,
-          };
-          this.emitError(engineError);
-          // Remove the failed user message from history
-          history.pop();
-          yield { type: 'error', error: engineError.message };
-          return;
-        }
+      if (response.status === 401 || response.status === 403) {
+        const engineError: EngineError = {
+          type: 'auth_failed',
+          message: 'API Key 无效或已过期，请在设置中更新。',
+        };
+        this.emitError(engineError);
+        history.pop();
+        yield { type: 'error', error: engineError.message };
+        return;
+      }
 
-        // Detect auth errors
-        if (response.status === 401 || response.status === 403) {
-          const engineError: EngineError = {
-            type: 'auth_failed',
-            message: 'API Key 无效或已过期，请在设置中更新。',
-          };
-          this.emitError(engineError);
-          history.pop();
-          yield { type: 'error', error: engineError.message };
-          return;
-        }
-
-        // Other HTTP errors
+      if (response.status < 200 || response.status >= 300) {
         history.pop();
         yield {
           type: 'error',
-          error: `API request failed (${response.status}): ${errorText}`,
+          error: `API request failed (${response.status}): ${response.text}`,
         };
         return;
       }
 
-      // Parse SSE stream
-      const reader = response.body?.getReader();
-      if (!reader) {
-        history.pop();
-        yield { type: 'error', error: 'No response body from API' };
-        return;
-      }
-
-      const decoder = new TextDecoder();
-      let sseBuffer = '';
+      // Parse non-streaming response (Anthropic Messages API response format)
+      const result = response.json;
       let assistantContent = '';
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          sseBuffer += decoder.decode(value, { stream: true });
-
-          // Process complete SSE events (separated by double newline)
-          const eventBlocks = sseBuffer.split('\n\n');
-          sseBuffer = eventBlocks.pop() ?? '';
-
-          for (const block of eventBlocks) {
-            const lines = block.split('\n');
-            let eventType = '';
-            let data = '';
-
-            for (const line of lines) {
-              if (line.startsWith('event: ')) {
-                eventType = line.slice(7).trim();
-              } else if (line.startsWith('data: ')) {
-                data = line.slice(6);
-              }
-            }
-
-            if (!data || data === '[DONE]') continue;
-
-            let parsed: Record<string, unknown>;
-            try {
-              parsed = JSON.parse(data) as Record<string, unknown>;
-            } catch {
-              continue;
-            }
-
-            // Handle different SSE event types from Anthropic API
-            if (eventType === 'content_block_delta') {
-              const delta = parsed.delta as Record<string, unknown> | undefined;
-              if (delta?.type === 'text_delta') {
-                const text = delta.text as string;
-                assistantContent += text;
-                yield { type: 'text', text, raw: data };
-              }
-            } else if (eventType === 'message_stop') {
-              // Message complete
-              break;
-            } else if (eventType === 'error') {
-              const errorData = parsed.error as Record<string, unknown> | undefined;
-              const errorMsg = (errorData?.message as string) ?? 'Unknown API error';
-              yield { type: 'error', error: errorMsg, raw: data };
-            }
+      if (result?.content && Array.isArray(result.content)) {
+        for (const block of result.content) {
+          if (block.type === 'text' && block.text) {
+            assistantContent += block.text;
+            yield { type: 'text', text: block.text };
           }
         }
-      } finally {
-        reader.releaseLock();
       }
 
       // Save assistant response to conversation history

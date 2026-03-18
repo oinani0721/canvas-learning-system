@@ -1,0 +1,267 @@
+{
+  "agent": "W2-F",
+  "role": "counter_evidence_failure_cases",
+  "timestamp": "2026-03-17T00:00:00Z",
+  "research_topic": "Tauri+React+ReactFlow failure cases, limitations, and rejected alternative re-evaluation",
+
+  "tauri_failure_cases": {
+    "severity": "MODERATE",
+    "summary": "No major project publicly abandoned Tauri for Electron. Trend is overwhelmingly Electron->Tauri migration. However, significant platform-specific issues exist.",
+    "findings": [
+      {
+        "issue": "Windows WebView2 spawn hanging in production",
+        "severity": "HIGH",
+        "detail": "Command.spawn() intermittently hangs in production on Windows. Reported Oct 2024, affects shell plugin reliability.",
+        "source": "https://github.com/tauri-apps/tauri/issues/11513",
+        "relevance": "Direct impact on CLI tool integration (claude-code sidecar). If spawn hangs, the core AI interaction breaks."
+      },
+      {
+        "issue": "Cannot kill child processes on Windows",
+        "severity": "HIGH",
+        "detail": "child.kill() does not terminate spawned processes on Windows. PyInstaller binaries and general subprocess cleanup affected. Issue persists since 2022.",
+        "source": "https://github.com/tauri-apps/tauri/issues/4949",
+        "relevance": "Critical for sidecar lifecycle management. If claude-code process cannot be killed, orphan processes accumulate."
+      },
+      {
+        "issue": "Shell plugin scope configuration errors",
+        "severity": "MEDIUM",
+        "detail": "Even with correct tauri.conf.json config, shell:execute throws 'program not allowed' errors. Feb 2025.",
+        "source": "https://github.com/tauri-apps/plugins-workspace/issues/2418",
+        "relevance": "Could block sidecar integration during development and confuse debugging."
+      },
+      {
+        "issue": "Cross-platform WebView rendering inconsistencies",
+        "severity": "MEDIUM",
+        "detail": "Different WebView engines per OS (WebView2/Windows, WebKitGTK/Linux, WebKit/macOS) cause layout differences, CSS quirks, and feature gaps. SVG/PDF rendering bugs on Mac. WebKitGTK reported increasingly unstable.",
+        "source": "https://github.com/tauri-apps/tauri/discussions/12311",
+        "relevance": "UI must be tested on all 3 platforms. Styling that works on Windows may break on macOS/Linux."
+      },
+      {
+        "issue": "WebView2 fails under Windows Administrator Protection",
+        "severity": "MEDIUM",
+        "detail": "On Windows 11 Insider builds with Administrator Protection, WebView2 cannot start due to user data directory access issues.",
+        "source": "https://github.com/tauri-apps/tauri/issues/13926",
+        "relevance": "Edge case but could affect users running as admin on newer Windows 11 builds."
+      },
+      {
+        "issue": "macOS Intel compatibility issues",
+        "severity": "LOW",
+        "detail": "Frontend checks fail on some Intel Macs. Form controls broken. State-based forms not updating.",
+        "source": "https://github.com/tauri-apps/tauri/issues/13141",
+        "relevance": "Shrinking Intel Mac user base, but still relevant for older hardware."
+      },
+      {
+        "issue": "CVE-2024-35222: iFrame origin bypass",
+        "severity": "LOW_FOR_US",
+        "detail": "Remote iFrames could access Tauri IPC endpoints. Fixed in Tauri 2.0.0-beta.20+. Requires XSS in iFrame to exploit.",
+        "source": "https://secalerts.co/vulnerability/CVE-2024-35222",
+        "relevance": "Low risk for our use case (no untrusted iFrames), but shows Tauri's security model has had vulnerabilities."
+      }
+    ],
+    "mitigation_assessment": "The Windows process kill issue is the most concerning for our sidecar use case. Workaround: use IPC via localhost HTTP server instead of stdin/stdout, or implement custom process group killing via Rust command. The WebView inconsistency issue is manageable with thorough cross-platform testing and CSS variable usage."
+  },
+
+  "reactflow_limitations": {
+    "severity": "LOW-TO-MODERATE",
+    "summary": "ReactFlow has a documented ~1000 node ceiling due to DOM-based rendering. For a learning knowledge graph, this is unlikely to be hit but must be monitored.",
+    "findings": [
+      {
+        "issue": "DOM-based rendering ceiling at ~1000 nodes",
+        "severity": "MEDIUM",
+        "detail": "ReactFlow maintainers explicitly state it is not made for 1000+ nodes. Performance degrades with complex custom nodes. At 10k nodes, the app becomes unusable.",
+        "source": "https://github.com/xyflow/xyflow/discussions/3003",
+        "relevance": "A learning knowledge graph for one student unlikely to exceed 200-500 nodes. But if supporting multi-subject curricula or shared graphs, could approach limits."
+      },
+      {
+        "issue": "Pan/zoom lag with 600+ elements",
+        "severity": "MEDIUM",
+        "detail": "Performance drops when panning or zooming with many elements. Custom nodes with complex React components exacerbate this.",
+        "source": "https://github.com/wbkd/react-flow/issues/967",
+        "relevance": "Canvas interaction smoothness is critical for learning UX. Must use React.memo, useCallback, and minimize node complexity."
+      },
+      {
+        "issue": "Re-render cascading",
+        "severity": "LOW",
+        "detail": "Components depending on the nodes array re-render on any node change. Viewport changes trigger state updates that cascade re-renders.",
+        "source": "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b",
+        "relevance": "Solvable with proper memoization patterns. Well-documented optimization guide exists."
+      }
+    ],
+    "mitigation_assessment": "For a learning graph (typically 50-300 nodes), ReactFlow is well within safe performance range. Key mitigations: React.memo on custom nodes, useMemo/useCallback for props, separate selection state. If future scaling demands arise, ReactFlow can be replaced with a canvas-based renderer while keeping the same data model."
+  },
+
+  "shadcn_ui_desktop_issues": {
+    "severity": "LOW",
+    "summary": "shadcn/ui works well in Tauri desktop apps. Main concern is cross-platform WebView CSS variable differences, which is a Tauri issue rather than shadcn-specific.",
+    "findings": [
+      {
+        "issue": "Tauri WebView CSS inconsistencies affect shadcn components",
+        "severity": "LOW",
+        "detail": "Since Tauri uses different WebView engines per OS, some CSS features may render differently. shadcn/ui relies on Tailwind CSS which is generally well-supported, but edge cases exist.",
+        "source": "https://www.gethopp.app/blog/tauri-vs-electron",
+        "relevance": "Test shadcn components on all target platforms. Use standard CSS features only."
+      },
+      {
+        "issue": "CLI detection issue with Vite projects",
+        "severity": "LOW",
+        "detail": "shadcn CLI may not recognize Vite projects initially. Config file must be named vite.config.js for proper detection.",
+        "source": "https://blog.mohitnagaraj.in/blog/202505/Electron_Shadcn_Guide",
+        "relevance": "One-time setup issue, easily resolved."
+      }
+    ],
+    "mitigation_assessment": "shadcn/ui is a safe choice. The tauri-ui template (github.com/agmmnn/tauri-ui) provides a proven starting point for Tauri + shadcn/ui integration."
+  },
+
+  "tauri_shell_plugin_issues": {
+    "severity": "HIGH",
+    "summary": "The Tauri shell plugin has multiple documented issues specifically relevant to our sidecar CLI integration pattern.",
+    "findings": [
+      {
+        "issue": "spawn() hanging in production (Windows)",
+        "severity": "HIGH",
+        "detail": "Intermittent, production-only, Windows-specific. Root cause unclear.",
+        "source": "https://github.com/tauri-apps/tauri/issues/11513"
+      },
+      {
+        "issue": "Cannot kill child processes (Windows)",
+        "severity": "HIGH",
+        "detail": "kill() completes but process continues running. Affects PyInstaller binaries and general subprocesses.",
+        "source": "https://github.com/tauri-apps/tauri/issues/11686"
+      },
+      {
+        "issue": "Scope configuration errors despite correct config",
+        "severity": "MEDIUM",
+        "detail": "Shell scope validation is overly strict or buggy. Programs listed in config still get rejected.",
+        "source": "https://github.com/tauri-apps/plugins-workspace/issues/2418"
+      },
+      {
+        "issue": "No sidecar lifecycle management plugin",
+        "severity": "MEDIUM",
+        "detail": "Feature request for proper sidecar lifecycle management (health checks, restart, graceful shutdown) is open but unimplemented.",
+        "source": "https://github.com/tauri-apps/plugins-workspace/issues/3062"
+      }
+    ],
+    "mitigation_assessment": "This is the highest-risk area. Recommended mitigations: (1) Use localhost HTTP/WebSocket for IPC instead of stdin/stdout to avoid spawn hanging. (2) Implement custom Rust-side process group killing for Windows. (3) Add health check polling for sidecar liveness. (4) Consider running CLI tool as a separate long-lived service rather than spawning per-interaction."
+  },
+
+  "revisit_candidates": {
+    "svelte_in_tauri": {
+      "verdict": "NO_REVISIT_NEEDED",
+      "evidence_summary": "Svelte + Tauri 2 is now functional and stable for basic apps. SvelteKit integration is officially documented. However, issues remain: (1) zbus compilation failures on fresh projects (May 2025), (2) Linux build failures on Arch. These are platform-specific, not fundamental. The original rejection reason (compilation instability) has been PARTIALLY resolved - basic setups work, but edge cases persist.",
+      "new_evidence_strength": "WEAK",
+      "recommendation": "Svelte in Tauri is now viable but offers no compelling advantage over React for this project. React has larger ecosystem, more ReactFlow integration examples, and better shadcn/ui support. No reason to switch.",
+      "sources": [
+        "https://v2.tauri.app/start/frontend/sveltekit/",
+        "https://github.com/tauri-apps/tauri/issues/13371"
+      ]
+    },
+    "electron_for_education": {
+      "verdict": "NO_REVISIT_NEEDED",
+      "evidence_summary": "Electron's advantages over Tauri are: (1) consistent Chromium rendering across all platforms, (2) larger plugin ecosystem, (3) JavaScript-only backend (no Rust needed), (4) more mature multi-window support. However, none of these are education-specific advantages. No evidence found that Electron has unique educational app capabilities that Tauri cannot match. The performance and bundle size advantages of Tauri are more relevant for a learning app that must feel lightweight and responsive.",
+      "new_evidence_strength": "NONE",
+      "recommendation": "Electron remains a valid choice but offers no education-specific advantage. Tauri's smaller bundle size (8MB vs 130MB) and lower memory usage are better for a learning tool that runs alongside other apps.",
+      "sources": [
+        "https://www.dolthub.com/blog/2025-11-13-electron-vs-tauri/",
+        "https://www.raftlabs.com/blog/tauri-vs-electron-pros-cons/"
+      ]
+    },
+    "custom_whiteboard_not_reactflow": {
+      "verdict": "NO_REVISIT_NEEDED",
+      "evidence_summary": "Alternative canvas libraries assessed: (1) tldraw SDK 4.0 - excellent infinite canvas but designed for whiteboard/drawing, not node-based knowledge graphs. Requires paid license for production. (2) Cytoscape.js - powerful graph library with built-in layouts but Canvas-based (bypasses React virtual DOM). (3) D3.js force graph - maximum flexibility but massive implementation effort. (4) JsPlumb - positioned as ReactFlow alternative but less community traction. None offer a better fit than ReactFlow for a node-based learning knowledge graph with React.",
+      "new_evidence_strength": "WEAK",
+      "detail": {
+        "tldraw": "Good SDK but wrong use case (drawing/whiteboard, not structured node graph). Production license required. Would need significant custom work to make it behave like a knowledge graph editor.",
+        "cytoscape": "Better for pure graph visualization with auto-layout. But Canvas-based rendering breaks React paradigm. Better suited for read-only graph display than interactive editing.",
+        "d3_force": "Maximum flexibility but enormous implementation cost. Every primitive must be built from scratch.",
+        "jsplumb": "Claims to be ReactFlow alternative but smaller community, less documentation."
+      },
+      "recommendation": "ReactFlow remains the best fit. It is purpose-built for interactive node-based UIs in React, has 19k+ GitHub stars, 400k+ weekly npm downloads, MIT license, and extensive documentation. The ~1000 node ceiling is acceptable for learning graphs.",
+      "sources": [
+        "https://tldraw.dev/blog/tldraw-sdk-4-0",
+        "https://js.cytoscape.org/",
+        "https://npmtrends.com/cytoscape-vs-d3-vs-react-flow-renderer"
+      ]
+    }
+  },
+
+  "overall_risk_assessment": {
+    "stack_verdict": "PROCEED_WITH_CAUTION",
+    "confidence": 0.78,
+    "top_risks_ranked": [
+      {
+        "rank": 1,
+        "risk": "Tauri Shell Plugin - Windows process management",
+        "severity": "HIGH",
+        "probability": "HIGH",
+        "impact": "Core feature (CLI sidecar) may hang or leave orphan processes on Windows",
+        "mitigation": "Use HTTP/WebSocket IPC instead of stdin/stdout. Implement Rust-side process group killing. Add health check polling.",
+        "mitigation_confidence": 0.75
+      },
+      {
+        "rank": 2,
+        "risk": "Cross-platform WebView rendering differences",
+        "severity": "MEDIUM",
+        "probability": "HIGH",
+        "impact": "UI may look/behave differently on Windows vs macOS vs Linux",
+        "mitigation": "Use standard CSS features, test on all platforms, use CSS variables, avoid WebKit-specific features.",
+        "mitigation_confidence": 0.85
+      },
+      {
+        "rank": 3,
+        "risk": "ReactFlow performance with growing knowledge graphs",
+        "severity": "MEDIUM",
+        "probability": "LOW",
+        "impact": "Canvas becomes laggy if graph exceeds ~500 complex nodes",
+        "mitigation": "React.memo on custom nodes, lazy loading, virtualization. Can migrate to canvas-based renderer if needed.",
+        "mitigation_confidence": 0.90
+      },
+      {
+        "rank": 4,
+        "risk": "Tauri ecosystem maturity - fewer plugins and community resources",
+        "severity": "LOW",
+        "probability": "MEDIUM",
+        "impact": "May need custom Rust code for features that Electron has plugins for",
+        "mitigation": "Evaluate all needed native features upfront. Use Tauri's official plugin set. Write minimal Rust for gaps.",
+        "mitigation_confidence": 0.80
+      },
+      {
+        "rank": 5,
+        "risk": "Tauri Windows Administrator Protection incompatibility",
+        "severity": "LOW",
+        "probability": "LOW",
+        "impact": "App won't start for users with this Windows 11 feature enabled",
+        "mitigation": "Monitor Tauri issue tracker. This affects a small user subset on Insider builds.",
+        "mitigation_confidence": 0.60
+      }
+    ],
+    "no_evidence_of_stack_failure": true,
+    "strongest_counter_argument": "The Tauri shell plugin's Windows subprocess management issues (hanging spawn, unkillable processes) are the strongest argument against this stack. Since the core product depends on spawning and managing a CLI sidecar (claude-code), these are not theoretical risks but documented production bugs. The mitigation (HTTP/WebSocket IPC) adds architectural complexity but is proven in other Tauri apps.",
+    "recommendation": "The Tauri+React+ReactFlow stack is viable but the sidecar integration layer needs careful architectural design from day 1. The shell plugin issues should NOT be a reason to switch stacks (Electron has its own process management quirks), but they DO require a robust IPC strategy that does not rely solely on stdin/stdout."
+  },
+
+  "sources": [
+    {"title": "Tauri Shell Command Spawn Hanging in Production", "url": "https://github.com/tauri-apps/tauri/issues/11513"},
+    {"title": "Spawned Children Cannot Be Killed on Windows", "url": "https://github.com/tauri-apps/tauri/issues/4949"},
+    {"title": "PyInstaller Binary Termination Issues", "url": "https://github.com/tauri-apps/tauri/issues/11686"},
+    {"title": "Shell Scope Configuration Errors", "url": "https://github.com/tauri-apps/plugins-workspace/issues/2418"},
+    {"title": "Sidecar Lifecycle Management Feature Request", "url": "https://github.com/tauri-apps/plugins-workspace/issues/3062"},
+    {"title": "Cross-Platform Layout Differences Discussion", "url": "https://github.com/tauri-apps/tauri/discussions/12311"},
+    {"title": "WebKit Stability Discussion", "url": "https://github.com/orgs/tauri-apps/discussions/8524"},
+    {"title": "macOS Intel WebView Issues", "url": "https://github.com/tauri-apps/tauri/issues/13141"},
+    {"title": "Windows Administrator Protection Bug", "url": "https://github.com/tauri-apps/tauri/issues/13926"},
+    {"title": "CVE-2024-35222 iFrame Origin Bypass", "url": "https://secalerts.co/vulnerability/CVE-2024-35222"},
+    {"title": "ReactFlow 1000+ Nodes Discussion", "url": "https://github.com/xyflow/xyflow/discussions/3003"},
+    {"title": "ReactFlow Performance Optimization Guide", "url": "https://medium.com/@lukasz.jazwa_32493/the-ultimate-guide-to-optimize-react-flow-project-performance-42f4297b2b7b"},
+    {"title": "ReactFlow Performance Drop Panning/Zooming", "url": "https://github.com/wbkd/react-flow/issues/967"},
+    {"title": "ReactFlow 10k Nodes Lag", "url": "https://github.com/wbkd/react-flow/issues/3044"},
+    {"title": "ReactFlow Official Performance Guide", "url": "https://reactflow.dev/learn/advanced-use/performance"},
+    {"title": "Tauri-UI shadcn Template", "url": "https://github.com/agmmnn/tauri-ui"},
+    {"title": "tldraw SDK 4.0 Announcement", "url": "https://tldraw.dev/blog/tldraw-sdk-4-0"},
+    {"title": "DoltHub Electron vs Tauri Comparison", "url": "https://www.dolthub.com/blog/2025-11-13-electron-vs-tauri/"},
+    {"title": "Tauri SvelteKit Frontend Guide", "url": "https://v2.tauri.app/start/frontend/sveltekit/"},
+    {"title": "Tauri zbus Build Failure", "url": "https://github.com/tauri-apps/tauri/issues/13371"},
+    {"title": "Hopp App Tauri vs Electron Real Tradeoffs", "url": "https://www.gethopp.app/blog/tauri-vs-electron"},
+    {"title": "Tauri WebView2 Fixed Runtime Detection Bug", "url": "https://github.com/tauri-apps/tauri/issues/13817"},
+    {"title": "Multi-WebView Layout Errors on Linux", "url": "https://github.com/tauri-apps/tauri/issues/13071"}
+  ]
+}

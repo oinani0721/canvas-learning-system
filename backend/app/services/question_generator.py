@@ -456,12 +456,18 @@ class QuestionGenerator:
             return f"设计一个使用 {concept} 的实际案例"
 
     async def _get_canvas_nodes(self, canvas_id: str) -> List[Dict[str, Any]]:
-        """Get all nodes from a canvas for target selection."""
+        """Get all nodes from a canvas for target selection.
+
+        Uses canvas_svc.read_canvas() to get the full canvas data,
+        then extracts the nodes list.
+        """
         try:
+            from app.config import settings
             from app.services.canvas_service import CanvasService
 
-            canvas_svc = CanvasService()
-            nodes = await canvas_svc.get_nodes_by_canvas(canvas_id)
+            canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
+            canvas_data = await canvas_svc.read_canvas(canvas_id)
+            nodes = canvas_data.get("nodes", list())
             return nodes if nodes else list()
         except Exception as e:
             logger.debug(f"[Story 6.3] Failed to get canvas nodes: {e}")
@@ -483,9 +489,9 @@ class QuestionGenerator:
     async def _get_mastery_data(self, node_id: str) -> Dict[str, Any]:
         """Get mastery data for a node from mastery_engine."""
         try:
-            from app.api.v1.endpoints.mastery import _get_store
+            from app.services.mastery_store import get_mastery_store
 
-            store = _get_store()
+            store = get_mastery_store()
             concept = await store.get_concept(node_id)
             if concept:
                 return {

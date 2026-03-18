@@ -6,6 +6,10 @@ stepsCompleted:
   - step-04-final-validation
 status: complete
 completedAt: '2026-03-17'
+previousRun:
+  completedAt: '2026-03-17'
+  status: adapted
+  architectureChange: 'Obsidian Plugin + Svelte → Tauri 2.0 + React + ReactFlow 独立桌面应用'
 inputDocuments:
   - _bmad-output/planning-artifacts/prd.md
   - _bmad-output/planning-artifacts/prd-backend-retrieval-pipeline.md
@@ -18,6 +22,16 @@ inputDocuments:
 ## Overview
 
 This document provides the complete epic and story breakdown for Canvas Learning System, decomposing the requirements from the PRD, Backend Retrieval Pipeline PRD, Architecture, and UX Design Specification into implementable stories.
+
+> **⚠️ 架构适配说明（2026-03-17）**
+> 前端技术栈已从 Obsidian Plugin + Svelte 变更为 **Tauri 2.0 + React + ReactFlow** 独立桌面应用。
+> - 白板引擎：自建 HTML+SVG → **ReactFlow (@xyflow/react, MIT)**
+> - UI 框架：Svelte 5 → **React + shadcn/ui + TailwindCSS**
+> - 桌面壳：Obsidian Electron → **Tauri 2.0**
+> - 数据存储：IndexedDB (Dexie.js) → **本地 JSON 文件**
+> - 对话引擎：不变（spawn Claude Code CLI, Claudian 模式）
+> - 后端：不变（FastAPI + Neo4j + LanceDB + Ollama）
+> - 所有 Story 的**功能逻辑不变**，仅实现方式按新架构适配。
 
 ## Requirements Inventory
 
@@ -201,7 +215,8 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - NFR-PERF-04: RAG 检索 < 3s
 - NFR-PERF-05: 图片 OCR < 10s（异步不阻塞）
 - NFR-PERF-06: 精通度更新 < 100ms
-- NFR-PERF-07: 插件启动 < 3s
+- NFR-PERF-07: 应用启动 < 1s（Tauri，对比 Electron 1-2s）
+- NFR-PERF-08: IPC 单次载荷 < 100KB（Windows IPC 10MB=200ms vs macOS 5ms，GDR-P1-4）
 
 **可靠性：**
 - NFR-REL-01: 数据零丢失
@@ -232,11 +247,12 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - NFR-SEC-07: 6 层 Agent 行为约束防御架构
 
 **兼容性：**
-- NFR-COMPAT-01: Obsidian v1.4+
-- NFR-COMPAT-02: Windows 10+ / macOS 12+ / Linux
+- NFR-COMPAT-01: Tauri 2.10.3+（WebView2 Win10 21H2+ / WKWebView macOS 12+ / webkit2gtk Linux）
+- NFR-COMPAT-02: Windows 10 21H2+ / macOS 12+ / Linux Ubuntu 20.04+
 - NFR-COMPAT-03: Docker Desktop 4.x / Docker Engine 20.10+
 - NFR-COMPAT-04: Python 3.11+（Docker 容器内）
-- NFR-COMPAT-05: 适配 Light/Dark 主题
+- NFR-COMPAT-05: 适配 Dark/Light 主题（Catppuccin Mocha 默认深色，预留浅色切换）
+- NFR-COMPAT-06: React ≥19.2.4 + ReactFlow 12.10.1 + Vite pin 7.x（GDR-P1-1 版本锁定）
 
 #### 后端检索管道 PRD NFR
 
@@ -256,15 +272,16 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - NFR-RET-COMPAT-02: LanceDB v0.4+
 - NFR-RET-COMPAT-03: FlagEmbedding >= 1.2（bge-m3）
 - NFR-RET-COMPAT-04: jieba >= 0.42
-- NFR-RET-COMPAT-05: Obsidian v1.4+
+- NFR-RET-COMPAT-05: Obsidian v1.4+（Vault 笔记检索仍需 Obsidian CLI 访问用户 Vault）
 
 ### Additional Requirements
 
-#### 来自 Architecture 文档
+#### 来自 Architecture 文档（2026-03-17 更新为 Tauri+React+ReactFlow 新架构）
 
-- **Brownfield 项目**：已有代码基础（38 个后端服务文件），非 greenfield。无 starter template
-- **前端架构**：自建 Svelte Canvas（HTML 节点 + SVG 边混合渲染），Frontend-first + IndexedDB local-first + Dexie.js liveQuery 驱动 Svelte Store + Neo4j 异步 delta sync
-- **对话引擎**：Claude Agent SDK spawn 官方 Claude Code CLI（用户订阅额度，Claudian/Pencil/Zed ACP 模式验证）+ Tool-UI Bridge 模式（Agent 调用工具时同时更新数据库和 Svelte Store）。详见 `_decisions/ADR-001-dialogue-engine.md`
+- **Brownfield 项目**：已有后端代码基础（38 个后端服务文件），前端从 Obsidian+Svelte 全量迁移至 Tauri+React+ReactFlow
+- **前端架构**：Tauri 2.0 桌面壳 + React 19 + ReactFlow (@xyflow/react, MIT) 白板引擎 + Zustand 全局状态管理（GDR-P1-2）+ 本地 JSON 文件存储 + Neo4j 异步 delta sync
+- **UI 组件库**：shadcn/ui + TailwindCSS v4 + Catppuccin Mocha 深色主题（DE-2）
+- **对话引擎**：Claude Agent SDK spawn 官方 Claude Code CLI（用户订阅额度，Claudian/Pencil/Zed ACP 模式验证）+ Tool-UI Bridge 模式（Agent 调用工具时同时更新本地存储 + Zustand Store）
 - **LLM 调用层**：LiteLLM SDK 统一调用层，不锁定厂商
 - **6 层 Agent 防御架构**：后端算法权威 + 密码学令牌管道 + CLAUDE.md/AGENTS.md + Hooks + 后端审计 + 结构化输出
 - **存储层**：Neo4j/Graphiti（方案 C 内嵌 graphiti_core）+ LanceDB + SQLite/aiosqlite
@@ -274,22 +291,27 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - **评分系统**：AutoSCORE 两阶段（证据提取→逐维打分）+ 自一致性 3 次采样
 - **Prompt 5 层结构**：角色定义→考察模式→ACP 数据包→出题规则→评分预设
 - **检索管道 4 Phase 渐进实施**：Phase 0 基础修复 → Phase 1 核心升级 → Phase 2 新功能 → Phase 3 前端集成
-- **8 个 CRITICAL 级 + 7 个 HIGH 级代码缺陷**需在实施中修复
+- **Docker 管理**：Tauri Shell Plugin 管理 Docker Compose 生命周期（DE-4）+ HTTP IPC 备选（GDR-P1-3，缓解 Windows Shell bug）
+- **IPC 约束**：单次 IPC 载荷 < 100KB + delta 更新（GDR-P1-4）
+- **版本锁定**：ReactFlow 12.10.1 + React ≥19.2.4 + Vite pin 7.x（GDR-P1-1）
+- **状态管理三层**：useState（组件局部）/ Zustand（全局共享）/ TanStack Query（服务端缓存）（GDR-P1-2）
+- **Obsidian 跳转**：obsidian://adv-uri + Tauri Opener 三级降级（OBS-LINK，待最终确认）
+- **8 个 CRITICAL 级 + 7 个 HIGH 级后端代码缺陷**需在实施中修复
 - **Shared File 加法编辑**：共享文件（types.ts / stores.ts 等）仅做加法编辑；Schema 变更放在独立 Story 中
 - **6 阶段增量算法集成**：Phase 0-5 控制集成风险
 
-#### 来自 UX Design 文档
+#### 来自 UX Design 文档（Pencil UI 范式已换皮为 Tauri+React+ReactFlow 风格）
 
-- **30 个自建 Svelte 组件**，7 组（A 对话 / B 检验白板 / C Dashboard / D 学习档案 / E 白板 / F 系统运维 / G 全局状态）
-- **6 个 Obsidian 原生组件**：ItemView / Modal / Setting / Notice / Menu / MarkdownRenderer
-- **17 个 Pencil UI 范式**已验证，覆盖 PRD 全部前端交互
+- **React 组件**，7 组（A 对话 / B 检验白板 / C Dashboard / D 学习档案 / E 白板 / F 系统运维 / G 全局状态）
+- **shadcn/ui 组件**：Dialog / Sheet / DropdownMenu / Toast / Command / Tabs 等（替代 Obsidian 原生组件）
+- **18 个 Pencil UI 范式**已验证（Tauri+React+ReactFlow+shadcn/ui 风格），覆盖 68/68 前端 UI 场景
 - **三阶段组件实施路线图**：Phase 1 核心 → Phase 2 检验白板 → Phase 3 档案+标注+系统
-- **右侧面板模式**：永远只显示一个视图，切换即替换不叠加
+- **布局模式**：左侧白板主区 + 右侧可折叠面板（对话/档案/设置），切换即替换不叠加
 - **键盘快捷键**：Enter 发送 / Shift+Enter 换行 / Escape 取消 / `/` 命令 / `@` 引用
-- **白板操作**与 Obsidian Canvas 保持一致（拖拽/缩放/平移/连线）
-- **CSS 隔离策略**：Svelte scoped CSS + 类名前缀 `cl-` + Obsidian CSS 变量
+- **白板操作**：ReactFlow 标准交互（拖拽/缩放/平移/连线）+ 自定义节点/边渲染
+- **CSS 策略**：TailwindCSS v4 + Catppuccin Mocha 主题变量 + CSS Modules 隔离
 - **精通度颜色系统**：未学习(默认) / 学习中(蓝) / 薄弱(红橙) / 掌握(绿) / 待复习(黄)
-- **Settings Tab**：通过 Obsidian PluginSettingTab 实现，包含 6 个配置区域
+- **设置页面**：独立 Settings 路由页面，shadcn/ui Tabs 分区（替代 Obsidian PluginSettingTab）
 
 ### FR Coverage Map
 
@@ -312,32 +334,41 @@ This document provides the complete epic and story breakdown for Canvas Learning
 | FR-TRACE-01~05 | Epic 5 | 学习档案面板、Tips 可追溯、薄弱方向展示、问答精选、自动提取持久化 |
 | FR-DASH-01~04 | Epic 5 | 原白板列表、检验白板列表、启动考察、历史检验白板 |
 | FR-EXAM-01~08, 11~13, 15~21 | Epic 6 | 检验白板生成、薄弱节点选择、精准出题、4 维评分、拉出节点同步、递归考察、基础功能继承、认知负荷控制、三种模式、自动映射、定制出题、评分校准、Topic-level 评分、单节点考察入口、实时同步、4 级提示、记录保存、不可嵌套 |
-| FR-QA-01~07 | Epic 7 | 忠实度检查、Prompt 版本管理、LLM 日志、Token 追踪、注入防护、难度匹配、人工抽验 |
+| FR-QA-01 | Epic 1+6 | 忠实度检查（E1 建立基础，E6 深化评分忠实度） |
+| FR-QA-02 | Epic 2 | Prompt 版本管理+回归测试 |
+| FR-QA-03 | Epic 1 | LLM 调用结构化日志（基础设施，E1 建立） |
+| FR-QA-04 | Epic 3 | Token 消耗和成本追踪 |
+| FR-QA-05 | Epic 3 | Prompt 注入防护+输出安全检查 |
+| FR-QA-06 | Epic 2+6 | 出题难度匹配（E2 检索侧，E6 考察侧） |
+| FR-QA-07 | Epic 5 | 结构化提取人工抽验 |
 
 **覆盖率：96/96 FR = 100%**
+**Epic 数量：6 个（原 E7 QA 分散到各 Epic）**
 
 ## Epic List
 
-### Epic 1: 系统安装与画布基础
-用户可以安装配置系统、在画布上创建/编辑/删除知识节点和连线（含图片节点），白板数据同步到后端知识图谱。
-**FRs covered:** FR-SYS-01~07, FR-KG-01~07
-**NFRs addressed:** NFR-PERF-01/02/07, NFR-COMPAT-01~05, NFR-SEC-01~05
+### Epic 1: 桌面应用搭建与画布基础
+用户可以安装并启动 Tauri 桌面应用、通过 Tauri Shell Plugin 启动 Docker 后端服务、在 ReactFlow 画布上创建/编辑/删除知识节点和连线（含图片节点），白板数据同步到后端知识图谱。
+**FRs covered:** FR-SYS-01~07, FR-KG-01~07, FR-QA-01(基础), FR-QA-03
+**NFRs addressed:** NFR-PERF-01/02/07/08, NFR-COMPAT-01~06, NFR-SEC-01~05, NFR-OBS-01
+**注意:** FR-SYS-01（安装引导向导）标记为低优先级，先写文档（用户已确认延后）
 
 ### Epic 2: 智能检索管道
-系统能从用户的 Obsidian 笔记中精确检索到相关片段，支持中英双语语义+关键词混合搜索，搜索结果通过精排和质量门控确保准确可靠。
-**FRs covered:** FR-RET-01~12, FR-IDX-01~08, FR-RET-P-01~08, FR-QA-P-01~05, FR-OPS-01~04
-**NFRs addressed:** NFR-PERF-04/05, NFR-RET-PERF-01~04, NFR-RET-REL-01~03, NFR-RET-COMPAT-01~05
+系统能从用户的笔记中精确检索到相关片段，支持中英双语语义+关键词混合搜索，搜索结果通过精排和质量门控确保准确可靠。
+**FRs covered:** FR-RET-01~12, FR-IDX-01~08, FR-RET-P-01~08, FR-QA-P-01~05, FR-OPS-01~04, FR-QA-02, FR-QA-06(检索侧)
+**NFRs addressed:** NFR-PERF-04/05, NFR-RET-PERF-01~04, NFR-RET-REL-01~03, NFR-RET-COMPAT-01~05, NFR-MAINT-02
 
 ### Epic 3: 节点 AI 对话与交互
-用户点击节点开启独立 AI 对话，Agent 自动注入学习上下文，可标注 Tips、归档错误、使用 /命令调用学习技能、选中文字拖出为新节点，Agent 引用附带 Obsidian 双向链接。
+用户点击节点开启独立 AI 对话，Agent 自动注入学习上下文，可标注 Tips、归档错误、使用 /命令调用学习技能、选中文字拖出为新节点，Agent 引用附带可点击的笔记双向链接。
 
-**对话引擎决策（2026-03-16 Epics session 调研确认）：**
+**对话引擎决策（2026-03-16 确认，Mode D 架构）：**
 - **方案**：Claude Agent SDK spawn 官方 Claude Code CLI，使用用户已有订阅额度（非 API Key 按量付费）
 - **参考实现**：Claudian(YishenTu/claudian) spawn 模式、Pencil "Connected via subscription"、Zed ACP 模式
 - **per-node session**：通过 Options.resume(session_id) 管理独立对话，SQLite 存 nodeId→sessionId 映射
 - **MCP 注入**：通过 Options.mcpServers 注入后端 FastAPI MCP 工具（query_mastery/generate_question/score_answer 等）
 - **上下文注入**：通过 --append-system-prompt 动态注入节点 Tips/错误/Edge 理由
 - **认证**：自动继承 ~/.claude/.credentials.json，用户无需配置 API Key
+- **Tool-UI Bridge**：Agent 调用工具时同时更新本地存储 + Zustand Store → UI 响应式更新
 - **Fallback**：FR-AGENT-03 引擎可替换，政策变化时回退 API Key 方案
 - **长期可选**：ACP（Agent Client Protocol）标准化支持多引擎（Claude/Codex/Gemini CLI）
 
@@ -346,8 +377,8 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - Story: "额度管理"——订阅额度耗尽时提示用户 + 降级策略（等待重置/临时 API Key）
 - Story: "Crash Recovery"——Claude Code 进程崩溃自动恢复 + 消息重试（参考 Claudian lastSentMessage 机制）
 
-**FRs covered:** FR-CONV-01~09, FR-AGENT-01~03, FR-MCP-01~03, FR-RET-13, FR-SKILL-01~05
-**NFRs addressed:** NFR-PERF-03, NFR-REL-01/02/05, NFR-SEC-06/07
+**FRs covered:** FR-CONV-01~09, FR-AGENT-01~03, FR-MCP-01~03, FR-RET-13, FR-SKILL-01~05, FR-QA-04, FR-QA-05
+**NFRs addressed:** NFR-PERF-03, NFR-REL-01/02/05, NFR-SEC-06/07, NFR-OBS-04, NFR-MAINT-01
 
 ### Epic 4: Edge 连线对话与关系学习
 用户连线后可点击连线图标与 AI 讨论两个概念的关系，触发 EI+SE 双重学习策略，理由被结构化记录为 Edge 语义标签。
@@ -356,18 +387,14 @@ This document provides the complete epic and story breakdown for Canvas Learning
 
 ### Epic 5: 精通度追踪、学习档案与 Dashboard
 用户可以通过节点颜色、学习档案面板和 Dashboard 查看精通度状态、Tips、薄弱方向和 FSRS 待复习列表，感知学习进步。
-**FRs covered:** FR-MAST-01~06, FR-TRACE-01~05, FR-DASH-01~04
-**NFRs addressed:** NFR-PERF-06
+**FRs covered:** FR-MAST-01~06, FR-TRACE-01~05, FR-DASH-01~04, FR-QA-07
+**NFRs addressed:** NFR-PERF-06, NFR-OBS-02/03
 
 ### Epic 6: 检验白板与递归考察
 用户可以生成检验白板、被 AI 基于 FSRS+BKT 精准考察薄弱环节（三种模式），支持递归发现知识盲区、4 级渐进提示、认知负荷控制、考察记录永久保存。
-**FRs covered:** FR-EXAM-01~08, FR-EXAM-11~13, FR-EXAM-15~21
+**FRs covered:** FR-EXAM-01~08, FR-EXAM-11~13, FR-EXAM-15~21, FR-QA-01(深化评分忠实度), FR-QA-06(出题难度匹配)
+**NFRs addressed:** NFR-MAINT-03/04
 **回退策略:** 失败退化为单轮考察
-
-### Epic 7: 质量保证与可观测性
-系统自动监控 AI 输出质量（忠实度检查、评分可靠性）、记录所有 LLM 调用日志、追踪 Token 消耗成本，确保长期可靠运行。
-**FRs covered:** FR-QA-01~07
-**NFRs addressed:** NFR-OBS-01~04, NFR-MAINT-01~04
 
 ---
 
@@ -378,28 +405,29 @@ This document provides the complete epic and story breakdown for Canvas Learning
 ### Story 1.1: 项目脚手架与 Docker 环境搭建
 
 As a 开发者,
-I want 搭建 Obsidian 插件项目结构（Svelte 5 + esbuild + TypeScript）和 Docker Compose 环境（Neo4j + FastAPI + Ollama），
+I want 搭建 Tauri 2.0 + React + Vite 桌面应用项目结构和 Docker Compose 环境（Neo4j + FastAPI + Ollama），
 So that 后续所有 Story 有可运行的基础环境。
 
 **Acceptance Criteria:**
 
 **Given** 开发者克隆项目仓库
-**When** 执行 `docker-compose up` 并在 Obsidian 中启用插件
-**Then** Neo4j、FastAPI、Ollama 三个容器正常启动，插件在 Obsidian 侧边栏出现图标
-**And** 插件能通过 localhost 访问 FastAPI 健康检查端点返回 200
-**And** 项目结构包含 `src/`（Svelte 组件）、`backend/`（FastAPI）、`docker-compose.yml`
+**When** 执行 `docker-compose up` 并运行 `npm run tauri dev`
+**Then** Neo4j、FastAPI、Ollama 三个容器正常启动，Tauri 桌面窗口打开显示应用界面
+**And** 应用能通过 localhost 访问 FastAPI 健康检查端点返回 200
+**And** 项目结构包含 `src/`（React 组件）、`src-tauri/`（Rust 壳）、`backend/`（FastAPI）、`docker-compose.yml`
+**And** ReactFlow 集成成功，能显示空白画布
 
-### Story 1.2: 安装引导向导
+### Story 1.2: 安装引导向导（⚠️ 低优先级——用户确认延后，先写文档）
 
 As a 新用户,
-I want 首次启用插件时自动弹出引导向导，逐步检测 Docker、后端 API、Neo4j、LLM API、LanceDB 五个组件状态，
+I want 首次打开应用时自动弹出引导向导，逐步检测 Docker、后端 API、Neo4j、LLM API、LanceDB 五个组件状态，
 So that 我知道系统是否就绪，哪里需要修复。
 
 **Acceptance Criteria:**
 
-**Given** 用户首次启用插件（或系统检测到未完成初始化）
-**When** 插件加载完成
-**Then** 自动弹出安装引导 Modal，显示 5 步检测流程
+**Given** 用户首次打开 Tauri 桌面应用（或系统检测到未完成初始化）
+**When** 应用加载完成
+**Then** 自动弹出安装引导对话框（shadcn/ui Dialog），显示 5 步检测流程
 **And** 每个组件显示绿色（就绪）或红色（未就绪）状态灯
 **And** 未就绪的组件提供修复指引或一键操作按钮
 **And** 全部就绪后显示"系统已准备好，创建你的第一个白板"引导
@@ -407,37 +435,37 @@ So that 我知道系统是否就绪，哪里需要修复。
 ### Story 1.3: 模型配置与系统设置面板
 
 As a 用户,
-I want 在 Obsidian 设置面板中配置 LLM 模型供应商和 API Key，并为不同任务（对话、评分、Embedding）指定不同模型，
+I want 在应用设置页面中配置 LLM 模型供应商和 API Key，并为不同任务（对话、评分、Embedding）指定不同模型，
 So that 系统能连接到 AI 服务并按需选择模型。
 
 **Acceptance Criteria:**
 
-**Given** 用户打开 Obsidian 设置 → Canvas Learning System
+**Given** 用户打开 应用设置页面
 **When** 用户配置对话模型供应商、API Key 并点击"测试连接"
 **Then** 系统验证连接并显示成功/失败状态
 **And** 用户可以分别为对话、评分、Embedding 三种任务选择不同模型
-**And** API Key 存储在 Obsidian 本地插件配置中，不明文显示
-**And** 系统健康面板（Settings Tab 顶部）常驻显示 5 个组件状态
+**And** API Key 存储在 应用本地配置文件中，不明文显示
+**And** 系统健康面板（应用设置页面顶部）常驻显示 5 个组件状态
 
-### Story 1.4: 白板核心——节点与连线 CRUD + 最小化 Dashboard
+### Story 1.4: 白板核心——ReactFlow 节点与连线 CRUD + 最小化 Dashboard
 
 As a 用户,
-I want 在画布上创建文本节点（双击空白处）、编辑节点内容、删除节点（Delete 键）、通过拖拽创建连线，自由拖拽节点、缩放和平移画布，并有一个最小化 Dashboard 作为白板入口，
+I want 在 ReactFlow 画布上创建文本节点（双击空白处）、编辑节点内容、删除节点（Delete 键）、通过 Handle 拖拽创建连线，自由拖拽节点、缩放和平移画布，并有一个最小化 Dashboard 作为白板入口，
 So that 我能构建可视化知识图谱，并能浏览和打开已有白板。
 
 **Acceptance Criteria:**
 
-**Given** 用户打开一个白板视图
+**Given** 用户打开一个白板视图（ReactFlow 画布）
 **When** 用户双击空白处
-**Then** 创建一个新的文本节点，可立即编辑内容
-**And** 用户可以左键点击节点 header 区域拖拽移动节点
-**And** 用户可以从节点边缘拖出连线到另一个节点，创建 Edge
-**And** 用户可以为连线添加语义标签
-**And** 右键/中键拖拽平移画布，滚轮缩放
+**Then** 通过 ReactFlow addNodes() 创建自定义 KnowledgeNode，可立即编辑内容
+**And** 用户可以拖拽移动节点（ReactFlow 原生支持）
+**And** 用户可以从节点 Handle 拖出连线到另一个节点（ReactFlow onConnect）
+**And** 用户可以为连线添加语义标签（ReactFlow edge label）
+**And** 画布平移和缩放（ReactFlow 原生支持）
 **And** 选中节点/连线后按 Delete 删除
 **And** 白板操作响应 < 16ms（60fps）
-**And** 操作逻辑与 Obsidian Canvas 保持一致（零学习成本）
-**And** 最小化 Dashboard 占位：右侧面板可列出所有白板、点击打开对应白板（完整 Dashboard 功能留 Epic 5）
+**And** 白板数据保存为本地 JSON 文件（ReactFlow toObject() → fs.writeFile）
+**And** 最小化 Dashboard 占位：侧面板列出所有白板 JSON 文件、点击打开对应白板（完整 Dashboard 功能留 Epic 5）
 
 ### Story 1.5: 白板数据同步到后端 KG
 
@@ -451,8 +479,8 @@ So that 后端算法（检索、精通度追踪等）能访问我的知识结构
 **When** 操作完成后 500ms-1s 内
 **Then** 变更通过 delta sync 异步写入后端 Neo4j
 **And** 前端采用乐观更新（操作即时生效，不等后端确认）
-**And** 后端不可达时，写操作进入 Outbox 队列暂存，恢复后自动重放
-**And** IndexedDB 本地数据与 Neo4j 后端数据最终一致
+**And** 后端不可达时，写操作进入内存队列暂存，恢复后自动重放
+**And** 本地 JSON 文件与 Neo4j 后端数据最终一致
 
 ### Story 1.6: 图片节点与异步索引状态
 
@@ -487,15 +515,15 @@ So that 我能发现未注意到的知识关系。
 ### Story 1.8: 后端服务一键启动与数据管理
 
 As a 用户,
-I want 通过 Obsidian 命令面板一键启动/重启后端服务，并能手动触发数据备份和恢复，
+I want 通过应用内系统管理面板一键启动/重启后端服务，并能手动触发数据备份和恢复，
 So that 我能方便地管理系统运行和数据安全。
 
 **Acceptance Criteria:**
 
-**Given** 用户打开 Obsidian 命令面板（Ctrl+P）
-**When** 输入"Canvas: 启动后端"
-**Then** 执行 docker-compose up 启动所有后端服务
-**And** 提供"Canvas: 重启后端""Canvas: 停止后端"命令
+**Given** 用户点击应用内"系统管理"按钮或使用快捷键
+**When** 选择"启动后端"
+**Then** 通过 Tauri shell API 执行 docker-compose up 启动所有后端服务
+**And** 提供"重启后端""停止后端"按钮
 **And** 提供"Canvas: 备份数据"命令，备份 Neo4j + LanceDB + 配置到指定目录
 **And** 提供"Canvas: 恢复数据"命令，从备份点完整恢复
 **And** 备份/恢复操作有进度提示
@@ -515,11 +543,41 @@ So that 不同学科的内容互不干扰。
 **And** 支持跨学科 Tag Jaccard 桥接（可选开启）
 **And** 学科切换不丢失任何数据
 
+### Story 1.10: LLM 调用结构化日志基础设施
+
+As a 开发者,
+I want 所有 LLM 调用自动记录结构化日志（输入/输出/延迟/token 数/成本），
+So that 后续所有 Epic 的 LLM 调用都有完整的可观测性基础。
+
+**Acceptance Criteria:**
+
+**Given** 系统中任何模块调用 LLM（LiteLLM SDK 统一层）
+**When** 调用完成（成功或失败）
+**Then** 自动记录结构化日志：请求 prompt、模型名称、响应内容、延迟 ms、input/output token 数、估算成本
+**And** 日志存储在本地 SQLite 数据库中（非文件日志）
+**And** 日志覆盖率 100%（NFR-OBS-01）
+**And** 日志不包含敏感信息（API Key 脱敏）
+
+### Story 1.11: LLM 忠实度检查基础框架
+
+As a 系统,
+I want 建立 LLM 输出忠实度检查的基础管道，
+So that 后续各 Epic 的 AI 回答能被自动校验可靠性。
+
+**Acceptance Criteria:**
+
+**Given** LLM 生成回答且有检索上下文作为参考
+**When** 忠实度检查管道执行
+**Then** 通过 RAGAS 框架计算 Faithfulness 分数
+**And** 低于 0.85 的回答被标记为低信心
+**And** 检查结果记录在日志中，不阻塞用户体验
+**And** 管道支持开关配置（开发阶段可关闭以节省 token）
+
 ---
 
 ## Epic 2: 智能检索管道
 
-系统能从用户的 Obsidian 笔记中精确检索到相关片段，支持中英双语语义+关键词混合搜索，搜索结果通过精排和质量门控确保准确可靠。按后端 PRD 4 Phase 渐进实施。
+系统能从用户的笔记中精确检索到相关片段，支持中英双语语义+关键词混合搜索，搜索结果通过精排和质量门控确保准确可靠。按后端 PRD 4 Phase 渐进实施。
 
 ### Story 2.1: Phase 0 — 死代码清理与配置修复
 
@@ -707,11 +765,25 @@ So that 确认管道升级后达到生产标准。
 **And** Reranker 延迟 < 200ms（CPU，top-20）
 **And** CRAG 健康触发率 15-30%
 
+### Story 2.13: Prompt 版本管理与回归测试
+
+As a 开发者,
+I want Prompt 模板有版本管理，变更后自动触发回归测试，
+So that Prompt 修改不会意外降低 AI 质量。
+
+**Acceptance Criteria:**
+
+**Given** 开发者修改了 Prompt 模板（检索相关：查询改写、CRAG 判定等）
+**When** 模板变更被提交
+**Then** 自动触发标准测试集回归测试
+**And** 测试结果对比变更前后的质量指标（MRR、Precision、CRAG 触发率）
+**And** Prompt 模板存储在版本化目录中，支持回滚
+
 ---
 
 ## Epic 3: 节点 AI 对话与交互
 
-用户点击节点开启独立 AI 对话，Agent 自动注入学习上下文，可标注 Tips、归档错误、使用 /命令调用学习技能、选中文字拖出为新节点，Agent 引用附带 Obsidian 双向链接。对话引擎：Claude Agent SDK spawn 官方 Claude Code CLI（用户订阅额度）。
+用户点击节点开启独立 AI 对话，Agent 自动注入学习上下文，可标注 Tips、归档错误、使用 /命令调用学习技能、选中文字拖出为新节点，Agent 引用附带可点击笔记链接。对话引擎：Claude Agent SDK spawn 官方 Claude Code CLI（用户订阅额度）。
 
 ### Story 3.1: Claude Code CLI 集成与 per-node Session
 
@@ -755,11 +827,12 @@ So that 对话体验流畅自然。
 
 **Given** 用户在对话框输入消息并发送
 **When** Claude Code 返回流式响应
-**Then** Svelte ChatPanel 组件实时渲染文本（stream-json NDJSON 解析）
+**Then** React ChatPanel 组件实时渲染流式文本（NDJSON 解析 → React state 更新）
 **And** 用户消息右对齐深色气泡，Agent 消息左对齐浅色气泡
-**And** Agent 回复支持 Markdown 渲染（MarkdownRenderer.render()）
-**And** 对话历史跨 session 持久化（SQLite + aiosqlite）
+**And** Agent 回复支持 Markdown 渲染（react-markdown 渲染）
+**And** 对话历史跨 session 持久化（后端 SQLite + aiosqlite）
 **And** 对话首 token < 2s
+**And** Agent 回复支持 Markdown 渲染（react-markdown + rehype-highlight）
 
 ### Story 3.4: 学习上下文自动注入
 
@@ -773,8 +846,8 @@ So that Agent 的回答基于我的学习历史，而不是从零开始。
 **When** Agent 生成回复
 **Then** 通过 --append-system-prompt 动态注入该节点的 Tips/错误/Edge 理由
 **And** 上下文三层管理：Tier1 当前节点全量 / Tier2 相邻节点摘要 / Tier3 远端 RAG 按需
-**And** Agent 引用笔记时附带可点击 Obsidian 双向链接 `[[文件名#章节标题]]`
-**And** 前端通过 MarkdownRenderer.render() + 事件 hook 实现跳转
+**And** Agent 引用笔记时附带可点击链接（章节级精度 `[[文件名#章节标题]]`），点击通过 obsidian://adv-uri 跳转到 Obsidian 对应位置（OBS-LINK 三级降级：adv-uri→内置URI→文件级）
+**And** 前端通过 react-markdown 渲染 + Tauri Opener 事件 hook 实现跳转
 
 ### Story 3.5: /命令技能集成
 
@@ -785,7 +858,7 @@ So that 我能在对话中快速调用专业学习工具。
 **Acceptance Criteria:**
 
 **Given** 用户在对话框输入 `/`
-**When** 插件读取 .claude/commands/ 目录的技能文件列表
+**When** 应用读取 .claude/commands/ 目录的技能文件列表
 **Then** 弹出技能列表 UI，支持模糊搜索
 **And** 用户选择技能后，透传 `/skill-name 参数` 给 Claude Code 原生处理
 **And** Claude Code 加载 .claude/commands/skill.md → 读取 .claude/agents/agent.md → 执行
@@ -853,7 +926,7 @@ So that 即使订阅认证不可用，我的对话功能不中断。
 **When** 插件检测到 spawn 失败
 **Then** 弹出通知"订阅认证不可用，切换到 API Key 模式"
 **And** 自动切换到 Claude Agent SDK 直接 API 调用模式
-**And** 用户在 Settings Tab 可配置备用 API Key
+**And** 用户在 设置页面 可配置备用 API Key
 **And** 对话历史和 session 数据不丢失
 
 ### Story 3.10: 额度管理与降级
@@ -886,6 +959,35 @@ So that 系统稳定可靠。
 **And** 重新发送 lastSentMessage（限一次重试）
 **And** 连续 crash 3 次 → 通知用户"AI 暂时不可用"并停止重试
 
+### Story 3.12: Token 消耗追踪与成本统计
+
+As a 用户,
+I want 查看 AI 使用统计——按任务分类的 Token 消耗和估算成本，
+So that 我能了解系统的使用情况和成本分布。
+
+**Acceptance Criteria:**
+
+**Given** Story 1.10 的日志基础设施已就位
+**When** 用户在应用设置或 Dashboard 中查看使用统计
+**Then** 按任务类型（对话/评分/检索/提取/索引）分类统计 Token 消耗
+**And** 显示估算成本（基于各模型定价）
+**And** 支持按时间范围筛选（今天/本周/本月/全部）
+
+### Story 3.13: Prompt 注入防护与输出安全检查
+
+As a 系统,
+I want 对话输入有 Prompt 注入检测，LLM 输出有安全检查，
+So that 恶意输入不能操纵 AI 行为，AI 输出不包含有害内容。
+
+**Acceptance Criteria:**
+
+**Given** 用户在对话中输入内容
+**When** 内容发送给 LLM 之前
+**Then** system prompt 和 user message 严格隔离（不在 user 层面注入 system 指令）
+**And** LLM 输出经过安全检查（检测是否泄漏 system prompt、是否包含不当内容）
+**And** 检测到异常时记录日志 + 返回安全降级回答
+**And** 6 层 Agent 防御架构中的 Layer 0（后端算法权威）和 Layer 5（结构化输出）在此 Story 实现
+
 ---
 
 ## Epic 4: Edge 连线对话与关系学习
@@ -902,7 +1004,7 @@ So that 我能方便地讨论两个概念之间的关系。
 
 **Given** 用户拖拽创建两个节点之间的连线
 **When** 连线创建完成
-**Then** 连线上出现可交互的小图标（EdgeDialogTrigger 组件）
+**Then** 连线上出现可交互的小图标（ReactFlow 自定义 Edge 组件上的可交互图标）
 **And** 首次连线时显示引导提示"点击讨论关系"
 **And** 点击图标后，右侧面板从节点对话切换为 Edge 对话模式
 
@@ -982,7 +1084,7 @@ So that 我对学习全貌有直觉感知。
 **Given** 节点有精通度数据
 **When** 白板渲染
 **Then** 节点颜色按精通度映射：未学习(默认) / 学习中(蓝) / 薄弱(红橙) / 掌握(绿) / 待复习(黄)
-**And** 颜色变化在精通度更新后即时反映（NodeColorIndicator 组件）
+**And** 颜色变化在精通度更新后即时反映（ReactFlow 自定义节点的颜色指示器）
 **And** 适配 Obsidian Light/Dark 主题
 
 ### Story 5.3: 学习档案面板
@@ -1010,7 +1112,7 @@ So that 每天打开就知道该复习什么。
 
 **Acceptance Criteria:**
 
-**Given** 用户打开 Dashboard（右侧面板 DashboardView）
+**Given** 用户打开 Dashboard（Dashboard 页面）
 **When** Dashboard 加载
 **Then** 显示所有原白板列表，点击可打开对应白板
 **And** 显示所有检验白板列表，展示考察状态和历史
@@ -1062,6 +1164,21 @@ So that 学习数据能在系统间自动流动，形成闭环。
 **And** CircuitBreaker 降级：单系统故障不阻塞其他系统
 **And** 事件可追踪（日志记录每个事件的来源、目标、处理结果）
 
+### Story 5.8: 结构化提取人工抽验
+
+As a 用户,
+I want 系统从对话中自动提取的错误/Tips/关键问答支持人工抽验，
+So that 我能确认 AI 的提取结果是否准确，发现错误提取后可修正。
+
+**Acceptance Criteria:**
+
+**Given** 对话归档后 AI 自动提取了错误/Tips/关键问答
+**When** 用户在学习档案面板中查看提取结果
+**Then** 每条提取内容旁有"查看来源"按钮，跳转到原始对话上下文
+**And** 用户可标记"提取正确"或"提取错误"
+**And** 错误标记累积，管道健康指标显示提取准确率
+**And** 用户可手动修改/删除错误提取
+
 ---
 
 ## Epic 6: 检验白板与递归考察
@@ -1091,7 +1208,7 @@ So that 考察方式匹配我的学习内容。
 **Acceptance Criteria:**
 
 **Given** 用户启动检验白板考察
-**When** ExamModeSelector 面板弹出
+**When** ExamModeSelector 对话框（shadcn/ui Dialog）弹出
 **Then** 显示三种模式：点对点突破 / 综合题考察 / 混合模式
 **And** 系统根据白板内容类型自动推荐（知识点→点对点，题目→综合题）
 **And** 用户可手动覆盖推荐
@@ -1183,64 +1300,32 @@ So that 我能回顾过去的考察表现和进步轨迹。
 **And** Dashboard 可查看所有历史检验白板
 **And** 点击可打开查看完整考察记录
 
----
-
-## Epic 7: 质量保证与可观测性
-
-系统自动监控 AI 输出质量（忠实度检查、评分可靠性）、记录所有 LLM 调用日志、追踪 Token 消耗成本，确保长期可靠运行。
-
-### Story 7.1: LLM 忠实度检查与 Prompt 注入防护
+### Story 6.9: 评分忠实度深化检查
 
 As a 系统,
-I want 对 LLM 生成的回答进行忠实度检查，防止 Prompt 注入攻击，
-So that AI 输出可靠安全。
+I want 在检验白板评分场景中深化忠实度检查——确保 AutoSCORE 评分基于学生实际回答而非幻觉，
+So that 评分可靠，精通度更新准确。
 
 **Acceptance Criteria:**
 
-**Given** LLM 生成回答
-**When** 忠实度检查管道执行
-**Then** Faithfulness >= 0.85（RAGAS 框架检测幻觉）
-**And** system/user 消息严格隔离
-**And** LLM 输出进行安全检查
+**Given** AutoSCORE 两阶段评分完成（证据提取→逐维打分）
+**When** 忠实度校验管道执行
+**Then** 检查 Stage 1 提取的证据是否能在学生原文中找到对应
+**And** 检查 Stage 2 各维度打分是否与证据一致（Faithfulness >= 0.85）
+**And** 3 次采样结果分差 > 1 的维度标记为"AI 低信心"
+**And** 低信心评分不更新精通度（等待下次考察）
 
-### Story 7.2: LLM 调用日志与 Token 追踪
-
-As a 用户,
-I want 查看 AI 的使用统计——调用次数、Token 消耗、响应延迟，
-So that 我能了解系统的使用情况和成本。
-
-**Acceptance Criteria:**
-
-**Given** 系统运行中
-**When** 每次 LLM 调用完成
-**Then** 记录结构化日志（输入/输出/延迟/token 数/成本）
-**And** Token 消耗按任务统计（对话/评分/提取/索引）
-**And** Dashboard 展示使用统计
-
-### Story 7.3: Prompt 版本管理与回归测试
-
-As a 开发者,
-I want Prompt 模板有版本管理，变更后自动触发回归测试，
-So that Prompt 修改不会意外降低 AI 质量。
-
-**Acceptance Criteria:**
-
-**Given** 开发者修改了 Prompt 模板
-**When** 模板变更被提交
-**Then** 自动触发标准测试集回归测试
-**And** 测试结果对比变更前后的质量指标
-
-### Story 7.4: 出题难度匹配与提取质量验证
+### Story 6.10: 出题难度匹配评估
 
 As a 系统,
-I want 评估出题难度与用户掌握度的匹配程度，结构化提取结果支持人工抽验，
-So that 考察质量持续优化。
+I want 评估出题难度与用户掌握度的匹配程度，
+So that 考察不会过难也不会过简单。
 
 **Acceptance Criteria:**
 
-**Given** 考察过程中
-**When** 出题和提取完成
-**Then** 出题难度匹配率 >= 70%
-**And** 结构化提取结果（错误/Tips/关键问答）支持人工抽验，验证提取准确性
-**And** 管道健康指标实时可查
-**And** 错误自动分类聚合
+**Given** 考察过程中 AI 出题
+**When** 出题完成并评分后
+**Then** 系统计算出题难度匹配率（题目难度 vs 用户 BKT p_mastery）
+**And** 出题难度匹配率 >= 70%
+**And** 匹配率过低时触发出题策略自动调整
+**And** 管道健康指标实时可查（错误自动分类聚合）

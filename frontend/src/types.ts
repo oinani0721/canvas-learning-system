@@ -490,7 +490,7 @@ export interface ReviewNode {
 	masteryLevel: number;
 	masteryColor: string;
 	effectiveProficiency: number;
-	freshness: 'fresh' | 'due' | 'overdue' | 'stale';
+	freshness: 'fresh' | 'recent' | 'due' | 'overdue';
 	lastReviewedAt?: string;
 	dueDate?: string;
 	overdueDays?: number;

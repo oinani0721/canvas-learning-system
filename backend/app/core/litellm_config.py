@@ -66,6 +66,8 @@ _PROVIDER_PREFIX: dict[str, str] = {
     "openai": "",  # OpenAI models don't need a prefix in LiteLLM
     "ollama": "ollama",
     "lm_studio": "lm_studio",
+    "deepseek": "deepseek",
+    "qwen": "openai",  # Qwen models route through OpenAI-compatible API
 }
 
 
@@ -139,16 +141,24 @@ class RuntimeModelConfigManager:
         return None
 
     def get_scoring_model(self) -> Optional[str]:
-        """Return the LiteLLM-formatted scoring model string, or None."""
+        """Return the LiteLLM-formatted scoring model string.
+
+        Falls back to the chat model when no scoring model is configured,
+        matching the frontend UI hint "leave empty to reuse Chat API Key".
+        """
         if self._config.scoring and self._config.scoring.model_name:
             return format_litellm_model(self._config.scoring.provider, self._config.scoring.model_name)
-        return None
+        return self.get_chat_model()
 
     def get_scoring_api_key(self) -> Optional[str]:
-        """Return the scoring API key, or None."""
+        """Return the scoring API key.
+
+        Falls back to the chat API key when no scoring key is configured,
+        matching the frontend UI hint "leave empty to reuse Chat API Key".
+        """
         if self._config.scoring and self._config.scoring.api_key:
             return self._config.scoring.api_key
-        return None
+        return self.get_chat_api_key()
 
 
 def get_runtime_model_config() -> RuntimeModelConfigManager:
@@ -173,9 +183,12 @@ def get_runtime_model_config() -> RuntimeModelConfigManager:
 def register_litellm_callbacks() -> bool:
     """Register LLM call logging callbacks with LiteLLM SDK.
 
-    This function registers the llm_call_logger's on_success and on_failure
-    methods as LiteLLM callbacks. Once registered, ALL LLM calls made through
-    litellm.acompletion() / litellm.aembedding() will be automatically logged.
+    Registers the ``llm_call_logger`` (a ``CustomLogger`` subclass) via
+    ``litellm.callbacks``.  This ensures that **all** async LLM calls made
+    through ``litellm.acompletion()`` / ``litellm.aembedding()`` automatically
+    invoke ``async_log_success_event`` and ``async_log_failure_event``.
+
+    Reference: https://docs.litellm.ai/docs/observability/custom_callback
 
     [Source: Story 7.2 AC #2 — 100% LLM call coverage (NFR-OBS-01)]
 
@@ -188,22 +201,18 @@ def register_litellm_callbacks() -> bool:
 
         from app.middleware.llm_call_logger import llm_call_logger
 
-        # Register success callback
-        if not hasattr(litellm, "success_callback"):
-            litellm.success_callback = []
-        if llm_call_logger.on_success not in litellm.success_callback:
-            litellm.success_callback.append(llm_call_logger.on_success)
-
-        # Register failure callback
-        if not hasattr(litellm, "failure_callback"):
-            litellm.failure_callback = []
-        if llm_call_logger.on_failure not in litellm.failure_callback:
-            litellm.failure_callback.append(llm_call_logger.on_failure)
+        # Register the CustomLogger instance via litellm.callbacks.
+        # This is the recommended approach for async callbacks.
+        # Reference: https://docs.litellm.ai/docs/observability/custom_callback
+        if not hasattr(litellm, "callbacks") or litellm.callbacks is None:
+            litellm.callbacks = []
+        if llm_call_logger not in litellm.callbacks:
+            litellm.callbacks.append(llm_call_logger)
 
         # Disable LiteLLM's own telemetry to avoid noise
         litellm.telemetry = False
 
-        logger.info("[Story 7.2] LiteLLM callbacks registered: success_callback + failure_callback")
+        logger.info("[Story 7.2] LiteLLM CustomLogger callback registered via litellm.callbacks")
         return True
 
     except ImportError:

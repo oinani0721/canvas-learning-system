@@ -8,30 +8,41 @@ Provides endpoints for operation history, snapshots, and rollback functionality.
 [Source: docs/stories/18.1.story.md - AC 6]
 """
 
+import logging
 import sys
 from pathlib import Path
 from typing import Optional
 
-# Add project root to path for src imports
-# [Source: docs/architecture/project-structure.md - Backend and src coexistence]
-# Path: backend/app/api/v1/endpoints/rollback.py → need 6 levels up to Canvas/
+from fastapi import APIRouter, HTTPException, Query, status
+
+# Lazy import: src.rollback may not be available in Docker container
+# (src/ lives outside the backend/ volume mount)
 _project_root = Path(__file__).parent.parent.parent.parent.parent.parent
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-# ✅ Verified from Context7:/fastapi/fastapi (topic: APIRouter, Query, Path)
-from fastapi import APIRouter, HTTPException, Query, status  # noqa: E402
+_rollback_available = False
+OperationTracker = None
+RollbackEngine = None
+RollbackType = None
+SnapshotManager = None
+SnapshotType = None
 
-# Import rollback module
-from src.rollback import (  # noqa: E402
-    OperationTracker,
-    RollbackEngine,
-    RollbackType,
-    SnapshotManager,
-    SnapshotType,
-)
+try:
+    from src.rollback import (
+        OperationTracker,
+        RollbackEngine,
+        RollbackType,
+        SnapshotManager,
+        SnapshotType,
+    )
+    _rollback_available = True
+except (ImportError, ModuleNotFoundError):
+    logging.getLogger(__name__).warning(
+        "src.rollback not available — rollback endpoints will return 503"
+    )
 
-from app.models.rollback import (  # noqa: E402
+from app.models.rollback import (
     CreateSnapshotRequest,
     DiffResponse,
     GraphSyncStatusEnum,
@@ -59,12 +70,21 @@ rollback_router = APIRouter(
 
 # 创建全局实例
 # 注意: 在生产环境中应该通过依赖注入获取 (Story 18.5)
-_tracker: Optional[OperationTracker] = None
-_snapshot_manager: Optional[SnapshotManager] = None
-_rollback_engine: Optional[RollbackEngine] = None
+_tracker = None
+_snapshot_manager = None
+_rollback_engine = None
 
 
-def get_operation_tracker() -> OperationTracker:
+def _require_rollback():
+    """Raise 503 if the rollback module is not available."""
+    if not _rollback_available:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Rollback service unavailable: src.rollback module not installed",
+        )
+
+
+def get_operation_tracker():
     """获取 OperationTracker 实例
 
     [Source: docs/architecture/rollback-recovery-architecture.md:602-640]
@@ -81,7 +101,7 @@ def get_operation_tracker() -> OperationTracker:
     return _tracker
 
 
-def get_snapshot_manager() -> SnapshotManager:
+def get_snapshot_manager():
     """获取 SnapshotManager 实例
 
     [Source: docs/architecture/rollback-recovery-architecture.md:212-290]
@@ -100,7 +120,7 @@ def get_snapshot_manager() -> SnapshotManager:
     return _snapshot_manager
 
 
-def get_rollback_engine() -> RollbackEngine:
+def get_rollback_engine():
     """获取 RollbackEngine 实例
 
     [Source: docs/architecture/rollback-recovery-architecture.md:122-180]
@@ -183,6 +203,7 @@ async def get_operation_history(
     [Source: docs/architecture/rollback-recovery-architecture.md:296-310]
     [Source: docs/stories/18.1.story.md - AC 6]
     """
+    _require_rollback()
     tracker = get_operation_tracker()
 
     # 获取操作历史
@@ -222,6 +243,7 @@ async def get_operation(operation_id: str) -> OperationResponse:
 
     [Source: docs/architecture/rollback-recovery-architecture.md:296-310]
     """
+    _require_rollback()
     tracker = get_operation_tracker()
 
     operation = tracker.get_operation(operation_id)
@@ -299,6 +321,7 @@ async def list_snapshots(
     [Source: docs/architecture/rollback-recovery-architecture.md:312-326]
     [Source: docs/stories/18.2.story.md - AC 6]
     """
+    _require_rollback()
     manager = get_snapshot_manager()
 
     # 获取快照列表
@@ -344,6 +367,7 @@ async def create_snapshot(request: CreateSnapshotRequest) -> SnapshotResponse:
     [Source: docs/architecture/rollback-recovery-architecture.md:328-342]
     [Source: docs/stories/18.2.story.md - AC 7]
     """
+    _require_rollback()
     manager = get_snapshot_manager()
 
     # 创建手动快照
@@ -395,6 +419,7 @@ async def get_snapshot(
 
     [Source: docs/architecture/rollback-recovery-architecture.md:312-326]
     """
+    _require_rollback()
     manager = get_snapshot_manager()
 
     snapshot = await manager.get_snapshot(canvas_path, snapshot_id)
@@ -452,6 +477,7 @@ async def execute_rollback(request: RollbackRequest) -> RollbackResult:
     [Source: docs/architecture/rollback-recovery-architecture.md:122-180]
     [Source: docs/stories/18.3.story.md - AC 6]
     """
+    _require_rollback()
     from datetime import datetime
 
     engine = get_rollback_engine()
@@ -526,6 +552,7 @@ async def get_diff(
     [Source: docs/architecture/rollback-recovery-architecture.md:382-400]
     [Source: docs/stories/18.5.story.md - AC 1]
     """
+    _require_rollback()
     import json
     from datetime import datetime, timezone
 

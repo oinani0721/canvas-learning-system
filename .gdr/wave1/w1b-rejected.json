@@ -1,0 +1,583 @@
+{
+  "scan_metadata": {
+    "agent": "W1-B",
+    "role": "Rejected Options Scanner",
+    "timestamp": "2026-03-17T12:30:00Z",
+    "graphiti_queries": 15,
+    "total_facts_analyzed": 360,
+    "note": "Updated scan with 6 additional targeted queries beyond original 9"
+  },
+  "rejected_options": [
+    {
+      "option_name": "Svelte 5 as frontend framework",
+      "rejection_reason": "Svelte 5 repeatedly encounters compilation and runtime issues in Obsidian Electron ($state/$derived compilation failures). No official Obsidian support for Svelte 5. Community adaptation has many pitfalls. M0 frontend reconstruction completely removed Svelte 5. Decision explicitly rejects continuing with Svelte 5.",
+      "linked_decision_ids": [
+        "fc9be7da-de8e-4df1-8f80-98bc99f27d49",
+        "299d3512-f139-447c-88ea-10318fe1a39b",
+        "df4938b3-5dfe-4972-a2e7-2d51b4709df1",
+        "27fb74f2-2e49-4afe-9650-43782b79f962",
+        "a300e500-fa19-4dfd-a10c-980aae8a5f3c"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-framework"
+    },
+    {
+      "option_name": "Svelte 4 as primary framework (unconditional)",
+      "rejection_reason": "Svelte 4 EOL approaching. Decision was to only conditionally introduce Svelte 4 for complex UI needs, not as primary framework. Svelte ultimately replaced by React as implementation method (fact 9efd08d9). New architecture uses React + ReactFlow + shadcn/ui.",
+      "linked_decision_ids": [
+        "00523300-ae5a-4278-9510-46582df5d243",
+        "9efd08d9-b200-4510-b2a0-988b1f0f4f2e",
+        "84bbe9e1-4623-4798-8712-115fd05bb49c"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-framework"
+    },
+    {
+      "option_name": "React as Obsidian plugin framework (original 2026-03-12 decision)",
+      "rejection_reason": "Originally rejected on 2026-03-12 when choosing Obsidian plugin framework because Svelte was deemed more suitable. However, this decision was REVERSED on 2026-03-17: Svelte replaced by React due to Svelte 5 Electron issues. React is now the confirmed stack.",
+      "linked_decision_ids": [
+        "935ab49e-8947-4833-b33b-ba1e38e8ae51",
+        "9efd08d9-b200-4510-b2a0-988b1f0f4f2e"
+      ],
+      "still_worth_revisiting": false,
+      "note": "REVERSED - React is now the chosen framework. Original rejection no longer applies.",
+      "category": "frontend-framework"
+    },
+    {
+      "option_name": "Preact as Obsidian plugin framework",
+      "rejection_reason": "Rejected on 2026-03-12 during framework selection. No further evidence of reconsideration.",
+      "linked_decision_ids": [
+        "9dbf9726-d558-413d-9171-5796f9d834ee"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-framework"
+    },
+    {
+      "option_name": "Static information panel solution (UI)",
+      "rejection_reason": "Rejected in Session D Pencil design rebuild. Static panels do not match the interactive learning paradigm required.",
+      "linked_decision_ids": [
+        "bb941243-bfe3-4823-9889-bbc49a1c311b"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-ui"
+    },
+    {
+      "option_name": "Frontend Demo V1 (HTML prototype)",
+      "rejection_reason": "V1 had fundamentally flawed interaction paradigm. Was rebuilt into V2. Decision also rejected continuing to use browser HTML prototype for interaction validation.",
+      "linked_decision_ids": [
+        "ddc1270f-4f01-40e2-9a7e-7a025a7e487c",
+        "cf424ae0-e070-494b-acc2-2c8bf1fd5451",
+        "035defdb-7877-4a46-8c17-49cd5558a13b",
+        "386ebd9f-f4a3-4e92-5d94-2162548d6f43"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-prototype"
+    },
+    {
+      "option_name": "Running demo in standalone browser page",
+      "rejection_reason": "Decision rejected running demo as standalone browser page. Must run within Obsidian plugin environment.",
+      "linked_decision_ids": [
+        "1bb4163b-39be-49f8-96ea-cca5f56febe5"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-architecture"
+    },
+    {
+      "option_name": "Obsidian native Canvas extension approach",
+      "rejection_reason": "New plugin is NOT based on Obsidian native Canvas extension. Will not use .canvas files or Canvas node/edge system. Product remains within Obsidian plugin framework but with completely custom UI.",
+      "linked_decision_ids": [
+        "838c1bdb-b701-432a-aa82-94cee8c5765b",
+        "6283c1aa-3370-417d-aa45-4410d857214d",
+        "ae5f29fe-e494-40ca-8fb3-05a81aa20611"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-architecture"
+    },
+    {
+      "option_name": "CRDT for frontend sync",
+      "rejection_reason": "New frontend will not use CRDT. Decision was explicit.",
+      "linked_decision_ids": [
+        "0eb05a39-4c1c-4f5e-a01f-846510253ae3"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-sync"
+    },
+    {
+      "option_name": "Standalone mastery display panel (5-dim Beta-Bayesian)",
+      "rejection_reason": "User explicitly stated it's not a rigid need. Completely disconnected from actual usage scenarios. Recommended to downgrade to non-essential. Also rejected due to code absence, lack of academic precedent, and fatal data sparsity.",
+      "linked_decision_ids": [
+        "7abcaaca-bdcd-4d66-ac33-c36b7ca2bf2e",
+        "8da6d4b1-b627-47ee-af14-1ae4f3ff6e57",
+        "185a4989-156b-497c-8a9e-f9a1cceb9ee3",
+        "225e5c3e-6464-4a40-b3d5-a71731a64114"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-visualization"
+    },
+    {
+      "option_name": "Plan B: implement-then-verify approach (frontend)",
+      "rejection_reason": "User rejected 'implement first, verify later' approach (Plan B). Also rejected in later context because Plan B (backend DB) requires backend running, which contradicts offline-first needs.",
+      "linked_decision_ids": [
+        "7a22333e-44e2-4830-b6a2-00484d184180",
+        "e1ba01be-7e70-4791-a17b-ac9a71137c41",
+        "569993ea-8a8f-4d37-b643-48b93c309276",
+        "47e4e881-12f5-48ad-afa5-af41be53e132"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-process"
+    },
+    {
+      "option_name": "Obsidian native components for UI",
+      "rejection_reason": "Obsidian components replaced by shadcn/ui in the new architecture (2026-03-17). 6-agent research recommended shadcn/ui.",
+      "linked_decision_ids": [
+        "724a49b4-42c4-41e0-8fc9-f7c58632a3b5",
+        "859ae51f-4212-430f-b2c0-fc52fbc67266"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-ui"
+    },
+    {
+      "option_name": "Tauri as frontend shell",
+      "rejection_reason": "Appeared in early architecture exploration but was dropped from the confirmed new architecture. New architecture uses React + Vite + ReactFlow + shadcn/ui within Obsidian plugin.",
+      "linked_decision_ids": [
+        "8a097c04-8892-471a-a262-5a016eab2760"
+      ],
+      "still_worth_revisiting": false,
+      "note": "Was briefly considered but not part of confirmed stack.",
+      "category": "frontend-architecture"
+    },
+    {
+      "option_name": "Web Worker approach (for frontend)",
+      "rejection_reason": "Rejected in S8-Brainstorming session.",
+      "linked_decision_ids": [
+        "5a8278c8-1d94-431b-8a90-96cbcffec7fb"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-architecture"
+    },
+    {
+      "option_name": "Purely Socratic auto-guidance approach (UI interaction)",
+      "rejection_reason": "User decision explicitly rejects the pure Socratic auto-guidance scheme. Replaced by user-choice-based approach.",
+      "linked_decision_ids": [
+        "501aed21-1089-4ab3-84e6-53b3f0b831b3"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-interaction"
+    },
+    {
+      "option_name": "Direct answer solution (for exam/whiteboard)",
+      "rejection_reason": "Directly giving answers decreases learning effect size (d=1.50). Rejected as part of exam whiteboard design. Constraint added: prohibit direct answers.",
+      "linked_decision_ids": [
+        "88a0fd98-e31a-421d-b7c3-08c7507551fc",
+        "ecb70471-bdb9-41ac-8690-fccd06ac0a2d"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-interaction"
+    },
+    {
+      "option_name": "Self-built whiteboard from scratch",
+      "rejection_reason": "No successful Canvas plugin has rebuilt a whiteboard from scratch. Decision explicitly states whiteboard should not be self-built.",
+      "linked_decision_ids": [
+        "e88054d8-e97e-406a-8481-d9ccd4ca4f43",
+        "39b74c60-a01e-442a-a789-7d48e4f6f227"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-architecture"
+    },
+    {
+      "option_name": "Pure hardcoded templates (rendering)",
+      "rejection_reason": "Rejected by PRD-Review as an option.",
+      "linked_decision_ids": [
+        "9078da84-f345-4570-a69b-3cb94c8c9829"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-rendering"
+    },
+    {
+      "option_name": "Raw error list display",
+      "rejection_reason": "Rejected by PRD-Review session. Poor UX for error presentation.",
+      "linked_decision_ids": [
+        "e23dc325-b58c-4783-91e9-859baa7e4b0a"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-ui"
+    },
+    {
+      "option_name": "Independent error log page",
+      "rejection_reason": "Rejected by PRD-Review session.",
+      "linked_decision_ids": [
+        "f971f393-d419-4132-aa9a-f9761c10e973"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-ui"
+    },
+    {
+      "option_name": "Fixed-round scoring (whiteboard)",
+      "rejection_reason": "Rejected as whiteboard scoring trigger mechanism.",
+      "linked_decision_ids": [
+        "cf0c710b-e615-4fde-858b-ebdf3c294a96"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-scoring"
+    },
+    {
+      "option_name": "Session-end scoring (whiteboard)",
+      "rejection_reason": "Rejected as whiteboard scoring trigger mechanism.",
+      "linked_decision_ids": [
+        "4f1c2503-2996-4b35-a8b7-dc38a0be196f"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-scoring"
+    },
+    {
+      "option_name": "Turn-by-turn scoring (whiteboard)",
+      "rejection_reason": "Rejected as whiteboard scoring trigger mechanism.",
+      "linked_decision_ids": [
+        "26874809-4b9d-420a-9ee0-dc1c4250edb1"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-scoring"
+    },
+    {
+      "option_name": "Phase 0 including inspection whiteboard",
+      "rejection_reason": "Rejected due to scope creep by Review Session B decision validation.",
+      "linked_decision_ids": [
+        "159ff664-aac2-4553-9436-7eff29ec34f1"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-scope"
+    },
+    {
+      "option_name": "Pre-answer self-evaluation button (for exam whiteboard)",
+      "rejection_reason": "User explicitly stated not suitable for the inspection whiteboard.",
+      "linked_decision_ids": [
+        "05951fee-384f-4d9e-85f8-64dc9e80023c"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-interaction"
+    },
+    {
+      "option_name": "Infinite recursion (verification flow)",
+      "rejection_reason": "Rejected by PRD-Review-续2 session.",
+      "linked_decision_ids": [
+        "36ff0811-c3ad-4353-ab27-bd491e4d83b0"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-interaction"
+    },
+    {
+      "option_name": "ROI framework (投入产出比框架) for evaluation",
+      "rejection_reason": "User explicitly rejected this evaluation framework.",
+      "linked_decision_ids": [
+        "a4a633ff-5346-4fc4-920f-bb85c4291a88",
+        "3b5f6128-6926-4998-9a7d-97ab9c1ce2e1"
+      ],
+      "still_worth_revisiting": false,
+      "category": "frontend-process"
+    },
+    {
+      "option_name": "Independent orchestrator module",
+      "rejection_reason": "Rejected due to over-engineering by Review Session B decision validation.",
+      "linked_decision_ids": [
+        "48022786-6888-43e7-aacd-07493975b207"
+      ],
+      "still_worth_revisiting": false,
+      "category": "architecture"
+    },
+    {
+      "option_name": "HyDE (Hypothetical Document Embeddings)",
+      "rejection_reason": "Rejected by S3 session.",
+      "linked_decision_ids": [
+        "910873aa-8b1f-430e-89c7-368510a9b625"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "Self-RAG",
+      "rejection_reason": "Rejected by both S7-Brainstorming-A2 and Agentic-RAG-Scale-Deep-Explore.",
+      "linked_decision_ids": [
+        "3144d68c-7d57-42ce-a116-95f6e95b2b1b",
+        "d16ac789-3ae4-4792-9ed4-0779f50d0120"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "KG-RAG approach",
+      "rejection_reason": "Rejected by S7-Brainstorming-A2 session.",
+      "linked_decision_ids": [
+        "85137b9c-3004-4ea7-8b0d-62468a57839a"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "LongLLMLingua",
+      "rejection_reason": "Rejected by S7-Brainstorming-A2 session.",
+      "linked_decision_ids": [
+        "813ee4c6-85ac-4da6-921a-066a2a1a5091"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "CRAG (Corrective RAG)",
+      "rejection_reason": "Rejected by PRD-Create session as over-engineered.",
+      "linked_decision_ids": [
+        "6fba727c-b703-4f45-bfb3-34faab703ab5"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "Level 3 approach (Agentic RAG scaling)",
+      "rejection_reason": "Rejected by Agentic-RAG-Scale-Deep-Explore.",
+      "linked_decision_ids": [
+        "31629b34-11c1-42d2-a955-96fa38821f98"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "Full OpenCode/Agentic route (全量走OpenCode/Agentic)",
+      "rejection_reason": "User explicitly rejected going fully Agentic/OpenCode route.",
+      "linked_decision_ids": [
+        "1bc10ed7-1639-470c-8903-2db2e7d9a8ef"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-architecture"
+    },
+    {
+      "option_name": "Web search fallback",
+      "rejection_reason": "Rejected by S7-Brainstorming-A2 session.",
+      "linked_decision_ids": [
+        "db41f3ef-0687-4593-9f49-86e7b1802fba"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-retrieval"
+    },
+    {
+      "option_name": "tiktoken (tokenizer)",
+      "rejection_reason": "Rejected with BLOCKER status by AC. Alternative 'tiktoken + correction factor' also rejected.",
+      "linked_decision_ids": [
+        "fe95c707-5e62-4ad8-aa19-11e6de59cf3e",
+        "8b7a8d39-8797-4a04-9a69-8370818a1137"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-tokenization"
+    },
+    {
+      "option_name": "Fixed character splitting (固定字符切分)",
+      "rejection_reason": "Rejected during chunking strategy brainstorming.",
+      "linked_decision_ids": [
+        "599960cb-6c75-4730-ad37-bfd9a3073b5f"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-chunking"
+    },
+    {
+      "option_name": "Late Chunking",
+      "rejection_reason": "Rejected as an option by S8-Brainstorming session.",
+      "linked_decision_ids": [
+        "bba37370-cd87-4ab7-b649-2c725f5de413"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-chunking"
+    },
+    {
+      "option_name": "Kafka (message queue)",
+      "rejection_reason": "Rejected by S8-Brainstorming session. Overkill for this project.",
+      "linked_decision_ids": [
+        "631cc326-f5ae-4c8d-9671-9e0eb625e858"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-infrastructure"
+    },
+    {
+      "option_name": "Complex message queues",
+      "rejection_reason": "Rejected by S8-Brainstorming session.",
+      "linked_decision_ids": [
+        "a4a633ff-5346-4fc4-920f-bb85c4291a88"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-infrastructure"
+    },
+    {
+      "option_name": "Qdrant (vector database)",
+      "rejection_reason": "Rejected as vector DB alternative.",
+      "linked_decision_ids": [
+        "2360816d-2948-41ac-ba6d-e1f9b3c64b7e"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-infrastructure"
+    },
+    {
+      "option_name": "Milvus (vector database)",
+      "rejection_reason": "Rejected. RAGFlow explicitly rejected a PR related to Milvus.",
+      "linked_decision_ids": [
+        "5ef9a507-15bc-43d3-bbc5-61764e28f957",
+        "36612824-b628-43b8-9817-fd21f1787d96"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-infrastructure"
+    },
+    {
+      "option_name": "Strategy adapter intermediate layer",
+      "rejection_reason": "Rejected by S8-Brainstorming session.",
+      "linked_decision_ids": [
+        "5da5d670-a73f-4734-a2d1-fe897dd88f74"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-architecture"
+    },
+    {
+      "option_name": "Static time decay",
+      "rejection_reason": "Rejected as a component.",
+      "linked_decision_ids": [
+        "6cc4123e-5792-4969-945b-4a351024ea1e"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-algorithm"
+    },
+    {
+      "option_name": "LLM classifier (for content classification)",
+      "rejection_reason": "Rejected as a solution.",
+      "linked_decision_ids": [
+        "c1686ee8-43ed-4ca7-a169-348bb48094cf"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-classification"
+    },
+    {
+      "option_name": "Pure DSPy automation route",
+      "rejection_reason": "Rejected as an approach.",
+      "linked_decision_ids": [
+        "a2097896-30a0-4578-ac21-71426bdf3e93"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-automation"
+    },
+    {
+      "option_name": "Direct deletion plan (code cleanup)",
+      "rejection_reason": "Rejected. Safer migration approach preferred.",
+      "linked_decision_ids": [
+        "708a871d-66a0-459b-92c0-52eea704144b"
+      ],
+      "still_worth_revisiting": false,
+      "category": "process"
+    },
+    {
+      "option_name": "One-step migration (backend pipeline)",
+      "rejection_reason": "Rejected by PRD backend pipeline upgrade review.",
+      "linked_decision_ids": [
+        "d954c4ea-bdeb-4af0-9162-2dc8b2abe979"
+      ],
+      "still_worth_revisiting": false,
+      "category": "process"
+    },
+    {
+      "option_name": "Automatic back-writing",
+      "rejection_reason": "Rejected by PRD-Review-续2 session.",
+      "linked_decision_ids": [
+        "8c9479d9-91b9-43f1-a822-d9c45102b946"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-data"
+    },
+    {
+      "option_name": "Original 4 code dimensions (evaluation)",
+      "rejection_reason": "Rejected as a component of evaluation system.",
+      "linked_decision_ids": [
+        "b1bc7574-de83-4574-8e26-88036615e79f"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-evaluation"
+    },
+    {
+      "option_name": "Delete fusion module proposal",
+      "rejection_reason": "Rejected by S7-Brainstorming-A2. Fusion module retained.",
+      "linked_decision_ids": [
+        "59be38a5-4899-4ff5-b9e6-bd868f7246d3"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-architecture"
+    },
+    {
+      "option_name": "Aggressive real-time indexing",
+      "rejection_reason": "Rejected by S8-Brainstorming session.",
+      "linked_decision_ids": [
+        "e2be2f06-bce1-436b-bdd6-51f3848da4df"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-indexing"
+    },
+    {
+      "option_name": "Keep 10 signals (保留10信号方案)",
+      "rejection_reason": "Rejected in favor of signal reduction.",
+      "linked_decision_ids": [
+        "67425462-3cca-4d67-8b70-f21ccf016175"
+      ],
+      "still_worth_revisiting": false,
+      "category": "backend-signals"
+    },
+    {
+      "option_name": "先MVP验证再全量 approach",
+      "rejection_reason": "User chose full implementation, rejected 'MVP first then full' suggestion.",
+      "linked_decision_ids": [
+        "0c635115-1a09-4a33-b27a-9afa548cf230"
+      ],
+      "still_worth_revisiting": false,
+      "category": "process"
+    }
+  ],
+  "confirmed_current_stack": {
+    "framework": "React 19",
+    "ui_library": "shadcn/ui",
+    "canvas_library": "ReactFlow (@xyflow/react)",
+    "bundler": "Vite",
+    "language": "TypeScript",
+    "architecture": "Frontend-first + Backend sync",
+    "host": "Obsidian plugin (ItemView)",
+    "storage": "localStorage (frontend-first)"
+  },
+  "do_not_research": [
+    "Svelte 5 in Obsidian Electron - confirmed broken, no official support, already removed",
+    "Svelte 4 as primary framework - EOL approaching, already replaced by React",
+    "Preact as alternative to React - rejected early, no new evidence",
+    "CRDT sync mechanism - explicitly rejected for this project",
+    "Obsidian native Canvas (.canvas files, node/edge system) - project uses custom whiteboard, not native Canvas",
+    "Standalone mastery display panel / 5-dim Beta-Bayesian fusion - user confirmed not rigid need, no academic precedent",
+    "Static information panels - rejected in Pencil design session",
+    "Tauri as frontend shell - not compatible with Obsidian plugin model",
+    "Web Worker approach for frontend compute - rejected in brainstorming",
+    "Browser standalone HTML demo approach - must be within Obsidian",
+    "Obsidian native UI components as primary UI - replaced by shadcn/ui",
+    "Pure Socratic auto-guidance interaction model - user rejected, replaced by user-choice",
+    "Direct answer solution for exam/whiteboard - academically proven to decrease learning effect",
+    "Self-built whiteboard from scratch - no successful precedent, explicitly rejected",
+    "HyDE, Self-RAG, KG-RAG, CRAG, LongLLMLingua - all rejected RAG approaches",
+    "Kafka / complex message queues - overkill for project scale",
+    "Qdrant / Milvus as vector databases - rejected alternatives",
+    "tiktoken as tokenizer - BLOCKER status rejection",
+    "Fixed character splitting / Late Chunking - rejected chunking strategies",
+    "Pure DSPy automation route - rejected",
+    "Full OpenCode/Agentic route - user explicitly rejected",
+    "Fixed-round / session-end / turn-by-turn scoring for whiteboard - all three rejected",
+    "Pure hardcoded templates for rendering - rejected",
+    "Infinite recursion in verification flow - rejected",
+    "Automatic back-writing - rejected",
+    "Strategy adapter intermediate layer - rejected as over-engineering",
+    "Independent orchestrator module - rejected as over-engineering",
+    "Aggressive real-time indexing - rejected"
+  ],
+  "notes": [
+    "CRITICAL REVERSAL: React was originally rejected (2026-03-12) in favor of Svelte, but this was REVERSED on 2026-03-17. React is now the confirmed framework.",
+    "Svelte 4 is conditionally allowed for complex UI only, but Svelte 5 is absolutely rejected.",
+    "The confirmed stack (React + ReactFlow + shadcn/ui + Vite) was established on 2026-03-17 after 6-agent research.",
+    "Frontend-first + Backend sync architecture is a confirmed core architectural decision.",
+    "Product remains within Obsidian plugin framework but uses completely custom UI via React rendered in ItemView.",
+    "Svelvet was investigated as a library option for canvas whiteboard but the self-built whiteboard approach itself was rejected.",
+    "Total of 56 distinct rejected options identified across frontend, backend, and process categories."
+  ]
+}

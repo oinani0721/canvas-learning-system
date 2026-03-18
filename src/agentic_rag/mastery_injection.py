@@ -220,8 +220,7 @@ def _build_rewrite_prompt(query: str, complexity: str) -> str:
 
         if not template_content or not template_content.strip():
             logger.warning(
-                "[Story 2.13] PromptRegistry returned empty content for "
-                "'query_rewrite', using inline fallback"
+                "[Story 2.13] PromptRegistry returned empty content for 'query_rewrite', using inline fallback"
             )
             raise ValueError("Empty template content")
 
@@ -238,11 +237,7 @@ def _build_rewrite_prompt(query: str, complexity: str) -> str:
 
             if idx_s2 >= 0 and idx_quality >= 0:
                 # Keep everything before Strategy 2 + quality requirements section
-                prompt = (
-                    template_content[:idx_s2].rstrip()
-                    + "\n\n"
-                    + template_content[idx_quality:]
-                )
+                prompt = template_content[:idx_s2].rstrip() + "\n\n" + template_content[idx_quality:]
             else:
                 # If markers not found, use full template
                 prompt = template_content
@@ -277,22 +272,13 @@ def _build_rewrite_prompt(query: str, complexity: str) -> str:
     except Exception as e:
         # Fallback: use inline prompt when PromptRegistry is not available
         logger.warning(
-            "[Story 2.13] Failed to load 'query_rewrite' via PromptRegistry: %s. "
-            "Using inline fallback.",
+            "[Story 2.13] Failed to load 'query_rewrite' via PromptRegistry: %s. Using inline fallback.",
             e,
         )
         if complexity == "medium":
-            return (
-                "请从不同角度改写以下查询，生成2-3个等价查询。"
-                "每行一个查询，不要编号，不要解释。\n"
-                f"原始查询：{query}"
-            )
+            return f"请从不同角度改写以下查询，生成2-3个等价查询。每行一个查询，不要编号，不要解释。\n原始查询：{query}"
         else:
-            return (
-                "请将以下复杂查询拆分为2-3个独立的子问题。"
-                "每行一个子问题，不要编号，不要解释。\n"
-                f"原始查询：{query}"
-            )
+            return f"请将以下复杂查询拆分为2-3个独立的子问题。每行一个子问题，不要编号，不要解释。\n原始查询：{query}"
 
 
 async def multi_query_rewrite(

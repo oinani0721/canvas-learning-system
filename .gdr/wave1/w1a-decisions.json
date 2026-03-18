@@ -1,0 +1,483 @@
+{
+  "scan_timestamp": "2026-03-17T14:30:00Z",
+  "scan_agent": "W1-A (rescan with 11 Graphiti queries + decision-log.md)",
+  "scan_scope": "Graphiti knowledge graph (group_id: canvas-dev) + _decisions/decision-log.md",
+  "search_queries_executed": 11,
+  "total_facts_analyzed": 330,
+
+  "active_decisions": [
+    {
+      "id": "DE-1",
+      "decision_log_id": "DE-1",
+      "summary": "Tauri+React+ReactFlow独立桌面应用替代Obsidian插件",
+      "rationale": "6-agent调研推荐。Tauri 2.0桌面壳+React+ReactFlow白板引擎+本地JSON存储。社区+学术双重验证(20+案例+20+论文)。Svelte被React替代，ItemView被Tauri窗口替代。已通过完整技术栈验证。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["Tauri教育领域案例(M)", "api-client框架无关(H)", "Docker全路径+生命周期(M)"],
+      "topic_keywords": ["Tauri", "React", "ReactFlow", "独立桌面应用", "白板引擎", "本地JSON"],
+      "graphiti_facts": [
+        "8cc225d3: 5-Epic规划基于已确认的技术选型(Tauri/React/ReactFlow/本地JSON)",
+        "73ae62bb: Epic A Story 1.1 will set up Tauri+React+ReactFlow scaffolding",
+        "df16cdd4: Tauri desktop application successfully integrates ReactFlow controls",
+        "e1a0f038: Tauri 2.10.3 in validated tech stack",
+        "9efd08d9: Svelte is replaced by React",
+        "a300e500: 技术决策确定不使用Svelte 5",
+        "b120bc4c: 6-agent调研推荐Tauri 2.0",
+        "8b9e398c: 6-agent调研推荐React",
+        "38586b55: 6-agent调研推荐ReactFlow白板引擎",
+        "563f857a: Tauri 2.0是用于桌面应用的壳",
+        "5d12ce2c: ReactFlow是一个白板引擎",
+        "01fdc807: The new architecture utilizes ReactFlow",
+        "c5a2823b: Independent desktop app uses ReactFlow",
+        "900216d3: Desktop app uses Tauri 2.0",
+        "89662686: Tauri桌面应用与本地JSON文件集成更自然"
+      ]
+    },
+    {
+      "id": "DE-2",
+      "decision_log_id": "DE-2",
+      "summary": "UI全量重写：shadcn/ui+TailwindCSS+Catppuccin Mocha",
+      "rationale": "6-agent调研推荐shadcn/ui。Obsidian组件被shadcn/ui替代。80+Svelte文件删除。Catppuccin Mocha暗色主题贯穿所有面板。Pencil设计文件含87个shadcn可复用组件。附：未来提供浅色切换。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["shadcn桌面适配(H)", "18场景适配新架构完整性", "shadcn组件映射"],
+      "topic_keywords": ["shadcn/ui", "TailwindCSS", "Catppuccin Mocha", "UI重写", "暗色主题"],
+      "graphiti_facts": [
+        "724a49b4: Obsidian components replaced by shadcn/ui",
+        "859ae51f: 6-agent调研推荐shadcn/ui",
+        "a0829c30: shadcn/ui components used with TailwindCSS",
+        "318762b5: Pencil设计文件含87个shadcn可复用组件",
+        "eeabd8df: TailwindCSS v4 configured in frontend/",
+        "ca5b76af: TailwindCSS v4 in validated tech stack",
+        "21f8a184: node dialog panel adheres to Catppuccin Mocha",
+        "9748ceb1: Edge dialog panel adheres to Catppuccin Mocha",
+        "7e1e796c: inspection whiteboard adheres to Catppuccin Mocha",
+        "9e04d063: 白板主界面 Catppuccin Mocha风格",
+        "d5d30763: OLM三层显示 Catppuccin Mocha暗色主题"
+      ]
+    },
+    {
+      "id": "DE-3",
+      "decision_log_id": "DE-3",
+      "summary": "后端全部保留：FastAPI/Neo4j/LanceDB/BKT+FSRS/claude-engine/api-client不变",
+      "rationale": "后端架构稳定无需变更。仅前端切换，api-client保持框架无关。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["api-client框架无关(H)"],
+      "topic_keywords": ["后端保留", "FastAPI", "Neo4j", "LanceDB", "BKT", "FSRS", "api-client"],
+      "graphiti_facts": [
+        "decision-log.md line 30: DE-3 后端全部保留 ✅用户确认"
+      ]
+    },
+    {
+      "id": "DE-4",
+      "decision_log_id": "DE-4",
+      "summary": "Tauri Shell Plugin管理Docker Compose生命周期",
+      "rationale": "Tauri Shell Plugin管理Docker Compose启停。Rust提供更好的子进程控制。需验证全路径和退出清理。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["Docker全路径+生命周期(M)", "退出清理"],
+      "topic_keywords": ["Tauri Shell Plugin", "Docker Compose", "生命周期管理", "Rust子进程"],
+      "graphiti_facts": [
+        "0e3e0514: Rust provides better control over spawning child processes within Tauri",
+        "abd49ae2: npm started tauri dev command",
+        "9f8896fd: 'npm run tauri dev' used in complete setup for Tauri desktop app",
+        "7ff44a2b: Tauri desktop app running as canvas-learning-frontend.exe"
+      ]
+    },
+    {
+      "id": "DE-5",
+      "decision_log_id": "DE-5",
+      "summary": "CSP策略：开发阶段csp:null，上线前定向放行(localhost+Claude API)",
+      "rationale": "开发灵活性优先。Obsidian Electron的CSP陷阱通过脱离Obsidian已规避。上线前收紧为定向放行。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["CSP精确放行(H)"],
+      "topic_keywords": ["CSP", "安全策略", "定向放行", "content-security-policy"],
+      "graphiti_facts": [
+        "0c4eea19: Limited topic coverage includes CSP",
+        "5332e401: Obsidian Electron环境陷阱清单包括CSP问题",
+        "b44cc7f8: Official Obsidian API bypasses CSP"
+      ]
+    },
+    {
+      "id": "frontend-first-architecture",
+      "decision_log_id": null,
+      "summary": "Frontend-first+Backend sync架构模式",
+      "rationale": "前端本地JSON独立运行，后端异步同步增值。白板在后端不运行时也能使用。竞品调研和节点数据格式设计研究均推荐。",
+      "date": "2026-03-15",
+      "status": "confirmed",
+      "review_status": "N/A",
+      "review_dimensions": [],
+      "topic_keywords": ["Frontend-first", "Backend sync", "节点数据格式", "本地存储", "离线可用"],
+      "graphiti_facts": [
+        "ca52ca1c: 前端重建采用Frontend-first+Backend sync模式",
+        "28122bd9: 新前端节点数据格式采用Frontend-first+Backend sync架构",
+        "802c4ba8: 节点数据格式设计推荐Frontend-first+Backend sync",
+        "a2e12f5a: 核心架构决策中Frontend-first为critical item",
+        "34cfd7e3: Independent desktop app uses local JSON for storage"
+      ]
+    },
+    {
+      "id": "pencil-ui-workflow",
+      "decision_log_id": "工作流",
+      "summary": "Pencil UI范式在架构之后、编码之前",
+      "rationale": "Session1架构→Session2 Pencil换皮→确认后编码。18场景需适配新架构。",
+      "date": "2026-03-17",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["18场景适配新架构完整性", "shadcn组件映射", "用户确认流程效率"],
+      "topic_keywords": ["Pencil", "UI范式", "工作流", "design-first"],
+      "graphiti_facts": [
+        "decision-log.md line 33: Session1架构→Session2 Pencil换皮→确认后编码"
+      ]
+    },
+    {
+      "id": "dialog-engine",
+      "decision_log_id": "对话引擎",
+      "summary": "Spawn官方Claude Code CLI+用户订阅额度",
+      "rationale": "Claude Agent SDK spawn官方Claude Code CLI。参考Claudian/Pencil/Zed ACP。Fallback: API Key。",
+      "date": "2026-03-16",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["spawn模式长期稳定性(政策风险)", "per-node session性能", "stream-json实时性", "MCP动态注入可靠性", "Fallback切换成本"],
+      "topic_keywords": ["对话引擎", "Claude Code CLI", "spawn", "订阅额度"],
+      "graphiti_facts": [
+        "decision-log.md line 27: Spawn官方CLI+订阅额度 ✅确认(Review PENDING)"
+      ]
+    },
+    {
+      "id": "mode-d-architecture",
+      "decision_log_id": "Mode D",
+      "summary": "Mode D MCP暴露+Tool-UI Bridge+LiteLLM+Ollama+6层防御",
+      "rationale": "Agent CLI集成推荐Mode D方案。MCP暴露后端能力给前端。",
+      "date": "2026-03-15",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["MCP暴露可行性", "Tool-UI Bridge延迟", "LiteLLM稳定性"],
+      "topic_keywords": ["Mode D", "MCP", "Tool-UI Bridge", "LiteLLM", "Ollama"],
+      "graphiti_facts": [
+        "decision-log.md line 15: Mode D架构 ✅确认(Review PENDING)"
+      ]
+    },
+    {
+      "id": "epic-structure",
+      "decision_log_id": "Epic结构",
+      "summary": "7个Epic覆盖96FR：E1画布→E2检索→E3对话→E4Edge→E5精通度→E6检验→E7质量",
+      "rationale": "完整Epic结构覆盖所有功能需求。用户已确认。",
+      "date": "2026-03-16",
+      "status": "confirmed",
+      "review_status": "PENDING",
+      "review_dimensions": ["Epic边界清晰", "FR覆盖完整", "依赖链正确", "Story可独立交付"],
+      "topic_keywords": ["Epic", "FR", "画布", "检索", "对话", "精通度"],
+      "graphiti_facts": [
+        "decision-log.md line 26: Epic结构 ✅用户确认",
+        "387e59e6: 5-Epic规划包含Epic A桌面应用+白板基础",
+        "78e7d739: Epic A旨在覆盖#1号刚需"
+      ]
+    },
+    {
+      "id": "15-prd-decisions",
+      "decision_log_id": "#1-15",
+      "summary": "15项PRD决策用户逐项全部确认",
+      "rationale": "用户逐项增量确认15项PRD决策，涵盖产品范围和功能优先级。",
+      "date": "2026-03-15",
+      "status": "confirmed",
+      "review_status": "N/A",
+      "review_dimensions": [],
+      "topic_keywords": ["PRD", "产品决策", "增量确认"],
+      "graphiti_facts": [
+        "decision-log.md line 14: 15项PRD决策 ✅全部确认"
+      ]
+    },
+    {
+      "id": "four-layer-search",
+      "decision_log_id": "#11",
+      "summary": "RAG+CLI+Graphiti+Grep四层路由+A-RAG回源验证+Reranker升级",
+      "rationale": "四层搜索协作架构，A-RAG三级验证。",
+      "date": "2026-03-15",
+      "status": "confirmed",
+      "review_status": "N/A",
+      "review_dimensions": [],
+      "topic_keywords": ["RAG", "四层搜索", "A-RAG", "Reranker"],
+      "graphiti_facts": [
+        "decision-log.md line 13: 四层搜索+A-RAG ✅确认"
+      ]
+    },
+    {
+      "id": "edge-strategy",
+      "decision_log_id": "Edge策略",
+      "summary": "Edge对话2重策略（用户改为2重非PRD原版3重）",
+      "rationale": "用户明确要求简化为2重策略。",
+      "date": "2026-03-16",
+      "status": "confirmed",
+      "review_status": "N/A",
+      "review_dimensions": [],
+      "topic_keywords": ["Edge", "对话", "2重策略"],
+      "graphiti_facts": [
+        "decision-log.md line 18: Edge对话2重策略 ✅确认"
+      ]
+    },
+    {
+      "id": "dual-write",
+      "decision_log_id": "双写模式",
+      "summary": "Graphiti+本地decision-log双写保底",
+      "rationale": "解决Graphiti搜索不到已记录决策的问题，本地文件做备份索引。",
+      "date": "2026-03-16",
+      "status": "implementing",
+      "review_status": "N/A",
+      "review_dimensions": [],
+      "topic_keywords": ["双写", "Graphiti", "decision-log"],
+      "graphiti_facts": [
+        "decision-log.md line 25: 双写模式 ✅实施中",
+        "773fe1ff: _decisions/decision-log.md is a local decision index",
+        "81ac46f4: Adding Decision will synchronously update decision-log.md",
+        "44933543: Dual-write scheme involves creating local decision index"
+      ]
+    }
+  ],
+
+  "pending_decisions": [
+    {
+      "id": "pending-DE-1-thru-DE-5",
+      "summary": "DE-1~DE-5前端重构综合验证(Decision-Review PENDING)",
+      "pending_dimensions": [
+        "Tauri教育领域案例验证 (Medium priority)",
+        "shadcn桌面应用适配验证 (High priority)",
+        "api-client框架无关性验证 (High priority)",
+        "Docker全路径+生命周期管理验证 (Medium priority)",
+        "CSP精确放行规则验证 (High priority)"
+      ],
+      "date": "2026-03-17",
+      "topic_keywords": ["verification", "tech-stack-validation", "Decision-Review"],
+      "graphiti_facts": [
+        "decision-log.md line 43: DE-1~DE-5前端重构 Review PENDING",
+        "c79a0aa7: Decision-Review PENDING awaits 独立验证session测试"
+      ]
+    },
+    {
+      "id": "pending-mode-d",
+      "summary": "Mode D架构MCP暴露可行性待验证",
+      "pending_dimensions": ["MCP暴露可行性", "Tool-UI Bridge延迟", "LiteLLM稳定性"],
+      "date": "2026-03-15",
+      "topic_keywords": ["Mode-D", "MCP", "LiteLLM", "验证"]
+    },
+    {
+      "id": "pending-dialog-engine",
+      "summary": "Spawn CLI对话引擎长期稳定性待验证",
+      "pending_dimensions": [
+        "spawn模式长期稳定性(政策风险)",
+        "per-node session性能",
+        "stream-json实时性",
+        "MCP动态注入可靠性",
+        "Fallback切换成本"
+      ],
+      "date": "2026-03-16",
+      "topic_keywords": ["dialog-engine", "Claude-CLI", "spawn", "验证"]
+    },
+    {
+      "id": "pending-epic-structure",
+      "summary": "7-Epic结构边界与FR覆盖完整性待验证",
+      "pending_dimensions": ["Epic边界清晰", "FR覆盖完整", "依赖链正确", "Story可独立交付"],
+      "date": "2026-03-16",
+      "topic_keywords": ["Epic", "Story", "planning", "验证"]
+    },
+    {
+      "id": "pending-hook-rules",
+      "summary": "Hook强制读取规则实际遵守情况待验证",
+      "pending_dimensions": ["新session是否实际Read文件并遵守规则"],
+      "date": "2026-03-16",
+      "topic_keywords": ["hooks", "session-rules", "验证"]
+    },
+    {
+      "id": "pending-pencil-workflow",
+      "summary": "Pencil UI范式18场景适配新架构待验证",
+      "pending_dimensions": ["18场景适配新架构完整性", "shadcn组件映射", "用户确认流程效率"],
+      "date": "2026-03-17",
+      "topic_keywords": ["Pencil", "UI-paradigm", "validation"]
+    }
+  ],
+
+  "superseded_decisions": [
+    {
+      "id": "superseded-svelte-framework",
+      "summary": "Svelte框架选型（已被React替代）",
+      "rationale": "最初选Svelte作为Obsidian插件框架(2026-03-11)。经历3个阶段: Svelte5推荐→Svelte5编译问题→Svelte4条件引入→最终全面转React。",
+      "date_created": "2026-03-11",
+      "date_invalidated": "2026-03-17",
+      "replaced_by": "DE-1 (Tauri+React+ReactFlow) + DE-2 (shadcn/ui)",
+      "topic_keywords": ["Svelte", "abandoned", "Obsidian-plugin", "framework-selection"],
+      "graphiti_facts": [
+        "9efd08d9: Svelte is replaced by React as implementation method",
+        "27fb74f2: 该决策否决了继续使用Svelte 5框架",
+        "a300e500: 技术决策确定不使用Svelte 5",
+        "c1980b78: Svelte 5 recurring compilation and runtime issues in Obsidian Electron",
+        "7d8d67b4: 主Session补录选择Svelte(expired 2026-03-12)",
+        "ae59a067: Svelte被推荐作为Obsidian插件开发的框架(原始推荐，不再有效)",
+        "2fa11262: 前端改造方案采用框架选型Svelte(原始决策，已superseded)",
+        "def0ed6d: Old architecture utilized Svelte"
+      ]
+    },
+    {
+      "id": "superseded-obsidian-plugin-frontend",
+      "summary": "Obsidian插件内嵌前端方案（已改为独立桌面应用）",
+      "rationale": "Session D最初决定在Obsidian插件环境内运行demo。后用户确认切换到Tauri独立桌面应用。",
+      "date_created": "2026-03-14",
+      "date_invalidated": "2026-03-17",
+      "replaced_by": "DE-1 (Tauri independent desktop app)",
+      "topic_keywords": ["Obsidian-plugin", "abandoned", "embedded-frontend"],
+      "graphiti_facts": [
+        "a350b375: Session D选择在Obsidian插件环境内运行demo(invalidated)",
+        "3aa4c235: Session D concluded demo needs integration into Obsidian plugin(invalidated)",
+        "88a3788f: 独立面板被确认脱离Obsidian插件的实际情况",
+        "7dbe23e4: 前端已更换为新前端"
+      ]
+    },
+    {
+      "id": "superseded-indexeddb-storage",
+      "summary": "IndexedDB/Dexie存储（被本地JSON文件替代）",
+      "rationale": "原计划IndexedDB+Dexie用于Obsidian插件内存储。切换到Tauri桌面应用后改用本地JSON文件。",
+      "date_created": "2026-03-12",
+      "date_superseded": "2026-03-17",
+      "replaced_by": "DE-1 local JSON storage via Tauri fs",
+      "topic_keywords": ["IndexedDB", "Dexie", "storage-replaced"],
+      "graphiti_facts": [
+        "d74b7d1d: IndexedDB replaced by local JSON for data storage"
+      ]
+    },
+    {
+      "id": "superseded-obsidian-components",
+      "summary": "Obsidian原生组件（被shadcn/ui替代）",
+      "rationale": "Obsidian插件使用createEl/addClass等原生API。切换到Tauri后改用shadcn/ui+TailwindCSS。",
+      "date_created": "2026-03-12",
+      "date_superseded": "2026-03-17",
+      "replaced_by": "DE-2 shadcn/ui + TailwindCSS",
+      "topic_keywords": ["Obsidian-API", "createEl", "replaced"],
+      "graphiti_facts": [
+        "724a49b4: Obsidian components replaced by shadcn/ui"
+      ]
+    },
+    {
+      "id": "superseded-itemview-embedding",
+      "summary": "Svelte嵌入Obsidian ItemView方案（被Tauri窗口替代）",
+      "rationale": "原方案将Svelte组件嵌入Obsidian的ItemView中。被Tauri窗口替代。",
+      "date_created": "2026-03-15",
+      "date_superseded": "2026-03-17",
+      "replaced_by": "DE-1 (Tauri window)",
+      "topic_keywords": ["ItemView", "Svelte嵌入", "replaced"],
+      "graphiti_facts": [
+        "238b366b: ItemView is replaced by a Tauri window",
+        "4cba6559: Svelte嵌入Obsidian ItemView方案(expired 2026-03-16)"
+      ]
+    },
+    {
+      "id": "superseded-svelte4-conditional",
+      "summary": "Svelte4条件引入方案（被全面React替代）",
+      "rationale": "过渡方案：先Obsidian原生API，复杂UI引入Svelte 4。整体转向React后不再适用。仅存活约2.5小时。",
+      "date_created": "2026-03-17T06:57",
+      "date_superseded": "2026-03-17T09:22",
+      "replaced_by": "DE-1+DE-2 (React+shadcn/ui)",
+      "topic_keywords": ["Svelte 4", "conditional", "short-lived"],
+      "graphiti_facts": [
+        "84bbe9e1: 技术决策确定在有复杂UI需求时引入Svelte 4",
+        "00523300: Svelte 4维护风险高因EOL临近",
+        "736b8d8a: 技术决策确定先使用Obsidian原生API"
+      ]
+    },
+    {
+      "id": "superseded-6source-rrf",
+      "summary": "6-source RRF融合方案（已推翻）",
+      "rationale": "被推翻，改为2-3核心源+learning awareness+CRAG。",
+      "date_created": "2026-03-12",
+      "date_superseded": "2026-03-13",
+      "replaced_by": "2-3核心源+CRAG+learning awareness",
+      "topic_keywords": ["RRF", "6源", "融合", "retrieval"],
+      "graphiti_facts": [
+        "5b5b9f34: Decision to overturn 6-source RRF scheme",
+        "6d262f2d: Decision adopted 2-3 core sources",
+        "392bf02e: Decision adopted learning awareness"
+      ]
+    },
+    {
+      "id": "superseded-obsidian-canvas-format",
+      "summary": "Obsidian Canvas .canvas JSON格式（不再使用）",
+      "rationale": "节点数据格式研究决定不再使用Obsidian Canvas的.canvas JSON格式。改用自定义ReactFlow JSON。",
+      "date_created": "2026-03-12",
+      "date_superseded": "2026-03-15",
+      "replaced_by": "Custom ReactFlow JSON + Frontend-first architecture",
+      "topic_keywords": ["Obsidian Canvas", ".canvas", "data-format"],
+      "graphiti_facts": [
+        "73dae70f: 节点数据格式设计研究concluded不再使用Obsidian Canvas .canvas JSON",
+        "3fbe5a47: Decision rejects continuing to adhere to Obsidian Canvas interaction paradigm"
+      ]
+    }
+  ],
+
+  "outdated_decisions": [
+    {
+      "id": "outdated-fr-exam-socratic",
+      "summary": "FR-EXAM-04.1苏格拉底自动引导策略（标记obsolete）",
+      "rationale": "Previous Decision-Review for FR-EXAM-04.1 concerning 苏格拉底自动引导 was made obsolete.",
+      "date": "2026-03-16",
+      "topic_keywords": ["苏格拉底", "自动引导", "obsolete", "考试"],
+      "graphiti_facts": [
+        "389509a0: Previous Decision-Review for FR-EXAM-04.1 '苏格拉底自动引导' is made obsolete"
+      ]
+    },
+    {
+      "id": "outdated-react-rejection-for-obsidian",
+      "summary": "React被否决用于Obsidian插件（该否决已失效）",
+      "rationale": "最初在选择Obsidian插件前端框架时React被否决(选了Svelte)。现在已完全转向React+Tauri，此否决不再有效。",
+      "date_created": "2026-03-12",
+      "date_invalidated": "2026-03-17",
+      "topic_keywords": ["React", "rejection", "invalidated"],
+      "graphiti_facts": [
+        "935ab49e: React was rejected for Obsidian plugin framework (expired 2026-03-15)",
+        "9dbf9726: Preact was also rejected (expired 2026-03-15)"
+      ]
+    }
+  ],
+
+  "tech_stack_validated": {
+    "status": "PASSED",
+    "date": "2026-03-17",
+    "components": {
+      "shell": "Tauri 2.10.3",
+      "framework": "React (with TypeScript)",
+      "canvas_engine": "ReactFlow 12.8.2 (@xyflow/react)",
+      "bundler": "Vite",
+      "css": "TailwindCSS v4",
+      "ui_components": "shadcn/ui",
+      "theme": "Catppuccin Mocha",
+      "storage": "Local JSON files",
+      "ai_integration": "Spawn Claude Code CLI"
+    },
+    "notes": "Tauri desktop application successfully compiled, launched, and integrated ReactFlow controls."
+  },
+
+  "evolution_timeline": [
+    {"date": "2026-03-11", "event": "初始推荐Svelte作为Obsidian插件框架"},
+    {"date": "2026-03-12", "event": "正式决策选择Svelte；React/Preact被否决"},
+    {"date": "2026-03-14", "event": "Session D前端重构brainstorming(19个Decision-Review)；决定在Obsidian内运行demo"},
+    {"date": "2026-03-15", "event": "用户要求新前端架构；Frontend-first+Backend sync确认；不再用.canvas JSON格式"},
+    {"date": "2026-03-15", "event": "15项PRD决策全部确认；四层搜索+A-RAG确认；Mode D架构确认"},
+    {"date": "2026-03-16", "event": "Epic结构/Edge策略/RAG级别/开发纪律/双写模式等确认"},
+    {"date": "2026-03-17T06:57", "event": "过渡方案：先Obsidian原生API+Svelte4条件引入；否决Svelte 5"},
+    {"date": "2026-03-17T09:22", "event": "6-agent调研推荐Tauri+React+ReactFlow+shadcn/ui；全面转向"},
+    {"date": "2026-03-17T09:43", "event": "DE-1~DE-5正式决策，用户确认"},
+    {"date": "2026-03-17T10:47", "event": "Tauri桌面应用成功集成ReactFlow(验证通过)"}
+  ],
+
+  "summary": {
+    "total_active": 14,
+    "total_pending_reviews": 6,
+    "total_superseded": 8,
+    "total_outdated": 2,
+    "key_finding": "前端技术选型经历3阶段演进：(1)Svelte+Obsidian插件→(2)Obsidian原生API+Svelte4条件引入→(3)Tauri+React+ReactFlow独立桌面应用(当前)。DE-1~DE-5为最终确认的前端重构技术选型，均已用户确认但Decision-Review仍PENDING。核心变化：从Obsidian插件生态完全脱离转向独立桌面应用；后端完全保留不变。"
+  }
+}

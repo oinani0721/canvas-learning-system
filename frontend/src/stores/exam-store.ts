@@ -73,27 +73,12 @@ export const useExamStore = create<ExamState>((set, get) => ({
     targetNodeId?: string,
   ): Promise<string | null> => {
     try {
-      const response = await fetch(
-        `${(apiClient as unknown as { baseUrl: string }).baseUrl || 'http://localhost:8001'}/api/v1/exam/start`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            source_canvas_id: sourceCanvasId,
-            exam_mode: mode,
-            target_node_id: targetNodeId || null,
-          }),
-        },
-      );
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        console.error('[Story 6.1] Exam creation failed:', errData);
+      const session = await apiClient.startExam(sourceCanvasId, mode, targetNodeId);
+      if (!session) {
+        console.error('[Story 6.1] Exam creation failed: null response from apiClient');
         return null;
       }
-
-      const session = await response.json();
-      const examId = session.id;
+      const examId = session.id as string;
       const nowIso = new Date().toISOString();
 
       // Persist to IndexedDB
@@ -164,16 +149,12 @@ export const useExamStore = create<ExamState>((set, get) => ({
     const { currentExamId } = get();
     set({ examMode: mode });
 
-    // Sync to backend
+    // Sync to backend via ApiClient (respects configured backendUrl)
     if (currentExamId) {
-      fetch(
-        `http://localhost:8001/api/v1/exam/${currentExamId}/status`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: 'in_progress', exam_mode: mode }),
-        },
-      ).catch((err) => console.warn('[Story 6.2] Mode sync failed:', err));
+      apiClient.patch(`/api/v1/exam/${currentExamId}/status`, {
+        status: 'in_progress',
+        examMode: mode,
+      }).catch((err) => console.warn('[Story 6.2] Mode sync failed:', err));
 
       // Update IndexedDB
       db.exam_sessions.update(currentExamId, { examMode: mode }).catch(() => {});

@@ -1,35 +1,45 @@
 /**
  * Canvas Learning System - API Client
- * Story 1.1: Plugin scaffold (AC-4)
- * Story 1.3: Model config sync + LLM test (AC-8, AC-3/AC-4)
- * Story 1.5: Sync batch API (AC-7)
- * Story 5.2: Mastery WebSocket + getBoardMastery (AC-2, Task 6/7)
+ * Adapted from v1-ref/src/services/api-client.ts
  *
  * Provides REST communication with the FastAPI backend.
  * Handles snake_case <-> camelCase conversion and the API envelope format.
  *
- * [Source: _bmad-output/implementation-artifacts/1-3-model-config-settings-panel.md#Task 10.3]
+ * CHANGES FROM V1:
+ * 1. [CHANGED] Replaced Obsidian requestUrl() with standard fetch() API
+ * 2. [CHANGED] Removed all Obsidian/Svelte imports - types defined inline
+ * 3. [CHANGED] WebSocket mastery updates use callback instead of Svelte store
+ * 4. [CHANGED] Added AbortSignal support on indexImage()
+ * 5. [CHANGED] backendUrl configurable via constructor (default 8001)
+ * 6. [CHANGED] postModelConfig accepts ModelConfigPayload instead of full settings
  */
 
-import type {
-  ApiResponse,
-  HealthResponse,
-  ImageIndexResult,
-  SyncBatchRequest,
-  SyncBatchResponse,
-} from '../types/api';
-import type { RecommendationResponse } from '../types/canvas';
-import type { CanvasLearningSettings } from '../types/settings';
-import type { NodeMasteryData } from '../stores/mastery-state.svelte';
-import type {
-  ExamSession,
-  MasteryBatchResponse,
-  ProfileSummary,
-  QAHighlightCluster,
-  TipItem,
-  WeaknessItem,
-} from '../types/canvas';
-import { masteryState } from '../stores/mastery-state.svelte';
+// [CHANGED] All types defined inline - no external imports needed
+// See v1-ref/src/types/api.d.ts and v1-ref/src/types/canvas.d.ts for originals
+
+export interface ApiResponse<T> { data: T; meta: { timestamp: string } }
+export interface ComponentStatus { name: string; status: 'healthy' | 'unhealthy' | 'unknown'; message?: string }
+export interface HealthResponse { status: 'healthy' | 'degraded' | 'unhealthy'; components: ComponentStatus[]; timestamp: string }
+export interface ImageIndexResult { nodeId: string; ocrText: string; summary: string; concepts: string[]; processingTimeMs: number }
+export interface SyncOperation { operationId: string; entityType: 'node' | 'edge' | 'board'; entityId: string; operation: 'create' | 'update' | 'delete'; payload: Record<string, unknown>; timestamp: string }
+export interface SyncBatchRequest { canvasId: string; subjectId?: string | null; operations: SyncOperation[] }
+export interface SyncOperationResult { operationId: string; success: boolean; error?: string | null }
+export interface SyncBatchResponse { results: SyncOperationResult[]; syncedCount: number; failedCount: number }
+export interface Recommendation { id: string; sourceNodeId: string; sourceNodeTitle: string; targetNodeId: string; targetNodeTitle: string; confidence: number; reason: string; suggestedLabel: string }
+export interface RecommendationResponse { recommendations: Recommendation[]; canvasId: string; analyzedAt: string }
+export interface ProfileSummary { conceptId: string; name: string; masteryLevel: number; masteryLabel: string; masteryColor: string; effectiveProficiency: number; prescriptiveMessage: string; interactionCount: number; examCount: number; lastExamDate: string | null; fsrsDueDate: string | null; freshness: string }
+export interface TipItem { tipId: string; content: string; category: string; annotatedAt: string; contextMessages: string[] }
+export interface WeaknessItem { direction: string; frequency: number; lastSeen: string | null; relatedExamSummaries: string[] }
+export interface QAHighlight { question: string; answer: string; extractedAt: string }
+export interface QAHighlightCluster { topic: string; qaPairs: QAHighlight[] }
+export interface ExamSession { id: string; sourceBoardId: string; sourceBoardName: string; mode: 'point-to-point' | 'comprehensive' | 'mixed'; status: 'in-progress' | 'completed'; nodesExamined: number; masteryChangeSummary: string; createdAt: string; completedAt?: string }
+export interface MasteryBatchResponse { concepts: MasteryConceptResponse[]; topicSummary: Record<string, { avgProficiency: number; conceptCount: number; examWeight: number }> }
+export interface MasteryConceptResponse { conceptId: string; name: string; topic: string; effectiveProficiency: number; masteryLevel: number; masteryLabel: string; masteryColor: string; retrievability: number; freshness: string; fsrsDueDate: string | null; overrideActive: boolean; overrideValue: number | null; selfAssessValue: number | null; falseMasteryRisk: number; interactionCount: number; fluentCount: number; pMastery: number; lastInteractionTs: string | null }
+export interface NodeMasteryData { effectiveProficiency: number | null; hasInteraction: boolean; hasExamRecord: boolean; fsrsNextReview: string | null }
+/** [CHANGED] Callback replaces direct masteryState Svelte store mutation */
+export type MasteryUpdateCallback = (nodeId: string, data: Partial<NodeMasteryData>) => void;
+/** [CHANGED] Slimmed from CanvasLearningSettings - only backend-relevant fields */
+export interface ModelConfigPayload { chatProvider: string; chatModel: string; chatApiKey: string; scoringProvider: string; scoringModel: string; scoringApiKey: string }
 
 /** Convert snake_case keys to camelCase. */
 function snakeToCamel(str: string): string {
@@ -61,13 +71,22 @@ function convertKeys(
 
 export class ApiClient {
   private baseUrl: string;
+  /** [CHANGED] Callback replaces v1 direct masteryState Svelte store import */
+  private onMasteryUpdate: MasteryUpdateCallback | null = null;
 
-  constructor(baseUrl = 'http://localhost:8001') {
-    this.baseUrl = baseUrl;
+  /** [CHANGED] Parameter renamed to backendUrl for clarity */
+  constructor(backendUrl = 'http://localhost:8001') {
+    this.baseUrl = backendUrl.replace(/\/+$/, '');
+  }
+
+  /** [CHANGED] New method - decouples from Svelte masteryState store */
+  setMasteryUpdateCallback(cb: MasteryUpdateCallback): void {
+    this.onMasteryUpdate = cb;
   }
 
   /**
    * Perform a GET request to the backend.
+   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
    * Response keys are converted from snake_case to camelCase.
    */
   async get<T>(path: string): Promise<T> {
@@ -77,17 +96,16 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const raw = await response.json();
+    const raw: unknown = await response.json();
     return convertKeys(raw, snakeToCamel) as T;
   }
 
   /**
    * Perform a POST request to the backend.
-   * Request keys are converted from camelCase to snake_case.
-   * Response keys are converted from snake_case to camelCase.
+   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
    */
   async post<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -97,18 +115,16 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const raw = await response.json();
+    const raw: unknown = await response.json();
     return convertKeys(raw, snakeToCamel) as T;
   }
 
   /**
    * Perform a PATCH request to the backend.
-   * Story 6.1: Exam session status updates.
-   * Request keys are converted from camelCase to snake_case.
-   * Response keys are converted from snake_case to camelCase.
+   * [CHANGED] Uses standard fetch() instead of Obsidian's requestUrl().
    */
   async patch<T>(path: string, body: unknown): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -118,10 +134,10 @@ export class ApiClient {
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const raw = await response.json();
+    const raw: unknown = await response.json();
     return convertKeys(raw, snakeToCamel) as T;
   }
 
@@ -160,18 +176,19 @@ export class ApiClient {
    *
    * @returns true if the sync succeeded, false otherwise.
    */
-  async postModelConfig(settings: CanvasLearningSettings): Promise<boolean> {
+  /** [CHANGED] Accepts ModelConfigPayload instead of CanvasLearningSettings */
+  async postModelConfig(config: ModelConfigPayload): Promise<boolean> {
     try {
       await this.post('/api/v1/system/config', {
         chat: {
-          provider: settings.chatProvider,
-          modelName: settings.chatModel,
-          apiKey: settings.chatApiKey,
+          provider: config.chatProvider,
+          modelName: config.chatModel,
+          apiKey: config.chatApiKey,
         },
         scoring: {
-          provider: settings.scoringProvider,
-          modelName: settings.scoringModel,
-          apiKey: settings.scoringApiKey,
+          provider: config.scoringProvider,
+          modelName: config.scoringModel,
+          apiKey: config.scoringApiKey,
         },
       });
       return true;
@@ -332,7 +349,10 @@ export class ApiClient {
       data.fsrsNextReview = converted.fsrsNextReview as string | null;
     }
 
-    masteryState.updateNodeMastery(nodeId, data);
+    // [CHANGED] Callback-based instead of direct Svelte store mutation
+    if (this.onMasteryUpdate) {
+      this.onMasteryUpdate(nodeId, data);
+    }
   }
 
   /**
@@ -510,6 +530,7 @@ export class ApiClient {
    * @param imageData - Base64 DataURL of the image.
    * @param signal - Optional AbortSignal for cancellation.
    */
+  /** [CHANGED] Uses standard fetch() with AbortSignal now wired up */
   async indexImage(
     nodeId: string,
     imageData: string,
@@ -519,14 +540,14 @@ export class ApiClient {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ node_id: nodeId, image_data: imageData }),
-      signal,
+      signal, // [CHANGED] was unused (_signal) in v1
     });
 
     if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
+      throw new Error(`API error: ${response.status}`);
     }
 
-    const raw = await response.json();
+    const raw: unknown = await response.json();
     return convertKeys(raw, snakeToCamel) as ImageIndexResult;
   }
 
@@ -553,7 +574,7 @@ export class ApiClient {
     } catch {
       console.warn('[Canvas Learning] Recommendation fetch failed — silent degradation');
       return {
-        recommendations: new Array<import('../types/canvas').Recommendation>(),
+        recommendations: new Array<Recommendation>(),
         canvasId,
         analyzedAt: new Date().toISOString(),
       };
@@ -580,7 +601,14 @@ export class ApiClient {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      if (message.includes('Failed to fetch') || message.includes('NetworkError')) {
+      if (
+        message.includes('Failed to fetch') ||
+        message.includes('NetworkError') ||
+        message.includes('ERR_CONNECTION_REFUSED') ||
+        message.includes('net::') ||
+        message.includes('ECONNREFUSED') ||
+        message.includes('Load failed') // [CHANGED] Safari fetch error pattern (replaced Obsidian-specific pattern)
+      ) {
         throw new SyncNetworkError(message);
       }
       throw new SyncServerError(message);

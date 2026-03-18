@@ -1,24 +1,23 @@
 {
-  "name": "obsidian-canvas-learning",
-  "version": "0.1.0",
-  "private": true,
-  "description": "Canvas Learning System - Obsidian Plugin",
-  "scripts": {
-    "build": "node esbuild.config.mjs",
-    "dev": "node esbuild.config.mjs --watch",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@tsconfig/svelte": "^5.0.4",
-    "@types/node": "^22.0.0",
-    "esbuild": "^0.24.0",
-    "esbuild-svelte": "^0.8.2",
-    "obsidian": "^1.7.2",
-    "svelte": "^5.0.0",
-    "svelte-preprocess": "^6.0.3",
-    "typescript": "^5.6.0"
-  },
-  "dependencies": {
-    "dexie": "^4.3.0"
-  }
+	"name": "obsidian-canvas-learning",
+	"version": "0.1.0",
+	"description": "Canvas Learning System - Obsidian Plugin",
+	"main": "main.js",
+	"type": "module",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"deploy": "node -e \"const fs=require('fs');const d='C:/Users/Heishing/Desktop/spring course 2026/CS 189/.obsidian/plugins/canvas-learning-system';['main.js','manifest.json','styles.css'].forEach(f=>fs.copyFileSync(f,d+'/'+f));console.log('Deployed to vault')\""
+	},
+	"keywords": [],
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^16.11.6",
+		"esbuild": "0.25.5",
+		"tslib": "2.4.0",
+		"typescript": "^5.8.3"
+	},
+	"dependencies": {
+		"obsidian": "latest"
+	}
 }

@@ -1,6 +1,6 @@
 # Story 2.1: Phase 0 — 死代码清理与配置修复
 
-Status: done
+Status: review
 
 ## Story
 
@@ -176,6 +176,19 @@ Claude Opus 4.6 (1M context)
 - __init__.py docstring updated (AC-8)
 - compileall and ruff pass with no new errors (AC-9)
 - DEFAULT_TABLES test assertion synced (AC-6)
+- NOTE: reranking.py was re-introduced as active module by Sprint 2/3 (imported by nodes.py); __init__.py docstring updated to reflect this
+
+### Verification (Re-run 2026-03-18)
+
+- compileall src/agentic_rag/ — PASS (0 errors)
+- compileall backend/app/ — PASS (0 errors)
+- ruff check src/agentic_rag/__init__.py — PASS
+- No "cs188" hardcodes remain in backend/app/services/ or backend/app/api/
+- All DEFAULT_GROUP_ID usages confirmed (80+ references across backend)
+- DEFAULT_TABLES = ["canvas_nodes", "vault_notes"] — confirmed
+- adapter.py L195 uses context=config — confirmed
+- env_config.py deleted, zero residual imports — confirmed
+- 8 of 9 dead modules deleted (reranking.py is now active, correctly kept)
 
 ### Change Statistics (Expected)
 
@@ -191,3 +204,38 @@ Claude Opus 4.6 (1M context)
 | **净减少** | **约 5500+ 行** |
 
 ### File List
+
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `_bmad-output/archive/reranking.py` | 归档 | Story 2.2 参考 |
+| `_bmad-output/archive/fusion/` | 归档 | Story 2.2 参考 |
+| `_bmad-output/archive/test_multimodal_rag.py` | 归档 | 依赖已删模块 |
+| `_bmad-output/archive/test_observability.py` | 归档 | 依赖已删模块 |
+| `src/agentic_rag/fusion/` | 删除 | 死代码 |
+| `src/agentic_rag/observability/` | 删除 | 死代码 |
+| `src/agentic_rag/quality/` | 删除 | 死代码 |
+| `src/agentic_rag/quality_nodes/` | 删除 | 死代码 |
+| `src/agentic_rag/routing/` | 删除 | 死代码 |
+| `src/agentic_rag/parallel_retrieval.py` | 删除 | 死代码 |
+| `src/agentic_rag/env_config.py` | 删除 | 废弃配置 |
+| `src/agentic_rag/traced_nodes.py` | 删除 | 死代码 |
+| `src/tests/test_multimodal_rag.py` | 删除 | 依赖已删模块 |
+| `src/tests/agentic_rag/test_observability.py` | 删除 | 依赖已删模块 |
+| `src/agentic_rag/__init__.py` | 编辑 | 文档更新 |
+| `src/canvas/adapters/agentic_rag_adapter.py` | 编辑 | L195 config 传递修复 |
+| `src/agentic_rag/clients/lancedb_client.py` | 编辑 | Ghost tables 修复 |
+| `src/agentic_rag/agent_graph.py` | 编辑 | Ghost table fallback 修复 |
+| `src/tests/agentic_rag/test_lancedb_client.py` | 编辑 | 断言同步 |
+| `backend/app/api/v1/endpoints/canvas.py` | 编辑 | 虚假标记修复 |
+| `backend/app/api/v1/endpoints/memory.py` | 编辑 | 虚假标记修复 |
+| `backend/app/api/v1/endpoints/mastery.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/api/v1/endpoints/metadata.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/api/v1/endpoints/review.py` | 编辑 | env_config 注释清理 |
+| `backend/app/services/mastery_store.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/services/react_agent.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/services/review_service.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/services/memory_service.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/services/agent_service.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/services/graphiti_bridge_service.py` | 编辑 | cs188 → DEFAULT_GROUP_ID |
+| `backend/app/core/memory_format.py` | 编辑 | 文档注释更新 |
+| `backend/app/config.py` | 编辑 | 新增 DEFAULT_GROUP_ID 配置 |

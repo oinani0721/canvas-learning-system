@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "research_topic": "前端重构技术选型验证 — Tauri 2.0 + React 19 + ReactFlow + shadcn/ui + TailwindCSS + Catppuccin Mocha",
+  "group_id": "canvas-dev",
+  "mcp_prefix": "mcp__graphiti-canvas__",
+  "wave1": {
+    "status": "completed",
+    "agents": { "W1-A": "in_progress", "W1-B": "in_progress", "W1-C": "in_progress", "W1-D": "in_progress" },
+    "context_pack_ready": false
+  },
+  "wave2": {
+    "status": "completed",
+    "agents": { "W2-A": "pending", "W2-B": "pending", "W2-C": "pending", "W2-D": "pending", "W2-E": "pending", "W2-F": "pending", "W2-G": "pending", "W2-H": "pending", "W2-I": "pending", "W2-J": "pending" }
+  },
+  "wave3": {
+    "status": "completed",
+    "synth_complete": true,
+    "user_confirmed_p0": true,
+    "write_complete": true
+  }
+}

@@ -239,6 +239,44 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Story 5.7] EventBus handler registration failed (non-fatal): {e}")
 
+    # ✅ Story 5.6: Register signal adapters for mastery fusion engine
+    try:
+        from app.services.mastery_engine import MasteryEngine
+        from app.services.mastery_fusion import MasteryFusionEngine
+        from app.services.signal_registry import (
+            BKTMasterySignal,
+            CalibrationBiasSignal,
+            ExamScoreSignal,
+            FSRSRetrievabilitySignal,
+            SelfConfidenceSignal,
+            SignalRegistry,
+        )
+
+        mastery_engine = MasteryEngine()
+        signal_registry = SignalRegistry()
+
+        # Register 5 MVP signal adapters
+        signal_registry.register(BKTMasterySignal(mastery_engine, None))
+        signal_registry.register(FSRSRetrievabilitySignal(mastery_engine))
+        signal_registry.register(ExamScoreSignal())
+        signal_registry.register(CalibrationBiasSignal())
+        signal_registry.register(SelfConfidenceSignal())
+
+        # Attach fusion engine to mastery engine
+        fusion_engine = MasteryFusionEngine(signal_registry)
+        mastery_engine.set_fusion_engine(fusion_engine)
+
+        # Store in app state for dependency injection
+        app.state.mastery_engine = mastery_engine
+        app.state.signal_registry = signal_registry
+        app.state.fusion_engine = fusion_engine
+        logger.info(
+            f"[Story 5.6] Signal registry initialized with "
+            f"{signal_registry.signal_count} adapters, fusion engine attached"
+        )
+    except Exception as e:
+        logger.warning(f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown

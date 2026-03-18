@@ -11,6 +11,7 @@
    */
 
   import { onMount } from "svelte";
+  import { requestUrl } from "obsidian";
 
   // ─── Types ────────────────────────────────────────────────────────────
 
@@ -72,9 +73,9 @@
       if (filterType) {
         url += `&extraction_type=${filterType}`;
       }
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
+      const res = await requestUrl({ url });
+      if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
+      const json = res.json;
       records = json.data.records || [];
       totalRecords = json.data.total || 0;
     } catch (e: any) {
@@ -87,9 +88,9 @@
 
   async function fetchStats() {
     try {
-      const res = await fetch(`${apiBase}/api/v1/system/qa-metrics`);
-      if (!res.ok) return;
-      const json = await res.json();
+      const res = await requestUrl({ url: `${apiBase}/api/v1/system/qa-metrics` });
+      if (res.status < 200 || res.status >= 300) return;
+      const json = res.json;
       stats = json.data.extraction_quality || null;
     } catch {
       // Non-critical; stats panel just won't display
@@ -99,15 +100,13 @@
   async function submitAnnotation(recordId: string, annotation: string) {
     annotatingId = recordId;
     try {
-      const res = await fetch(
-        `${apiBase}/api/v1/system/extraction-records/${recordId}/annotate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ annotation }),
-        }
-      );
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await requestUrl({
+        url: `${apiBase}/api/v1/system/extraction-records/${recordId}/annotate`,
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ annotation }),
+      });
+      if (res.status < 200 || res.status >= 300) throw new Error(`HTTP ${res.status}`);
       // Update local state
       const idx = records.findIndex((r) => r.id === recordId);
       if (idx >= 0) {

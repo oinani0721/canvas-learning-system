@@ -17,7 +17,7 @@ interface SettingsData {
   scoringModel: string;
 }
 
-/** API Keys — persisted in separate localStorage key (AC-6, equivalent to Obsidian data.json) */
+/** API Keys — stored in sessionStorage for security (not persisted across browser sessions). */
 interface ApiKeyState {
   chatApiKey: string;
   scoringApiKey: string;
@@ -129,13 +129,13 @@ function persistSettings(data: SettingsData): void {
 }
 
 /**
- * AC-6: API Keys stored in local app config.
- * Equivalent to Obsidian's data.json — local-only, never uploaded.
+ * AC-6: API Keys stored in sessionStorage for security.
+ * Cleared when browser tab closes — prevents persistent plaintext key exposure.
  * Separate key from general settings for clear security boundary.
  */
 function loadApiKeys(): ApiKeyState {
   try {
-    const stored = localStorage.getItem(API_KEYS_KEY);
+    const stored = sessionStorage.getItem(API_KEYS_KEY);
     if (stored) {
       const parsed = JSON.parse(stored) as Partial<ApiKeyState>;
       return {
@@ -150,7 +150,7 @@ function loadApiKeys(): ApiKeyState {
 }
 
 function persistApiKeys(keys: ApiKeyState): void {
-  localStorage.setItem(API_KEYS_KEY, JSON.stringify(keys));
+  sessionStorage.setItem(API_KEYS_KEY, JSON.stringify(keys));
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════

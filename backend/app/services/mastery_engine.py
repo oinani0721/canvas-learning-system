@@ -141,6 +141,16 @@ class MasteryEngine:
         if grade == 4:
             concept.fluent_count += 1
 
+        # Story 5.1 fix: Increment surprise_failures when student fails unexpectedly
+        # (high mastery prediction but incorrect response)
+        if not is_correct and concept.p_mastery > 0.7:
+            concept.surprise_failures += 1
+            logger.debug(
+                f"Surprise failure detected: {concept.concept_id} "
+                f"p_mastery={concept.p_mastery:.3f} grade={grade} "
+                f"surprise_failures={concept.surprise_failures}"
+            )
+
         logger.info(
             f"Mastery updated: {concept.concept_id} grade={grade} "
             f"p_mastery={concept.p_mastery:.3f} interactions={concept.interaction_count}"
@@ -542,3 +552,22 @@ class MasteryEngine:
             logger.warning(f"Unknown signal type: {signal_type}")
 
         return concept
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Service-level singleton accessor
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_engine_instance: MasteryEngine | None = None
+
+
+def get_mastery_engine() -> MasteryEngine:
+    """Get or create the singleton MasteryEngine instance.
+
+    Provides a service-layer accessor so that event handlers and other
+    services don't need to import private helpers from API endpoint modules.
+    """
+    global _engine_instance
+    if _engine_instance is None:
+        _engine_instance = MasteryEngine(load_mastery_config())
+    return _engine_instance

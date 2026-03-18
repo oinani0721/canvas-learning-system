@@ -1,6 +1,6 @@
 # Story 1.3: 模型配置与系统设置面板
 
-Status: ready-for-dev
+Status: review
 
 ## Story
 
@@ -332,10 +332,57 @@ export const DEFAULT_SETTINGS: CanvasLearningSettings = {
 
 ### Agent Model Used
 
-(to be filled by dev agent)
+Claude Opus 4.6 (1M context)
 
 ### Debug Log References
 
+- TypeScript compilation: 0 errors after fixing Tauri Store v2 API (`load()` instead of `new Store()`)
+
 ### Completion Notes List
 
+- **Adapted from Obsidian to Tauri 2.0 + React**: Story spec originally targeted Obsidian PluginSettingTab; implementation uses React 19 + shadcn/ui + TailwindCSS v4 + Catppuccin Mocha theme per project requirements
+- **Backend endpoints already existed**: `POST /api/v1/system/config`, `POST /api/v1/system/test-llm`, `GET /api/v1/system/health` were implemented in prior sprints — no backend changes needed
+- **AC-1**: Settings page created with Tabs component (Models / Connection / Data tabs) + System Health always visible at top
+- **AC-2**: SystemHealthPanel shows 5 component status badges (Docker/Backend API/Neo4j/LLM API/LanceDB) with green/yellow/red indicators + Refresh button
+- **AC-3**: Chat model config with provider dropdown (4 options), model name input with per-provider placeholders, API key password field with eye toggle, Test Connection button with success/failure feedback
+- **AC-4**: Scoring model config reuses same ModelConfigSection component with independent fields (dual-layer key separation)
+- **AC-5**: Embedding model section shows read-only bge-m3/Ollama status derived from health check
+- **AC-6**: API keys use password input type with show/hide toggle; first-time security notice shown once; keys stored locally via Tauri Store or localStorage fallback; no console.log of keys
+- **AC-7**: Backend API address and Neo4j address configurable with defaults
+- **AC-8**: Model config auto-synced to backend on change via `postModelConfig()`; sync failure does not block local save
+- **Data Management**: Placeholder buttons for Backup (Story 1.8) and Rebuild Index (Story 2.7) with informational notices
+- **Tauri Store v2**: Uses `load()` factory function instead of `new Store()` constructor (v2 breaking change)
+
 ### File List
+
+**New files (frontend/):**
+- `frontend/package.json` — Project manifest with React 19, shadcn/ui, Tauri dependencies
+- `frontend/tsconfig.json` — TypeScript configuration
+- `frontend/vite.config.ts` — Vite config with React + TailwindCSS v4 plugins
+- `frontend/index.html` — HTML entry point
+- `frontend/src/main.tsx` — React entry point
+- `frontend/src/App.tsx` — App root with routing
+- `frontend/src/index.css` — TailwindCSS + Catppuccin Mocha CSS variables
+- `frontend/src/vite-env.d.ts` — Vite type reference
+- `frontend/src/lib/utils.ts` — cn() utility for shadcn/ui
+- `frontend/src/lib/api-client.ts` — REST client with snake/camel conversion, checkHealth, postModelConfig, testLlmConnection
+- `frontend/src/types/settings.ts` — CanvasLearningSettings interface + DEFAULT_SETTINGS
+- `frontend/src/types/api.ts` — API response types (HealthResponse, ComponentStatus, TestLlmResult)
+- `frontend/src/hooks/use-settings.ts` — Settings hook with Tauri Store / localStorage persistence
+- `frontend/src/components/ui/button.tsx` — shadcn/ui Button
+- `frontend/src/components/ui/input.tsx` — shadcn/ui Input
+- `frontend/src/components/ui/card.tsx` — shadcn/ui Card
+- `frontend/src/components/ui/badge.tsx` — shadcn/ui Badge (with healthy/warning/error variants)
+- `frontend/src/components/ui/tabs.tsx` — shadcn/ui Tabs
+- `frontend/src/components/ui/select.tsx` — shadcn/ui Select
+- `frontend/src/components/ui/label.tsx` — shadcn/ui Label
+- `frontend/src/components/settings/settings-page.tsx` — Main settings page with tabs layout
+- `frontend/src/components/settings/system-health-panel.tsx` — 5-component health status display
+- `frontend/src/components/settings/model-config-section.tsx` — Reusable model config (provider/model/key/test)
+- `frontend/src/components/settings/embedding-status-section.tsx` — Read-only bge-m3 status
+- `frontend/src/components/settings/backend-connection-section.tsx` — Backend/Neo4j URL config
+- `frontend/src/components/settings/data-management-section.tsx` — Backup/Rebuild placeholders
+
+**Existing backend files (no changes needed):**
+- `backend/app/api/v1/system.py` — POST /config, POST /test-llm, GET /health already implemented
+- `backend/app/core/litellm_config.py` — RuntimeModelConfigManager + format_litellm_model already implemented

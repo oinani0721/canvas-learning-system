@@ -6,6 +6,16 @@
 
 ## 变更记录
 
+### 2026-03-18
+
+| 模板 | 版本 | 操作 | 说明 | 影响范围 |
+|------|------|------|------|---------|
+| query_rewrite | v1 | 创建 | 查询改写 Prompt 外部化（Multi-Query + Decomposition 两策略） | src/agentic_rag/mastery_injection.py |
+| search_intent | v1 | 创建 | 搜索意图分析 Prompt 外部化（intent/needs_search/search_queries） | src/agentic_rag/agent_graph.py |
+| crag_grading | v1 | 创建 | CRAG 文档相关性评分 Prompt 外部化（relevant/irrelevant 判定） | src/agentic_rag/agent_graph.py |
+| query_optimize | v1 | 创建 | 查询优化 Prompt 外部化（搜索查询改进策略） | src/agentic_rag/agent_graph.py |
+| autoscore | v1 | 修复 | autoscore.py 从直接文件加载改为 PromptRegistry.get() | services/autoscore.py |
+
 ### 2026-03-16
 
 | 模板 | 版本 | 操作 | 说明 | 影响范围 |

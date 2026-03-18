@@ -2,11 +2,18 @@
 # Story 7.2: LLM 调用日志与 Token 追踪
 # [Source: _bmad-output/implementation-artifacts/7-2-llm-logging-token-tracking.md]
 """
-LiteLLM Custom Callback handler for structured LLM call logging.
+LiteLLM CustomLogger callback handler for structured LLM call logging.
 
-Implements 100% LLM call coverage via LiteLLM success/failure callbacks.
+Implements 100% LLM call coverage via LiteLLM's CustomLogger base class.
 Every call through litellm.acompletion() / litellm.aembedding() is
 automatically intercepted, parsed, and logged to SQLite.
+
+Uses ``litellm.integrations.custom_logger.CustomLogger`` so that async
+callbacks (``async_log_success_event`` / ``async_log_failure_event``) are
+invoked correctly by the LiteLLM SDK.  Registered via
+``litellm.callbacks = [llm_call_logger]``.
+
+Reference: https://docs.litellm.ai/docs/observability/custom_callback
 
 Features:
 - Structured log extraction from LiteLLM callback kwargs
@@ -27,6 +34,15 @@ from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
+
+# Import CustomLogger base class for proper LiteLLM async callback support.
+# Reference: https://docs.litellm.ai/docs/observability/custom_callback
+try:
+    from litellm.integrations.custom_logger import CustomLogger as _LiteLLMCustomLogger
+except ImportError:
+    # Fallback: if litellm is not installed, use object as base class.
+    # The logger still works via manual log_call() API.
+    _LiteLLMCustomLogger = object  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -133,10 +149,7 @@ class LLMCallLog(BaseModel):
         description="Error message if failed (truncated to 500 chars)",
     )
     created_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).strftime(
-            "%Y-%m-%dT%H:%M:%S.%f"
-        )[:-3]
-        + "Z",
+        default_factory=lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
         description="Timestamp in ISO 8601 format",
     )
 
@@ -189,9 +202,7 @@ def _sanitize_kwargs(kwargs: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(litellm_params, dict):
         metadata = litellm_params.get("metadata", {})
         if isinstance(metadata, dict):
-            safe["metadata"] = {
-                k: v for k, v in metadata.items() if k in _SAFE_METADATA_FIELDS
-            }
+            safe["metadata"] = {k: v for k, v in metadata.items() if k in _SAFE_METADATA_FIELDS}
 
     return safe
 
@@ -248,11 +259,16 @@ def classify_error(exception: Exception) -> ErrorCategory:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-class LLMCallLogger:
-    """LiteLLM callback handler for 100% LLM call logging coverage.
+class LLMCallLogger(_LiteLLMCustomLogger):
+    """LiteLLM CustomLogger callback handler for 100% LLM call logging.
 
-    Implements success_callback and failure_callback for LiteLLM SDK.
-    Buffers log entries and flushes to SQLite via CostTracker in batches.
+    Inherits from ``litellm.integrations.custom_logger.CustomLogger`` so that
+    ``async_log_success_event`` and ``async_log_failure_event`` are called
+    correctly by the LiteLLM SDK for every async LLM call.
+
+    Register via ``litellm.callbacks = [llm_call_logger]``.
+
+    Reference: https://docs.litellm.ai/docs/observability/custom_callback
 
     [Source: Story 7.2 AC #1, #2 — 100% coverage via LiteLLM callbacks]
     [Source: Story 7.2 Dev Notes — Batch write optimization (10 entries or 5s)]
@@ -262,11 +278,16 @@ class LLMCallLogger:
     FLUSH_INTERVAL_SECONDS = 5.0
 
     def __init__(self) -> None:
+        # Initialize CustomLogger base class if available
+        if _LiteLLMCustomLogger is not object:
+            super().__init__()
         self._buffer: List[LLMCallLog] = []
         self._lock = asyncio.Lock()
         self._flush_task: Optional[asyncio.Task] = None
         self._cost_tracker: Optional[Any] = None
         self._running = False
+        # Story 7.1: Faithfulness score aggregation for health_monitor
+        self._faithfulness_stats: Dict[str, float] = {"count": 0, "total_score": 0.0}
 
     async def start(self, cost_tracker: Any) -> None:
         """Start the logger with a CostTracker for persistence.
@@ -291,6 +312,27 @@ class LLMCallLogger:
         # Final flush
         await self._flush_buffer()
         logger.info("[Story 7.2] LLM Call Logger stopped")
+
+    @staticmethod
+    def _compute_latency_ms(start_time: Any, end_time: Any) -> int:
+        """Compute latency in milliseconds from start/end timestamps.
+
+        Handles both numeric (epoch seconds) and datetime objects.
+
+        Args:
+            start_time: Call start timestamp (float or datetime)
+            end_time: Call end timestamp (float or datetime)
+
+        Returns:
+            Latency in milliseconds, or 0 if timestamps are unavailable.
+        """
+        if not start_time or not end_time:
+            return 0
+        if isinstance(start_time, (int, float)) and isinstance(end_time, (int, float)):
+            return int((end_time - start_time) * 1000)
+        if hasattr(start_time, "timestamp") and hasattr(end_time, "timestamp"):
+            return int((end_time.timestamp() - start_time.timestamp()) * 1000)
+        return 0
 
     def _extract_task_type(self, kwargs: Dict[str, Any]) -> str:
         """Infer task_type from LiteLLM metadata.
@@ -345,6 +387,41 @@ class LLMCallLogger:
 
         return str(uuid4())
 
+    # ── LiteLLM CustomLogger async callbacks ─────────────────────────────
+    # These are the methods that LiteLLM's CustomLogger base class invokes
+    # for async LLM calls (acompletion / aembedding).
+    # Reference: https://docs.litellm.ai/docs/observability/custom_callback
+
+    async def async_log_success_event(
+        self,
+        kwargs: Dict[str, Any],
+        response_obj: Any,
+        start_time: Any,
+        end_time: Any,
+    ) -> None:
+        """LiteLLM CustomLogger async success callback.
+
+        Called automatically by LiteLLM after every successful async LLM call.
+        Delegates to on_success() for the actual logging logic.
+        """
+        await self.on_success(kwargs, response_obj, start_time, end_time)
+
+    async def async_log_failure_event(
+        self,
+        kwargs: Dict[str, Any],
+        response_obj: Any,
+        start_time: Any,
+        end_time: Any,
+    ) -> None:
+        """LiteLLM CustomLogger async failure callback.
+
+        Called automatically by LiteLLM after every failed async LLM call.
+        Delegates to on_failure() for the actual logging logic.
+        """
+        await self.on_failure(kwargs, response_obj, start_time, end_time)
+
+    # ── Core logging methods ──────────────────────────────────────────────
+
     async def on_success(
         self,
         kwargs: Dict[str, Any],
@@ -352,9 +429,10 @@ class LLMCallLogger:
         start_time: Any,
         end_time: Any,
     ) -> None:
-        """LiteLLM success callback.
+        """LiteLLM success callback — core implementation.
 
-        Called automatically by LiteLLM after every successful LLM call.
+        Extracts structured fields from LiteLLM callback kwargs/response and
+        buffers them for batch write to SQLite.
 
         [Source: Story 7.2 AC #1 — Auto-record structured log]
 
@@ -374,23 +452,10 @@ class LLMCallLogger:
                 usage = completion_response.usage
                 input_tokens = getattr(usage, "prompt_tokens", 0) or 0
                 output_tokens = getattr(usage, "completion_tokens", 0) or 0
-                total_tokens = getattr(usage, "total_tokens", 0) or (
-                    input_tokens + output_tokens
-                )
+                total_tokens = getattr(usage, "total_tokens", 0) or (input_tokens + output_tokens)
 
             # Calculate latency
-            latency_ms = 0
-            if start_time and end_time:
-                if isinstance(start_time, (int, float)) and isinstance(
-                    end_time, (int, float)
-                ):
-                    latency_ms = int((end_time - start_time) * 1000)
-                elif hasattr(start_time, "timestamp") and hasattr(
-                    end_time, "timestamp"
-                ):
-                    latency_ms = int(
-                        (end_time.timestamp() - start_time.timestamp()) * 1000
-                    )
+            latency_ms = self._compute_latency_ms(start_time, end_time)
 
             # Extract cost (LiteLLM built-in pricing)
             estimated_cost = kwargs.get("response_cost")
@@ -425,9 +490,9 @@ class LLMCallLogger:
         start_time: Any,
         end_time: Any,
     ) -> None:
-        """LiteLLM failure callback.
+        """LiteLLM failure callback — core implementation.
 
-        Called automatically by LiteLLM after every failed LLM call.
+        Classifies the error and buffers a failure log entry.
 
         [Source: Story 7.2 AC #4 — Error auto-classification]
 
@@ -439,23 +504,14 @@ class LLMCallLogger:
         """
         try:
             # Calculate latency
-            latency_ms = 0
-            if start_time and end_time:
-                if isinstance(start_time, (int, float)) and isinstance(
-                    end_time, (int, float)
-                ):
-                    latency_ms = int((end_time - start_time) * 1000)
-                elif hasattr(start_time, "timestamp") and hasattr(
-                    end_time, "timestamp"
-                ):
-                    latency_ms = int(
-                        (end_time.timestamp() - start_time.timestamp()) * 1000
-                    )
+            latency_ms = self._compute_latency_ms(start_time, end_time)
 
             # Classify the error
-            exception = completion_response if isinstance(
-                completion_response, Exception
-            ) else kwargs.get("exception", Exception("Unknown error"))
+            exception = (
+                completion_response
+                if isinstance(completion_response, Exception)
+                else kwargs.get("exception", Exception("Unknown error"))
+            )
 
             if not isinstance(exception, Exception):
                 exception = Exception(str(completion_response))
@@ -492,6 +548,23 @@ class LLMCallLogger:
             log_entry: Pre-built LLMCallLog entry
         """
         await self._add_to_buffer(log_entry)
+
+    def record_faithfulness_score(self, score: float | None) -> None:
+        """Record a faithfulness check score for health monitoring.
+
+        Called by faithfulness_check.py after each check completes.
+        The health_monitor reads _faithfulness_stats to compute
+        average faithfulness score.
+
+        [Source: Story 7.1 AC-3 — health monitoring integration]
+
+        Args:
+            score: Faithfulness score (0.0-1.0), or None when check is disabled/skipped.
+        """
+        if score is None:
+            return
+        self._faithfulness_stats["count"] += 1
+        self._faithfulness_stats["total_score"] += score
 
     async def _add_to_buffer(self, entry: LLMCallLog) -> None:
         """Add entry to buffer and flush if batch size reached."""
@@ -538,3 +611,14 @@ class LLMCallLogger:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 llm_call_logger = LLMCallLogger()
+
+
+def get_llm_call_logger() -> LLMCallLogger:
+    """Get the module-level LLMCallLogger singleton.
+
+    Used by health_monitor.py to access faithfulness stats.
+
+    Returns:
+        The singleton LLMCallLogger instance.
+    """
+    return llm_call_logger

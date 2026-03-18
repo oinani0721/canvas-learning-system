@@ -1,0 +1,413 @@
+{
+  "agent": "W2-J",
+  "task": "timeliness-check",
+  "timestamp": "2026-03-17T00:00:00Z",
+  "research_only": true,
+
+  "components": {
+    "tauri": {
+      "confirmed_version_in_stack": "2.10.1~2.10.3",
+      "latest_stable_version": "2.10.3",
+      "release_date": "2026-03-04",
+      "breaking_changes": {
+        "in_current_line": false,
+        "notes": "Tauri 2.x has been incremental since 2.0 stable (Oct 2024). No breaking changes within 2.x minor/patch releases. Tauri 3.0 milestone exists (gtk3->gtk4-rs migration required) but is 0% complete as of 2026-03-03 with 13 open issues. No imminent risk to 2.x projects."
+      },
+      "deprecations": {
+        "found": false,
+        "notes": "No deprecations announced for Tauri 2.x line."
+      },
+      "security_vulnerabilities": {
+        "cve_found": true,
+        "details": [
+          {
+            "id": "CVE-2024-35222",
+            "description": "iFrames bypass origin checks for Tauri API access control. Fixed in v2 betas before stable.",
+            "severity": "High",
+            "status": "fixed_in_current"
+          },
+          {
+            "id": "GHSA-c9pr-q8gx-3mgp",
+            "description": "Improper scope validation in the 'open' endpoint of tauri-plugin-shell. Published 2025-04-02.",
+            "severity": "High",
+            "status": "fixed_in_plugin_update"
+          }
+        ],
+        "recommendation": "Ensure tauri-plugin-shell is updated. Check github.com/tauri-apps/tauri/security/advisories regularly."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "Very active development. Regular releases (2.9.x Dec 2025, 2.10.x Feb-Mar 2026). Core team + community. CrabNebula backing.",
+      "compatibility": {
+        "vite": {
+          "status": "compatible",
+          "notes": "Official Tauri docs verified with Vite 5.4.8. Vite 8.0.0 just released 2026-03-12 - Tauri docs not yet updated for Vite 8, but Tauri uses Vite's dev server via devUrl config, so Vite major version changes rarely break Tauri integration. Monitor for any issues."
+        },
+        "react": {
+          "status": "compatible",
+          "notes": "Tauri is frontend-framework agnostic. React 19 works fine via Vite."
+        }
+      },
+      "roadmap_risks": {
+        "tauri_3": "Tauri 3.0 planning has begun (gtk4 migration). 0% complete. No timeline announced. Will require migration but likely 2027+. No risk to current project.",
+        "focus_areas": "Team focused on mobile DX improvements and documentation for 2.x."
+      }
+    },
+
+    "react": {
+      "confirmed_version_in_stack": "19",
+      "latest_stable_version": "19.2.4",
+      "release_date": "2026-01-26",
+      "breaking_changes": {
+        "in_current_line": false,
+        "notes": "React 19.0 (Dec 2024) had breaking changes vs React 18: UMD builds removed, StrictMode double-invokes ref callbacks, TypeScript ref mutability changes, removed deprecated APIs (ClassicComponent, ReactChildren, etc.). React 19.1 and 19.2 had NO breaking changes - only improvements."
+      },
+      "deprecations": {
+        "found": true,
+        "notes": "Legacy APIs removed in 19.0: ClassicComponentClass, ClassicComponent, ClassicElement, ComponentSpec, Mixin, ReactChildren, ReactHTML, ReactSVG, SFCFactory. These were moved to create-react-class. Not relevant for new projects."
+      },
+      "security_vulnerabilities": {
+        "cve_found": true,
+        "details": [
+          {
+            "id": "React Server Components DoS/Source Exposure",
+            "description": "Denial of Service and Source Code Exposure in React Server Components. Disclosed Dec 2025. Fixed in 19.0.4, 19.1.5, 19.2.4.",
+            "severity": "High",
+            "status": "fixed_in_19.2.4"
+          }
+        ],
+        "recommendation": "MUST use React 19.2.4 (not 19.2.1 or 19.2.3 which are incomplete fixes). Versions 19.0.3, 19.1.4, 19.2.3 have incomplete patches - update to .4 versions. Note: This CVE affects Server Components which Tauri desktop apps do not use, but update anyway."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "React team at Meta. Very active. 3 minor releases in 2025 (19.0, 19.1 Jun, 19.2 Oct). Regular patch releases for security.",
+      "compatibility": {
+        "reactflow": {
+          "status": "compatible",
+          "notes": "@xyflow/react 12.9.0+ officially supports React 19. UI components updated Oct 2025."
+        },
+        "shadcn": {
+          "status": "compatible",
+          "notes": "shadcn/ui fully supports React 19. All components updated."
+        },
+        "vite": {
+          "status": "compatible",
+          "notes": "@vitejs/plugin-react v6 (for Vite 8) uses Oxc for React Refresh, dropped Babel dependency. Fully compatible."
+        }
+      },
+      "roadmap_risks": {
+        "react_compiler": "React Compiler (formerly React Forget) continues development. Not a risk - additive optimization.",
+        "server_components": "RSC not applicable for Tauri desktop. No impact."
+      }
+    },
+
+    "reactflow": {
+      "confirmed_version_in_stack": "12.8.2 (@xyflow/react)",
+      "latest_stable_version": "12.10.1",
+      "release_date": "2026-02-19",
+      "version_gap": {
+        "current": "12.8.2",
+        "latest": "12.10.1",
+        "gap_severity": "moderate",
+        "recommendation": "Update to 12.10.1. Versions 12.9.0+ include React 19 + Tailwind v4 support for UI components. 12.10.x includes perf optimizations for zooming/panning."
+      },
+      "breaking_changes": {
+        "in_current_line": false,
+        "notes": "No breaking changes from 12.8.2 to 12.10.1 - all within v12 minor releases. v12 breaking changes vs v11 included: renamed 'parentNode' to 'parentId', new package name @xyflow/react."
+      },
+      "deprecations": {
+        "found": false,
+        "notes": "No deprecations within 12.x line."
+      },
+      "security_vulnerabilities": {
+        "cve_found": false,
+        "details": [],
+        "recommendation": "No known CVEs. Low attack surface (UI rendering library)."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "Active development by xyflow team. Regular releases throughout 2025-2026. Pro subscriptions fund development.",
+      "compatibility": {
+        "react_19": {
+          "status": "compatible",
+          "since": "12.9.0 (Oct 2025)",
+          "notes": "UI components explicitly updated for React 19. Core library compatible earlier."
+        },
+        "tailwind_v4": {
+          "status": "compatible",
+          "since": "12.9.0 (Oct 2025)",
+          "notes": "Tailwind v4 CSS-first config requires importing @xyflow/react/dist/style.css in global.css after tailwindcss import instead of in App.tsx."
+        },
+        "shadcn": {
+          "status": "compatible",
+          "notes": "ReactFlow UI components use latest shadcn/ui patterns."
+        }
+      },
+      "roadmap_risks": {
+        "v13": "No v13 announced. v12 is actively maintained.",
+        "migration_note": "Style import path change for Tailwind v4 is the main integration change."
+      }
+    },
+
+    "tailwindcss": {
+      "confirmed_version_in_stack": "v4",
+      "latest_stable_version": "4.2.0",
+      "release_date": "2026-02-18",
+      "breaking_changes": {
+        "in_current_line": true,
+        "notes": "Tailwind v4.0 (Jan 2025) was a major rewrite with significant breaking changes from v3: JavaScript config (tailwind.config.js) replaced with CSS-first @theme directive, PostCSS plugin replaced with Vite-first approach using @tailwindcss/vite, new Lightning CSS engine. v4.1 (Apr 2025) and v4.2 (Feb 2026) are non-breaking additions.",
+        "impact_on_project": "Since project is starting fresh with v4, these breaking changes vs v3 are irrelevant. No breaking changes within 4.x line."
+      },
+      "deprecations": {
+        "found": true,
+        "notes": "tailwind.config.js is deprecated in favor of CSS @theme. @apply is discouraged in favor of inline utilities. These are v3->v4 migration concerns, not relevant for new projects."
+      },
+      "security_vulnerabilities": {
+        "cve_found": false,
+        "details": [],
+        "recommendation": "No known CVEs. CSS utility framework has minimal attack surface."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "Very active. Tailwind Labs (Adam Wathan). v4.0 Jan 2025, v4.1 Apr 2025, v4.2 Feb 2026. Oxide engine battle-tested across thousands of production sites.",
+      "compatibility": {
+        "vite": {
+          "status": "compatible",
+          "notes": "@tailwindcss/vite is the primary integration method. Tailwind team moved quickly on Vite 8 support."
+        },
+        "shadcn": {
+          "status": "compatible",
+          "notes": "shadcn/ui fully supports Tailwind v4. HSL colors converted to OKLCH. All components use @theme directive."
+        },
+        "reactflow": {
+          "status": "compatible",
+          "notes": "ReactFlow UI components updated for Tailwind v4 in 12.9.0. Requires specific CSS import order."
+        }
+      },
+      "roadmap_risks": {
+        "stability": "v4 is now mature after 14 months. v4.1 and v4.2 are additive. No major disruptions expected.",
+        "ecosystem": "Tailwind Plus (premium) expanding but core framework remains open source."
+      }
+    },
+
+    "shadcn_ui": {
+      "confirmed_version_in_stack": "latest",
+      "latest_stable_version": "CLI v4.0 (March 2026)",
+      "release_date": "2026-03",
+      "versioning_note": "shadcn/ui is a component registry, not a versioned package. Components are copied into your project. CLI version is the relevant version indicator.",
+      "breaking_changes": {
+        "in_current_line": false,
+        "notes": "CLI v4 deprecates some init flags (--base-color, --src-dir, --no-base-style, --css-variables, create command). These are CLI-only changes, not component-level breaking changes. Components evolve incrementally."
+      },
+      "deprecations": {
+        "found": true,
+        "notes": "Toast component being deprecated in favor of Sonner. CLI flags deprecated: --base-color, --src-dir, --no-base-style, --css-variables. 'create' command deprecated (alias of init)."
+      },
+      "security_vulnerabilities": {
+        "cve_found": false,
+        "details": [],
+        "recommendation": "No known CVEs. Components are local code - security depends on underlying primitives (Radix UI, Base UI)."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "Very active. shadcn (maintainer) + community. Major updates every 1-2 months. Now supports both Radix UI and Base UI as primitive backends.",
+      "new_features_march_2026": {
+        "cli_v4": "New --dry-run, --diff, --view flags. Framework templates for Next.js, Vite, TanStack Start, React Router, Astro, Laravel.",
+        "skills": "shadcn/skills gives AI coding agents context for component and registry workflows.",
+        "presets": "Design system presets: one-string config for colors, theme, icons, fonts, radius.",
+        "rtl_support": "RTL support added Jan 2026.",
+        "base_ui": "Base UI support as alternative to Radix UI (Feb 2026).",
+        "data_slot": "Every primitive now has data-slot attribute for styling."
+      },
+      "compatibility": {
+        "react_19": {
+          "status": "compatible",
+          "notes": "Full React 19 support. All components updated."
+        },
+        "tailwind_v4": {
+          "status": "compatible",
+          "notes": "Full Tailwind v4 support. CSS-first config. OKLCH colors."
+        },
+        "vite": {
+          "status": "compatible",
+          "notes": "First-class Vite template in CLI v4."
+        }
+      },
+      "roadmap_risks": {
+        "primitives": "Dual Radix/Base UI support is new. Stick with Radix for stability.",
+        "sonner_migration": "Plan to use Sonner instead of deprecated Toast component."
+      }
+    },
+
+    "vite": {
+      "confirmed_version_in_stack": "latest",
+      "latest_stable_version": "8.0.0",
+      "release_date": "2026-03-12",
+      "breaking_changes": {
+        "in_current_line": true,
+        "notes": "Vite 8.0 (5 days ago!) is a major release. Fully integrates Rolldown (Rust-based bundler) replacing Rollup. @vitejs/plugin-react v6 uses Oxc for React Refresh (drops Babel). This is a BRAND NEW major version - early adoption risk.",
+        "impact_on_project": "Since project hasn't started yet, can evaluate Vite 7 (stable, proven) vs Vite 8 (bleeding edge, better perf). Recommendation: start with Vite 7.x unless Vite 8.0.1+ patches land soon."
+      },
+      "deprecations": {
+        "found": true,
+        "notes": "Vite 8 drops Rollup in favor of Rolldown. Plugins using Rollup-specific internals may break. Standard Vite plugins should work."
+      },
+      "security_vulnerabilities": {
+        "cve_found": false,
+        "details": [],
+        "recommendation": "No known CVEs for Vite 8. Vite 7.x has established security track record."
+      },
+      "maintenance_status": "active",
+      "maintenance_details": "Very active. VoidZero (Evan You's company) backing. Vite 8 + Vite+ (commercial) announced. Massive ecosystem.",
+      "compatibility": {
+        "tauri": {
+          "status": "likely_compatible_unverified",
+          "notes": "Tauri docs verified with Vite 5.4.8. Tauri uses devUrl for dev server and distDir for build output - framework agnostic approach should work with Vite 8. BUT: Vite 8 is 5 days old. No explicit Tauri verification yet. Recommend Vite 7.x for safety or test Vite 8 early."
+        },
+        "react": {
+          "status": "compatible",
+          "notes": "@vitejs/plugin-react v6 for Vite 8 fully supports React 19."
+        },
+        "tailwind": {
+          "status": "compatible",
+          "notes": "Tailwind CSS team moved quickly on Vite 8 support. @tailwindcss/vite updated."
+        }
+      },
+      "roadmap_risks": {
+        "rolldown_stability": "Rolldown was in beta/RC during Vite 8 development. Now stable in Vite 8.0 but very new. Expect 8.0.x patches.",
+        "vite_plus": "VoidZero announced Vite+ (commercial). Core Vite remains open source. No risk.",
+        "recommendation": "Consider pinning Vite 7.x for launch stability, upgrade to Vite 8.1+ once patch cycle matures (April-May 2026)."
+      }
+    }
+  },
+
+  "cross_compatibility_matrix": {
+    "tauri_2.10.3 + vite_8.0.0": {
+      "status": "unverified",
+      "risk": "medium",
+      "notes": "Vite 8 released 5 days ago. Tauri docs not updated. Likely works but no community verification yet."
+    },
+    "tauri_2.10.3 + vite_7.x": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "Well-established combination. Recommended for project start."
+    },
+    "react_19.2.4 + reactflow_12.10.1": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "Explicitly supported since ReactFlow 12.9.0 (Oct 2025)."
+    },
+    "react_19.2.4 + shadcn_cli_v4": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "Full React 19 support in shadcn/ui."
+    },
+    "tailwind_4.2.0 + shadcn_cli_v4": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "shadcn/ui fully supports Tailwind v4 with OKLCH colors and @theme directive."
+    },
+    "tailwind_4.2.0 + reactflow_12.10.1": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "Supported since 12.9.0. Requires specific CSS import order in global.css."
+    },
+    "vite_8.0.0 + tailwind_4.2.0": {
+      "status": "verified",
+      "risk": "low",
+      "notes": "Tailwind team confirmed Vite 8 support quickly."
+    },
+    "full_stack_all_latest": {
+      "status": "partially_verified",
+      "risk": "medium",
+      "notes": "Only unverified link is Tauri 2.10.3 + Vite 8.0.0. All other pairs are verified compatible."
+    }
+  },
+
+  "stale_decisions": [
+    {
+      "id": "SD-01",
+      "decision": "Use ReactFlow 12.8.2",
+      "finding": "12.8.2 is 3 minor versions behind latest (12.10.1). Missing React 19 + Tailwind v4 UI component support (added in 12.9.0), plus performance optimizations in 12.10.x.",
+      "severity": "high",
+      "recommendation": "Update to @xyflow/react 12.10.1. This is required for React 19 + Tailwind v4 compatibility in UI components.",
+      "action": "UPDATE_VERSION"
+    },
+    {
+      "id": "SD-02",
+      "decision": "Use Vite 'latest' (implicitly assumed stable)",
+      "finding": "Vite 8.0.0 released 2026-03-12 (5 days ago). Major rewrite with Rolldown replacing Rollup. Brand new, no patch releases yet. Tauri compatibility unverified.",
+      "severity": "high",
+      "recommendation": "Pin Vite 7.x for project start. Plan upgrade to Vite 8.1+ after first patch cycle (April-May 2026). Alternatively, test Vite 8.0.0 with Tauri early and report issues.",
+      "action": "PIN_VERSION"
+    },
+    {
+      "id": "SD-03",
+      "decision": "Use React 19 (no specific patch version)",
+      "finding": "React 19.2.4 includes critical security fix for Server Components DoS/Source Exposure. Versions 19.2.1-19.2.3 have INCOMPLETE security patches.",
+      "severity": "medium",
+      "recommendation": "Pin React to >=19.2.4. Even though Tauri doesn't use Server Components, the incomplete patch versions (19.2.1-19.2.3) indicate quality issues in those specific builds.",
+      "action": "PIN_MINIMUM_VERSION"
+    },
+    {
+      "id": "SD-04",
+      "decision": "Use shadcn/ui latest",
+      "finding": "shadcn CLI v4 just released March 2026 with significant new features (skills, presets, framework templates). Toast component deprecated in favor of Sonner.",
+      "severity": "low",
+      "recommendation": "Use CLI v4 for project init. Use Sonner for toasts instead of deprecated Toast component. Stick with Radix UI primitives (not new Base UI option) for stability.",
+      "action": "USE_RECOMMENDED_PATTERNS"
+    },
+    {
+      "id": "SD-05",
+      "decision": "Use TailwindCSS v4",
+      "finding": "v4.2.0 is latest (Feb 2026). v4.0 was Jan 2025 - now 14 months mature. CSS-first config is the standard. No issues.",
+      "severity": "none",
+      "recommendation": "Use v4.2.0. Well-tested, all ecosystem components support it. No action needed.",
+      "action": "NO_ACTION"
+    },
+    {
+      "id": "SD-06",
+      "decision": "Use Tauri 2.10.1~2.10.3",
+      "finding": "2.10.3 is the latest (Mar 4, 2026). Version range in spec is accurate. Check tauri-plugin-shell is updated for GHSA-c9pr-q8gx-3mgp fix.",
+      "severity": "low",
+      "recommendation": "Use 2.10.3. Verify all @tauri-apps/plugin-* packages are up to date, especially plugin-shell.",
+      "action": "VERIFY_PLUGINS"
+    }
+  ],
+
+  "summary": {
+    "overall_risk": "medium",
+    "critical_actions": [
+      "Update @xyflow/react from 12.8.2 to 12.10.1 (required for React 19 + Tailwind v4 UI component support)",
+      "Pin Vite to 7.x or explicitly test Vite 8.0.0 with Tauri 2.10.3 before committing",
+      "Pin React >= 19.2.4 (security fix completeness)",
+      "Use Sonner instead of deprecated shadcn Toast component"
+    ],
+    "all_clear": [
+      "Tauri 2.10.3 is latest and actively maintained, no imminent Tauri 3 disruption",
+      "TailwindCSS 4.2.0 is mature and well-supported across all components",
+      "shadcn/ui CLI v4 supports Vite template natively",
+      "All component pairs except Tauri+Vite8 are verified compatible",
+      "No EOL or maintenance concerns for any component"
+    ]
+  },
+
+  "sources": [
+    "https://v2.tauri.app/release/",
+    "https://github.com/tauri-apps/tauri/releases",
+    "https://github.com/tauri-apps/tauri/security/advisories",
+    "https://github.com/tauri-apps/tauri/milestone/5",
+    "https://github.com/tauri-apps/tauri-docs/issues/3143",
+    "https://react.dev/versions",
+    "https://react.dev/blog/2025/10/01/react-19-2",
+    "https://react.dev/blog/2025/12/11/denial-of-service-and-source-code-exposure-in-react-server-components",
+    "https://reactflow.dev/whats-new",
+    "https://reactflow.dev/whats-new/2026-02-19",
+    "https://reactflow.dev/whats-new/2025-10-28",
+    "https://github.com/xyflow/xyflow/releases",
+    "https://github.com/tailwindlabs/tailwindcss/releases",
+    "https://tailwindcss.com/blog/tailwindcss-v4-1",
+    "https://ui.shadcn.com/docs/changelog",
+    "https://ui.shadcn.com/docs/changelog/2026-03-cli-v4",
+    "https://ui.shadcn.com/docs/tailwind-v4",
+    "https://vite.dev/releases",
+    "https://vite.dev/blog/announcing-vite8",
+    "https://github.com/vitejs/vite-plugin-react/releases",
+    "https://v2.tauri.app/start/frontend/vite/"
+  ]
+}
