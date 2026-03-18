@@ -44,9 +44,7 @@ async def handle_score_submitted(event: LearningEvent) -> None:
     session_id = payload.get("session_id")
 
     if not node_id or grade is None:
-        logger.warning(
-            "handle_score_submitted: missing node_id or grade in payload"
-        )
+        logger.warning("handle_score_submitted: missing node_id or grade in payload")
         return
 
     from app.api.v1.endpoints.mastery import _get_engine, _get_store
@@ -62,10 +60,7 @@ async def handle_score_submitted(event: LearningEvent) -> None:
     updated = engine.update_on_interaction(concept, grade)
     await store.save_concept(updated)
 
-    logger.info(
-        f"handle_score_submitted: node={node_id} grade={grade} "
-        f"p_mastery={updated.p_mastery:.3f}"
-    )
+    logger.info(f"handle_score_submitted: node={node_id} grade={grade} p_mastery={updated.p_mastery:.3f}")
 
     # Publish downstream events
     from app.services.event_bus import get_event_bus
@@ -212,9 +207,7 @@ async def handle_calibration_recorded(event: LearningEvent) -> None:
     session_id = payload.get("session_id", "")
 
     if not node_id or self_confidence is None or actual_performance is None:
-        logger.warning(
-            "handle_calibration_recorded: missing required fields in payload"
-        )
+        logger.warning("handle_calibration_recorded: missing required fields in payload")
         return
 
     from app.services.calibration_tracker import record_calibration
@@ -232,8 +225,7 @@ async def handle_calibration_recorded(event: LearningEvent) -> None:
     await store.save_calibration_record(record)
 
     logger.info(
-        f"handle_calibration_recorded: node={node_id} "
-        f"quadrant={record.quadrant.value} dangerous={record.is_dangerous}"
+        f"handle_calibration_recorded: node={node_id} quadrant={record.quadrant.value} dangerous={record.is_dangerous}"
     )
 
 
@@ -273,8 +265,111 @@ async def handle_memory_write_requested(event: LearningEvent) -> None:
         duration_seconds=duration_seconds,
     )
 
+    logger.info(f"handle_memory_write_requested: recorded learning event for node={node_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Handler: FSRS_UPDATED (Tier 2 IMPORTANT)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def handle_fsrs_updated(event: LearningEvent) -> None:
+    """Write FSRS review schedule to Graphiti memory service.
+
+    Records the FSRS stability/difficulty/state update as a learning event
+    in Graphiti so the knowledge graph tracks review scheduling history.
+
+    Tier 2 (IMPORTANT): fire + retry + JSONL outbox on failure.
+    """
+    payload = event.payload
+    node_id = payload.get("node_id")
+    session_id = payload.get("session_id", "")
+
+    if not node_id:
+        logger.warning("handle_fsrs_updated: missing node_id in payload")
+        return
+
+    from app.services.memory_service import get_memory_service
+
+    memory_svc = await get_memory_service()
+    await memory_svc.record_knowledge_entity(
+        event_type="fsrs_review",
+        content=(
+            f"FSRS review update for node {node_id}: "
+            f"stability={payload.get('fsrs_stability', 0):.2f} "
+            f"difficulty={payload.get('fsrs_difficulty', 0):.2f} "
+            f"state={payload.get('fsrs_state', 0)} "
+            f"grade={payload.get('grade', 0)}"
+        ),
+        metadata={
+            "node_id": node_id,
+            "session_id": session_id,
+            "fsrs_stability": payload.get("fsrs_stability"),
+            "fsrs_difficulty": payload.get("fsrs_difficulty"),
+            "fsrs_state": payload.get("fsrs_state"),
+            "grade": payload.get("grade"),
+        },
+        group_id="default",
+    )
+
+    logger.debug(f"handle_fsrs_updated: recorded FSRS schedule for node={node_id}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Handler: RAG_WEIGHT_ADJUST (Tier 3 BEST_EFFORT)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def handle_rag_weight_adjust(event: LearningEvent) -> None:
+    """Adjust RAG retrieval weights based on mastery level changes.
+
+    Mastered nodes get deprioritized in retrieval; weak nodes get boosted.
+    Currently logs the adjustment intent. Real LanceDB weight adjustment
+    will be wired when the retrieval pipeline supports per-node boosting.
+
+    Tier 3 (BEST_EFFORT): fire-and-forget, failure only logged.
+    """
+    payload = event.payload
+    node_id = payload.get("node_id")
+    mastery_level = payload.get("mastery_level", 0)
+
+    if not node_id:
+        return
+
+    # Compute boost factor: low mastery = high boost, high mastery = low boost
+    # Level 0 (not assessed) = 1.0, Level 1 (shaky) = 1.5, Level 4 (mastered) = 0.5
+    boost_map = {0: 1.0, 1: 1.5, 2: 1.2, 3: 0.8, 4: 0.5}
+    boost = boost_map.get(mastery_level, 1.0)
+
+    logger.info(f"handle_rag_weight_adjust: node={node_id} mastery_level={mastery_level} boost_factor={boost}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Handler: UI_MASTERY_PUSH (Tier 3 BEST_EFFORT)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+
+async def handle_ui_mastery_push(event: LearningEvent) -> None:
+    """Push mastery update to connected WebSocket clients.
+
+    Broadcasts the mastery state change to all connected frontends so
+    canvas node colors update in real-time. Currently logs the broadcast
+    intent. Real WebSocket broadcast will be wired when the WebSocket
+    layer is available.
+
+    Tier 3 (BEST_EFFORT): fire-and-forget, failure only logged.
+    """
+    payload = event.payload
+    node_id = payload.get("node_id")
+
+    if not node_id:
+        return
+
     logger.info(
-        f"handle_memory_write_requested: recorded learning event for node={node_id}"
+        f"handle_ui_mastery_push: node={node_id} "
+        f"level={payload.get('mastery_level')} "
+        f"color={payload.get('mastery_color')} "
+        f"proficiency={payload.get('effective_proficiency')}"
     )
 
 
@@ -323,8 +418,28 @@ def register_all_handlers(event_bus: "EventBus") -> None:
         subsystem="memory",
     )
 
+    # Tier 2 IMPORTANT: FSRS_UPDATED -> write schedule to Graphiti
+    event_bus.subscribe(
+        LearningEventType.FSRS_UPDATED,
+        handle_fsrs_updated,
+        subsystem="memory",
+    )
+
+    # Tier 3 BEST_EFFORT: RAG_WEIGHT_ADJUST -> adjust retrieval weights
+    event_bus.subscribe(
+        LearningEventType.RAG_WEIGHT_ADJUST,
+        handle_rag_weight_adjust,
+    )
+
+    # Tier 3 BEST_EFFORT: UI_MASTERY_PUSH -> WebSocket broadcast
+    event_bus.subscribe(
+        LearningEventType.UI_MASTERY_PUSH,
+        handle_ui_mastery_push,
+    )
+
     logger.info(
-        "EventBus: registered 5 production handlers "
-        "(SCORE_SUBMITTED, BKT_UPDATED, MASTERY_CHANGED, "
-        "CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED)"
+        "EventBus: registered 8 production handlers "
+        "(SCORE_SUBMITTED, BKT_UPDATED, FSRS_UPDATED, MASTERY_CHANGED, "
+        "CALIBRATION_RECORDED, MEMORY_WRITE_REQUESTED, "
+        "RAG_WEIGHT_ADJUST, UI_MASTERY_PUSH)"
     )

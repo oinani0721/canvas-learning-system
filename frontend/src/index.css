@@ -23,3 +23,18 @@ body {
   min-width: 320px;
   min-height: 100vh;
 }
+
+/* ═══════════════════════════════════════════════════════
+ * Story 5-2: Mastery Color CSS Variables
+ * Used by KnowledgeNode mastery bar + color indicators.
+ * These provide a single source of truth for mastery colors.
+ * ═══════════════════════════════════════════════════════ */
+
+:root {
+  --cl-mastery-unlearned: #9ca3af;
+  --cl-mastery-learning: #60a5fa;
+  --cl-mastery-weak: #f87171;
+  --cl-mastery-mastered: #22c55e;
+  --cl-mastery-review: #facc15;
+  --cl-mastery-transition: border-color 300ms ease-in-out, background-color 300ms ease-in-out;
+}

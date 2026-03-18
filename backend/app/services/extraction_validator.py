@@ -50,7 +50,9 @@ CREATE TABLE IF NOT EXISTS qa_extraction_records (
     extraction_subtype TEXT,
     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
     annotation TEXT,
-    annotated_at TEXT
+    annotated_at TEXT,
+    updated_at TEXT,
+    deleted_at TEXT
 );
 """
 
@@ -58,6 +60,13 @@ _CREATE_INDICES = [
     "CREATE INDEX IF NOT EXISTS idx_extraction_type ON qa_extraction_records(extraction_type);",
     "CREATE INDEX IF NOT EXISTS idx_extraction_annotation ON qa_extraction_records(annotation);",
     "CREATE INDEX IF NOT EXISTS idx_extraction_created ON qa_extraction_records(created_at);",
+    "CREATE INDEX IF NOT EXISTS idx_extraction_deleted ON qa_extraction_records(deleted_at);",
+]
+
+# Migration: add updated_at and deleted_at columns to existing tables
+_MIGRATE_ADD_COLUMNS = [
+    "ALTER TABLE qa_extraction_records ADD COLUMN updated_at TEXT;",
+    "ALTER TABLE qa_extraction_records ADD COLUMN deleted_at TEXT;",
 ]
 
 _INSERT_RECORD = """
@@ -70,34 +79,60 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 _UPDATE_ANNOTATION = """
 UPDATE qa_extraction_records
 SET annotation = ?, annotated_at = ?
-WHERE id = ?;
+WHERE id = ? AND deleted_at IS NULL;
+"""
+
+_UPDATE_CONTENT = """
+UPDATE qa_extraction_records
+SET extracted_content = ?, updated_at = ?
+WHERE id = ? AND deleted_at IS NULL;
+"""
+
+_SOFT_DELETE = """
+UPDATE qa_extraction_records
+SET deleted_at = ?
+WHERE id = ? AND deleted_at IS NULL;
+"""
+
+_RESET_ANNOTATION = """
+UPDATE qa_extraction_records
+SET annotation = NULL, annotated_at = NULL
+WHERE id = ? AND deleted_at IS NULL;
+"""
+
+_GET_RECORD_BY_ID = """
+SELECT id, source_session_id, source_node_id, original_text, extracted_content,
+       extraction_type, extraction_subtype, created_at, annotation, annotated_at,
+       updated_at, deleted_at
+FROM qa_extraction_records
+WHERE id = ? AND deleted_at IS NULL;
 """
 
 _SELECT_PAGE = """
 SELECT id, source_session_id, source_node_id, original_text, extracted_content,
        extraction_type, extraction_subtype, created_at, annotation, annotated_at
 FROM qa_extraction_records
-{where}
+WHERE deleted_at IS NULL {extra_where}
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?;
 """
 
 _COUNT = """
-SELECT COUNT(*) FROM qa_extraction_records {where};
+SELECT COUNT(*) FROM qa_extraction_records WHERE deleted_at IS NULL {extra_where};
 """
 
-_STATS_TOTAL = "SELECT COUNT(*) FROM qa_extraction_records;"
+_STATS_TOTAL = "SELECT COUNT(*) FROM qa_extraction_records WHERE deleted_at IS NULL;"
 
-_STATS_ANNOTATED = "SELECT COUNT(*) FROM qa_extraction_records WHERE annotation IS NOT NULL;"
+_STATS_ANNOTATED = "SELECT COUNT(*) FROM qa_extraction_records WHERE annotation IS NOT NULL AND deleted_at IS NULL;"
 
-_STATS_CORRECT = "SELECT COUNT(*) FROM qa_extraction_records WHERE annotation = 'correct';"
+_STATS_CORRECT = "SELECT COUNT(*) FROM qa_extraction_records WHERE annotation = 'correct' AND deleted_at IS NULL;"
 
 _STATS_BY_TYPE = """
 SELECT extraction_type,
        COUNT(*) AS total,
        SUM(CASE WHEN annotation = 'correct' THEN 1 ELSE 0 END) AS correct_count
 FROM qa_extraction_records
-WHERE annotation IS NOT NULL
+WHERE annotation IS NOT NULL AND deleted_at IS NULL
 GROUP BY extraction_type;
 """
 
@@ -130,6 +165,12 @@ class ExtractionValidator:
                 await db.execute(_CREATE_TABLE)
                 for idx_sql in _CREATE_INDICES:
                     await db.execute(idx_sql)
+                # Migrate: add updated_at and deleted_at columns if missing
+                for migrate_sql in _MIGRATE_ADD_COLUMNS:
+                    try:
+                        await db.execute(migrate_sql)
+                    except Exception:
+                        pass  # Column already exists
                 await db.commit()
             self._initialized = True
             logger.info("[Story 7.4] ExtractionValidator initialized")
@@ -234,46 +275,158 @@ class ExtractionValidator:
         return True
 
     # ───────────────────────────────────────────────────────────────────────
+    # Write: update content (Story 5.8 Task 1.1)
+    # ───────────────────────────────────────────────────────────────────────
+
+    async def update_content(self, record_id: str, new_content: str) -> Optional[ExtractionRecord]:
+        """Update the extracted_content field of a record.
+
+        Args:
+            record_id: UUID of the extraction record.
+            new_content: New extracted content string.
+
+        Returns:
+            Updated ExtractionRecord, or None if not found.
+
+        [Source: Story 5.8 Task 1.1]
+        """
+        await self._ensure_init()
+        now = datetime.now(timezone.utc).isoformat()
+
+        async with aiosqlite.connect(self._db_path) as db:
+            cursor = await db.execute(_UPDATE_CONTENT, (new_content, now, record_id))
+            await db.commit()
+            if cursor.rowcount == 0:
+                return None
+
+            cursor = await db.execute(_GET_RECORD_BY_ID, (record_id,))
+            row = await cursor.fetchone()
+
+        if not row:
+            return None
+
+        logger.info(f"[Story 5.8] Updated extraction content for record {record_id}")
+        return ExtractionRecord(
+            id=row[0],
+            source_session_id=row[1],
+            source_node_id=row[2],
+            original_text=row[3],
+            extracted_content=row[4],
+            extraction_type=row[5],
+            extraction_subtype=row[6],
+            created_at=row[7],
+            annotation=row[8],
+            annotated_at=row[9],
+        )
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Write: soft delete (Story 5.8 Task 1.2)
+    # ───────────────────────────────────────────────────────────────────────
+
+    async def delete_record(self, record_id: str) -> bool:
+        """Soft-delete an extraction record by setting deleted_at.
+
+        Subsequent queries automatically exclude deleted records.
+
+        Args:
+            record_id: UUID of the extraction record.
+
+        Returns:
+            True if record was found and soft-deleted, False otherwise.
+
+        [Source: Story 5.8 Task 1.2]
+        """
+        await self._ensure_init()
+        now = datetime.now(timezone.utc).isoformat()
+
+        async with aiosqlite.connect(self._db_path) as db:
+            cursor = await db.execute(_SOFT_DELETE, (now, record_id))
+            await db.commit()
+            if cursor.rowcount == 0:
+                return False
+
+        logger.info(f"[Story 5.8] Soft-deleted extraction record {record_id}")
+        return True
+
+    # ───────────────────────────────────────────────────────────────────────
+    # Write: reset annotation (Story 5.8 Task 1.3)
+    # ───────────────────────────────────────────────────────────────────────
+
+    async def reset_annotation(self, record_id: str) -> bool:
+        """Clear annotation and annotated_at fields (revoke annotation).
+
+        Allows re-annotation after reset.
+
+        Args:
+            record_id: UUID of the extraction record.
+
+        Returns:
+            True if record was found and annotation was reset, False otherwise.
+
+        [Source: Story 5.8 Task 1.3]
+        """
+        await self._ensure_init()
+
+        async with aiosqlite.connect(self._db_path) as db:
+            cursor = await db.execute(_RESET_ANNOTATION, (record_id,))
+            await db.commit()
+            if cursor.rowcount == 0:
+                return False
+
+        logger.info(f"[Story 5.8] Reset annotation for record {record_id}")
+        return True
+
+    # ───────────────────────────────────────────────────────────────────────
     # Read: paginated query
     # ───────────────────────────────────────────────────────────────────────
 
     async def get_records(
         self,
         extraction_type: Optional[str] = None,
+        annotation_filter: Optional[str] = None,
         page: int = 1,
         page_size: int = 20,
     ) -> ExtractionRecordPage:
-        """Query extraction records with pagination and optional type filter.
+        """Query extraction records with pagination and optional filters.
 
         Args:
             extraction_type: Filter by type ('error', 'tip', 'key_qa') or None for all.
+            annotation_filter: Filter by annotation status:
+                'annotated' — only records with annotation set.
+                'unannotated' — only records without annotation.
+                None — all records.
             page: Page number (1-based).
             page_size: Records per page.
 
         Returns:
             ExtractionRecordPage with records and pagination metadata.
 
-        [Source: Story 7.4 Task 2.4]
+        [Source: Story 7.4 Task 2.4, Story 5.8 Task 1.5]
         """
         await self._ensure_init()
 
-        where_clause = ""
+        extra_parts: list[str] = []
         params: list = []
         if extraction_type:
-            where_clause = "WHERE extraction_type = ?"
+            extra_parts.append("AND extraction_type = ?")
             params.append(extraction_type)
+        if annotation_filter == "annotated":
+            extra_parts.append("AND annotation IS NOT NULL")
+        elif annotation_filter == "unannotated":
+            extra_parts.append("AND annotation IS NULL")
 
+        extra_where = " ".join(extra_parts)
         offset = (page - 1) * page_size
 
         async with aiosqlite.connect(self._db_path) as db:
             # Count total
-            count_sql = _COUNT.format(where=where_clause)
+            count_sql = _COUNT.format(extra_where=extra_where)
             cursor = await db.execute(count_sql, params)
             row = await cursor.fetchone()
             total = row[0] if row else 0
 
             # Fetch page
-            select_sql = _SELECT_PAGE.format(where=where_clause)
+            select_sql = _SELECT_PAGE.format(extra_where=extra_where)
             cursor = await db.execute(select_sql, params + [page_size, offset])
             rows = await cursor.fetchall()
 

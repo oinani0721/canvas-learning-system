@@ -89,6 +89,15 @@ class AnnotationRequest(BaseModel):
     annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
 
 
+class UpdateExtractionRequest(BaseModel):
+    """Request body for updating extraction content.
+
+    [Source: Story 5.8 Task 2.5]
+    """
+
+    extracted_content: str = Field(..., min_length=1, description="Updated extracted content")
+
+
 class TypeStats(BaseModel):
     """Per-type extraction accuracy statistics."""
 

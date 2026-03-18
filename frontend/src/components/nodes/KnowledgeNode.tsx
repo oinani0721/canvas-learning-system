@@ -2,15 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import type { KnowledgeNodeData } from '../../types';
 import { useCanvasStore } from '../../stores/canvas-store';
-
-const MASTERY_COLORS: Record<string, string> = {
-  unlearned: 'border-gray-300',
-  learning: 'border-blue-400',
-  weak: 'border-red-400',
-  developing: 'border-orange-400',
-  proficient: 'border-green-500',
-  review: 'border-yellow-400',
-};
+import { getMasteryBorderClass, getMasteryColor } from '../../services/mastery-utils';
 
 function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as KnowledgeNodeData;
@@ -20,9 +12,10 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const updateNode = useCanvasStore((s) => s.updateNode);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const borderColor =
-    MASTERY_COLORS[nodeData.masteryStatus ?? 'unlearned'] ?? 'border-gray-300';
+  const masteryStatus = nodeData.masteryStatus ?? 'unlearned';
+  const borderColor = getMasteryBorderClass(masteryStatus);
   const proficiency = nodeData.effectiveProficiency ?? 0;
+  const masteryHex = getMasteryColor(masteryStatus);
 
   // Sync local state when data changes from outside (e.g. after Dexie reload)
   useEffect(() => {
@@ -80,9 +73,20 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     <div
       className={`bg-white rounded-lg shadow-md border-2 ${borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
-      } min-w-[200px] max-w-[300px]`}
+      } min-w-[200px] max-w-[300px] relative`}
+      style={{ transition: 'border-color 300ms ease-in-out' }}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Story 5-2: Left mastery color bar indicator */}
+      {masteryStatus !== 'unlearned' && (
+        <div
+          className="absolute left-0 top-0 bottom-0 w-1 rounded-l-lg pointer-events-none"
+          style={{
+            backgroundColor: masteryHex,
+            transition: 'background-color 300ms ease-in-out',
+          }}
+        />
+      )}
       {/* Header — drag handle in view mode, title input in edit mode */}
       <div
         className={`px-3 py-2 border-b border-gray-100 ${
@@ -133,19 +137,14 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         )
       )}
 
-      {/* Mastery bar */}
+      {/* Mastery bar (Story 5-2: uses mastery status color) */}
       <div className="px-3 pb-2">
         <div className="h-1 bg-gray-100 rounded-full overflow-hidden">
           <div
-            className="h-full bg-current rounded-full transition-all duration-300"
+            className="h-full rounded-full transition-all duration-300"
             style={{
               width: `${proficiency * 100}%`,
-              color:
-                proficiency > 0.8
-                  ? '#22c55e'
-                  : proficiency > 0.5
-                    ? '#f59e0b'
-                    : '#ef4444',
+              backgroundColor: masteryHex,
             }}
           />
         </div>

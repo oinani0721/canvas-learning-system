@@ -9,6 +9,7 @@ the API response envelope: {"data": {...}, "meta": {...}}.
 """
 
 import logging
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Optional
@@ -503,11 +504,28 @@ async def test_llm_connection(config: _ModelTaskConfigRequest) -> dict:
             "meta": {"timestamp": now},
         }
     except Exception as e:
-        # Do NOT log the full exception if it might contain the API key
-        error_msg = str(e)
+        # Sanitize error message: strip any API key fragments (NFR-SEC-02)
+        raw_msg = str(e)
+        # Remove potential key patterns (sk-..., AIza..., key=..., etc.)
+        sanitized = re.sub(
+            r"(sk-[a-zA-Z0-9]{3})[a-zA-Z0-9-]+",
+            r"\1***",
+            raw_msg,
+        )
+        sanitized = re.sub(
+            r"(AIza[a-zA-Z0-9]{3})[a-zA-Z0-9-]+",
+            r"\1***",
+            sanitized,
+        )
+        sanitized = re.sub(
+            r'(api[_-]?key["\s:=]+)["\']?[a-zA-Z0-9_-]{8,}["\']?',
+            r"\1***",
+            sanitized,
+            flags=re.IGNORECASE,
+        )
         logger.warning("[Story 1.3] LLM connection test failed — model=%s", model_str)
         return {
-            "data": {"status": "failed", "error": error_msg},
+            "data": {"status": "failed", "error": sanitized},
             "meta": {"timestamp": now},
         }
 
@@ -522,6 +540,12 @@ class AnnotationRequestBody(BaseModel):
     """Request body for annotation submission (Story 7.4 AC-3)."""
 
     annotation: str = Field(..., description="Annotation value: 'correct' | 'incorrect' | 'partial'")
+
+
+class UpdateExtractionRequestBody(BaseModel):
+    """Request body for updating extraction content (Story 5.8 AC-4)."""
+
+    extracted_content: str = Field(..., min_length=1, description="Updated extracted content")
 
 
 @router.get(
@@ -622,13 +646,17 @@ async def get_extraction_records(
         default=None,
         description="Filter by type: error, tip, key_qa",
     ),
+    annotation_filter: Optional[str] = Query(
+        default=None,
+        description="Filter by annotation status: 'annotated' | 'unannotated' | None for all",
+    ),
     page: int = Query(default=1, ge=1, description="Page number (1-based)"),
     page_size: int = Query(default=20, ge=1, le=100, description="Records per page"),
 ) -> dict:
     """Return paginated extraction records for human spot-check review.
 
     [Source: Story 7.4 Task 5.3 — GET /api/v1/system/extraction-records]
-    [Source: Story 7.4 AC-3]
+    [Source: Story 7.4 AC-3, Story 5.8 AC-5]
     """
     from app.services.extraction_validator import get_extraction_validator
 
@@ -638,6 +666,7 @@ async def get_extraction_records(
         validator = get_extraction_validator()
         result = await validator.get_records(
             extraction_type=extraction_type,
+            annotation_filter=annotation_filter,
             page=page,
             page_size=page_size,
         )
@@ -686,6 +715,104 @@ async def annotate_extraction_record(
 
     return {
         "data": {"status": "ok", "record_id": record_id, "annotation": body.annotation},
+        "meta": {"timestamp": now},
+    }
+
+
+@router.patch(
+    "/extraction-records/{record_id}",
+    summary="Update extraction record content",
+    description=("Edit the extracted_content of a record. Used for correcting LLM extraction errors. (Story 5.8 AC-4)"),
+    tags=["System"],
+)
+async def update_extraction_record(
+    record_id: str,
+    body: "UpdateExtractionRequestBody",
+) -> dict:
+    """Update extracted_content for a specific record.
+
+    [Source: Story 5.8 Task 2.1 — PATCH /api/v1/system/extraction-records/{record_id}]
+    """
+    from app.services.extraction_validator import get_extraction_validator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        validator = get_extraction_validator()
+        updated = await validator.update_content(record_id, body.extracted_content)
+    except Exception as e:
+        logger.error(f"[Story 5.8] Failed to update record {record_id}: {e}")
+        raise HTTPException(status_code=500, detail="Update failed") from e
+
+    if not updated:
+        raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+    return {
+        "data": updated.model_dump(),
+        "meta": {"timestamp": now},
+    }
+
+
+@router.delete(
+    "/extraction-records/{record_id}",
+    summary="Soft-delete an extraction record",
+    description=(
+        "Marks an extraction record as deleted (soft delete). "
+        "The record is excluded from queries but not physically removed. (Story 5.8 AC-4)"
+    ),
+    tags=["System"],
+)
+async def delete_extraction_record(
+    record_id: str,
+) -> dict:
+    """Soft-delete a specific extraction record.
+
+    [Source: Story 5.8 Task 2.2 — DELETE /api/v1/system/extraction-records/{record_id}]
+    """
+    from app.services.extraction_validator import get_extraction_validator
+
+    try:
+        validator = get_extraction_validator()
+        deleted = await validator.delete_record(record_id)
+    except Exception as e:
+        logger.error(f"[Story 5.8] Failed to delete record {record_id}: {e}")
+        raise HTTPException(status_code=500, detail="Delete failed") from e
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+    return {"status": "deleted", "record_id": record_id}
+
+
+@router.delete(
+    "/extraction-records/{record_id}/annotation",
+    summary="Reset annotation for an extraction record",
+    description=("Clears the annotation and annotated_at fields, allowing re-annotation. (Story 5.8 AC-2)"),
+    tags=["System"],
+)
+async def reset_extraction_annotation(
+    record_id: str,
+) -> dict:
+    """Reset (revoke) annotation for a specific extraction record.
+
+    [Source: Story 5.8 Task 2.3 — DELETE /api/v1/system/extraction-records/{record_id}/annotation]
+    """
+    from app.services.extraction_validator import get_extraction_validator
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    try:
+        validator = get_extraction_validator()
+        reset = await validator.reset_annotation(record_id)
+    except Exception as e:
+        logger.error(f"[Story 5.8] Failed to reset annotation {record_id}: {e}")
+        raise HTTPException(status_code=500, detail="Reset failed") from e
+
+    if not reset:
+        raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
+
+    return {
+        "data": {"status": "ok", "record_id": record_id, "annotation": None},
         "meta": {"timestamp": now},
     }
 

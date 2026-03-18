@@ -135,14 +135,10 @@ class ArchiveManager:
                 if result:
                     results.append(result)
             except Exception as e:
-                logger.warning(
-                    f"[Story 3.8] Batch archive failed for node {node_id}: {e}"
-                )
+                logger.warning(f"[Story 3.8] Batch archive failed for node {node_id}: {e}")
 
         if results:
-            logger.info(
-                f"[Story 3.8] Batch archive: {len(results)}/{len(batch)} nodes archived"
-            )
+            logger.info(f"[Story 3.8] Batch archive: {len(results)}/{len(batch)} nodes archived")
 
         return results
 
@@ -191,9 +187,7 @@ class ArchiveManager:
 
         return ArchiveTier.HOT
 
-    async def _archive_to_warm(
-        self, node_id: str, messages: List[Dict[str, Any]]
-    ) -> ArchiveStatus:
+    async def _archive_to_warm(self, node_id: str, messages: List[Dict[str, Any]]) -> ArchiveStatus:
         """
         Archive conversation from Hot to Warm tier.
 
@@ -224,6 +218,13 @@ class ArchiveManager:
             has_summary = bool(result.summary)
             has_structured = bool(result.tips or result.errors or result.qa_highlights)
 
+            # Story 5.8 Task 7: Store extraction results for human review
+            if has_structured:
+                await self._store_extraction_records(
+                    node_id=node_id,
+                    result=result,
+                )
+
         except Exception as e:
             logger.warning(f"[Story 3.8] Distillation failed for Warm archive: {e}")
             has_summary = False
@@ -245,9 +246,7 @@ class ArchiveManager:
         self._archive_log[node_id] = status
         return status
 
-    async def _archive_to_cold(
-        self, node_id: str, messages: List[Dict[str, Any]]
-    ) -> ArchiveStatus:
+    async def _archive_to_cold(self, node_id: str, messages: List[Dict[str, Any]]) -> ArchiveStatus:
         """
         Archive conversation from Warm to Cold tier.
 
@@ -284,13 +283,9 @@ class ArchiveManager:
                     node_id=node_id,
                     group_id=DEFAULT_GROUP_ID,
                 )
-                has_structured = bool(
-                    result.tips or result.errors or result.qa_highlights
-                )
+                has_structured = bool(result.tips or result.errors or result.qa_highlights)
             except Exception as e:
-                logger.warning(
-                    f"[Story 3.8] Distillation for Cold archive failed: {e}"
-                )
+                logger.warning(f"[Story 3.8] Distillation for Cold archive failed: {e}")
         else:
             has_structured = True
 
@@ -310,9 +305,72 @@ class ArchiveManager:
         self._archive_log[node_id] = status
         return status
 
-    async def _get_node_messages(
-        self, node_id: str
-    ) -> List[Dict[str, Any]]:
+    async def _store_extraction_records(
+        self,
+        node_id: str,
+        result: Any,
+    ) -> None:
+        """Store distillation results as ExtractionRecords for human review.
+
+        Creates one ExtractionRecord per tip, error, and key QA highlight
+        extracted by the conversation distiller. Each record links back to
+        the source text for side-by-side comparison.
+
+        [Source: Story 5.8 Task 7.1]
+
+        Args:
+            node_id: Canvas node identifier.
+            result: DistillationResult from conversation_distiller.
+        """
+        try:
+            from app.services.extraction_validator import get_extraction_validator
+
+            validator = get_extraction_validator()
+            session_id = f"archive_{node_id}"
+
+            for tip in result.tips or []:
+                evidence = getattr(tip, "evidence", "") or ""
+                content = getattr(tip, "content", str(tip))
+                await validator.store_record(
+                    source_session_id=session_id,
+                    source_node_id=node_id,
+                    original_text=evidence,
+                    extracted_content=content,
+                    extraction_type="tip",
+                )
+
+            for error in result.errors or []:
+                evidence = getattr(error, "evidence", "") or ""
+                content = getattr(error, "content", str(error))
+                subtype = getattr(error, "error_type", None)
+                await validator.store_record(
+                    source_session_id=session_id,
+                    source_node_id=node_id,
+                    original_text=evidence,
+                    extracted_content=content,
+                    extraction_type="error",
+                    extraction_subtype=subtype,
+                )
+
+            for qa in result.qa_highlights or []:
+                evidence = getattr(qa, "evidence", "") or ""
+                content = getattr(qa, "content", str(qa))
+                await validator.store_record(
+                    source_session_id=session_id,
+                    source_node_id=node_id,
+                    original_text=evidence,
+                    extracted_content=content,
+                    extraction_type="key_qa",
+                )
+
+            total = len(result.tips or []) + len(result.errors or []) + len(result.qa_highlights or [])
+            if total > 0:
+                logger.info(f"[Story 5.8] Stored {total} extraction records for node {node_id}")
+
+        except Exception as e:
+            logger.warning(f"[Story 5.8] Failed to store extraction records for {node_id}: {e}")
+
+    async def _get_node_messages(self, node_id: str) -> List[Dict[str, Any]]:
         """
         Get conversation messages for a node from the memory service.
 
@@ -338,11 +396,13 @@ class ArchiveManager:
         if isinstance(results, list):
             for item in results:
                 if isinstance(item, dict):
-                    messages.append({
-                        "role": item.get("role", "user"),
-                        "content": item.get("content", item.get("fact", "")),
-                        "timestamp": item.get("timestamp", item.get("created_at", "")),
-                    })
+                    messages.append(
+                        {
+                            "role": item.get("role", "user"),
+                            "content": item.get("content", item.get("fact", "")),
+                            "timestamp": item.get("timestamp", item.get("created_at", "")),
+                        }
+                    )
 
         return messages
 
@@ -370,10 +430,7 @@ class ArchiveManager:
 
             await memory_svc.record_knowledge_entity(
                 event_type="archive_marker",
-                content=(
-                    f"Archived {len(messages)} messages for node {node_id} "
-                    f"to {tier} tier"
-                ),
+                content=(f"Archived {len(messages)} messages for node {node_id} to {tier} tier"),
                 metadata={
                     "node_id": node_id,
                     "tier": tier,
@@ -401,9 +458,7 @@ class ArchiveManager:
         total_chars = sum(len(msg.get("content", "")) for msg in messages)
         return total_chars // 4
 
-    def _get_oldest_message_time(
-        self, messages: List[Dict[str, Any]]
-    ) -> Optional[datetime]:
+    def _get_oldest_message_time(self, messages: List[Dict[str, Any]]) -> Optional[datetime]:
         """
         Get the timestamp of the oldest message.
 

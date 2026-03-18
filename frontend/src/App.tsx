@@ -27,6 +27,11 @@ import { ApiClient } from './services/api-client';
 import { SyncIndicator } from './components/SyncIndicator';
 import { IndexingService } from './services/indexing-service';
 import { EdgeGuideTooltip } from './components/chat/EdgeGuideTooltip';
+import { LearningProfile } from './components/profile/LearningProfile';
+import { ReviewItem } from './components/dashboard/ReviewItem';
+import { ExamCard } from './components/dashboard/ExamCard';
+import { useMasteryStore } from './stores/mastery-store';
+import type { ExamSession } from './services/api-client';
 
 // --- Inline input dialog (replaces prompt()) ---
 
@@ -195,6 +200,17 @@ function Canvas() {
   const chatMode = useChatStore((s) => s.chatMode);
   const exitEdgeMode = useChatStore((s) => s.exitEdgeMode);
 
+  // Story 5-3: Sidebar tab (chat vs profile) when a node is selected
+  const [sidebarTab, setSidebarTab] = useState<'chat' | 'profile'>('chat');
+
+  // Story 5-4: Dashboard tab state
+  const [dashboardTab, setDashboardTab] = useState<'boards' | 'exams' | 'review'>('boards');
+  const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
+  const [dashboardLoading, setDashboardLoading] = useState(false);
+  const [backendOffline, setBackendOffline] = useState(false);
+  const reviewNodes = useMasteryStore((s) => s.reviewNodes);
+  const loadBatchData = useMasteryStore((s) => s.loadBatchData);
+
   const reactFlowInstance = useReactFlow();
 
   // Zustand store
@@ -258,6 +274,25 @@ function Canvas() {
   const triggerSync = useCallback(() => {
     syncEngine.triggerSync();
   }, [syncEngine]);
+
+  // Story 5-4: Load dashboard data (exam sessions + mastery batch for review)
+  const loadDashboardData = useCallback(async () => {
+    setDashboardLoading(true);
+    setBackendOffline(false);
+    try {
+      const [sessions, batch] = await Promise.all([
+        apiClient.getExamSessions(),
+        apiClient.getMasteryBatch(),
+      ]);
+      setExamSessions(sessions);
+      if (batch) {
+        loadBatchData(batch);
+      }
+    } catch {
+      setBackendOffline(true);
+    }
+    setDashboardLoading(false);
+  }, [apiClient, loadBatchData]);
 
   // Load boards on mount
   useEffect(() => {
@@ -599,9 +634,9 @@ function Canvas() {
 
   if (view === 'dashboard') {
     return (
-      <div className="h-screen bg-gray-50 p-8">
+      <div className="h-screen bg-gray-50 p-8 overflow-y-auto">
         <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <h1 className="text-2xl font-bold text-gray-900">
               Canvas Learning System
             </h1>
@@ -621,45 +656,142 @@ function Canvas() {
             </div>
           </div>
 
-          {boards.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="text-gray-400 text-lg mb-4">No whiteboards yet</p>
+          {/* Story 5-4: Dashboard Tab Bar */}
+          <div className="flex gap-1 mb-6 border-b border-gray-200">
+            {(['boards', 'exams', 'review'] as const).map((tab) => (
               <button
-                onClick={() => setShowNewBoardInput(true)}
-                className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                key={tab}
+                onClick={() => {
+                  setDashboardTab(tab);
+                  if (tab !== 'boards' && examSessions.length === 0 && reviewNodes.length === 0) {
+                    loadDashboardData();
+                  }
+                }}
+                className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                  dashboardTab === tab
+                    ? 'border-blue-500 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
               >
-                Create your first whiteboard
+                {tab === 'boards' && 'Whiteboards'}
+                {tab === 'exams' && 'Exam History'}
+                {tab === 'review' && `Review${reviewNodes.length > 0 ? ` (${reviewNodes.length})` : ''}`}
               </button>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {boards.map((board) => (
-                <div
-                  key={board.id}
-                  className="group p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer relative"
-                >
-                  <div onClick={() => openBoard(board.id)}>
-                    <h3 className="font-medium text-gray-900 mb-1">
-                      {board.name}
-                    </h3>
-                    <p className="text-xs text-gray-400">
-                      Created: {new Date(board.createdAt).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-gray-400">
-                      Updated: {new Date(board.updatedAt).toLocaleDateString()}
-                    </p>
-                  </div>
+            ))}
+          </div>
+
+          {/* Tab Content: Boards */}
+          {dashboardTab === 'boards' && (
+            <>
+              {boards.length === 0 ? (
+                <div className="text-center py-20">
+                  <p className="text-gray-400 text-lg mb-4">No whiteboards yet</p>
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDeletingBoard({ id: board.id, name: board.name });
-                    }}
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all text-xs px-1.5 py-0.5 rounded hover:bg-red-50"
+                    onClick={() => setShowNewBoardInput(true)}
+                    className="px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
                   >
-                    ×
+                    Create your first whiteboard
                   </button>
                 </div>
-              ))}
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {boards.map((board) => (
+                    <div
+                      key={board.id}
+                      className="group p-4 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all cursor-pointer relative"
+                    >
+                      <div onClick={() => openBoard(board.id)}>
+                        <h3 className="font-medium text-gray-900 mb-1">
+                          {board.name}
+                        </h3>
+                        <p className="text-xs text-gray-400">
+                          Created: {new Date(board.createdAt).toLocaleDateString()}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          Updated: {new Date(board.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingBoard({ id: board.id, name: board.name });
+                        }}
+                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all text-xs px-1.5 py-0.5 rounded hover:bg-red-50"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Tab Content: Exam History (Story 5-4 AC-2) */}
+          {dashboardTab === 'exams' && (
+            <div>
+              {backendOffline ? (
+                <div className="text-center py-12 text-gray-400">
+                  Backend offline - exam history unavailable
+                </div>
+              ) : dashboardLoading ? (
+                <div className="space-y-3 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 bg-gray-200 rounded-lg" />
+                  ))}
+                </div>
+              ) : examSessions.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  No exam sessions yet. Start an exam from a whiteboard.
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {examSessions.map((session) => (
+                    <ExamCard key={session.id} session={session} />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Tab Content: Review (Story 5-4 AC-3) */}
+          {dashboardTab === 'review' && (
+            <div>
+              {backendOffline ? (
+                <div className="text-center py-12 text-gray-400">
+                  Backend offline - review data unavailable
+                </div>
+              ) : dashboardLoading ? (
+                <div className="space-y-2 animate-pulse">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-14 bg-gray-200 rounded" />
+                  ))}
+                </div>
+              ) : reviewNodes.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">
+                  All knowledge is fresh! Keep up the great work.
+                </div>
+              ) : (
+                <>
+                  {/* Summary stats */}
+                  <div className="flex gap-4 mb-4 text-xs">
+                    <span className="text-red-500 font-medium">
+                      {reviewNodes.filter((n) => n.freshness === 'overdue').length} overdue
+                    </span>
+                    <span className="text-yellow-500 font-medium">
+                      {reviewNodes.filter((n) => n.freshness === 'due').length} due
+                    </span>
+                    <span className="text-orange-500 font-medium">
+                      {reviewNodes.filter((n) => n.freshness !== 'overdue' && n.freshness !== 'due').length} weak
+                    </span>
+                  </div>
+                  <div className="space-y-1 bg-white rounded-lg border border-gray-200 overflow-hidden">
+                    {reviewNodes.map((node) => (
+                      <ReviewItem key={node.conceptId} node={node} />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -780,12 +912,12 @@ function Canvas() {
           </div>
         ) : selectedNode ? (
           <div className="flex flex-col flex-1 min-h-0">
-            {/* Node info header */}
-            <div className="px-4 pb-3 border-b border-gray-100 shrink-0">
+            {/* Node info header + Story 5-3: Chat/Profile tab bar */}
+            <div className="px-4 pb-0 border-b border-gray-100 shrink-0">
               <h3 className="font-medium text-gray-900 mb-1">
                 {(selectedNode.data as Record<string, unknown>).title as string}
               </h3>
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-400 mb-2">
                 Mastery:{' '}
                 {Math.round(
                   (((selectedNode.data as Record<string, unknown>)
@@ -793,10 +925,41 @@ function Canvas() {
                 )}
                 %
               </div>
+              {/* Tab bar: Chat | Profile */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => setSidebarTab('chat')}
+                  className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+                    sidebarTab === 'chat'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Chat
+                </button>
+                <button
+                  onClick={() => setSidebarTab('profile')}
+                  className={`px-3 py-1.5 text-xs font-medium border-b-2 transition-colors ${
+                    sidebarTab === 'profile'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  Profile
+                </button>
+              </div>
             </div>
-            {/* Chat panel fills remaining space */}
+            {/* Tab content: Chat or Profile */}
             <div className="flex-1 min-h-0">
-              <ChatPanel selectedNode={selectedNode} />
+              {sidebarTab === 'chat' ? (
+                <ChatPanel selectedNode={selectedNode} />
+              ) : (
+                <LearningProfile
+                  nodeId={selectedNode.id}
+                  nodeTitle={(selectedNode.data as Record<string, unknown>).title as string}
+                  onSwitchToChat={() => setSidebarTab('chat')}
+                />
+              )}
             </div>
           </div>
         ) : (
