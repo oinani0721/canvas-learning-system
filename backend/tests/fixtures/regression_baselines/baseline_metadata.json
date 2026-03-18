@@ -1,7 +1,7 @@
 {
   "version": "1.0",
   "created_at": "2026-03-16",
-  "description": "Regression test baselines for prompt version management (Story 7.3)",
+  "description": "Regression test baselines for prompt version management (Story 7.3 + 2.13)",
   "baselines": {
     "autoscore": {
       "prompt_version": 1,
@@ -19,6 +19,30 @@
       "prompt_version": 1,
       "prompt_hash": null,
       "last_test_date": "2026-03-16",
+      "scenario_count": 5
+    },
+    "query_rewrite": {
+      "prompt_version": 1,
+      "prompt_hash": null,
+      "last_test_date": "2026-03-18",
+      "scenario_count": 5
+    },
+    "crag_grading": {
+      "prompt_version": 1,
+      "prompt_hash": null,
+      "last_test_date": "2026-03-18",
+      "scenario_count": 5
+    },
+    "search_intent": {
+      "prompt_version": 1,
+      "prompt_hash": null,
+      "last_test_date": "2026-03-18",
+      "scenario_count": 5
+    },
+    "query_optimize": {
+      "prompt_version": 1,
+      "prompt_hash": null,
+      "last_test_date": "2026-03-18",
       "scenario_count": 5
     }
   }

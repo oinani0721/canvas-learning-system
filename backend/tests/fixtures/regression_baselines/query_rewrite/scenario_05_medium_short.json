@@ -1,0 +1,26 @@
+{
+  "scenario_id": "query_rewrite_05_medium_short",
+  "description": "Borderline medium query with question word: rewrite",
+  "tags": ["medium", "chinese", "multi_query", "borderline"],
+  "input": {
+    "query": "为什么天空是蓝色的",
+    "complexity": "medium"
+  },
+  "expected_output": {
+    "min_rewrite_count": 2,
+    "max_rewrite_count": 3,
+    "format_compliant": true,
+    "preserves_semantics": true,
+    "valid_format_description": "Each rewrite on separate line, no numbering, no explanation"
+  },
+  "replay_response": {
+    "rewrites": [
+      "天空呈现蓝色的物理原理是什么",
+      "大气中光的散射如何导致天空的颜色"
+    ],
+    "format_valid": true,
+    "line_count": 2,
+    "has_numbering": false,
+    "has_explanation": false
+  }
+}

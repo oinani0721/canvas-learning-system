@@ -1,0 +1,25 @@
+{
+  "scenario_id": "crag_grading_02_mixed_relevance",
+  "description": "Mix of relevant and irrelevant documents",
+  "tags": ["mixed", "chinese"],
+  "input": {
+    "user_intent": "了解牛顿第三定律",
+    "user_prompt": "什么是牛顿第三定律？举例说明作用力和反作用力",
+    "documents": [
+      {"content": "牛顿第三定律：两个物体之间的作用力和反作用力大小相等、方向相反、作用在同一条直线上", "source": "physics_laws.md"},
+      {"content": "中国古代的四大发明包括造纸术、指南针、火药和印刷术", "source": "history.md"},
+      {"content": "当你推墙时，墙也在用同样大小的力推你，这就是作用力和反作用力的例子", "source": "physics_examples.md"},
+      {"content": "量子力学中的薛定谔方程描述了微观粒子的波函数随时间的演化", "source": "quantum.md"}
+    ]
+  },
+  "expected_output": {
+    "grades": ["relevant", "irrelevant", "relevant", "irrelevant"],
+    "relevant_count_range": {"min": 1, "max": 3},
+    "trigger_rate_contributes": true
+  },
+  "replay_response": {
+    "grades": ["relevant", "irrelevant", "relevant", "irrelevant"],
+    "relevant_count": 2,
+    "total_count": 4
+  }
+}

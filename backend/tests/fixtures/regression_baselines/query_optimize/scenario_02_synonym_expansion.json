@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_optimize_02_synonym_expansion",
+  "description": "Synonym expansion: retry with alternative terms for a failed search",
+  "tags": ["synonym", "chinese", "expansion"],
+  "input": {
+    "user_intent": "比较不同排序算法的效率",
+    "user_prompt": "快速排序和归并排序哪个更快？",
+    "original_queries": ["快速排序归并排序速度比较"]
+  },
+  "expected_output": {
+    "min_query_count": 2,
+    "max_query_count": 3,
+    "format_compliant": true,
+    "queries_differ_from_original": true,
+    "valid_format_description": "JSON array of 2-3 optimized query strings"
+  },
+  "replay_response": {
+    "queries": [
+      "排序算法时间复杂度对比分析",
+      "quicksort mergesort 性能比较",
+      "快排与归并排序的最坏和平均情况复杂度"
+    ],
+    "json_format_valid": true,
+    "query_count": 3,
+    "all_differ_from_original": true
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_rewrite_03_medium_english",
+  "description": "Medium complexity English query: multi-query rewrite",
+  "tags": ["medium", "english", "multi_query"],
+  "input": {
+    "query": "How does gradient descent work in machine learning optimization?",
+    "complexity": "medium"
+  },
+  "expected_output": {
+    "min_rewrite_count": 2,
+    "max_rewrite_count": 3,
+    "format_compliant": true,
+    "preserves_semantics": true,
+    "valid_format_description": "Each rewrite on separate line, no numbering, no explanation"
+  },
+  "replay_response": {
+    "rewrites": [
+      "What is the mechanism of gradient descent in optimizing model parameters",
+      "How does the gradient descent algorithm minimize the loss function",
+      "Explain the role of learning rate and gradients in iterative optimization"
+    ],
+    "format_valid": true,
+    "line_count": 3,
+    "has_numbering": false,
+    "has_explanation": false
+  }
+}

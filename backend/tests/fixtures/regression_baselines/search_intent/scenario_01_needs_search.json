@@ -1,0 +1,24 @@
+{
+  "scenario_id": "search_intent_01_needs_search",
+  "description": "User asks specific question that requires searching notes",
+  "tags": ["needs_search", "chinese"],
+  "input": {
+    "user_prompt": "帮我回顾一下我之前学过的关于机器学习的笔记",
+    "pre_context": ""
+  },
+  "expected_output": {
+    "needs_search": true,
+    "has_specific_request": true,
+    "json_format_valid": true,
+    "has_intent_field": true,
+    "has_search_queries": true,
+    "search_query_count_range": {"min": 1, "max": 3}
+  },
+  "replay_response": {
+    "intent": "回顾机器学习相关笔记",
+    "has_specific_request": true,
+    "needs_search": true,
+    "search_queries": ["机器学习笔记", "machine learning"],
+    "json_format_valid": true
+  }
+}

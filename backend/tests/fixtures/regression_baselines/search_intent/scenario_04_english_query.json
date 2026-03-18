@@ -1,0 +1,24 @@
+{
+  "scenario_id": "search_intent_04_english_query",
+  "description": "English query requesting specific information from notes",
+  "tags": ["needs_search", "english"],
+  "input": {
+    "user_prompt": "List all my notes about data structures and algorithms",
+    "pre_context": ""
+  },
+  "expected_output": {
+    "needs_search": true,
+    "has_specific_request": true,
+    "json_format_valid": true,
+    "has_intent_field": true,
+    "has_search_queries": true,
+    "search_query_count_range": {"min": 1, "max": 3}
+  },
+  "replay_response": {
+    "intent": "List notes about data structures and algorithms",
+    "has_specific_request": true,
+    "needs_search": true,
+    "search_queries": ["data structures", "algorithms", "数据结构 算法"],
+    "json_format_valid": true
+  }
+}

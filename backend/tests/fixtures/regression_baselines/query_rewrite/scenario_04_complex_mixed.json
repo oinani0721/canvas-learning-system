@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_rewrite_04_complex_mixed",
+  "description": "Complex mixed Chinese-English query: decomposition",
+  "tags": ["complex", "mixed_language", "decomposition"],
+  "input": {
+    "query": "DNA的复制机制和RNA的转录过程有什么不同，同时解释central dogma的核心概念",
+    "complexity": "complex"
+  },
+  "expected_output": {
+    "min_rewrite_count": 2,
+    "max_rewrite_count": 3,
+    "format_compliant": true,
+    "preserves_semantics": true,
+    "valid_format_description": "Each sub-question on separate line, no numbering"
+  },
+  "replay_response": {
+    "rewrites": [
+      "DNA复制的具体机制是什么",
+      "RNA转录过程与DNA复制有哪些关键区别",
+      "什么是central dogma以及它如何描述遗传信息的流动"
+    ],
+    "format_valid": true,
+    "line_count": 3,
+    "has_numbering": false,
+    "has_explanation": false
+  }
+}

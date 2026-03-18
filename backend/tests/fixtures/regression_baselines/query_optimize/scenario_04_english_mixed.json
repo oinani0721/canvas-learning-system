@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_optimize_04_english_mixed",
+  "description": "English/mixed language query optimization",
+  "tags": ["english", "mixed", "technical"],
+  "input": {
+    "user_intent": "Understanding backpropagation gradient computation",
+    "user_prompt": "How does backpropagation compute gradients through multiple layers?",
+    "original_queries": ["backpropagation gradient computation layers"]
+  },
+  "expected_output": {
+    "min_query_count": 2,
+    "max_query_count": 3,
+    "format_compliant": true,
+    "queries_differ_from_original": true,
+    "valid_format_description": "JSON array of 2-3 optimized query strings"
+  },
+  "replay_response": {
+    "queries": [
+      "反向传播算法链式法则梯度计算",
+      "neural network gradient flow through hidden layers",
+      "深度学习中梯度如何从输出层逐层传递"
+    ],
+    "json_format_valid": true,
+    "query_count": 3,
+    "all_differ_from_original": true
+  }
+}

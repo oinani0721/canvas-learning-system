@@ -204,6 +204,97 @@ def _classify_query_complexity(query: str) -> str:
     return "medium"
 
 
+def _build_rewrite_prompt(query: str, complexity: str) -> str:
+    """Build the rewrite prompt using PromptRegistry template with inline fallback.
+
+    Story 2.13 Task 1.1: Externalized prompt loaded via PromptRegistry.
+    Loads the full template content (including quality requirements) and
+    selects the appropriate strategy section based on query complexity.
+    Falls back to inline prompt if PromptRegistry unavailable (e.g. standalone usage).
+    """
+    try:
+        from app.services.prompt_registry import get_prompt_registry
+
+        registry = get_prompt_registry()
+        template_content = registry.get("query_rewrite")
+
+        if not template_content or not template_content.strip():
+            logger.warning(
+                "[Story 2.13] PromptRegistry returned empty content for "
+                "'query_rewrite', using inline fallback"
+            )
+            raise ValueError("Empty template content")
+
+        # Use full template with placeholder replacement.
+        # Select the relevant strategy section but keep quality requirements.
+        if complexity == "medium":
+            # Strategy 1: Multi-Query rewrite
+            # Extract from start through Strategy 1 + quality requirements,
+            # skip Strategy 2 body
+            section2_marker = "## 策略二"
+            quality_marker = "## 质量要求"
+            idx_s2 = template_content.find(section2_marker)
+            idx_quality = template_content.find(quality_marker)
+
+            if idx_s2 >= 0 and idx_quality >= 0:
+                # Keep everything before Strategy 2 + quality requirements section
+                prompt = (
+                    template_content[:idx_s2].rstrip()
+                    + "\n\n"
+                    + template_content[idx_quality:]
+                )
+            else:
+                # If markers not found, use full template
+                prompt = template_content
+        else:
+            # Strategy 2: Decomposition
+            # Extract Strategy 2 section + quality requirements
+            section2_marker = "## 策略二"
+            quality_marker = "## 质量要求"
+            idx_s2 = template_content.find(section2_marker)
+            idx_quality = template_content.find(quality_marker)
+
+            if idx_s2 >= 0 and idx_quality >= 0:
+                # Keep header + Strategy 2 + quality requirements
+                # Find the header (everything before Strategy 1)
+                section1_marker = "## 策略一"
+                idx_s1 = template_content.find(section1_marker)
+                header = template_content[:idx_s1].rstrip() if idx_s1 >= 0 else ""
+                prompt = (
+                    header
+                    + "\n\n"
+                    + template_content[idx_s2:idx_quality].rstrip()
+                    + "\n\n"
+                    + template_content[idx_quality:]
+                )
+            else:
+                prompt = template_content
+
+        # Replace {{query}} placeholder with actual query
+        prompt = prompt.replace("{{query}}", query)
+        return prompt
+
+    except Exception as e:
+        # Fallback: use inline prompt when PromptRegistry is not available
+        logger.warning(
+            "[Story 2.13] Failed to load 'query_rewrite' via PromptRegistry: %s. "
+            "Using inline fallback.",
+            e,
+        )
+        if complexity == "medium":
+            return (
+                "请从不同角度改写以下查询，生成2-3个等价查询。"
+                "每行一个查询，不要编号，不要解释。\n"
+                f"原始查询：{query}"
+            )
+        else:
+            return (
+                "请将以下复杂查询拆分为2-3个独立的子问题。"
+                "每行一个子问题，不要编号，不要解释。\n"
+                f"原始查询：{query}"
+            )
+
+
 async def multi_query_rewrite(
     query: str,
     model: str = "gemini/gemini-2.0-flash",
@@ -242,10 +333,8 @@ async def multi_query_rewrite(
         logger.warning("[MULTI-QUERY] litellm not installed, skipping rewrite")
         return [query]
 
-    if complexity == "medium":
-        prompt = f"请从不同角度改写以下查询，生成2-3个等价查询。每行一个查询，不要编号，不要解释。\n原始查询：{query}"
-    else:
-        prompt = f"请将以下复杂查询拆分为2-3个独立的子问题。每行一个子问题，不要编号，不要解释。\n原始查询：{query}"
+    # Story 2.13: Load prompt template via PromptRegistry
+    prompt = _build_rewrite_prompt(query, complexity)
 
     try:
         response = await asyncio.wait_for(

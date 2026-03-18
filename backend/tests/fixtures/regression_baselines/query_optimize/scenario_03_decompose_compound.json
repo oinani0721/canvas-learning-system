@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_optimize_03_decompose_compound",
+  "description": "Decompose compound query into simpler sub-queries",
+  "tags": ["decompose", "chinese", "compound"],
+  "input": {
+    "user_intent": "了解 Transformer 架构中注意力机制和位置编码的关系",
+    "user_prompt": "Transformer的自注意力机制和位置编码是如何协同工作的？",
+    "original_queries": ["Transformer自注意力位置编码协同"]
+  },
+  "expected_output": {
+    "min_query_count": 2,
+    "max_query_count": 3,
+    "format_compliant": true,
+    "queries_differ_from_original": true,
+    "valid_format_description": "JSON array of 2-3 optimized query strings"
+  },
+  "replay_response": {
+    "queries": [
+      "Transformer 自注意力机制工作原理",
+      "Transformer 位置编码的作用和实现方式",
+      "注意力机制如何利用位置信息进行序列建模"
+    ],
+    "json_format_valid": true,
+    "query_count": 3,
+    "all_differ_from_original": true
+  }
+}

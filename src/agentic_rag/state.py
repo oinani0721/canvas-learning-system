@@ -121,6 +121,9 @@ class CanvasRAGState(MessagesState):
     subject: Annotated[Optional[str], "学科标识(用于LanceDB隔离)"]
     is_review_canvas: Annotated[bool, "是否为检验白板场景"]
 
+    # Story 1.9: 跨学科检索标志
+    cross_subject: Annotated[bool, "是否启用跨学科检索 (Tag Jaccard bridging)"]
+
     # Story 2.4: 课程/标签过滤字段
     course_id: Annotated[Optional[str], "课程ID (用于按课程过滤搜索范围)"]
     tags: Annotated[Optional[List[str]], "标签列表 (用于按标签过滤搜索范围, OR 匹配)"]
@@ -205,6 +208,8 @@ def create_initial_state(**overrides: Any) -> Dict[str, Any]:
         "canvas_file": None,
         "subject": None,
         "is_review_canvas": False,
+        # Story 1.9: cross-subject
+        "cross_subject": False,
         # Filters
         "course_id": None,
         "tags": None,

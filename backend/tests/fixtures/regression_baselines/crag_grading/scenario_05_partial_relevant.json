@@ -1,0 +1,26 @@
+{
+  "scenario_id": "crag_grading_05_partial_relevant",
+  "description": "Partially relevant documents with surface keyword overlap",
+  "tags": ["partial", "chinese", "keyword_overlap"],
+  "input": {
+    "user_intent": "理解细胞分裂过程",
+    "user_prompt": "有丝分裂的各个时期有什么特点？",
+    "documents": [
+      {"content": "有丝分裂分为前期、中期、后期和末期。前期染色质凝缩为染色体，中期染色体排列在赤道板上", "source": "cell_division.md"},
+      {"content": "减数分裂是产生配子的特殊细胞分裂方式，包含两次连续分裂", "source": "meiosis.md"},
+      {"content": "细胞是生物体的基本结构和功能单位，由细胞膜、细胞质和细胞核组成", "source": "cell_structure.md"},
+      {"content": "有丝分裂后期着丝点分裂，姐妹染色单体分开向两极移动，末期细胞板形成完成分裂", "source": "mitosis_detail.md"},
+      {"content": "DNA双螺旋结构由Watson和Crick于1953年发现", "source": "dna_history.md"}
+    ]
+  },
+  "expected_output": {
+    "grades": ["relevant", "relevant", "irrelevant", "relevant", "irrelevant"],
+    "relevant_count_range": {"min": 2, "max": 4},
+    "trigger_rate_contributes": true
+  },
+  "replay_response": {
+    "grades": ["relevant", "relevant", "irrelevant", "relevant", "irrelevant"],
+    "relevant_count": 3,
+    "total_count": 5
+  }
+}

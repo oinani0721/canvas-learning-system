@@ -58,7 +58,14 @@ process.stdin.on('end', () => {
       block('[DD-04] 编写了代码但未提及参考的成熟案例或论文。请补充实现依据（论文/GitHub repo/官方文档示例）。');
     }
 
-    // 1e. [DD-10] 引入新功能但未评估用户刚需
+    // 1e. [DD-06] Obsidian 插件代码包含反模式
+    const wrotePluginCode = /createEl|createDiv|obsidian|Plugin|ItemView|Modal|SettingTab|styles\.css/i.test(msg);
+    const hasAntiPattern = /innerHTML|\.style\.\w+\s*=|document\.createElement|addEventListener(?!.*registerEvent)/i.test(msg);
+    if (wrotePluginCode && hasAntiPattern && !isRetry) {
+      block('[DD-06] Obsidian 代码包含反模式。修复：innerHTML→setText/createEl, style.X→addClass+CSS, createElement→createEl, addEventListener→registerEvent。编辑后跑 lint:obsidian');
+    }
+
+    // 1f. [DD-10] 引入新功能但未评估用户刚需
     const introducedFeature = /新增.*功能|添加.*功能|引入.*功能|实现.*新.*特性|加入.*能力/i.test(msg);
     const checkedNeed = /刚需|MVP.*清单|用户.*需求|用户.*初衷|search_memory_facts.*初衷|search_memory_facts.*刚需/i.test(msg);
     if (introducedFeature && !checkedNeed && !isRetry) {
@@ -70,6 +77,14 @@ process.stdin.on('end', () => {
     const analyzedCode = /成熟度.*%|已实现.*%|可复用|可直接复用|需修复|需重写|代码.*分析|逐文件/i.test(msg);
     if (inExplore && analyzedCode && !/\[Code-Review\]|独立.*审查|adversarial.*review/i.test(msg)) {
       block('代码分析无独立审查。启动独立 agent 记录 [Code-Review]（可复用/需修复/需重写）。');
+    }
+
+    // 2b. ⛔ 开发完成后必须代码审查 + commit
+    const wroteOrEditedCode = /Edit|Write|已完成|完成了|实现了|Agent.*completed|Agent.*完成|创建.*\.py|修改.*\.py|新增.*\.py|新建.*\.py/i.test(msg);
+    const mentionedReview = /\[Code-Review\]|对抗.*审查|代码审查|code.?review|审查.*Agent|Review.*Agent/i.test(msg);
+    const mentionedCommit = /commit|提交|git.*add|git.*push|备份/i.test(msg);
+    if (wroteOrEditedCode && !mentionedReview && !mentionedCommit && !isRetry) {
+      block('⛔ 开发完成但未安排代码审查或提交。Story 开发后必须：(1) 启动独立 Agent 对抗性审查 (2) commit + push 到 backup。');
     }
 
     // ===== 低优先级检测（stop_hook_active 时跳过，防无限循环）=====

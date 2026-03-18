@@ -1,0 +1,24 @@
+{
+  "scenario_id": "crag_grading_01_all_relevant",
+  "description": "All documents are highly relevant to the query",
+  "tags": ["all_relevant", "chinese"],
+  "input": {
+    "user_intent": "理解光合作用的过程",
+    "user_prompt": "请解释光合作用的光反应和暗反应",
+    "documents": [
+      {"content": "光合作用的光反应发生在类囊体薄膜上，光能驱动水的光解产生O2、ATP和NADPH", "source": "biology_notes.md"},
+      {"content": "Calvin循环（暗反应）在叶绿体基质中进行，利用ATP和NADPH固定CO2", "source": "photosynthesis.md"},
+      {"content": "光合作用总反应方程式：6CO2 + 6H2O → C6H12O6 + 6O2", "source": "equations.md"}
+    ]
+  },
+  "expected_output": {
+    "grades": ["relevant", "relevant", "relevant"],
+    "relevant_count_range": {"min": 2, "max": 3},
+    "trigger_rate_contributes": false
+  },
+  "replay_response": {
+    "grades": ["relevant", "relevant", "relevant"],
+    "relevant_count": 3,
+    "total_count": 3
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "scenario_id": "crag_grading_03_all_irrelevant",
+  "description": "All documents are irrelevant - should trigger CRAG rewrite",
+  "tags": ["all_irrelevant", "chinese", "crag_trigger"],
+  "input": {
+    "user_intent": "学习Python装饰器的用法",
+    "user_prompt": "Python装饰器是什么？怎么自定义装饰器？",
+    "documents": [
+      {"content": "法国大革命发生在1789年，推翻了波旁王朝的统治", "source": "world_history.md"},
+      {"content": "贝多芬的第九交响曲又称为合唱交响曲，是古典音乐的巅峰之作", "source": "music.md"},
+      {"content": "光合作用的暗反应发生在叶绿体基质中", "source": "biology.md"}
+    ]
+  },
+  "expected_output": {
+    "grades": ["irrelevant", "irrelevant", "irrelevant"],
+    "relevant_count_range": {"min": 0, "max": 0},
+    "trigger_rate_contributes": true
+  },
+  "replay_response": {
+    "grades": ["irrelevant", "irrelevant", "irrelevant"],
+    "relevant_count": 0,
+    "total_count": 3
+  }
+}

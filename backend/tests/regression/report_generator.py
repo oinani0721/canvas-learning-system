@@ -34,6 +34,23 @@ QUALITY_THRESHOLDS = {
         "extraction_recall": 0.85,          # >= 85%
         "classification_accuracy": 0.80,    # >= 80%
     },
+    # Story 2.13: Retrieval pipeline prompt thresholds
+    "query_rewrite": {
+        "format_compliance_rate": 0.90,     # >= 90%
+        "rewrite_diversity_rate": 0.80,     # >= 80%
+    },
+    "crag_grading": {
+        "classification_consistency": 0.80,  # >= 80%
+        "crag_trigger_rate": 0.10,          # >= 10% (healthy minimum)
+    },
+    "search_intent": {
+        "json_format_compliance_rate": 0.90,     # >= 90%
+        "intent_classification_accuracy": 0.80,  # >= 80%
+    },
+    "query_optimize": {
+        "json_format_compliance_rate": 0.90,     # >= 90%
+        "query_diversity_rate": 0.80,            # >= 80%
+    },
 }
 
 

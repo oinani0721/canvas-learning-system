@@ -120,6 +120,31 @@ def context_extract_baselines(baselines_dir) -> BaselineLoader:
     return BaselineLoader("context_extract", baselines_dir)
 
 
+# Story 2.13: New baseline loaders for retrieval pipeline prompts
+@pytest.fixture
+def query_rewrite_baselines(baselines_dir) -> BaselineLoader:
+    """Loader for query rewrite regression baselines."""
+    return BaselineLoader("query_rewrite", baselines_dir)
+
+
+@pytest.fixture
+def crag_grading_baselines(baselines_dir) -> BaselineLoader:
+    """Loader for CRAG document grading regression baselines."""
+    return BaselineLoader("crag_grading", baselines_dir)
+
+
+@pytest.fixture
+def search_intent_baselines(baselines_dir) -> BaselineLoader:
+    """Loader for search intent analysis regression baselines."""
+    return BaselineLoader("search_intent", baselines_dir)
+
+
+@pytest.fixture
+def query_optimize_baselines(baselines_dir) -> BaselineLoader:
+    """Loader for query optimize regression baselines."""
+    return BaselineLoader("query_optimize", baselines_dir)
+
+
 class RegressionMetricsCollector:
     """Collects per-scenario metrics during a regression test run."""
 

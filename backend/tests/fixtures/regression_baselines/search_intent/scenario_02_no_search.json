@@ -1,0 +1,24 @@
+{
+  "scenario_id": "search_intent_02_no_search",
+  "description": "User asks a general question that does not need note search",
+  "tags": ["no_search", "chinese"],
+  "input": {
+    "user_prompt": "你好，今天天气怎么样？",
+    "pre_context": ""
+  },
+  "expected_output": {
+    "needs_search": false,
+    "has_specific_request": false,
+    "json_format_valid": true,
+    "has_intent_field": true,
+    "has_search_queries": true,
+    "search_query_count_range": {"min": 0, "max": 0}
+  },
+  "replay_response": {
+    "intent": "闲聊/天气问候",
+    "has_specific_request": false,
+    "needs_search": false,
+    "search_queries": [],
+    "json_format_valid": true
+  }
+}

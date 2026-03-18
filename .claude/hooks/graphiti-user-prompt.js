@@ -15,6 +15,7 @@ process.stdin.on('end', () => {
     const isImplScene = /impl|实现|编码|开发|写代码|落地|实施|编写|创建.*服务|创建.*组件/i.test(prompt);
     const isNewFeature = /新功能|新增|引入|扩展|添加.*功能|加个|顺便/i.test(prompt);
     const isFrontend = /前端|UI|界面|组件|Svelte|样式|白板.*设计|面板/i.test(prompt);
+    const isObsidianPlugin = /obsidian|plugin|插件|canvas.*plugin|modal|view|settings.*tab|css.*style|dom|createEl|main\.ts/i.test(prompt);
 
     let msg = '⛔ 回复前执行: search_memory_facts(graphiti-canvas, group_id:"canvas-dev", query:"{用户消息关键词}", max_facts:30)';
 
@@ -28,6 +29,7 @@ process.stdin.on('end', () => {
 
     if (isImplScene) {
       msg += '\n⛔ 实施场景[DD-03/04]: Context7+WebSearch查证成熟案例→参考落地→LSP检查→禁止mock';
+      msg += '\n⛔ 开发完成后必须：(1) 启动独立 Agent 对抗性代码审查→记录[Code-Review] (2) commit + push backup';
     }
 
     if (isNewFeature) {
@@ -36,6 +38,16 @@ process.stdin.on('end', () => {
 
     if (isFrontend) {
       msg += '\n⛔ 前端[DD-05]: 先用Pencil创建界面范式，展示给用户确认流程后再编码';
+    }
+
+    if (isObsidianPlugin) {
+      msg += '\n⛔ DD-06 Obsidian 插件场景：' +
+        '\n  - 禁止 innerHTML（用 createEl/createDiv/setText）' +
+        '\n  - 禁止 element.style.X =（用 CSS class + styles.css）' +
+        '\n  - 禁止 document.createElement（用 containerEl.createEl）' +
+        '\n  - addEventListener 必须用 this.registerEvent() 包裹' +
+        '\n  - Context7 查 obsidian-api 文档确认 API 用法' +
+        '\n  - 编辑后运行: cd canvas-progress-tracker/obsidian-plugin && npm run lint:obsidian';
     }
 
     process.stdout.write(msg);

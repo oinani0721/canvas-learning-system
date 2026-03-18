@@ -176,6 +176,7 @@ async def retrieve_graphiti(state: CanvasRAGState, runtime: Runtime[CanvasRAGCon
     if subject:
         try:
             from app.core.subject_config import build_group_id
+
             scoped_canvas = build_group_id(subject, canvas_file)
         except ImportError:
             # Running outside backend context — fall back to plain canvas_file
@@ -251,20 +252,54 @@ async def retrieve_lancedb(state: CanvasRAGState, runtime: Runtime[CanvasRAGConf
     # Story 2.4: Use hybrid search as default (jieba FTS + Dense vector)
     search_type = _safe_get_config(runtime, "search_type", "hybrid")
 
+    # Story 1.9: Cross-subject expansion via Tag Jaccard bridge
+    cross_subject = state.get("cross_subject", False)
+    subjects_to_search: List[str] = [subject] if subject else [None]
+
+    if cross_subject and subject:
+        try:
+            from app.clients.neo4j_client import get_neo4j_client
+            from app.services.cross_subject_bridge import expand_search_subjects
+
+            neo4j_client = get_neo4j_client()
+            if neo4j_client.enabled and neo4j_client._driver:
+                subjects_to_search = await expand_search_subjects(
+                    current_subject_id=subject,
+                    neo4j_driver=neo4j_client._driver,
+                    threshold=0.3,
+                )
+                logger.info(f"[retrieve_lancedb] Cross-subject expansion: {subject} -> {subjects_to_search}")
+        except ImportError:
+            logger.debug("[retrieve_lancedb] cross_subject_bridge not available, searching current subject only")
+        except Exception as e:
+            logger.warning(f"[retrieve_lancedb] Cross-subject expansion failed, using current subject: {e}")
+
     # ✅ Story 12.2 + Story 2.4: 使用真实LanceDB客户端 with hybrid search
     try:
         client = await _get_lancedb_client()
 
-        # 搜索多个表并合并结果 (Story 2.4: hybrid + course/tags filter)
-        lancedb_results = await client.search_multiple_tables(
-            query=query,
-            canvas_file=canvas_file,
-            subject=subject,
-            num_results_per_table=batch_size // 2 + 1,
-            query_type=search_type,
-            course_id=course_id,
-            tags=tags,
-        )
+        # Story 1.9: Search across all expanded subjects and merge results
+        lancedb_results: List = []
+        per_subject_limit = max(1, batch_size // len(subjects_to_search))
+        for search_subject in subjects_to_search:
+            subject_results = await client.search_multiple_tables(
+                query=query,
+                canvas_file=canvas_file,
+                subject=search_subject,
+                num_results_per_table=per_subject_limit // 2 + 1,
+                query_type=search_type,
+                course_id=course_id,
+                tags=tags,
+            )
+            lancedb_results.extend(subject_results)
+
+        # Deduplicate by doc_id, keeping highest score
+        seen_ids: dict = {}
+        for r in lancedb_results:
+            doc_id = r.get("doc_id", "")
+            if doc_id not in seen_ids or r.get("score", 0) > seen_ids[doc_id].get("score", 0):
+                seen_ids[doc_id] = r
+        lancedb_results = sorted(seen_ids.values(), key=lambda x: x.get("score", 0), reverse=True)
 
         # 限制总结果数
         lancedb_results = lancedb_results[:batch_size]

@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_optimize_01_basic_rewrite",
+  "description": "Basic query optimization: broaden a too-specific query",
+  "tags": ["basic", "chinese", "broaden"],
+  "input": {
+    "user_intent": "理解 LSTM 的遗忘门机制",
+    "user_prompt": "LSTM遗忘门的sigmoid函数具体怎么控制信息流？",
+    "original_queries": ["LSTM遗忘门sigmoid函数信息流"]
+  },
+  "expected_output": {
+    "min_query_count": 2,
+    "max_query_count": 3,
+    "format_compliant": true,
+    "queries_differ_from_original": true,
+    "valid_format_description": "JSON array of 2-3 optimized query strings"
+  },
+  "replay_response": {
+    "queries": [
+      "LSTM 遗忘门工作原理",
+      "循环神经网络中门控机制如何过滤信息",
+      "LSTM 遗忘门 sigmoid 激活函数作用"
+    ],
+    "json_format_valid": true,
+    "query_count": 3,
+    "all_differ_from_original": true
+  }
+}

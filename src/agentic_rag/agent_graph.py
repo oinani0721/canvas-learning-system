@@ -42,6 +42,39 @@ logger = logging.getLogger(__name__)
 MAX_RETRIEVAL_ITERATIONS = 3
 
 
+def _load_prompt_template(prompt_name: str, default_text: str) -> str:
+    """Load a full prompt template from PromptRegistry with graceful degradation.
+
+    Story 2.13 Task 1: Externalized agent_graph prompts via PromptRegistry.
+    Returns the complete template content (not just first line) for placeholder
+    substitution by the caller.
+
+    Uses default_text if PromptRegistry is unavailable (e.g. standalone usage),
+    and logs a WARNING when falling back so silent degradation is detectable.
+    """
+    try:
+        from app.services.prompt_registry import get_prompt_registry
+
+        registry = get_prompt_registry()
+        content = registry.get(prompt_name)
+        if content and content.strip():
+            return content
+        logger.warning(
+            "[Story 2.13] PromptRegistry returned empty content for '%s', "
+            "using inline fallback",
+            prompt_name,
+        )
+        return default_text
+    except Exception as e:
+        logger.warning(
+            "[Story 2.13] Failed to load prompt '%s' via PromptRegistry: %s. "
+            "Using inline fallback.",
+            prompt_name,
+            e,
+        )
+        return default_text
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Node 1: Analyze User Intent
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -78,23 +111,27 @@ async def analyze_intent(state: AgentRAGState) -> dict:
             "search_queries": [],
         }
 
-    # Ask LLM to analyze intent and generate search queries
-    analysis_prompt = f"""分析以下用户请求，判断是否需要搜索笔记库获取更多信息。
+    # Story 2.13: Load full template and substitute placeholders
+    _INTENT_FALLBACK = (
+        "你是一个搜索意图分析器。只返回JSON格式的分析结果。\n\n"
+        "分析以下用户请求，判断是否需要搜索笔记库获取更多信息。\n\n"
+        "用户请求:\n{{user_prompt}}\n\n"
+        "已有上下文:\n{{pre_context}}\n\n"
+        '请以JSON格式回答:\n'
+        '{"intent": "用户的核心意图", "has_specific_request": true/false, '
+        '"needs_search": true/false, "search_queries": ["查询1", "查询2"]}\n\n'
+        "只返回JSON，不要其他文字。"
+    )
 
-用户请求:
-{user_prompt}
+    intent_template = _load_prompt_template("search_intent", _INTENT_FALLBACK)
 
-{"已有上下文:" + pre_context[:500] + "..." if pre_context else "（无预加载上下文）"}
-
-请以JSON格式回答:
-{{
-  "intent": "用户的核心意图（一句话）",
-  "has_specific_request": true/false（用户是否有具体请求如"列出笔记"、"举例子"等）,
-  "needs_search": true/false（是否需要搜索笔记库获取更多信息）,
-  "search_queries": ["查询1", "查询2"]（如果needs_search=true，生成1-3个搜索查询）
-}}
-
-只返回JSON，不要其他文字。"""
+    # Replace placeholders with actual values
+    pre_context_display = (
+        pre_context[:500] + "..." if pre_context else "（无预加载上下文）"
+    )
+    analysis_prompt = intent_template.replace(
+        "{{user_prompt}}", user_prompt
+    ).replace("{{pre_context}}", pre_context_display)
 
     try:
         result = await client.call_raw(
@@ -255,24 +292,35 @@ async def grade_documents(state: AgentRAGState) -> dict:
             "relevant_documents": relevant,
         }
 
-    # Build grading prompt with document summaries
-    doc_summaries = []
+    # Build document summaries string
+    doc_summary_parts = []
     for i, doc in enumerate(documents[:10]):  # Max 10 docs to grade
         content = doc.get("content", "")[:300]
         source = doc.get("metadata", {}).get("source", "unknown")
-        doc_summaries.append(f"[Doc {i+1}] (source: {source})\n{content}")
+        doc_summary_parts.append(f"[Doc {i+1}] (source: {source})\n{content}")
+    doc_summaries_str = "\n---\n".join(doc_summary_parts)
 
-    grading_prompt = f"""用户意图: {user_intent}
-用户请求: {user_prompt[:300]}
+    # Story 2.13: Load full template and substitute placeholders
+    _CRAG_FALLBACK = (
+        "你是一个文档相关性评估器。只返回JSON数组。\n\n"
+        "用户意图: {{user_intent}}\n"
+        "用户请求: {{user_prompt}}\n\n"
+        "以下是检索到的文档，请判断每个文档是否与用户请求相关。\n"
+        "返回JSON数组，每个元素为 \"relevant\" 或 \"irrelevant\"。\n\n"
+        "文档列表:\n{{doc_summaries}}\n\n"
+        '返回格式: ["relevant", "irrelevant", "relevant", ...]\n'
+        "只返回JSON数组，不要其他文字。"
+    )
 
-以下是检索到的文档，请判断每个文档是否与用户请求相关。
-返回JSON数组，每个元素为 "relevant" 或 "irrelevant"。
+    crag_template = _load_prompt_template("crag_grading", _CRAG_FALLBACK)
 
-文档列表:
-{"---".join(doc_summaries)}
-
-返回格式: ["relevant", "irrelevant", "relevant", ...]
-只返回JSON数组，不要其他文字。"""
+    # Replace placeholders with actual values
+    grading_prompt = (
+        crag_template
+        .replace("{{user_intent}}", user_intent)
+        .replace("{{user_prompt}}", user_prompt[:300])
+        .replace("{{doc_summaries}}", doc_summaries_str)
+    )
 
     try:
         result = await client.call_raw(
@@ -341,21 +389,37 @@ async def rewrite_query(state: AgentRAGState) -> dict:
 
     if not client or not client.client:
         # Simple fallback rewrite
+        logger.warning(
+            "[Phase3] Gemini client unavailable for query rewrite, "
+            "using simple prefix fallback"
+        )
         new_queries = [f"详细解释 {q}" for q in original_queries[:2]]
         return {
             "search_queries": new_queries,
             "retry_count": retry_count + 1,
         }
 
-    rewrite_prompt = f"""之前的搜索查询没有找到足够相关的结果。
+    # Story 2.13: Load full template and substitute placeholders
+    _OPTIMIZE_FALLBACK = (
+        "你是一个搜索查询优化器。只返回JSON数组。\n\n"
+        "当之前的搜索查询未找到足够相关的结果时，生成改进的搜索查询。\n\n"
+        "用户意图: {{user_intent}}\n"
+        "用户请求: {{user_prompt}}\n"
+        "之前的查询: {{original_queries}}\n\n"
+        "请生成2-3个改进的搜索查询，尝试不同的关键词和角度。\n"
+        '返回JSON数组: ["查询1", "查询2", "查询3"]\n'
+        "只返回JSON数组。"
+    )
 
-用户意图: {user_intent}
-用户请求: {user_prompt[:300]}
-之前的查询: {original_queries}
+    optimize_template = _load_prompt_template("query_optimize", _OPTIMIZE_FALLBACK)
 
-请生成2-3个改进的搜索查询，尝试不同的关键词和角度。
-返回JSON数组: ["查询1", "查询2", "查询3"]
-只返回JSON数组。"""
+    # Replace placeholders with actual values
+    rewrite_prompt = (
+        optimize_template
+        .replace("{{user_intent}}", user_intent)
+        .replace("{{user_prompt}}", user_prompt[:300])
+        .replace("{{original_queries}}", str(original_queries))
+    )
 
     try:
         result = await client.call_raw(

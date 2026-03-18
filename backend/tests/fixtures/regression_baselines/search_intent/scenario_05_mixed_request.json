@@ -1,0 +1,24 @@
+{
+  "scenario_id": "search_intent_05_mixed_request",
+  "description": "Mixed language query combining note search with explanation request",
+  "tags": ["needs_search", "mixed_language"],
+  "input": {
+    "user_prompt": "帮我找一下关于recursion的笔记，然后给我举个例子",
+    "pre_context": ""
+  },
+  "expected_output": {
+    "needs_search": true,
+    "has_specific_request": true,
+    "json_format_valid": true,
+    "has_intent_field": true,
+    "has_search_queries": true,
+    "search_query_count_range": {"min": 1, "max": 3}
+  },
+  "replay_response": {
+    "intent": "查找递归相关笔记并获取示例",
+    "has_specific_request": true,
+    "needs_search": true,
+    "search_queries": ["recursion", "递归", "递归例子"],
+    "json_format_valid": true
+  }
+}

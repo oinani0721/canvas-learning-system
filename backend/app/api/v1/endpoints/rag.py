@@ -18,6 +18,7 @@ from typing import Annotated, List, Literal, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.core.subject_config import set_current_subject_id
 from app.services.rag_service import (
     RAGService,
     RAGServiceError,
@@ -44,13 +45,11 @@ class RAGQueryRequest(BaseModel):
     canvas_file: Optional[str] = Field(None, description="Canvas 文件路径 (用于上下文过滤)")
     subject_id: Optional[str] = Field(
         None,
-        description="学科 ID, 用于多学科知识图谱隔离 (Story 1.9). "
-        "当提供时, 检索范围限定在该学科内.",
+        description="学科 ID, 用于多学科知识图谱隔离 (Story 1.9). 当提供时, 检索范围限定在该学科内.",
     )
     cross_subject: bool = Field(
         False,
-        description="是否启用跨学科检索 (Story 1.9 AC-5). "
-        "启用后通过 Tag Jaccard 桥接扩展到相似学科.",
+        description="是否启用跨学科检索 (Story 1.9 AC-5). 启用后通过 Tag Jaccard 桥接扩展到相似学科.",
     )
     is_review_canvas: bool = Field(False, description="是否为检验白板场景")
     fusion_strategy: Optional[Literal["rrf", "weighted", "cascade"]] = Field(
@@ -236,9 +235,12 @@ async def rag_query(
         HTTPException 503: RAG 服务不可用
         HTTPException 500: 查询执行失败
     """
-    logger.info(
-        f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}"
-    )
+    logger.info(f"RAG query: {request.query[:50]}... subject={request.subject_id} cross={request.cross_subject}")
+
+    # Story 1.9 CRITICAL fix: Set ContextVar so downstream services
+    # (via get_current_subject_id()) see the correct subject.
+    if request.subject_id:
+        set_current_subject_id(request.subject_id)
 
     try:
         result = await rag_service.query(

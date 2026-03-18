@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_optimize_05_narrow_broad",
+  "description": "Adjust granularity: too-broad query narrowed to specific aspects",
+  "tags": ["granularity", "chinese", "narrow"],
+  "input": {
+    "user_intent": "学习机器学习基础",
+    "user_prompt": "机器学习是什么？",
+    "original_queries": ["机器学习"]
+  },
+  "expected_output": {
+    "min_query_count": 2,
+    "max_query_count": 3,
+    "format_compliant": true,
+    "queries_differ_from_original": true,
+    "valid_format_description": "JSON array of 2-3 optimized query strings"
+  },
+  "replay_response": {
+    "queries": [
+      "机器学习基本概念和核心原理",
+      "监督学习与无监督学习的区别和应用场景",
+      "机器学习入门 常用算法概述"
+    ],
+    "json_format_valid": true,
+    "query_count": 3,
+    "all_differ_from_original": true
+  }
+}

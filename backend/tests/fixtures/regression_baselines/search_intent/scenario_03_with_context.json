@@ -1,0 +1,24 @@
+{
+  "scenario_id": "search_intent_03_with_context",
+  "description": "User asks question with pre-fetched context available",
+  "tags": ["with_context", "chinese"],
+  "input": {
+    "user_prompt": "继续解释一下量子纠缠的原理",
+    "pre_context": "量子力学是研究微观粒子运动规律的物理学分支。量子态可以用波函数来描述..."
+  },
+  "expected_output": {
+    "needs_search": true,
+    "has_specific_request": true,
+    "json_format_valid": true,
+    "has_intent_field": true,
+    "has_search_queries": true,
+    "search_query_count_range": {"min": 1, "max": 3}
+  },
+  "replay_response": {
+    "intent": "深入了解量子纠缠原理",
+    "has_specific_request": true,
+    "needs_search": true,
+    "search_queries": ["量子纠缠", "quantum entanglement原理"],
+    "json_format_valid": true
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_rewrite_02_complex_decomposition",
+  "description": "Complex query with conjunctions: decomposition into sub-questions",
+  "tags": ["complex", "chinese", "decomposition"],
+  "input": {
+    "query": "比较光合作用和细胞呼吸的区别，以及它们在生态系统中的能量流动关系",
+    "complexity": "complex"
+  },
+  "expected_output": {
+    "min_rewrite_count": 2,
+    "max_rewrite_count": 3,
+    "format_compliant": true,
+    "preserves_semantics": true,
+    "valid_format_description": "Each sub-question on separate line, no numbering, no explanation"
+  },
+  "replay_response": {
+    "rewrites": [
+      "光合作用和细胞呼吸各自的过程和产物有什么不同",
+      "生态系统中能量如何在光合作用和细胞呼吸之间流动",
+      "光合作用与细胞呼吸的互补关系是什么"
+    ],
+    "format_valid": true,
+    "line_count": 3,
+    "has_numbering": false,
+    "has_explanation": false
+  }
+}

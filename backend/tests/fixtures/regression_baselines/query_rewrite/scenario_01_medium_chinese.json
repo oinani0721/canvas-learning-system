@@ -1,0 +1,27 @@
+{
+  "scenario_id": "query_rewrite_01_medium_chinese",
+  "description": "Medium complexity Chinese query: multi-query rewrite",
+  "tags": ["medium", "chinese", "multi_query"],
+  "input": {
+    "query": "如何理解神经网络中的反向传播算法？",
+    "complexity": "medium"
+  },
+  "expected_output": {
+    "min_rewrite_count": 2,
+    "max_rewrite_count": 3,
+    "format_compliant": true,
+    "preserves_semantics": true,
+    "valid_format_description": "Each rewrite on separate line, no numbering, no explanation"
+  },
+  "replay_response": {
+    "rewrites": [
+      "反向传播算法的工作原理是什么",
+      "神经网络训练中梯度如何从输出层传递到输入层",
+      "BP算法在深度学习中的作用和机制"
+    ],
+    "format_valid": true,
+    "line_count": 3,
+    "has_numbering": false,
+    "has_explanation": false
+  }
+}

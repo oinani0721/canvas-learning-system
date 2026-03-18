@@ -1,0 +1,25 @@
+{
+  "scenario_id": "crag_grading_04_english_mixed",
+  "description": "English query with mixed language documents",
+  "tags": ["mixed_language", "english"],
+  "input": {
+    "user_intent": "Understanding sorting algorithms",
+    "user_prompt": "What is the time complexity of quicksort and how does it compare to mergesort?",
+    "documents": [
+      {"content": "Quicksort has average time complexity O(n log n) but worst case O(n^2). It uses divide-and-conquer with a pivot element.", "source": "algorithms.md"},
+      {"content": "Mergesort guarantees O(n log n) in all cases but requires O(n) extra space for merging.", "source": "sorting.md"},
+      {"content": "HTTP协议是互联网通信的基础协议，定义了客户端和服务器之间的请求响应格式", "source": "networking.md"},
+      {"content": "快速排序和归并排序都是分治算法，但它们的空间复杂度和稳定性不同", "source": "cn_algorithms.md"}
+    ]
+  },
+  "expected_output": {
+    "grades": ["relevant", "relevant", "irrelevant", "relevant"],
+    "relevant_count_range": {"min": 2, "max": 4},
+    "trigger_rate_contributes": false
+  },
+  "replay_response": {
+    "grades": ["relevant", "relevant", "irrelevant", "relevant"],
+    "relevant_count": 3,
+    "total_count": 4
+  }
+}
