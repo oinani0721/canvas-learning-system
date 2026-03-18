@@ -64,6 +64,23 @@ export interface SyncOutboxEntry {
   syncedAt?: string;
 }
 
+/**
+ * Crash recovery entry — persists lastSentMessage across plugin restarts.
+ * Story 3-11 AC-2: lastSentMessage cached in memory + Dexie.
+ */
+export interface CrashRecoveryEntry {
+  /** Fixed key: 'last_sent' (only one active entry at a time). */
+  id: string;
+  /** Node ID the message was sent to. */
+  nodeId: string;
+  /** The user's message content. */
+  message: string;
+  /** CLI session ID (for --resume on restart). */
+  sessionId: string | null;
+  /** ISO-8601 timestamp of when the message was sent. */
+  timestamp: string;
+}
+
 /** Chat message roles. */
 export type ChatMessageRole = 'user' | 'assistant' | 'error';
 
@@ -94,6 +111,7 @@ class CanvasLearningDB extends Dexie {
   canvas_edges!: EntityTable<CanvasEdge, 'id'>;
   sync_outbox!: EntityTable<SyncOutboxEntry, 'id'>;
   chat_messages!: EntityTable<ChatMessage, 'id'>;
+  crash_recovery!: EntityTable<CrashRecoveryEntry, 'id'>;
 
   constructor() {
     super('CanvasLearningDB');
@@ -121,6 +139,16 @@ class CanvasLearningDB extends Dexie {
       canvas_edges: 'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
       sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
       chat_messages: 'id, nodeId, role, createdAt',
+    });
+
+    // v4: crash_recovery table for Story 3-11 lastSentMessage persistence
+    this.version(4).stores({
+      canvas_boards: 'id, name, subjectId, createdAt, updatedAt',
+      canvas_nodes: 'id, canvasId, type, title, x, y, indexStatus, createdAt, updatedAt',
+      canvas_edges: 'id, canvasId, sourceNodeId, targetNodeId, createdAt, updatedAt',
+      sync_outbox: '++id, entityType, entityId, operation, createdAt, syncedAt',
+      chat_messages: 'id, nodeId, role, createdAt',
+      crash_recovery: 'id, nodeId',
     });
   }
 }

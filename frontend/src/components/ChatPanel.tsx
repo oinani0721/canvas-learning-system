@@ -1,6 +1,9 @@
 /**
  * ChatPanel — AI conversation panel with streaming and persistent history.
  * Story 3-3: Chat Panel UI + Streaming
+ * Story 3-9: Engine Fallback (engine status indicator)
+ * Story 3-10: Quota Management (QuotaExhaustedBanner)
+ * Story 3-11: Crash Recovery (RecoveryBanner)
  *
  * Features:
  * - Per-node conversation history persisted in Dexie (AC-4)
@@ -11,6 +14,9 @@
  * - 2s first-token timeout with "Thinking..." indicator (AC-6)
  * - Input bar with Enter/Shift+Enter/Escape shortcuts (AC-5)
  * - Text selection toolbar for Add Tip / Pull to Node
+ * - Engine status indicator (Claude Code vs API Key) (Story 3-9)
+ * - Quota exhaustion banner with countdown + degradation options (Story 3-10)
+ * - Crash recovery banner with auto/manual retry status (Story 3-11)
  *
  * Callers:
  * - App.tsx renders this in the right sidebar when a node is selected
@@ -22,6 +28,9 @@
  * - StreamingIndicator — animated streaming feedback
  * - SelectionToolbar — text selection actions
  * - TipsList — displays saved tips for the node
+ * - EngineStatusIndicator — shows active engine (Story 3-9)
+ * - QuotaExhaustedBanner — quota degradation UI (Story 3-10)
+ * - RecoveryBanner — crash recovery UI (Story 3-11)
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -32,6 +41,9 @@ import { InputBar } from './chat/InputBar';
 import { StreamingIndicator } from './chat/StreamingIndicator';
 import { SelectionToolbar } from './chat/SelectionToolbar';
 import { TipsList } from './chat/TipsList';
+import { EngineStatusIndicator } from './chat/EngineStatusIndicator';
+import { QuotaExhaustedBanner } from './chat/QuotaExhaustedBanner';
+import { RecoveryBanner } from './chat/RecoveryBanner';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
@@ -39,13 +51,14 @@ import { TipsList } from './chat/TipsList';
 
 interface ChatPanelProps {
   selectedNode: Node;
+  onOpenSettings?: () => void;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function ChatPanel({ selectedNode }: ChatPanelProps) {
+export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
   const nodeId = selectedNode.id;
   const nodeTitle =
     ((selectedNode.data as Record<string, unknown>).title as string) || 'Untitled';
@@ -61,6 +74,7 @@ export function ChatPanel({ selectedNode }: ChatPanelProps) {
   const loadMore = useChatStore((s) => s.loadMore);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const clearHistory = useChatStore((s) => s.clearHistory);
+  const quotaStatus = useChatStore((s) => s.quotaStatus);
 
   // ── Refs ──────────────────────────────────────────────────────────────
 
@@ -122,19 +136,30 @@ export function ChatPanel({ selectedNode }: ChatPanelProps) {
     clearHistory();
   }, [clearHistory]);
 
+  // ── Open settings handler (for quota degradation) ─────────────────────
+
+  const handleOpenSettings = useCallback(() => {
+    if (onOpenSettings) {
+      onOpenSettings();
+    }
+  }, [onOpenSettings]);
+
   // ── Render ────────────────────────────────────────────────────────────
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
+      {/* Header — Story 3-9: Engine status indicator added */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 shrink-0">
-        <h3 className="text-sm font-medium text-gray-700 truncate">
-          Chat: {nodeTitle}
-        </h3>
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-sm font-medium text-gray-700 truncate">
+            Chat: {nodeTitle}
+          </h3>
+          <EngineStatusIndicator />
+        </div>
         {messages.length > 0 && (
           <button
             onClick={handleClear}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors"
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors shrink-0 ml-2"
             title="Clear chat history"
           >
             Clear
@@ -149,6 +174,14 @@ export function ChatPanel({ selectedNode }: ChatPanelProps) {
             Claude Code not available. Run via Tauri desktop app to enable AI chat.
           </p>
         </div>
+      )}
+
+      {/* Story 3-11: Crash recovery banner */}
+      <RecoveryBanner nodeTitle={nodeTitle} />
+
+      {/* Story 3-10: Quota exhaustion banner */}
+      {quotaStatus === 'exhausted' && (
+        <QuotaExhaustedBanner onOpenSettings={handleOpenSettings} />
       )}
 
       {/* Messages list */}
@@ -191,12 +224,13 @@ export function ChatPanel({ selectedNode }: ChatPanelProps) {
         <TipsList nodeId={nodeId} />
       </div>
 
-      {/* Input bar */}
+      {/* Input bar — disabled when quota exhausted (Story 3-10 AC-4) */}
       <InputBar
         isStreaming={isStreaming}
         engineUnavailable={engineUnavailable}
         nodeTitle={nodeTitle}
         onSend={handleSend}
+        quotaExhausted={quotaStatus === 'exhausted'}
       />
 
       {/* Text selection toolbar (floating, appears on text select) */}

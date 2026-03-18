@@ -254,6 +254,10 @@ class ArchiveManager:
         Only structured extraction data is preserved.
         Summary is removed (only facts remain).
 
+        If the node was never archived to Warm (i.e. jumped straight from
+        Hot to Cold due to age > 6 months), distillation is run first to
+        ensure structured data exists before archiving.
+
         Args:
             node_id: The canvas node identifier.
             messages: The conversation messages.
@@ -262,6 +266,33 @@ class ArchiveManager:
             ArchiveStatus after archiving.
         """
         logger.info(f"[Story 3.8] Archiving node {node_id} from Warm to Cold")
+
+        has_structured = False
+
+        # If node was never Warm-archived, run distillation first
+        prior = self._archive_log.get(node_id)
+        if prior is None or not prior.has_structured_data:
+            try:
+                from app.config import DEFAULT_GROUP_ID
+                from app.services.conversation_distiller import (
+                    get_conversation_distiller,
+                )
+
+                distiller = get_conversation_distiller()
+                result = await distiller.distill_and_persist(
+                    messages=messages,
+                    node_id=node_id,
+                    group_id=DEFAULT_GROUP_ID,
+                )
+                has_structured = bool(
+                    result.tips or result.errors or result.qa_highlights
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[Story 3.8] Distillation for Cold archive failed: {e}"
+                )
+        else:
+            has_structured = True
 
         # Mark messages as cold-archived
         await self._mark_messages_archived(node_id, messages, tier="cold")
@@ -272,7 +303,7 @@ class ArchiveManager:
             message_count=len(messages),
             estimated_tokens=self._estimate_tokens(messages),
             has_summary=False,
-            has_structured_data=True,  # Structured data persists forever
+            has_structured_data=has_structured,
             last_archived_at=datetime.now(timezone.utc).isoformat(),
         )
 

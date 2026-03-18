@@ -1381,6 +1381,56 @@ class MemoryService:
         )
         return entity_id
 
+    async def search_memories(
+        self,
+        query: str,
+        group_id: Optional[str] = None,
+        max_results: int = 50,
+    ) -> List[Dict[str, Any]]:
+        """
+        Search in-memory episodes by query string and optional group_id.
+
+        Story 3.8: Used by ArchiveManager and ArchiveScheduler to find
+        conversation episodes for archiving, and by the archive summary
+        endpoint to retrieve distillation results.
+
+        Performs a simple substring match on episode content, episode_type,
+        and node_id fields. Filters by group_id when provided.
+
+        Args:
+            query: Search query string (substring match on content/type/node_id).
+            group_id: Optional group_id filter for subject isolation.
+            max_results: Maximum number of results to return.
+
+        Returns:
+            List of matching episode dicts, newest first.
+
+        [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md]
+        """
+        if not self._initialized:
+            await self.initialize()
+
+        query_lower = query.lower()
+        matches: List[Dict[str, Any]] = []
+
+        for episode in reversed(self._episodes):
+            # Filter by group_id if specified
+            if group_id and episode.get("group_id", "") != group_id:
+                continue
+
+            # Substring match on content, episode_type, node_id, concept
+            searchable = " ".join(
+                str(episode.get(field, ""))
+                for field in ("content", "episode_type", "node_id", "concept")
+            ).lower()
+
+            if query_lower in searchable:
+                matches.append(episode)
+                if len(matches) >= max_results:
+                    break
+
+        return matches
+
     async def record_temporal_event(
         self,
         event_type: str,

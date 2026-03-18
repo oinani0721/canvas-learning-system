@@ -210,6 +210,15 @@ class ConversationDistiller:
 
         content = response.choices[0].message.content.strip()
 
+        # Strip markdown code fences if present (LLMs often wrap JSON)
+        if content.startswith("```"):
+            # Remove opening fence (e.g. ```json or ```)
+            first_newline = content.index("\n") if "\n" in content else 3
+            content = content[first_newline + 1:]
+            # Remove closing fence
+            if content.endswith("```"):
+                content = content[:-3].strip()
+
         # Parse JSON response
         parsed = json.loads(content)
 

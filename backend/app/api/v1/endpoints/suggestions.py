@@ -16,11 +16,12 @@
 import asyncio
 import json
 import logging
-from typing import Any, Dict
+import re
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
+from app.core.litellm_config import format_litellm_model, get_runtime_model_config
 from app.graphiti.entity_types import (
     RELATION_TYPE_LABELS,
     VALID_RELATION_TYPES,
@@ -39,30 +40,18 @@ suggestions_router = APIRouter()
 class RelationSuggestionRequest(BaseModel):
     """Request body for relation suggestion."""
 
-    source_content: str = Field(
-        ..., min_length=1, description="Content of the source (original) node"
-    )
-    new_content: str = Field(
-        ..., min_length=1, description="Content of the new (pulled-out) node"
-    )
+    source_content: str = Field(..., min_length=1, description="Content of the source (original) node")
+    new_content: str = Field(..., min_length=1, description="Content of the new (pulled-out) node")
     source_node_id: str = Field(default="", description="Source node ID for reference")
 
 
 class RelationSuggestionResponse(BaseModel):
     """Response with suggested relation type."""
 
-    relation_type: str = Field(
-        ..., description="Suggested relation edge label"
-    )
-    relation_label: str = Field(
-        ..., description="Human-readable label for the relation"
-    )
-    confidence: float = Field(
-        ge=0.0, le=1.0, description="Confidence score of the suggestion"
-    )
-    reason: str = Field(
-        default="", description="Brief reason for the suggestion"
-    )
+    relation_type: str = Field(..., description="Suggested relation edge label")
+    relation_label: str = Field(..., description="Human-readable label for the relation")
+    confidence: float = Field(ge=0.0, le=1.0, description="Confidence score of the suggestion")
+    reason: str = Field(default="", description="Brief reason for the suggestion")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -101,7 +90,7 @@ Respond with ONLY a JSON object:
 )
 async def suggest_relation(
     request: RelationSuggestionRequest,
-) -> Dict[str, Any]:
+) -> RelationSuggestionResponse:
     """
     Suggest the best relationship type between two concept nodes.
 
@@ -127,7 +116,7 @@ async def suggest_relation(
             relation_label="是补充说明",
             confidence=0.3,
             reason="LLM suggestion timed out, defaulting to supplements",
-        ).model_dump()
+        )
     except Exception as e:
         logger.error(f"[Story 3.7] Relation suggestion failed: {e}")
         return RelationSuggestionResponse(
@@ -135,51 +124,60 @@ async def suggest_relation(
             relation_label="是补充说明",
             confidence=0.3,
             reason=f"Suggestion unavailable: {str(e)[:100]}",
-        ).model_dump()
+        )
 
 
-async def _llm_suggest_relation(
-    source_content: str, new_content: str
-) -> Dict[str, Any]:
+async def _llm_suggest_relation(source_content: str, new_content: str) -> RelationSuggestionResponse:
     """
     Call LLM to suggest a relation type.
+
+    Uses format_litellm_model() for provider-agnostic model string formatting
+    and RuntimeModelConfigManager for API key retrieval (Story 1.3 integration).
 
     Args:
         source_content: The original node content.
         new_content: The pulled-out node content.
 
     Returns:
-        Dict matching RelationSuggestionResponse schema.
+        RelationSuggestionResponse with suggested relation.
     """
     try:
         import litellm
 
         from app.config import settings
 
-        # Build model string
-        provider = settings.AI_PROVIDER
-        model_name = settings.AI_MODEL_NAME
+        # Build model string using the canonical format_litellm_model utility
+        # [Source: Story 1.3 Task 9.4 — LiteLLM model name format mapping]
+        model = format_litellm_model(settings.AI_PROVIDER, settings.AI_MODEL_NAME)
 
-        if provider == "google":
-            model = f"gemini/{model_name}"
-        elif provider == "openrouter":
-            model = f"openrouter/{model_name}"
-        else:
-            model = model_name
+        # Retrieve API key from RuntimeModelConfigManager (in-memory, Story 1.3)
+        # Falls back to None if not configured (LiteLLM checks env vars)
+        runtime_cfg = get_runtime_model_config()
+        api_key = runtime_cfg.get_chat_api_key()
 
         prompt = RELATION_SUGGESTION_PROMPT.format(
             source_content=source_content[:500],
             new_content=new_content[:500],
         )
 
-        response = await litellm.acompletion(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=150,
-            temperature=0.1,
-        )
+        kwargs: dict = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "max_tokens": 150,
+            "temperature": 0.1,
+        }
+        if api_key:
+            kwargs["api_key"] = api_key
+
+        response = await litellm.acompletion(**kwargs)
 
         content = response.choices[0].message.content.strip()
+
+        # Strip markdown code fences if present (e.g. ```json ... ```)
+        fence_match = re.search(r"```(?:json)?\s*(.*?)\s*```", content, re.DOTALL)
+        if fence_match:
+            content = fence_match.group(1)
+
         parsed = json.loads(content)
 
         relation_type = parsed.get("relation_type", "SUPPLEMENTS")
@@ -197,7 +195,7 @@ async def _llm_suggest_relation(
             relation_label=relation_label,
             confidence=confidence,
             reason=reason,
-        ).model_dump()
+        )
 
     except ImportError:
         logger.warning("[Story 3.7] litellm not available for relation suggestion")
@@ -206,7 +204,7 @@ async def _llm_suggest_relation(
             relation_label="是补充说明",
             confidence=0.3,
             reason="LLM not available",
-        ).model_dump()
+        )
     except json.JSONDecodeError:
         logger.warning("[Story 3.7] LLM returned invalid JSON for relation suggestion")
         return RelationSuggestionResponse(
@@ -214,4 +212,4 @@ async def _llm_suggest_relation(
             relation_label="是补充说明",
             confidence=0.3,
             reason="Could not parse LLM response",
-        ).model_dump()
+        )

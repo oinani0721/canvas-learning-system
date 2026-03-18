@@ -41,6 +41,11 @@ interface InputBarProps {
    * Story 3.5 will consume this event for SkillSelector.
    */
   onSlashTrigger?: (inputValue: string) => void;
+  /**
+   * Story 3-10: Whether subscription quota is exhausted.
+   * When true, shows a placeholder indicating quota exhaustion.
+   */
+  quotaExhausted?: boolean;
 }
 
 /** Maximum number of visible lines before the textarea stops growing. */
@@ -54,11 +59,12 @@ export function InputBar({
   nodeTitle,
   onSend,
   onSlashTrigger,
+  quotaExhausted = false,
 }: InputBarProps) {
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const isDisabled = isStreaming || engineUnavailable;
+  const isDisabled = isStreaming || engineUnavailable || quotaExhausted;
   const canSend = !isDisabled && input.trim().length > 0;
 
   // ── Auto-resize textarea ──────────────────────────────────────────────
@@ -134,9 +140,11 @@ export function InputBar({
 
   // ── Render ────────────────────────────────────────────────────────────
 
-  const placeholder = engineUnavailable
-    ? 'Claude Code not available...'
-    : `Ask about "${nodeTitle}"...`;
+  const placeholder = quotaExhausted
+    ? '额度已用完，请等待重置或切换 API Key...'
+    : engineUnavailable
+      ? 'Claude Code not available...'
+      : `Ask about "${nodeTitle}"...`;
 
   return (
     <form

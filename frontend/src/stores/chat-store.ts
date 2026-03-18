@@ -1,6 +1,9 @@
 /**
  * Zustand Chat Store — Per-node conversation state with Dexie persistence
  * Story 3-3: Chat Panel UI + Streaming
+ * Story 3-9: Engine Fallback (CLI -> API Key degradation)
+ * Story 3-10: Quota Management + Degradation (429 detection + countdown)
+ * Story 3-11: Crash Recovery (lastSentMessage + circuit breaker)
  *
  * Responsibilities:
  * - Per-node message list management (load, append, clear)
@@ -8,21 +11,29 @@
  * - Dexie persistence for cross-session history (AC-4)
  * - Lazy loading: initial 50 messages, load-more on scroll (AC-4)
  * - 2s first-token timeout tracking (AC-6)
+ * - Engine switching: ClaudeEngine <-> ApiKeyEngine (Story 3-9)
+ * - Quota status tracking and degradation UI (Story 3-10)
+ * - Crash recovery: lastSentMessage caching + circuit breaker (Story 3-11)
  *
  * Callers:
  * - ChatPanel (main consumer — reads messages, dispatches sends)
  * - MessageBubble (reads individual message)
  * - InputBar (reads isStreaming to disable input)
  * - StreamingIndicator (reads streaming state)
+ * - QuotaExhaustedBanner (reads quotaStatus)
+ * - RecoveryBanner (reads recoveryStatus)
  *
  * Wiring needs:
- * - ClaudeEngine.sendMessage() is called from sendMessage() action
+ * - EngineFallbackManager.sendMessage() is called from sendMessage() action
  * - Dexie db.chat_messages is read/written for persistence
+ * - CrashRecoveryManager handles crash caching/replay
  */
 
 import { create } from 'zustand';
 import { db, type ChatMessage, type ChatMessageRole } from '../services/dexie-db';
-import { ClaudeEngine, type StreamEvent } from '../services/claude-engine';
+import { type StreamEvent } from '../services/claude-engine';
+import { EngineFallbackManager, type ActiveEngine } from '../services/engine-fallback';
+import { CrashRecoveryManager, type RecoveryStatus } from '../services/crash-recovery';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Constants
@@ -35,17 +46,31 @@ const PAGE_SIZE = 50;
 const FIRST_TOKEN_TIMEOUT_MS = 2000;
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Singleton engine
+// Singletons
 // ═══════════════════════════════════════════════════════════════════════════════
 
-let engineInstance: ClaudeEngine | null = null;
+let fallbackManager: EngineFallbackManager | null = null;
+let crashRecovery: CrashRecoveryManager | null = null;
 
-function getEngine(): ClaudeEngine {
-  if (!engineInstance) {
-    engineInstance = new ClaudeEngine();
+function getFallbackManager(): EngineFallbackManager {
+  if (!fallbackManager) {
+    fallbackManager = new EngineFallbackManager();
   }
-  return engineInstance;
+  return fallbackManager;
 }
+
+function getCrashRecovery(): CrashRecoveryManager {
+  if (!crashRecovery) {
+    crashRecovery = new CrashRecoveryManager();
+  }
+  return crashRecovery;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Quota status type (Story 3-10)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export type QuotaStatus = 'available' | 'exhausted' | 'checking';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Store types
@@ -72,6 +97,22 @@ interface ChatStoreState {
 
   /** Total message count for current node (for lazy loading offset). */
   totalCount: number;
+
+  // ── Story 3-9: Engine Fallback ──────────────────────────────────────
+  /** Which engine is currently active. */
+  activeEngine: ActiveEngine;
+
+  // ── Story 3-10: Quota Management ────────────────────────────────────
+  /** Current subscription quota status. */
+  quotaStatus: QuotaStatus;
+  /** ISO-8601 timestamp when quota is expected to reset. */
+  quotaResetTime: string | null;
+  /** Seconds until retry (from retry-after header). */
+  quotaRetryAfterSec: number | null;
+
+  // ── Story 3-11: Crash Recovery ──────────────────────────────────────
+  /** Current crash recovery status. */
+  recoveryStatus: RecoveryStatus;
 }
 
 interface ChatStoreActions {
@@ -90,7 +131,7 @@ interface ChatStoreActions {
   /**
    * Send a user message and begin streaming the assistant response.
    * Called by: InputBar on submit.
-   * Wiring: Calls ClaudeEngine.sendMessage() internally.
+   * Wiring: Calls EngineFallbackManager.sendMessage() internally.
    */
   sendMessage: (text: string, nodeTitle: string) => Promise<void>;
 
@@ -117,6 +158,27 @@ interface ChatStoreActions {
    * Called by: sendMessage's 'error' event.
    */
   handleStreamError: (errorText: string) => void;
+
+  // ── Story 3-9: Engine control ───────────────────────────────────────
+  /**
+   * Manually switch to a specific engine.
+   * Called by: ChatPanel header engine status click.
+   */
+  switchEngine: (engine: ActiveEngine) => Promise<void>;
+
+  // ── Story 3-10: Quota management ────────────────────────────────────
+  /**
+   * Dismiss quota exhaustion banner (user chose "wait for reset").
+   * Quota status reverts to checking on next send attempt.
+   */
+  dismissQuotaExhausted: () => void;
+
+  // ── Story 3-11: Crash recovery ──────────────────────────────────────
+  /**
+   * Manual retry after crash failure.
+   * Called by: RecoveryBanner "Retry" button.
+   */
+  manualRetry: (nodeTitle: string) => Promise<void>;
 }
 
 type ChatStore = ChatStoreState & ChatStoreActions;
@@ -170,12 +232,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   hasMore: false,
   totalCount: 0,
 
+  // Story 3-9: Engine Fallback
+  activeEngine: getFallbackManager().activeEngine,
+
+  // Story 3-10: Quota Management
+  quotaStatus: 'available',
+  quotaResetTime: null,
+  quotaRetryAfterSec: null,
+
+  // Story 3-11: Crash Recovery
+  recoveryStatus: 'idle',
+
   switchNode: async (nodeId: string) => {
     // Abort any in-progress stream for the previous node
     const prevNodeId = get().currentNodeId;
     if (prevNodeId && get().isStreaming) {
-      const engine = getEngine();
-      await engine.abort(prevNodeId);
+      const mgr = getFallbackManager();
+      await mgr.abort(prevNodeId);
     }
 
     const total = await countMessages(nodeId);
@@ -210,10 +283,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   sendMessage: async (text: string, nodeTitle: string) => {
-    const { currentNodeId, isStreaming } = get();
+    const { currentNodeId, isStreaming, quotaStatus } = get();
     if (!currentNodeId || isStreaming) return;
 
     const nodeId = currentNodeId;
+    const mgr = getFallbackManager();
+    const recovery = getCrashRecovery();
+
+    // Story 3-10: If quota was exhausted, re-check by attempting to send
+    // (the engine will detect if quota has been restored)
+    if (quotaStatus === 'exhausted') {
+      set({ quotaStatus: 'checking' });
+    }
+
+    // Story 3-11: Cache message before sending (AC-2)
+    const sessionId = mgr.getSessionId(nodeId);
+    await recovery.cacheMessage(nodeId, text, sessionId);
 
     // Create and persist user message
     const userMsg: ChatMessage = {
@@ -248,14 +333,13 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // (StreamingIndicator reads this to show "Thinking..." vs bouncing dots)
     }, FIRST_TOKEN_TIMEOUT_MS);
 
-    const engine = getEngine();
     const systemPrompt = `You are helping the user learn about "${nodeTitle}". This is a knowledge node in their Canvas Learning System. Provide clear, educational responses. If the node has specific content, reference it in your explanations.`;
 
     // Accumulator for streaming content (avoids repeated store reads)
     let accumulated = '';
 
     try {
-      await engine.sendMessage(
+      await mgr.sendMessage(
         {
           message: text,
           nodeId,
@@ -320,6 +404,14 @@ export const useChatStore = create<ChatStore>((set, get) => ({
 
             case 'done': {
               clearTimeout(firstTokenTimer);
+
+              // Story 3-11: Clear cached message on success
+              recovery.clearMessage();
+
+              // Story 3-10: Quota restored if we got a successful response
+              if (get().quotaStatus !== 'available') {
+                set({ quotaStatus: 'available', quotaResetTime: null, quotaRetryAfterSec: null });
+              }
 
               // Persist the assistant message if it has content
               const finalContent = accumulated;
@@ -431,4 +523,97 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       });
     }
   },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3-9: Engine control
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  switchEngine: async (engine: ActiveEngine) => {
+    const mgr = getFallbackManager();
+    const reason = engine === 'claude-code'
+      ? '手动切换回 Claude Code 模式'
+      : '手动切换到 API Key 模式';
+    await mgr.switchEngine(engine, reason);
+    set({ activeEngine: engine, engineUnavailable: false });
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3-10: Quota management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  dismissQuotaExhausted: () => {
+    // User chose "wait for reset" — keep quota status but allow UI to dismiss banner.
+    // Next send attempt will re-check (quotaStatus stays 'exhausted' until send succeeds).
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 3-11: Crash recovery
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  manualRetry: async (nodeTitle: string) => {
+    const recovery = getCrashRecovery();
+    const cachedMsg = recovery.manualRetry();
+    if (!cachedMsg) return;
+
+    // Re-send the cached message
+    set({ recoveryStatus: 'recovering' });
+    await get().sendMessage(cachedMsg.message, nodeTitle);
+  },
 }));
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Engine error listener setup (runs once on module load)
+// Handles Story 3-9 fallback, Story 3-10 quota, Story 3-11 crash
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function setupEngineListeners(): void {
+  const mgr = getFallbackManager();
+
+  // Listen for engine errors
+  mgr.onError((error) => {
+    if (error.type === 'rate_limited') {
+      // Story 3-10: Set quota exhausted state
+      let resetTime: string | null = null;
+      if (error.retryAfterSec) {
+        const resetDate = new Date(Date.now() + error.retryAfterSec * 1000);
+        resetTime = resetDate.toISOString();
+      }
+      useChatStore.setState({
+        quotaStatus: 'exhausted',
+        quotaResetTime: resetTime,
+        quotaRetryAfterSec: error.retryAfterSec ?? null,
+      });
+    } else if (error.type === 'auth_failed' || error.type === 'not_installed' || error.type === 'spawn_failed') {
+      // Story 3-9: Engine fallback handled by EngineFallbackManager
+      // Update store to reflect new active engine
+      useChatStore.setState({
+        activeEngine: mgr.activeEngine,
+      });
+    } else if (error.type === 'crash') {
+      // Story 3-11: Handle crash via CrashRecoveryManager
+      const recovery = getCrashRecovery();
+      const result = recovery.recordCrash(error.exitCode ?? null, error.message);
+      useChatStore.setState({
+        recoveryStatus: result.action === 'auto_retry'
+          ? 'recovering'
+          : result.action === 'circuit_open'
+            ? 'circuit_open'
+            : 'failed',
+      });
+    }
+  });
+
+  // Listen for engine switch events (Story 3-9)
+  mgr.onEngineSwitch((engine) => {
+    useChatStore.setState({ activeEngine: engine });
+  });
+
+  // Listen for crash recovery status changes (Story 3-11)
+  const recovery = getCrashRecovery();
+  recovery.onStatusChange((status) => {
+    useChatStore.setState({ recoveryStatus: status });
+  });
+}
+
+// Initialize listeners
+setupEngineListeners();
