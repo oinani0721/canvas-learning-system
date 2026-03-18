@@ -17,6 +17,7 @@
  */
 
 import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import type { ChatMessage } from '../../services/dexie-db';
 
 interface MessageBubbleProps {
@@ -89,7 +90,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         <div className="px-3 py-2 bg-gray-100 text-gray-900 text-sm rounded-2xl rounded-bl-md">
           {message.content ? (
             <div className="prose prose-sm prose-gray max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown>{message.content}</ReactMarkdown>
+              <ReactMarkdown rehypePlugins={[rehypeSanitize]}>{message.content}</ReactMarkdown>
             </div>
           ) : (
             <span className="text-gray-400 italic">...</span>

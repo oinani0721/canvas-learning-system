@@ -343,7 +343,11 @@ async def get_llm_stats(
         )
     except Exception as e:
         logger.error(f"[Story 7.2] Failed to get LLM stats: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get LLM stats: {e}") from e
+        # Story 3-7 FIX M1: Generalize error message — do not leak internal details
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to retrieve LLM statistics. Please try again later.",
+        ) from e
 
     now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
 
@@ -781,7 +785,11 @@ async def delete_extraction_record(
     if not deleted:
         raise HTTPException(status_code=404, detail=f"Record {record_id} not found")
 
-    return {"status": "deleted", "record_id": record_id}
+    now = datetime.now(timezone.utc).isoformat()
+    return {
+        "data": {"status": "deleted", "record_id": record_id},
+        "meta": {"timestamp": now},
+    }
 
 
 @router.delete(

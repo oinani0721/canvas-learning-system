@@ -261,9 +261,15 @@ class AutoScorer:
 
             from app.config import settings
 
-            model = getattr(settings, "SCORING_MODEL", None) or getattr(
-                settings, "LLM_MODEL", "gemini/gemini-2.0-flash"
-            )
+            # 6-10 M1: Use settings.SCORING_MODEL (configurable), fall back to AI_PROVIDER/AI_MODEL_NAME
+            model = settings.SCORING_MODEL
+            if not model:
+                provider = settings.AI_PROVIDER
+                model_name = settings.AI_MODEL_NAME
+                if provider and not model_name.startswith(provider):
+                    model = f"{provider}/{model_name}"
+                else:
+                    model = model_name
 
             response = await acompletion(
                 model=model,
@@ -332,9 +338,15 @@ class AutoScorer:
 
             from app.config import settings
 
-            model = getattr(settings, "SCORING_MODEL", None) or getattr(
-                settings, "LLM_MODEL", "gemini/gemini-2.0-flash"
-            )
+            # 6-10 M1: Use settings.SCORING_MODEL (configurable), fall back to AI_PROVIDER/AI_MODEL_NAME
+            model = settings.SCORING_MODEL
+            if not model:
+                provider = settings.AI_PROVIDER
+                model_name = settings.AI_MODEL_NAME
+                if provider and not model_name.startswith(provider):
+                    model = f"{provider}/{model_name}"
+                else:
+                    model = model_name
 
             response = await acompletion(
                 model=model,

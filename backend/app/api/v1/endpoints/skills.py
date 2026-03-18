@@ -57,7 +57,9 @@ class SkillDetailResponse(BaseModel):
     description: str
     icon: str
     content: str = Field(..., description="Full .md template content")
-    file_path: str = Field(..., description="Absolute path to the template file")
+    # file_path intentionally excluded from API response to avoid exposing
+    # server filesystem paths to the client. The backend uses file_path
+    # internally via SkillRegistry but does not surface it in the API.
 
 
 class SkillRefreshResponse(BaseModel):
@@ -163,7 +165,6 @@ async def get_skill(skill_id: str) -> SkillDetailResponse:
         description=skill_content.description,
         icon=skill_content.icon,
         content=skill_content.content,
-        file_path=skill_content.file_path,
     )
 
 

@@ -138,9 +138,9 @@ class FSRSRetrievabilitySignal:
         return min(1.0, self._cache.get(f"{node_id}_reps", 0) / 5.0)
 
     def preload(self, concept) -> None:
-        """Preload R value from a ConceptState using mastery_engine._get_retrievability."""
+        """Preload R value from a ConceptState using mastery_engine.get_retrievability."""
         if concept.fsrs_card_data or concept.last_interaction_ts:
-            r_value = self._engine._get_retrievability(concept)
+            r_value = self._engine.get_retrievability(concept)
             self._cache[concept.concept_id] = r_value
             self._cache[f"{concept.concept_id}_reps"] = concept.fsrs_reps
         else:

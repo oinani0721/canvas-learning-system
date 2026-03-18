@@ -24,10 +24,15 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import structlog
-
 logger = logging.getLogger(__name__)
-struct_logger = structlog.get_logger("scoring_faithfulness")
+
+# 6-9 M1 fix: structlog import with fallback to standard logging
+try:
+    import structlog
+
+    struct_logger = structlog.get_logger("scoring_faithfulness")
+except ImportError:
+    struct_logger = logger  # type: ignore[assignment]
 
 _PROMPTS_DIR = Path(__file__).parent.parent / "prompts" / "scoring"
 

@@ -192,11 +192,23 @@ class DifficultyMatcher:
         """
         import litellm
 
+        from app.config import settings
+
         prompt = _DIFFICULTY_PROMPT.format(question=question[:500])
+
+        # 6-10 M1 fix: Use configurable model instead of hardcoded openai/gpt-4o-mini
+        model = settings.SCORING_MODEL
+        if not model:
+            provider = settings.AI_PROVIDER
+            model_name = settings.AI_MODEL_NAME
+            if provider and not model_name.startswith(provider):
+                model = f"{provider}/{model_name}"
+            else:
+                model = model_name
 
         try:
             response = await litellm.acompletion(
-                model="openai/gpt-4o-mini",
+                model=model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.0,
                 max_tokens=10,

@@ -61,20 +61,22 @@ class MasteryFusionEngine:
         all_signals = self._registry.get_all_signals()
 
         # Build signal details for all registered signals (including inactive)
+        # Use a dict for O(1) lookup by name when updating normalized weights
+        signal_details_map: Dict[str, SignalDetail] = {}
         signal_details = []
         for name, signal in all_signals.items():
             value = signal.get_value(node_id)
             weight = signal.get_weight(node_id)
             reliability = signal.get_reliability(node_id)
-            signal_details.append(
-                SignalDetail(
-                    signal_name=name,
-                    value=value,
-                    weight=weight,
-                    normalized_weight=0.0,
-                    reliability=reliability,
-                )
+            sd = SignalDetail(
+                signal_name=name,
+                value=value,
+                weight=weight,
+                normalized_weight=0.0,
+                reliability=reliability,
             )
+            signal_details.append(sd)
+            signal_details_map[name] = sd
 
         if not active:
             # No signals with data — return 0.0 (unassessed)
@@ -101,10 +103,10 @@ class MasteryFusionEngine:
         for name, value, weight, _reliability in active:
             norm_weight = weight / weight_sum
             fused += norm_weight * value
-            # Update normalized weight in signal_details
-            for sd in signal_details:
-                if sd.signal_name == name:
-                    sd.normalized_weight = round(norm_weight, 3)
+            # O(1) dict lookup instead of O(N) linear scan
+            sd = signal_details_map.get(name)
+            if sd is not None:
+                sd.normalized_weight = round(norm_weight, 3)
 
         # Clamp to [0.0, 1.0]
         fused = max(0.0, min(1.0, fused))

@@ -33,14 +33,18 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from cachetools import TTLCache
-import structlog
 
 # Standard logger for backward compatibility
 logger = logging.getLogger(__name__)
 
 # ✅ Verified from ADR-010:77-100 (structlog get_logger)
-# Structlog logger for new FILE node handling (Story 12.D.2)
-struct_logger = structlog.get_logger(__name__)
+# 6-9 M1 fix: structlog import with fallback to standard logging
+try:
+    import structlog
+
+    struct_logger = structlog.get_logger(__name__)
+except ImportError:
+    struct_logger = logger  # type: ignore[assignment]
 
 
 def get_node_content(node: dict, vault_path: str) -> str:

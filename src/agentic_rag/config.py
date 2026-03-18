@@ -255,7 +255,12 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
             continue
         value = validated[param]
         valid = True
-        if not isinstance(value, rules["type"]):
+        # YAML parses `true`/`false` as bool, which is a subclass of int in Python.
+        # Reject bools when an int/float is expected to avoid silent misinterpretation
+        # (e.g., YAML `true` -> Python True -> int 1).
+        if isinstance(value, bool):
+            valid = False
+        elif not isinstance(value, rules["type"]):
             valid = False
         elif "min" in rules and value < rules["min"]:
             valid = False
@@ -320,6 +325,45 @@ def validate_config(config: CanvasRAGConfig) -> CanvasRAGConfig:
             _cfg_logger.warning(f"[CONFIG-WARN] Invalid value for {param}: {value}, using default {default_val}")
             validated[param] = default_val
 
+    # --- Dict rules: fusion_groups and source_weights ---
+    if "fusion_groups" in validated:
+        fg = validated["fusion_groups"]
+        valid_fg = True
+        if not isinstance(fg, dict):
+            valid_fg = False
+        else:
+            for grp_name, grp_sources in fg.items():
+                if not isinstance(grp_name, str) or not isinstance(grp_sources, list):
+                    valid_fg = False
+                    break
+                if not all(isinstance(s, str) for s in grp_sources):
+                    valid_fg = False
+                    break
+        if not valid_fg:
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid fusion_groups: {fg}, using default"
+            )
+            validated["fusion_groups"] = DEFAULT_CONFIG.get("fusion_groups")
+
+    if "source_weights" in validated:
+        sw = validated["source_weights"]
+        valid_sw = True
+        if not isinstance(sw, dict):
+            valid_sw = False
+        else:
+            for sw_key, sw_val in sw.items():
+                if not isinstance(sw_key, str) or not isinstance(sw_val, (int, float)):
+                    valid_sw = False
+                    break
+                if isinstance(sw_val, bool):
+                    valid_sw = False
+                    break
+        if not valid_sw:
+            _cfg_logger.warning(
+                f"[CONFIG-WARN] Invalid source_weights: {sw}, using default"
+            )
+            validated["source_weights"] = DEFAULT_CONFIG.get("source_weights")
+
     # Cross-field: adaptive_k_max >= adaptive_k_min
     ak_min = validated.get("adaptive_k_min", 3)
     ak_max = validated.get("adaptive_k_max", 15)
@@ -349,14 +393,18 @@ def load_config_from_file(file_path: Optional[str] = None) -> Optional[Dict[str,
     _cfg_logger = logging.getLogger(__name__)
 
     if file_path is None:
-        # Try standard location relative to project root
+        # Try standard locations relative to __file__ (stable) and cwd (fallback).
+        # __file__-relative is preferred because os.getcwd() changes depending on
+        # how the process is launched (pytest, Docker, IDE, etc.).
+        _this_dir = os.path.dirname(os.path.abspath(__file__))
         candidates = [
+            os.path.join(_this_dir, "..", "..", "config", "rag_config.yaml"),
             os.path.join(os.getcwd(), "config", "rag_config.yaml"),
-            os.path.join(os.path.dirname(__file__), "..", "..", "config", "rag_config.yaml"),
         ]
         for candidate in candidates:
-            if os.path.isfile(candidate):
-                file_path = candidate
+            normalized = os.path.normpath(candidate)
+            if os.path.isfile(normalized):
+                file_path = normalized
                 break
 
     if file_path is None or not os.path.isfile(file_path):
@@ -408,7 +456,11 @@ def merge_config(user_config: Optional[CanvasRAGConfig] = None) -> CanvasRAGConf
 
 def generate_default_config_file(output_path: str = "config/rag_config.yaml") -> str:
     """
-    Story 2.11: Generate a default YAML config file with comments.
+    Story 2.11: Generate a default YAML config file from DEFAULT_CONFIG.
+
+    Iterates over DEFAULT_CONFIG keys to produce the YAML file,
+    ensuring the generated file always stays in sync with the code-level
+    defaults instead of drifting via a static template literal.
 
     Args:
         output_path: Where to write the file.
@@ -416,52 +468,30 @@ def generate_default_config_file(output_path: str = "config/rag_config.yaml") ->
     Returns:
         Absolute path of written file.
     """
-    content = """# Canvas Learning System — RAG Pipeline Configuration
-# Modify values below to tune the search pipeline without code changes.
-# Invalid values will be replaced with defaults + WARNING log.
+    import yaml
 
-# === Fusion ===
-rrf_k: 60                         # RRF k parameter (>= 1)
-fusion_strategy: layered_rrf      # rrf | weighted | cascade | layered_rrf
+    header = (
+        "# Canvas Learning System — RAG Pipeline Configuration\n"
+        "# Modify values below to tune the search pipeline without code changes.\n"
+        "# Invalid values will be replaced with defaults + WARNING log.\n"
+        "# Auto-generated from DEFAULT_CONFIG.\n\n"
+    )
 
-# === Reranker ===
-reranker_model_name: Alibaba-NLP/gte-reranker-modernbert-base
-reranker_torch_dtype: float16
-adaptive_k_buffer: 5
-adaptive_k_min: 3
-adaptive_k_max: 15
+    # Serialize scalar values from DEFAULT_CONFIG to YAML.
+    # Complex nested dicts (fusion_groups, source_weights) are excluded because
+    # they require careful editing and should be modified in code.
+    scalar_config = {
+        k: v for k, v in DEFAULT_CONFIG.items()
+        if not isinstance(v, dict)
+    }
+    yaml_body = yaml.dump(
+        scalar_config,
+        default_flow_style=False,
+        allow_unicode=True,
+        sort_keys=False,
+    )
 
-# === Quality Gate ===
-quality_threshold: 0.7
-max_rewrite_iterations: 2
-quality_check_model: gemini/gemini-2.0-flash
-rewrite_model: gemini/gemini-2.0-flash
-
-# === Compression (Story 2.10) ===
-context_max_tokens: 3000
-mastery_injection_enabled: true
-learning_memory_max_tokens: 1000
-staleness_check_enabled: true
-multi_query_enabled: true
-multi_query_model: gemini/gemini-2.0-flash
-
-# === Filter & Expansion (Story 2.8) ===
-progressive_scope_enabled: true
-min_results_threshold: 5
-neighbor_expansion_enabled: true
-neighbor_max_count: 5
-neighbor_score_decay: 0.7
-tag_jaccard_bridge_enabled: false
-tag_jaccard_threshold: 0.3
-
-# === Image (Story 2.9) ===
-ocr_model: gemini/gemini-2.0-flash
-
-# === Performance ===
-timeout_seconds: 10.0
-retrieval_batch_size: 10
-search_type: hybrid
-"""
+    content = header + yaml_body
     dirpath = os.path.dirname(output_path)
     if dirpath:
         os.makedirs(dirpath, exist_ok=True)

@@ -231,8 +231,8 @@ async def generate_question(
 
             store = get_mastery_store()
             mastery_data = await store.get_concept(node_id)
-        except (ImportError, Exception):
-            pass
+        except Exception as e:
+            logger.debug(f"[Story 3.2] Mastery data not available for difficulty selection: {e}")
 
         # Auto-select difficulty based on mastery if not specified
         if difficulty is None:
@@ -266,8 +266,9 @@ async def generate_question(
             )
             q_text = questions[0] if questions else f"Please explain the concept of '{node_title}' in your own words."
             ref_answer = None
-        except (ImportError, Exception):
+        except Exception as e:
             # Fallback: generate a basic question from the content
+            logger.warning(f"[Story 3.2] QuestionGenerator failed, using fallback: {e}")
             q_text = f"Please explain the concept of '{node_title}' in your own words."
             ref_answer = None
 
@@ -538,19 +539,48 @@ async def assemble_acp(
         concept_name = node_data.get("text", node_data.get("title", "Unknown"))
         concept_content = node_data.get("content", node_data.get("text", ""))
 
-        # Get related concepts
+        # Get related concepts — batch fetch to avoid N+1 queries
         related_concepts: List[str] = []
         if include_related:
             try:
                 edges = await canvas_svc.find_edges_for_node(node_id, canvas_name=canvas_name)
+                # Collect all related node IDs first
+                related_ids: List[str] = []
                 for edge in edges:
                     target_id = edge.get("toNode", "")
                     source_id = edge.get("fromNode", "")
                     related_id = target_id if target_id != node_id else source_id
-                    if related_id:
-                        _, related_node = await canvas_svc.find_node_across_canvases(related_id)
-                        if related_node:
-                            related_concepts.append(related_node.get("text", related_node.get("title", "")))
+                    if related_id and related_id not in related_ids:
+                        related_ids.append(related_id)
+
+                # Batch fetch: try to get all nodes from the same canvas first
+                if related_ids and canvas_name:
+                    try:
+                        canvas_data = await canvas_svc.read_canvas(canvas_name)
+                        nodes_by_id = {
+                            n.get("id"): n for n in canvas_data.get("nodes", [])
+                        }
+                        for rid in related_ids:
+                            node_found = nodes_by_id.get(rid)
+                            if node_found:
+                                related_concepts.append(
+                                    node_found.get("text", node_found.get("title", ""))
+                                )
+                            # Skip cross-canvas lookup to avoid N+1
+                    except Exception as batch_err:
+                        logger.debug(f"[Story 3.2] assemble_acp batch fetch failed: {batch_err}")
+                        # Fallback: individual lookups for remaining
+                        for rid in related_ids:
+                            if len(related_concepts) >= 10:
+                                break
+                            try:
+                                _, related_node = await canvas_svc.find_node_across_canvases(rid)
+                                if related_node:
+                                    related_concepts.append(
+                                        related_node.get("text", related_node.get("title", ""))
+                                    )
+                            except Exception:
+                                pass
             except Exception as e:
                 logger.debug(f"[Story 3.2] assemble_acp: failed to get related nodes: {e}")
 

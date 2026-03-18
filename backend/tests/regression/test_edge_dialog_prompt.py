@@ -10,6 +10,12 @@ Verifies:
   - AC-4: Prompt instructs natural conversation style (no teaching jargon)
   - AC-5: Prompt includes depth assessment standards and density control
   - AC-5: Prompt includes existing knowledge context placeholders
+
+NOTE (Story 4-3/4-4 M1): These tests validate the backend prompt template that is
+served to the CLI via MCP tools. In the current architecture (CLI mode), the
+frontend does NOT maintain a copy of this prompt — the Claude Code CLI loads it
+via --append-system-prompt or MCP tool configuration. These regression tests
+ensure prompt content integrity at the source of truth (backend/prompts/).
 """
 
 from pathlib import Path

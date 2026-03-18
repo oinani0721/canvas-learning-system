@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentPromptTemplate:
     """Parsed agent prompt template from .md file."""
+
     name: str
     description: str
     model: str
@@ -102,7 +103,7 @@ class GeminiClient:
         This ensures POST /config/ai changes take effect immediately without restart.
         """
         # Get API key from parameter, config, or environment
-        self.api_key = api_key or getattr(settings, 'GOOGLE_API_KEY', None) or os.environ.get("GOOGLE_API_KEY", "")
+        self.api_key = api_key or getattr(settings, "GOOGLE_API_KEY", None) or os.environ.get("GOOGLE_API_KEY", "")
         self.base_url = base_url  # For custom OpenAI-compatible providers
 
         if not self.api_key:
@@ -124,14 +125,16 @@ class GeminiClient:
         # Cache for loaded prompt templates
         self._prompt_templates: Dict[str, AgentPromptTemplate] = {}
 
-        logger.info(f"GeminiClient initialized with model={self.model}" +
-                   (f", base_url={self.base_url}" if self.base_url else ""))
+        logger.info(
+            f"GeminiClient initialized with model={self.model}"
+            + (f", base_url={self.base_url}" if self.base_url else "")
+        )
 
     @property
     def model(self) -> str:
         """Always read model from Settings dynamically. Never cached at creation time."""
         s = get_settings()
-        return getattr(s, 'AI_MODEL_NAME', None) or getattr(s, 'GEMINI_MODEL', 'gemini-3.1-flash-lite-preview')
+        return getattr(s, "AI_MODEL_NAME", None) or getattr(s, "GEMINI_MODEL", "gemini-3.1-flash-lite-preview")
 
     def _parse_prompt_template(self, content: str) -> AgentPromptTemplate:
         """
@@ -154,7 +157,7 @@ class GeminiClient:
             Parsed AgentPromptTemplate
         """
         # Extract YAML frontmatter
-        frontmatter_match = re.match(r'^---\n(.*?)\n---\n(.*)$', content, re.DOTALL)
+        frontmatter_match = re.match(r"^---\n(.*?)\n---\n(.*)$", content, re.DOTALL)
 
         if not frontmatter_match:
             raise ValueError("Invalid prompt template: missing YAML frontmatter")
@@ -164,27 +167,27 @@ class GeminiClient:
 
         # Parse simple YAML (key: value format)
         frontmatter: Dict[str, str] = {}
-        for line in frontmatter_text.strip().split('\n'):
-            if ':' in line:
-                key, value = line.split(':', 1)
+        for line in frontmatter_text.strip().split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
                 frontmatter[key.strip()] = value.strip()
 
         # Extract input/output format sections if present
         input_format = None
         output_format = None
 
-        input_match = re.search(r'## Input Format\n```(?:json)?\n(.*?)\n```', system_prompt, re.DOTALL)
+        input_match = re.search(r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if input_match:
             input_format = input_match.group(1).strip()
 
-        output_match = re.search(r'## Output Format\n```(?:json)?\n(.*?)\n```', system_prompt, re.DOTALL)
+        output_match = re.search(r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if output_match:
             output_format = output_match.group(1).strip()
 
         return AgentPromptTemplate(
-            name=frontmatter.get('name', 'unknown'),
-            description=frontmatter.get('description', ''),
-            model=frontmatter.get('model', 'inherit'),
+            name=frontmatter.get("name", "unknown"),
+            description=frontmatter.get("description", ""),
+            model=frontmatter.get("model", "inherit"),
             system_prompt=system_prompt,
             input_format=input_format,
             output_format=output_format,
@@ -212,7 +215,7 @@ class GeminiClient:
         if not template_file.exists():
             raise FileNotFoundError(f"Agent prompt template not found: {template_file}")
 
-        content = template_file.read_text(encoding='utf-8')
+        content = template_file.read_text(encoding="utf-8")
         template = self._parse_prompt_template(content)
 
         self._prompt_templates[agent_type] = template
@@ -273,8 +276,10 @@ class GeminiClient:
 
         for attempt in range(max_retries + 1):
             try:
-                logger.info(f"Calling OpenAI-compatible API at {url}, model={self.model}" +
-                           (f" (attempt {attempt + 1}/{max_retries + 1})" if attempt > 0 else ""))
+                logger.info(
+                    f"Calling OpenAI-compatible API at {url}, model={self.model}"
+                    + (f" (attempt {attempt + 1}/{max_retries + 1})" if attempt > 0 else "")
+                )
 
                 response = await self._http_client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
@@ -284,8 +289,9 @@ class GeminiClient:
                 response_text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
                 usage = data.get("usage", {})
 
-                logger.info("OpenAI-compatible API call successful" +
-                           (f" after {attempt + 1} attempts" if attempt > 0 else ""))
+                logger.info(
+                    "OpenAI-compatible API call successful" + (f" after {attempt + 1} attempts" if attempt > 0 else "")
+                )
 
                 return {
                     "response": response_text,
@@ -302,7 +308,7 @@ class GeminiClient:
 
                 if status_code in RETRYABLE_STATUS_CODES and attempt < max_retries:
                     # Exponential backoff: 1s, 2s, 4s, ...
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         f"OpenAI-compatible API returned {status_code}, "
                         f"retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
@@ -310,17 +316,14 @@ class GeminiClient:
                     await asyncio.sleep(delay)
                 else:
                     # Non-retryable error or max retries exhausted
-                    logger.error(
-                        f"OpenAI-compatible API error: {status_code} after {attempt + 1} attempts. "
-                        f"URL: {url}"
-                    )
+                    logger.error(f"OpenAI-compatible API error: {status_code} after {attempt + 1} attempts. URL: {url}")
                     raise
 
             except (httpx.ConnectError, httpx.TimeoutException) as e:
                 last_error = e
 
                 if attempt < max_retries:
-                    delay = base_delay * (2 ** attempt)
+                    delay = base_delay * (2**attempt)
                     logger.warning(
                         f"Connection error to API: {type(e).__name__}, "
                         f"retrying in {delay:.1f}s (attempt {attempt + 1}/{max_retries + 1})"
@@ -328,8 +331,7 @@ class GeminiClient:
                     await asyncio.sleep(delay)
                 else:
                     logger.error(
-                        f"OpenAI-compatible API connection failed after {attempt + 1} attempts. "
-                        f"URL: {url}, Error: {e}"
+                        f"OpenAI-compatible API connection failed after {attempt + 1} attempts. URL: {url}, Error: {e}"
                     )
                     raise
 
@@ -387,6 +389,7 @@ class GeminiClient:
                 f"risk_score={inj_check.risk_score}, patterns={inj_check.matched_patterns}"
             )
             from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+
             return {
                 "agent_type": agent_type,
                 "response": SAFETY_BLOCK_INPUT_MESSAGE,
@@ -515,8 +518,12 @@ class GeminiClient:
                 "response": response_text,
                 "model": self.model,
                 "usage": {
-                    "input_tokens": getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
-                    "output_tokens": getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
+                    "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
+                    if hasattr(response, "usage_metadata")
+                    else 0,
+                    "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                    if hasattr(response, "usage_metadata")
+                    else 0,
                 },
             }
 
@@ -556,8 +563,7 @@ class GeminiClient:
         """
         if not self.client:
             raise RuntimeError(
-                "Gemini API client not initialized. "
-                "Please configure GOOGLE_API_KEY in .env or environment."
+                "Gemini API client not initialized. Please configure GOOGLE_API_KEY in .env or environment."
             )
 
         # Load agent prompt template
@@ -586,19 +592,23 @@ class GeminiClient:
         # Add images first
         if images:
             for img in images:
-                content_parts.append({
-                    "inline_data": {
-                        "mime_type": img.get("media_type", "image/png"),
-                        "data": img["data"],
+                content_parts.append(
+                    {
+                        "inline_data": {
+                            "mime_type": img.get("media_type", "image/png"),
+                            "data": img["data"],
+                        }
                     }
-                })
+                )
             logger.info(f"Added {len(images)} images to request")
 
         # Add text prompt
         full_prompt = f"{system_prompt}\n\n## User Request\n{user_prompt}"
         content_parts.append({"text": full_prompt})
 
-        logger.info(f"Calling Gemini API with agent={agent_type}, model={self.model}, images={len(images) if images else 0}")
+        logger.info(
+            f"Calling Gemini API with agent={agent_type}, model={self.model}, images={len(images) if images else 0}"
+        )
 
         # ✅ Verified from Context7:/googleapis/python-genai
         response = await self.client.aio.models.generate_content(
@@ -618,8 +628,12 @@ class GeminiClient:
             "response": response_text,
             "model": self.model,
             "usage": {
-                "input_tokens": getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
-                "output_tokens": getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
+                "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
+                if hasattr(response, "usage_metadata")
+                else 0,
+                "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                if hasattr(response, "usage_metadata")
+                else 0,
             },
             "images_processed": len(images) if images else 0,
         }
@@ -644,6 +658,22 @@ class GeminiClient:
         if not self.client:
             raise RuntimeError("Gemini API client not initialized.")
 
+        # Story 3-13 FIX: Input injection check for raw call path
+        injection_result = check_input(user_prompt)
+        if injection_result.is_blocked:
+            logger.warning(
+                "[Story 3.13] call_raw input blocked: risk=%.2f, patterns=%s",
+                injection_result.risk_score,
+                injection_result.matched_patterns,
+            )
+            from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+
+            return {
+                "response": SAFETY_BLOCK_INPUT_MESSAGE,
+                "model": self.model,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
         full_prompt = f"{system_prompt}\n\n{user_prompt}"
 
         response = await self.client.aio.models.generate_content(
@@ -656,12 +686,25 @@ class GeminiClient:
 
         response_text = response.text or ""
 
+        # Story 3-13 FIX: Output safety check for raw call path
+        output_result = check_output(response_text, system_prompt=system_prompt)
+        if not output_result.is_safe:
+            logger.warning(
+                "[Story 3.13] call_raw output violation: %s",
+                output_result.violations,
+            )
+            response_text = output_result.sanitized_output
+
         return {
             "response": response_text,
             "model": self.model,
             "usage": {
-                "input_tokens": getattr(response.usage_metadata, 'prompt_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
-                "output_tokens": getattr(response.usage_metadata, 'candidates_token_count', 0) if hasattr(response, 'usage_metadata') else 0,
+                "input_tokens": getattr(response.usage_metadata, "prompt_token_count", 0)
+                if hasattr(response, "usage_metadata")
+                else 0,
+                "output_tokens": getattr(response.usage_metadata, "candidates_token_count", 0)
+                if hasattr(response, "usage_metadata")
+                else 0,
             },
         }
 
@@ -705,6 +748,25 @@ class GeminiClient:
                 "Gemini API client required for function calling. "
                 "OpenAI-compatible providers do not support this feature yet."
             )
+
+        # Story 3-13 FIX M1: Input injection check for tool-calling path
+        injection_result = check_input(user_prompt)
+        if injection_result.is_blocked:
+            logger.warning(
+                "[Story 3.13] call_agent_with_tools input blocked: agent=%s, risk=%.2f, patterns=%s",
+                agent_type,
+                injection_result.risk_score,
+                injection_result.matched_patterns,
+            )
+            from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+
+            return {
+                "agent_type": agent_type,
+                "response": SAFETY_BLOCK_INPUT_MESSAGE,
+                "model": self.model,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+                "tool_calls_made": [],
+            }
 
         # Load agent prompt template
         template = self.load_prompt_template(agent_type)
@@ -752,10 +814,7 @@ class GeminiClient:
         response = None  # Initialize to satisfy type checker
 
         for iteration in range(max_iterations):
-            logger.info(
-                f"[Phase2] Tool calling iteration {iteration + 1}/{max_iterations} "
-                f"for agent={agent_type}"
-            )
+            logger.info(f"[Phase2] Tool calling iteration {iteration + 1}/{max_iterations} for agent={agent_type}")
 
             # Call Gemini with tools (optional thinking tokens for deep reasoning)
             gen_config = genai.types.GenerateContentConfig(
@@ -777,9 +836,9 @@ class GeminiClient:
             )
 
             # Track usage
-            if hasattr(response, 'usage_metadata') and response.usage_metadata:
-                total_input_tokens += getattr(response.usage_metadata, 'prompt_token_count', 0)
-                total_output_tokens += getattr(response.usage_metadata, 'candidates_token_count', 0)
+            if hasattr(response, "usage_metadata") and response.usage_metadata:
+                total_input_tokens += getattr(response.usage_metadata, "prompt_token_count", 0)
+                total_output_tokens += getattr(response.usage_metadata, "candidates_token_count", 0)
 
             # Check for function calls in response
             function_calls = response.function_calls
@@ -789,6 +848,17 @@ class GeminiClient:
                     response_text = response.text or ""
                 except ValueError:
                     response_text = ""
+
+                # Story 3-13 FIX M1: Output safety check for tool-calling path
+                if response_text:
+                    out_result = check_output(response_text, system_prompt=system_prompt)
+                    if not out_result.is_safe:
+                        logger.warning(
+                            "[Story 3.13] call_agent_with_tools output violation: agent=%s, violations=%s",
+                            agent_type,
+                            out_result.violations,
+                        )
+                        response_text = out_result.sanitized_output
 
                 logger.info(
                     f"[Phase2] Agent={agent_type} completed after {iteration + 1} iterations, "
@@ -821,12 +891,14 @@ class GeminiClient:
 
                 result = await tool_executor.execute(fc_name, fc_args)
 
-                tool_calls_log.append({
-                    "iteration": iteration + 1,
-                    "name": fc_name,
-                    "args": fc_args,
-                    "result_length": len(result),
-                })
+                tool_calls_log.append(
+                    {
+                        "iteration": iteration + 1,
+                        "name": fc_name,
+                        "args": fc_args,
+                        "result_length": len(result),
+                    }
+                )
 
                 function_response_parts.append(
                     genai.types.Part.from_function_response(
@@ -845,8 +917,7 @@ class GeminiClient:
 
         # Max iterations reached - extract whatever text we have
         logger.warning(
-            f"[Phase2] Max iterations ({max_iterations}) reached for agent={agent_type}. "
-            f"Forcing text extraction."
+            f"[Phase2] Max iterations ({max_iterations}) reached for agent={agent_type}. Forcing text extraction."
         )
         if response is not None:
             try:
@@ -855,6 +926,17 @@ class GeminiClient:
                 response_text = ""
         else:
             response_text = ""
+
+        # Story 3-13 FIX M1: Output safety check for max-iterations path
+        if response_text:
+            out_result = check_output(response_text, system_prompt=system_prompt)
+            if not out_result.is_safe:
+                logger.warning(
+                    "[Story 3.13] call_agent_with_tools output violation (max iter): agent=%s, violations=%s",
+                    agent_type,
+                    out_result.violations,
+                )
+                response_text = out_result.sanitized_output
 
         return {
             "agent_type": agent_type,

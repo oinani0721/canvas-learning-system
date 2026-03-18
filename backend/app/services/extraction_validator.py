@@ -20,6 +20,7 @@ human spot-check validation.
 
 import asyncio
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from typing import Optional
 from uuid import uuid4
@@ -108,17 +109,21 @@ FROM qa_extraction_records
 WHERE id = ? AND deleted_at IS NULL;
 """
 
-_SELECT_PAGE = """
+_SELECT_PAGE_BASE = """
 SELECT id, source_session_id, source_node_id, original_text, extracted_content,
-       extraction_type, extraction_subtype, created_at, annotation, annotated_at
+       extraction_type, extraction_subtype, created_at, annotation, annotated_at,
+       updated_at
 FROM qa_extraction_records
-WHERE deleted_at IS NULL {extra_where}
+WHERE deleted_at IS NULL
+"""
+
+_SELECT_PAGE_ORDER = """
 ORDER BY created_at DESC
 LIMIT ? OFFSET ?;
 """
 
-_COUNT = """
-SELECT COUNT(*) FROM qa_extraction_records WHERE deleted_at IS NULL {extra_where};
+_COUNT_BASE = """
+SELECT COUNT(*) FROM qa_extraction_records WHERE deleted_at IS NULL
 """
 
 _STATS_TOTAL = "SELECT COUNT(*) FROM qa_extraction_records WHERE deleted_at IS NULL;"
@@ -169,7 +174,7 @@ class ExtractionValidator:
                 for migrate_sql in _MIGRATE_ADD_COLUMNS:
                     try:
                         await db.execute(migrate_sql)
-                    except Exception:
+                    except sqlite3.OperationalError:
                         pass  # Column already exists
                 await db.commit()
             self._initialized = True
@@ -317,6 +322,7 @@ class ExtractionValidator:
             created_at=row[7],
             annotation=row[8],
             annotated_at=row[9],
+            updated_at=row[10],
         )
 
     # ───────────────────────────────────────────────────────────────────────
@@ -405,28 +411,29 @@ class ExtractionValidator:
         """
         await self._ensure_init()
 
-        extra_parts: list[str] = []
+        # Build WHERE clauses using only parameterized static fragments
+        extra_clauses: list[str] = []
         params: list = []
         if extraction_type:
-            extra_parts.append("AND extraction_type = ?")
+            extra_clauses.append(" AND extraction_type = ?")
             params.append(extraction_type)
         if annotation_filter == "annotated":
-            extra_parts.append("AND annotation IS NOT NULL")
+            extra_clauses.append(" AND annotation IS NOT NULL")
         elif annotation_filter == "unannotated":
-            extra_parts.append("AND annotation IS NULL")
+            extra_clauses.append(" AND annotation IS NULL")
 
-        extra_where = " ".join(extra_parts)
+        extra_sql = "".join(extra_clauses)
         offset = (page - 1) * page_size
 
         async with aiosqlite.connect(self._db_path) as db:
             # Count total
-            count_sql = _COUNT.format(extra_where=extra_where)
+            count_sql = _COUNT_BASE + extra_sql + ";"
             cursor = await db.execute(count_sql, params)
             row = await cursor.fetchone()
             total = row[0] if row else 0
 
-            # Fetch page
-            select_sql = _SELECT_PAGE.format(extra_where=extra_where)
+            # Fetch page (includes updated_at column — fix 5-8 M3)
+            select_sql = _SELECT_PAGE_BASE + extra_sql + _SELECT_PAGE_ORDER
             cursor = await db.execute(select_sql, params + [page_size, offset])
             rows = await cursor.fetchall()
 
@@ -442,6 +449,7 @@ class ExtractionValidator:
                 created_at=r[7],
                 annotation=r[8],
                 annotated_at=r[9],
+                updated_at=r[10],
             )
             for r in rows
         ]

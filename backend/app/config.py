@@ -292,6 +292,13 @@ class Settings(BaseSettings):
         description="Path to Agent prompt templates directory (absolute path)"
     )
 
+    # 6-10 M1: Configurable scoring model (replaces hardcoded openai/gpt-4o-mini)
+    SCORING_MODEL: str = Field(
+        default="",
+        description="LiteLLM model string for scoring/difficulty tasks. "
+        "Empty = use AI_PROVIDER/AI_MODEL_NAME. Story 6.4, 6.10."
+    )
+
     # ═══════════════════════════════════════════════════════════════════════════
     # Legacy Settings (Deprecated - kept for backward compatibility)
     # ═══════════════════════════════════════════════════════════════════════════

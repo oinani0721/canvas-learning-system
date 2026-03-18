@@ -87,8 +87,12 @@ class ContextResponse(BaseModel):
 # Cache (30s TTL per node — AC-4 dynamic update)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-_context_cache: dict[str, tuple[float, dict]] = {}
+# Maximum number of cached node contexts to prevent unbounded memory growth.
+# With 30s TTL and typical usage, 200 nodes is more than sufficient.
+CACHE_MAX_SIZE = 200
 CACHE_TTL_SECONDS = 30.0
+
+_context_cache: dict[str, tuple[float, dict]] = {}
 
 
 def _get_cached(node_id: str) -> dict | None:
@@ -104,7 +108,12 @@ def _get_cached(node_id: str) -> dict | None:
 
 
 def _set_cache(node_id: str, response: dict) -> None:
-    """Cache a context response dict."""
+    """Cache a context response dict with LRU eviction at CACHE_MAX_SIZE."""
+    # Evict oldest entries if cache exceeds max size
+    if len(_context_cache) >= CACHE_MAX_SIZE and node_id not in _context_cache:
+        # Remove the oldest entry by cached_at timestamp
+        oldest_key = min(_context_cache, key=lambda k: _context_cache[k][0])
+        del _context_cache[oldest_key]
     _context_cache[node_id] = (time.time(), response)
 
 

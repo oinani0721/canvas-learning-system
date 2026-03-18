@@ -298,6 +298,9 @@ async def get_node_context(
     AC-4: Called fresh each time (no stale cache in service layer;
            endpoint layer handles 30s TTL cache).
 
+    Optimization: Tier 1 edge_reasons and Tier 2 neighbors share the same
+    Neo4j neighbor query, so we fetch once and reuse.
+
     Args:
         node_id: Canvas node identifier.
         group_id: Subject isolation namespace.  Falls back to DEFAULT_GROUP_ID.
@@ -310,8 +313,45 @@ async def get_node_context(
 
         group_id = DEFAULT_GROUP_ID
 
-    tier1 = await assemble_tier1(node_id, group_id)
-    tier2 = await assemble_tier2(node_id)
+    # Fetch mastery, tips/errors, and neighbors in parallel.
+    # Reuse the same neighbor query for both Tier 1 edge_reasons and Tier 2 neighbors
+    # to avoid duplicate Neo4j queries.
+    mastery_data = await _fetch_mastery(node_id, group_id)
+    tips, errors = await _fetch_tips_and_errors(node_id)
+
+    # Single neighbor query for both tiers
+    neighbor_records = await _fetch_neighbor_records(node_id)
+
+    # Tier 1: edge reasons extracted from neighbor records
+    edge_reasons = [
+        {"neighbor_name": rec["name"], "reason": rec.get("reason") or rec.get("label") or ""}
+        for rec in neighbor_records
+        if rec.get("name")
+    ]
+
+    tier1 = {
+        "node_name": mastery_data["node_name"],
+        "mastery": {
+            "p_mastery": mastery_data["p_mastery"],
+            "stability": mastery_data["stability"],
+            "next_review": mastery_data["next_review"],
+        },
+        "tips": tips,
+        "errors": errors,
+        "edge_reasons": edge_reasons,
+    }
+
+    # Tier 2: neighbor summaries from same query
+    neighbors = [
+        {
+            "name": rec["name"],
+            "mastery_level": rec.get("mastery") or rec.get("eff_prof"),
+            "edge_reason": rec.get("reason") or rec.get("label") or "",
+        }
+        for rec in neighbor_records
+        if rec.get("name")
+    ]
+    tier2 = {"neighbors": neighbors}
 
     return {
         "node_id": node_id,
@@ -319,6 +359,33 @@ async def get_node_context(
         "tier1": tier1,
         "tier2": tier2,
     }
+
+
+async def _fetch_neighbor_records(node_id: str) -> list[dict]:
+    """Fetch neighbor records from Neo4j (shared by Tier 1 and Tier 2).
+
+    Returns raw dicts with keys: name, mastery, eff_prof, reason, label.
+    """
+    records_out: list[dict] = []
+    try:
+        from app.clients.neo4j_client import get_neo4j_client
+
+        client = get_neo4j_client()
+        records = await client.run_query(
+            "MATCH (n:EntityNode)-[r]-(m:EntityNode) "
+            "WHERE n.mastery_concept_id = $cid OR n.name = $cid "
+            "RETURN m.name AS name, m.p_mastery AS mastery, "
+            "m.effective_proficiency AS eff_prof, "
+            "r.reason AS reason, r.label AS label "
+            "LIMIT $lim",
+            cid=node_id,
+            lim=MAX_NEIGHBORS,
+        )
+        for rec in records or []:
+            records_out.append(dict(rec))
+    except Exception as e:
+        logger.warning("Failed to fetch neighbors for %s: %s", node_id, e)
+    return records_out
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -430,6 +497,8 @@ def _truncate_to_budget(sections: list[str], max_chars: int) -> str:
 
     Priority: keep header + mastery, then tips, then errors, then neighbors.
     Truncates from the end (neighbors first, then errors, then tips).
+    When cutting within a section, truncates at the nearest sentence boundary
+    (。！？.!?) to avoid mid-sentence breaks.
     """
     result = "\n\n".join(sections)
     if len(result) <= max_chars:
@@ -441,8 +510,21 @@ def _truncate_to_budget(sections: list[str], max_chars: int) -> str:
 
     result = "\n\n".join(sections)
 
-    # If still over budget, hard truncate
+    # If still over budget, truncate the last section at a sentence boundary
     if len(result) > max_chars:
-        result = result[:max_chars] + "\n\n[...上下文因长度限制被截断]"
+        # Find the last sentence-ending punctuation before the limit
+        truncated = result[:max_chars]
+        # Look for Chinese/English sentence boundaries
+        last_sentence_end = -1
+        for i in range(len(truncated) - 1, max(0, len(truncated) - 200), -1):
+            if truncated[i] in "。！？.!?\n":
+                last_sentence_end = i + 1
+                break
+        if last_sentence_end > max_chars // 2:
+            # Found a reasonable sentence boundary in the latter half
+            result = truncated[:last_sentence_end] + "\n\n[...上下文因长度限制被截断]"
+        else:
+            # No good sentence boundary found, hard truncate
+            result = truncated + "\n\n[...上下文因长度限制被截断]"
 
     return result

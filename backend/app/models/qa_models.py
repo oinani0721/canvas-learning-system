@@ -78,6 +78,7 @@ class ExtractionRecord(BaseModel):
     created_at: str = Field(..., description="ISO 8601 creation timestamp")
     annotation: Optional[str] = Field(None, description="Annotation: 'correct' | 'incorrect' | 'partial' | None")
     annotated_at: Optional[str] = Field(None, description="ISO 8601 annotation timestamp")
+    updated_at: Optional[str] = Field(None, description="ISO 8601 last update timestamp")
 
 
 class AnnotationRequest(BaseModel):

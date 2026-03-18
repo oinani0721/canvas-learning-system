@@ -335,33 +335,51 @@ class MasteryStore:
         """Append a CalibrationRecord to the node's calibration history.
 
         Storage: JSON-serialized list in mastery_calibration_records property.
-        Uses MERGE upsert (idempotent). Appends to existing array.
+        Uses read-modify-write with json.loads/json.dumps to avoid string
+        concatenation errors on malformed JSON.
         """
-        record_json = record.model_dump_json()
+        record_dict = record.model_dump(mode="json")
 
-        query = """
+        # Step 1: Read existing records
+        read_query = """
         MATCH (n:EntityNode)
         WHERE n.group_id = $group_id
           AND (n.mastery_concept_id = $node_id OR n.name = $node_id)
-        WITH n,
-             CASE WHEN n.mastery_calibration_records IS NULL
-                  THEN '[]'
-                  ELSE n.mastery_calibration_records
-             END AS existing
-        SET n.mastery_calibration_records =
-            substring(existing, 0, size(existing) - 1)
-            + CASE WHEN size(existing) > 2 THEN ',' ELSE '' END
-            + $record_json + ']',
-            n.mastery_calibration_count = coalesce(n.mastery_calibration_count, 0) + 1,
-            n.mastery_calibration_last_quadrant = $quadrant,
-            n.mastery_calibration_is_dangerous = $is_dangerous
+        RETURN n.mastery_calibration_records AS records_json
+        LIMIT 1
         """
         try:
-            await self._client.run_query(
-                query,
+            results = await self._client.run_query(
+                read_query,
                 group_id=group_id,
                 node_id=record.node_id,
-                record_json=record_json,
+            )
+
+            existing_records = []
+            if results:
+                raw = results[0]["records_json"] if isinstance(results[0], dict) else results[0].data()["records_json"]
+                if raw:
+                    existing_records = json.loads(raw)
+
+            # Step 2: Append new record and serialize with json.dumps
+            existing_records.append(record_dict)
+            updated_json = json.dumps(existing_records, ensure_ascii=False)
+
+            # Step 3: Write back
+            write_query = """
+            MATCH (n:EntityNode)
+            WHERE n.group_id = $group_id
+              AND (n.mastery_concept_id = $node_id OR n.name = $node_id)
+            SET n.mastery_calibration_records = $records_json,
+                n.mastery_calibration_count = coalesce(n.mastery_calibration_count, 0) + 1,
+                n.mastery_calibration_last_quadrant = $quadrant,
+                n.mastery_calibration_is_dangerous = $is_dangerous
+            """
+            await self._client.run_query(
+                write_query,
+                group_id=group_id,
+                node_id=record.node_id,
+                records_json=updated_json,
                 quadrant=record.quadrant.value,
                 is_dangerous=record.is_dangerous,
             )

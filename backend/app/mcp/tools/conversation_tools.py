@@ -243,6 +243,27 @@ async def create_exam_node(
             },
         )
 
+        # Record exam node creation in learning memory (non-blocking)
+        try:
+            from app.config import DEFAULT_GROUP_ID
+            from app.services.memory_service import get_memory_service
+
+            memory_svc = await get_memory_service()
+            await memory_svc.record_knowledge_entity(
+                event_type="exam_node_created",
+                content=f"Exam node '{exam_title}' created for concept {source_node_id}",
+                metadata={
+                    "exam_node_id": exam_node_id,
+                    "source_node_id": source_node_id,
+                    "canvas_id": canvas_id,
+                    "edge_id": edge_id,
+                    "exam_title": exam_title,
+                },
+                group_id=DEFAULT_GROUP_ID,
+            )
+        except Exception as mem_err:
+            logger.debug(f"[Story 3.2] create_exam_node: memory recording failed (non-fatal): {mem_err}")
+
         return CreateExamNodeOutput(
             node_id=exam_node_id,
             canvas_id=canvas_id,

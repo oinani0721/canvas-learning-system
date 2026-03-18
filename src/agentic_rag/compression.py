@@ -105,21 +105,44 @@ def _split_into_units(text: str) -> List[dict]:
     return units
 
 
+def _tokenize_text(text: str) -> set:
+    """
+    Tokenize text using jieba for Chinese and regex for non-Chinese.
+
+    jieba.cut handles Chinese word segmentation properly (e.g. "贝叶斯定理"
+    -> ["贝叶斯", "定理"]), whereas \\w+ treats each Chinese character as a
+    separate "word" and misses multi-character term matches.
+
+    Falls back to regex \\w+ if jieba is not available.
+    """
+    try:
+        import jieba
+
+        # jieba.cut handles mixed Chinese/English text
+        return {w.strip().lower() for w in jieba.cut(text) if w.strip() and len(w.strip()) > 0}
+    except ImportError:
+        return set(re.findall(r"\w+", text.lower()))
+
+
 def _score_relevance(unit_text: str, query: str) -> float:
     """
     Score sentence relevance to query using keyword overlap (TF-IDF-like).
     Higher score = more relevant.
+
+    Uses jieba for Chinese tokenization to correctly segment multi-character
+    terms (e.g. "贝叶斯定理" -> ["贝叶斯", "定理"]) instead of treating each
+    character as a separate token.
     """
     query_lower = query.lower()
     unit_lower = unit_text.lower()
 
-    # Extract query terms (simple tokenization)
-    query_terms = set(re.findall(r"\w+", query_lower))
+    # Extract query terms using jieba-aware tokenization
+    query_terms = _tokenize_text(query_lower)
     if not query_terms:
         return 0.0
 
     # Count matching terms
-    unit_terms = set(re.findall(r"\w+", unit_lower))
+    unit_terms = _tokenize_text(unit_lower)
     overlap = query_terms & unit_terms
 
     # Score: proportion of query terms found + bonus for longer matches

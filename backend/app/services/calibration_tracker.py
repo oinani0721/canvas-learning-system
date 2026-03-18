@@ -25,7 +25,8 @@ from app.models.mastery_models import (
 
 logger = logging.getLogger(__name__)
 
-# Quadrant classification threshold
+# Quadrant classification thresholds (configurable via mastery_config.json
+# "calibration_thresholds" section; these are the defaults)
 CONFIDENCE_THRESHOLD = 0.6
 PERFORMANCE_THRESHOLD = 0.6
 
@@ -35,6 +36,48 @@ STAGE_3_MIN_RECORDS = 20
 
 # Calibration rating threshold
 CALIBRATION_BIAS_THRESHOLD = 0.15
+
+
+def _load_calibration_thresholds() -> None:
+    """Load calibration thresholds from mastery_config.json if present.
+
+    Updates module-level constants from the "calibration_thresholds" section.
+    Falls back to hardcoded defaults when no config file is found.
+    """
+    global CONFIDENCE_THRESHOLD, PERFORMANCE_THRESHOLD
+    global STAGE_2_MIN_RECORDS, STAGE_3_MIN_RECORDS, CALIBRATION_BIAS_THRESHOLD
+
+    import json
+    from pathlib import Path
+
+    candidates = [
+        Path(__file__).parent.parent.parent.parent / "mastery_config.json",
+        Path(__file__).parent.parent.parent / "mastery_config.json",
+    ]
+    for config_path in candidates:
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                cal = data.get("calibration_thresholds", {})
+                if cal:
+                    CONFIDENCE_THRESHOLD = cal.get("confidence", CONFIDENCE_THRESHOLD)
+                    PERFORMANCE_THRESHOLD = cal.get("performance", PERFORMANCE_THRESHOLD)
+                    STAGE_2_MIN_RECORDS = cal.get("stage_2_min_records", STAGE_2_MIN_RECORDS)
+                    STAGE_3_MIN_RECORDS = cal.get("stage_3_min_records", STAGE_3_MIN_RECORDS)
+                    CALIBRATION_BIAS_THRESHOLD = cal.get("bias_threshold", CALIBRATION_BIAS_THRESHOLD)
+                    logger.info(
+                        "Loaded calibration thresholds from %s: confidence=%.2f performance=%.2f",
+                        config_path,
+                        CONFIDENCE_THRESHOLD,
+                        PERFORMANCE_THRESHOLD,
+                    )
+                break
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning("Failed to load calibration config from %s: %s", config_path, e)
+
+
+_load_calibration_thresholds()
 
 
 def classify_quadrant(self_confidence: float, actual_performance: float) -> CalibrationQuadrant:

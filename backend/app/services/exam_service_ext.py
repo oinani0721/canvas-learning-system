@@ -125,14 +125,37 @@ async def sync_node_to_source_canvas(
 
     # Persist DiscoveredNode record to Neo4j for Story 6.8 exam record
     try:
-        # Compute recursion depth: check if source_node_id is itself a discovered node
+        # 6-5 M1 fix: Walk the discovery chain to compute true recursion depth.
+        # Query Neo4j for the chain: source_node -> its source_node -> ... until root.
         depth = 1
-        if session:
-            for existing_id in session.discovered_nodes:
-                if existing_id == request.source_node_id:
-                    # Source was itself discovered — increment depth
-                    depth += 1
-                    break
+        current_source = request.source_node_id
+        seen: set[str] = {request.node_id}  # Guard against cycles
+        while current_source and current_source not in seen:
+            seen.add(current_source)
+            # Check if current_source was itself a discovered node in this exam
+            depth_query = """
+            MATCH (d:EpisodicNode)
+            WHERE d.source_description = 'discovered_node'
+              AND d.node_id = $node_id
+              AND d.source_exam_id = $exam_id
+            RETURN d.source_node_id AS parent, d.depth AS stored_depth
+            LIMIT 1
+            """
+            try:
+                depth_records = await client.run_query(
+                    depth_query, node_id=current_source, exam_id=request.exam_id
+                )
+                if depth_records:
+                    data = depth_records[0] if isinstance(depth_records[0], dict) else depth_records[0].data()
+                    stored_depth = data.get("stored_depth")
+                    if stored_depth is not None:
+                        depth = int(stored_depth) + 1
+                        break
+                    current_source = data.get("parent")
+                else:
+                    break  # source_node is an original exam node (depth=1)
+            except Exception:
+                break  # On query failure, use depth computed so far
 
         # DiscoveredNode model validates the data; we persist directly to Neo4j
         DiscoveredNode(
@@ -210,8 +233,28 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
 
     template = prompt_file.read_text(encoding="utf-8")
 
+    # 6-6 M1 fix: Resolve real node title instead of using raw node_id as concept name
+    concept_name = request.node_id  # Fallback to node_id
+    try:
+        from app.services.canvas_service import CanvasService
+
+        canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
+        _cname, node_data = await canvas_svc.find_node_across_canvases(request.node_id)
+        if node_data:
+            # Extract first line of text as concept name
+            raw_text = node_data.get("text", "") or node_data.get("content", "")
+            if raw_text:
+                first_line = raw_text.strip().split("\n")[0].strip()
+                # Strip markdown heading markers
+                if first_line.startswith("#"):
+                    first_line = first_line.lstrip("#").strip()
+                if first_line:
+                    concept_name = first_line[:100]
+    except Exception as e:
+        logger.debug(f"[Story 6.6] Failed to resolve node title for {request.node_id}: {e}")
+
     system_prompt = template.replace("{{question}}", request.question_context)
-    system_prompt = system_prompt.replace("{{concept}}", request.node_id)
+    system_prompt = system_prompt.replace("{{concept}}", concept_name)
     system_prompt = system_prompt.replace("{{student_response}}", "")
     system_prompt = system_prompt.replace("{{previous_hint}}", "")
     system_prompt = system_prompt.replace("{{previous_hints}}", "")
@@ -722,7 +765,27 @@ def _safe_json_to_list(json_str: Optional[str]) -> List[Dict[str, Any]]:
 
 
 def attach_to_exam_service() -> None:
-    """Attach Story 6.5-6.8 methods to ExamService class."""
+    """Attach Story 6.5-6.8 methods to ExamService class.
+
+    Design rationale (6-5 H1):
+    This module uses runtime method attachment (monkey-patching) rather than
+    class inheritance or mixins. This is a deliberate architectural choice:
+
+    1. **Separation of concerns**: Stories 6.5-6.8 are extension methods that
+       would bloat ExamService (already ~480 lines) if placed inline.
+    2. **Import cycle avoidance**: These methods depend on neo4j_client and
+       litellm which would create circular imports if placed in exam_service.py.
+    3. **Auto-attach on import**: The `import app.services.exam_service_ext`
+       at the bottom of exam_service.py triggers attachment, ensuring methods
+       are available to any code that imports ExamService.
+    4. **Type safety**: All functions use `self` as first parameter and follow
+       the ExamService method signature conventions.
+
+    Alternative approaches considered:
+    - Mixin class: rejected because Python MRO complexity adds no value here.
+    - Subclass: rejected because the singleton pattern uses ExamService directly.
+    - Protocol/ABC: unnecessary since this is internal extension, not a public API.
+    """
     from app.services.exam_service import ExamService
 
     ExamService.sync_node_to_source_canvas = sync_node_to_source_canvas

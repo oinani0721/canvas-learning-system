@@ -1538,9 +1538,9 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                         has_exam_records=mastery_data.get("has_exam_records", False),
                         needs_review=mastery_data.get("needs_review", False),
                     )
-            except Exception:
+            except Exception as e:
                 # No mastery data available — skip injection
-                pass
+                logger.warning(f"[compress_context] Mastery data fetch failed: {e}")
         except Exception as e:
             logger.debug(f"[compress_context] Mastery injection skipped: {e}")
 
@@ -1559,8 +1559,8 @@ async def compress_context_node(state: CanvasRAGState, runtime: Runtime[CanvasRA
                     max_tokens=memory_max_tokens,
                     graphiti_client=graphiti_client,
                 )
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[compress_context] Learning memory fetch failed: {e}")
     except Exception as e:
         logger.debug(f"[compress_context] Learning memory retrieval skipped: {e}")
 

@@ -108,12 +108,18 @@ async def get_tips(
         )
 
         tips: List[Dict[str, Any]] = []
+        seen_tip_ids: set = set()
         for item in results:
             metadata = item.get("metadata", {})
-            if metadata.get("node_id") == node_id and metadata.get("tip_id"):
+            tip_id = metadata.get("tip_id")
+            if metadata.get("node_id") == node_id and tip_id:
+                # Deduplicate by tip_id to avoid repeated content
+                if tip_id in seen_tip_ids:
+                    continue
+                seen_tip_ids.add(tip_id)
                 tips.append(
                     TipItem(
-                        tip_id=metadata["tip_id"],
+                        tip_id=tip_id,
                         content=metadata.get("content", ""),
                         title=metadata.get("title", "Untitled"),
                         tags=metadata.get("tags", []),

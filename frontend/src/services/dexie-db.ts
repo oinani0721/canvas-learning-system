@@ -103,9 +103,28 @@ export interface ChatMessage {
   metadata?: string;
 }
 
+/** Valid exam modes (6-1 M2: enum type guard). */
+export type ExamModeLocal = 'point_to_point' | 'comprehensive' | 'mixed';
+/** Valid exam statuses (6-1 M2: enum type guard). */
+export type ExamStatusLocal = 'idle' | 'in_progress' | 'paused' | 'completed';
+
+const VALID_EXAM_MODES: readonly string[] = ['point_to_point', 'comprehensive', 'mixed'];
+const VALID_EXAM_STATUSES: readonly string[] = ['idle', 'in_progress', 'paused', 'completed'];
+
+/** Type guard for ExamModeLocal. Returns 'mixed' for invalid values. */
+export function toExamMode(value: string): ExamModeLocal {
+  return VALID_EXAM_MODES.includes(value) ? (value as ExamModeLocal) : 'mixed';
+}
+
+/** Type guard for ExamStatusLocal. Returns 'idle' for invalid values. */
+export function toExamStatus(value: string): ExamStatusLocal {
+  return VALID_EXAM_STATUSES.includes(value) ? (value as ExamStatusLocal) : 'idle';
+}
+
 /**
  * Local exam session record for IndexedDB.
  * Story 6.1 AC-5: exam-state store backed by Dexie liveQuery.
+ * 6-1 M2: examMode and status use typed string literals with type guards.
  */
 export interface ExamSessionLocal {
   /** Exam session UUID (from backend). */
@@ -113,9 +132,9 @@ export interface ExamSessionLocal {
   /** Source canvas board ID. */
   sourceCanvasId: string;
   /** Exam mode: point_to_point | comprehensive | mixed. */
-  examMode: string;
+  examMode: ExamModeLocal;
   /** Session status: idle | in_progress | paused | completed. */
-  status: string;
+  status: ExamStatusLocal;
   /** ISO-8601 start time. */
   startTime: string;
   /** ISO-8601 end time (null if ongoing). */

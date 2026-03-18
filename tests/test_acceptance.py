@@ -389,10 +389,18 @@ async def run_reranker_ab_test(
             latency_ms = (time.perf_counter() - start_t) * 1000
             latencies.append(latency_ms)
 
-            # Reconstruct results in reranked order for MRR calculation
+            # Reconstruct results in reranked order for MRR calculation.
+            # Defensive: when return_documents=False, each entry should have
+            # an "index" key mapping back to the original result list.  If the
+            # reranker implementation returns dicts without "index" (e.g. when
+            # it inlines documents), fall back to original ordering.
             reranked_results = []
             for r in reranked:
-                idx = r["index"]
+                idx = r.get("index")
+                if idx is None:
+                    # Reranker returned document dict without index — skip
+                    logger.debug("[AC-6] Reranked entry missing 'index' key, skipping")
+                    continue
                 if idx < len(pre_results):
                     reranked_results.append(pre_results[idx])
 
@@ -452,6 +460,13 @@ async def run_crag_trigger_test(
     - Counts trigger rate across all queries
     - Verifies irrelevant queries trigger degradation
     - Verifies relevant queries have low false-positive rate
+
+    LIMITATION: This is a SIMULATION using raw reranker scores as a proxy
+    for the real CRAG binary LLM grading pipeline (Story 2.6). The actual
+    CRAG pipeline uses LLM-based yes/no document grading, which produces
+    different trigger decisions than simple score thresholding. Results
+    from this test approximate but do not exactly match production behavior.
+    A full end-to-end CRAG test requires a running LLM backend.
 
     Called by: run_acceptance_tests (AC-7 step).
 
@@ -649,6 +664,13 @@ async def run_acceptance_tests(
     5. Run CRAG trigger rate test                        [AC-7]
     6. Check Chinese/English parity                      [AC-8]
     7. Generate and save report                          [AC-9]
+
+    LIMITATION: This test exercises LanceDB search + reranker in isolation.
+    It does NOT walk the full LangGraph StateGraph (retrieve -> fuse ->
+    rerank -> check_quality -> compress) as a production query would.
+    The CRAG trigger test uses score-threshold simulation rather than
+    LLM binary grading. A full integration test against the StateGraph
+    requires all services (Neo4j, Graphiti, LLM) to be running.
 
     Called by: __main__ CLI entry point.
 

@@ -14,15 +14,23 @@ Verifies:
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 
 @pytest.fixture
 def client():
-    """FastAPI TestClient for edge rationale endpoint."""
-    from app.main import app
+    """FastAPI TestClient using a minimal app with only the edges router.
 
-    return TestClient(app)
+    Story 4-3/4-4 FIX M2: Uses a lightweight FastAPI app instead of importing
+    the full app (which loads all middleware, startup hooks, DB connections etc.).
+    This makes tests faster and avoids side effects from unrelated components.
+    """
+    from app.api.v1.endpoints.edges import edges_router
+
+    minimal_app = FastAPI()
+    minimal_app.include_router(edges_router, prefix="/api/v1/edges")
+    return TestClient(minimal_app)
 
 
 @pytest.fixture

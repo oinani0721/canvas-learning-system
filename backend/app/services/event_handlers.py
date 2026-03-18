@@ -124,13 +124,10 @@ async def handle_bkt_updated(event: LearningEvent) -> None:
         logger.warning(f"handle_bkt_updated: concept {node_id} not found")
         return
 
-    # Record interaction event on the EntityNode
-    grade = payload.get("grade", 3)
-    await store.record_interaction_event(
-        concept_id=node_id,
-        grade=grade,
-        source="event_bus",
-    )
+    # Note: record_interaction_event is skipped here because
+    # handle_score_submitted already persisted the full ConceptState
+    # (including grade data) via store.save_concept(). Writing again
+    # would be a redundant Neo4j operation.
 
     # Publish MASTERY_CHANGED for downstream consumers (UI push, etc.)
     from app.services.event_bus import get_event_bus
@@ -291,7 +288,10 @@ async def handle_fsrs_updated(event: LearningEvent) -> None:
         logger.warning("handle_fsrs_updated: missing node_id in payload")
         return
 
+    from app.config import DEFAULT_GROUP_ID
     from app.services.memory_service import get_memory_service
+
+    group_id = payload.get("group_id", DEFAULT_GROUP_ID)
 
     memory_svc = await get_memory_service()
     await memory_svc.record_knowledge_entity(
@@ -311,7 +311,7 @@ async def handle_fsrs_updated(event: LearningEvent) -> None:
             "fsrs_state": payload.get("fsrs_state"),
             "grade": payload.get("grade"),
         },
-        group_id="default",
+        group_id=group_id,
     )
 
     logger.debug(f"handle_fsrs_updated: recorded FSRS schedule for node={node_id}")

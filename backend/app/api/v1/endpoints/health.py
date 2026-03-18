@@ -130,6 +130,30 @@ async def health_check(
     except Exception:
         components["batch_sessions"] = "unavailable"
 
+    # Neo4j connectivity check — verifies the driver can actually execute a query.
+    # Previously the health endpoint did not test Neo4j reachability, so a
+    # misconfigured or down Neo4j instance would not be reflected in health status.
+    try:
+        from app.clients.neo4j_client import get_neo4j_client
+
+        neo4j = get_neo4j_client()
+        neo4j_stats = neo4j.stats if hasattr(neo4j, "stats") else {}
+        if neo4j_stats.get("initialized", False):
+            try:
+                # Lightweight connectivity test — single-row query
+                await asyncio.wait_for(
+                    neo4j.run_query("RETURN 1 AS ping"),
+                    timeout=3.0,
+                )
+                components["neo4j"] = "ok"
+            except Exception as neo4j_err:
+                logger.warning(f"Neo4j connectivity test failed: {neo4j_err}")
+                components["neo4j"] = "degraded"
+        else:
+            components["neo4j"] = "not_initialized"
+    except Exception:
+        components["neo4j"] = "unavailable"
+
     return HealthCheckResponse(
         status="healthy",
         app_name=settings.PROJECT_NAME,

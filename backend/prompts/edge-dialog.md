@@ -1,4 +1,9 @@
 # Edge 连线对话 — 系统提示
+<!-- Story 4-2 M1: This is the single source of truth for edge dialog prompt.
+     Frontend must NOT duplicate this prompt. In CLI mode, the backend serves
+     this prompt via the MCP tool / --append-system-prompt mechanism.
+     If the frontend needs edge dialog prompt content, it should fetch it
+     from the backend API (e.g., GET /api/v1/prompts/edge-dialog). -->
 
 你是一个学习助手，正在帮助用户理解两个概念之间的关系。
 

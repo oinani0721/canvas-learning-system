@@ -21,6 +21,7 @@ Architecture:
   └─────────────┘
 """
 
+import asyncio
 import json
 import logging
 import math
@@ -57,21 +58,31 @@ except ImportError:
 
 
 def load_mastery_config() -> MasteryConfig:
-    """Load mastery config from mastery_config.json."""
-    config_path = Path(__file__).parent.parent.parent.parent / "mastery_config.json"
-    if config_path.exists():
-        with open(config_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return MasteryConfig(
-            override_lambda=data.get("override_lambda", 0.1),
-            self_assess_weight_cap=data.get("self_assess_weight_cap", 0.5),
-            override_weight_cap=data.get("override_weight_cap", 0.8),
-            shaky_threshold=data.get("mastery_thresholds", {}).get("shaky", 0.40),
-            developing_threshold=data.get("mastery_thresholds", {}).get("developing", 0.70),
-            proficient_threshold=data.get("mastery_thresholds", {}).get("proficient", 0.90),
-            mastered_fluent_min=data.get("mastered_fluent_min", 2),
-            default_group_id=data.get("default_group_id", "default"),
-        )
+    """Load mastery config from mastery_config.json with fallback paths."""
+    # Try multiple candidate paths for config file
+    candidates = [
+        Path(__file__).parent.parent.parent.parent / "mastery_config.json",  # project root
+        Path(__file__).parent.parent.parent / "mastery_config.json",  # backend/
+        Path(__file__).parent.parent / "mastery_config.json",  # backend/app/
+    ]
+    for config_path in candidates:
+        if config_path.exists():
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                return MasteryConfig(
+                    override_lambda=data.get("override_lambda", 0.1),
+                    self_assess_weight_cap=data.get("self_assess_weight_cap", 0.5),
+                    override_weight_cap=data.get("override_weight_cap", 0.8),
+                    shaky_threshold=data.get("mastery_thresholds", {}).get("shaky", 0.40),
+                    developing_threshold=data.get("mastery_thresholds", {}).get("developing", 0.70),
+                    proficient_threshold=data.get("mastery_thresholds", {}).get("proficient", 0.90),
+                    mastered_fluent_min=data.get("mastered_fluent_min", 2),
+                    default_group_id=data.get("default_group_id", "default"),
+                )
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"Failed to load mastery config from {config_path}: {e}")
+    logger.info("No mastery_config.json found, using defaults")
     return MasteryConfig()
 
 
@@ -95,6 +106,8 @@ class MasteryEngine:
         self.fsrs_manager = FSRSManager() if FSRS_ENGINE_AVAILABLE else None
         # Story 5.6: Fusion engine (set via set_fusion_engine, None = fallback to min)
         self._fusion_engine = None
+        # Concurrency guard: prevents interleaved update_on_interaction calls
+        self._update_lock = asyncio.Lock()
 
     def set_fusion_engine(self, fusion_engine) -> None:
         """Attach a MasteryFusionEngine for multi-signal fusion.
@@ -104,6 +117,19 @@ class MasteryEngine:
         """
         self._fusion_engine = fusion_engine
         logger.info("MasteryEngine: fusion engine attached")
+
+    def _preload_signal_caches(self, concept: "ConceptState") -> None:
+        """Auto-populate signal adapter caches from ConceptState before fusion.
+
+        Ensures BKT and FSRS signals have current values cached so that
+        compute_fused_mastery() returns non-empty results for this concept.
+        """
+        if self._fusion_engine is None:
+            return
+        registry = self._fusion_engine._registry
+        for _name, signal in registry.get_all_signals().items():
+            if hasattr(signal, "preload"):
+                signal.preload(concept)
 
     # ═══════════════════════════════════════════════════════════════════════════
     # Core: Update on Interaction (Grade 1-4)
@@ -126,6 +152,9 @@ class MasteryEngine:
         Returns:
             Updated concept state (mutated in place and returned)
         """
+        # Clamp grade to valid FSRS Rating range [1, 4]
+        grade = max(1, min(4, grade))
+
         is_correct = grade >= 3
 
         # 1. BKT update
@@ -243,6 +272,14 @@ class MasteryEngine:
         concept.fsrs_lapses = int(_card_attr(card, "lapses", 0))
         concept.fsrs_card_data = self.fsrs_manager.serialize_card(card)
 
+    def get_retrievability(self, concept: ConceptState) -> float:
+        """Public interface for retrievability computation.
+
+        Delegates to internal _get_retrievability. Used by signal adapters
+        (FSRSRetrievabilitySignal) to avoid accessing private methods.
+        """
+        return self._get_retrievability(concept)
+
     def _get_retrievability(self, concept: ConceptState) -> float:
         """
         Compute current retrievability R (volatile, never stored).
@@ -280,6 +317,8 @@ class MasteryEngine:
             # Not assessed yet - only consider override/self-assess if present
             base = 0.0
         elif self._fusion_engine is not None:
+            # Story 5.6: Auto-preload signal caches before fusion
+            self._preload_signal_caches(concept)
             # Story 5.6: Use multi-signal fusion
             fusion_result = self._fusion_engine.compute_fused_mastery(concept.concept_id)
             if fusion_result.active_signal_count > 0:

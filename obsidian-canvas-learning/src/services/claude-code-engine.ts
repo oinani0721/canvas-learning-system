@@ -23,6 +23,14 @@
  *   - Node switch logic (Story 3.3 Task 4) — calls getSessionId()
  *   - Plugin onunload — calls destroyAll()
  *
+ * Security note (Story 4-2 M2):
+ *   In CLI mode, all dialogue (including edge dialogue) goes directly to
+ *   the Claude Code CLI process, bypassing the backend's prompt injection
+ *   guard. This is an inherent architecture limitation: the CLI binary
+ *   manages its own safety filters. If backend-level injection detection
+ *   is required, the ApiKeyEngine fallback (Story 3.9) routes through the
+ *   backend API instead.
+ *
  * Wiring needed from callers:
  *   - main.ts onload: engine = new ClaudeCodeEngine(pluginDataDir, mcpConfigPath)
  *   - main.ts onunload: await engine.destroyAll()

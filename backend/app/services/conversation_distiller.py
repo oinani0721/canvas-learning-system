@@ -57,9 +57,7 @@ class DistillationResult(BaseModel):
     tips: List[ExtractedTip] = Field(default_factory=list)
     errors: List[ExtractedError] = Field(default_factory=list)
     qa_highlights: List[ExtractedQA] = Field(default_factory=list)
-    distilled_at: str = Field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    distilled_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -130,21 +128,29 @@ class ConversationDistiller:
         # Format conversation text
         conversation_text = self._format_messages(messages)
 
+        # Story 3-8 FIX H3: Check for prompt injection in conversation text
+        from app.middleware.prompt_injection_guard import check_input
+
+        injection_check = check_input(conversation_text)
+        if injection_check.is_blocked:
+            logger.warning(
+                "[Story 3.8] Distillation input blocked: risk_score=%.2f, patterns=%s, node_id=%s",
+                injection_check.risk_score,
+                injection_check.matched_patterns,
+                node_id,
+            )
+            return DistillationResult(summary=f"Conversation with {len(messages)} messages (input safety check failed)")
+
         # Truncate to avoid token limits (keep last ~8000 chars)
         if len(conversation_text) > 8000:
-            conversation_text = (
-                "...(earlier messages truncated)...\n\n"
-                + conversation_text[-8000:]
-            )
+            conversation_text = "...(earlier messages truncated)...\n\n" + conversation_text[-8000:]
 
         try:
             return await self._llm_distill(conversation_text)
         except Exception as e:
             logger.warning(f"[Story 3.8] Distillation failed: {e}")
             # Return empty result on failure (non-blocking)
-            return DistillationResult(
-                summary=f"Conversation with {len(messages)} messages (distillation failed)"
-            )
+            return DistillationResult(summary=f"Conversation with {len(messages)} messages (distillation failed)")
 
     async def distill_and_persist(
         self,
@@ -185,22 +191,31 @@ class ConversationDistiller:
         import litellm
 
         from app.config import settings
-        from app.core.litellm_config import format_litellm_model
+        from app.core.litellm_config import format_litellm_model, get_runtime_model_config
+
+        # Story 3-7 FIX: Use RuntimeModelConfigManager for API key; warn if absent
+        runtime_cfg = get_runtime_model_config()
+        api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
+        if not api_key:
+            logger.warning(
+                "[Story 3.8] No API key configured for distillation. "
+                "LiteLLM call may fail silently. "
+                "Set API key via Settings Tab or AI_API_KEY env var."
+            )
 
         # Use the standard format_litellm_model utility for provider-agnostic model strings
         provider = settings.AI_PROVIDER
         model_name = settings.AI_MODEL_NAME
         model = format_litellm_model(provider, model_name)
 
-        prompt = DISTILLATION_PROMPT.format(
-            conversation_text=conversation_text
-        )
+        prompt = DISTILLATION_PROMPT.format(conversation_text=conversation_text)
 
         response = await litellm.acompletion(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=1500,
             temperature=0.2,
+            api_key=api_key,
         )
 
         content = response.choices[0].message.content.strip()
@@ -209,7 +224,7 @@ class ConversationDistiller:
         if content.startswith("```"):
             # Remove opening fence (e.g. ```json or ```)
             first_newline = content.index("\n") if "\n" in content else 3
-            content = content[first_newline + 1:]
+            content = content[first_newline + 1 :]
             # Remove closing fence
             if content.endswith("```"):
                 content = content[:-3].strip()
@@ -313,10 +328,7 @@ class ConversationDistiller:
                             context="(extracted from conversation distillation)",
                         )
                     except Exception as e:
-                        logger.warning(
-                            f"[Story 3.8] Error classification failed during "
-                            f"distillation: {e}"
-                        )
+                        logger.warning(f"[Story 3.8] Error classification failed during distillation: {e}")
 
             # Persist Q&A highlights
             for qa in result.qa_highlights:
@@ -340,9 +352,7 @@ class ConversationDistiller:
             )
 
         except Exception as e:
-            logger.warning(
-                f"[Story 3.8] Failed to persist distillation results: {e}"
-            )
+            logger.warning(f"[Story 3.8] Failed to persist distillation results: {e}")
 
     def _format_messages(self, messages: List[Dict[str, str]]) -> str:
         """Format message list into readable conversation text."""

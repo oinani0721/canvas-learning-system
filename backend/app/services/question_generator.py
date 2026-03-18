@@ -17,6 +17,7 @@ Story 6.3 AC-5: generate_exam_question() — full pipeline entry point.
 Legacy: generate_questions() / generate_for_nodes() retained for Story 4.2 usage.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -134,16 +135,26 @@ class QuestionGenerator:
         if not nodes:
             return None
 
-        priorities: List[NodePriority] = list()
-        for node in nodes:
-            node_id = node.get("id", "")
-            if not node_id:
-                continue
+        # Filter nodes with valid IDs
+        valid_nodes = [(node, node.get("id", "")) for node in nodes]
+        valid_nodes = [(node, nid) for node, nid in valid_nodes if nid]
+        if not valid_nodes:
+            return None
 
-            mastery_data = await self._get_mastery_data(node_id)
+        # 6-3 H3 fix: Batch mastery + KG queries with asyncio.gather to avoid N+1
+        node_ids = [nid for _, nid in valid_nodes]
+
+        mastery_results, kg_results = await asyncio.gather(
+            asyncio.gather(*(self._get_mastery_data(nid) for nid in node_ids)),
+            asyncio.gather(*(self._get_kg_relevance(nid, source_canvas_id) for nid in node_ids)),
+        )
+
+        priorities: List[NodePriority] = list()
+        for idx, (_node, node_id) in enumerate(valid_nodes):
+            mastery_data = mastery_results[idx]
             p_mastery = mastery_data.get("p_mastery", 0.1)
             retrievability = mastery_data.get("retrievability", 1.0)
-            kg_relevance = await self._get_kg_relevance(node_id, source_canvas_id)
+            kg_relevance = kg_results[idx]
 
             priority = (
                 W_MASTERY * (1.0 - p_mastery)
@@ -407,9 +418,15 @@ class QuestionGenerator:
 
             from app.config import settings
 
-            model = getattr(settings, "SCORING_MODEL", None) or getattr(
-                settings, "LLM_MODEL", "gemini/gemini-2.0-flash"
-            )
+            # 6-10 M1: Use settings.SCORING_MODEL (configurable), fall back to AI_PROVIDER/AI_MODEL_NAME
+            model = settings.SCORING_MODEL
+            if not model:
+                provider = settings.AI_PROVIDER
+                model_name = settings.AI_MODEL_NAME
+                if provider and not model_name.startswith(provider):
+                    model = f"{provider}/{model_name}"
+                else:
+                    model = model_name
 
             response = await acompletion(
                 model=model,
@@ -684,39 +701,13 @@ class QuestionGenerator:
 
     @staticmethod
     def _classify_content(text: str) -> tuple[int, int]:
-        """Count knowledge vs problem signals in text (shared with ExamService)."""
-        knowledge_keywords = [
-            "定义",
-            "概念",
-            "原理",
-            "特征",
-            "性质",
-            "分类",
-            "是指",
-            "定义为",
-            "指的是",
-            "含义",
-            "本质",
-        ]
-        problem_keywords = [
-            "求",
-            "计算",
-            "证明",
-            "解",
-            "例题",
-            "练习",
-            "应用",
-            "推导",
-            "解答",
-            "已知",
-            "求解",
-        ]
-        k_count = sum(1 for kw in knowledge_keywords if kw in text)
-        p_count = sum(1 for kw in problem_keywords if kw in text)
-        latex_count = len(re.findall(r"\$[^$]+\$", text))
-        if latex_count > 2:
-            p_count += latex_count
-        return k_count, p_count
+        """Count knowledge vs problem signals in text.
+
+        Delegates to shared utility (6-3 M1: extracted to eliminate duplication).
+        """
+        from app.utils.content_classifier import classify_content
+
+        return classify_content(text)
 
     # ═══════════════════════════════════════════════════════════════════════
     # Legacy Story 4.2: Template-based question generation (backward compat)

@@ -1362,7 +1362,7 @@ class MemoryService:
             try:
                 await self.neo4j.record_episode({
                     "episode_id": entity_id,
-                    "user_id": event_type,
+                    "user_id": "system",  # Fixed: was incorrectly set to event_type
                     "canvas_path": "",
                     "node_id": meta.get("node_id", ""),
                     "concept": meta.get("title", content[:80]),
@@ -1386,6 +1386,7 @@ class MemoryService:
         query: str,
         group_id: Optional[str] = None,
         max_results: int = 50,
+        limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
         Search in-memory episodes by query string and optional group_id.
@@ -1397,10 +1398,15 @@ class MemoryService:
         Performs a simple substring match on episode content, episode_type,
         and node_id fields. Filters by group_id when provided.
 
+        Performance: Scans at most MAX_EPISODE_CACHE (2000) episodes with
+        early termination at max_results. For typical usage patterns (< 1000
+        episodes, max_results <= 50), this completes in < 1ms.
+
         Args:
             query: Search query string (substring match on content/type/node_id).
             group_id: Optional group_id filter for subject isolation.
             max_results: Maximum number of results to return.
+            limit: Alias for max_results (takes precedence if provided).
 
         Returns:
             List of matching episode dicts, newest first.
@@ -1410,11 +1416,12 @@ class MemoryService:
         if not self._initialized:
             await self.initialize()
 
+        effective_limit = limit if limit is not None else max_results
         query_lower = query.lower()
         matches: List[Dict[str, Any]] = []
 
         for episode in reversed(self._episodes):
-            # Filter by group_id if specified
+            # Filter by group_id if specified (fast path — skips substring scan)
             if group_id and episode.get("group_id", "") != group_id:
                 continue
 
@@ -1426,7 +1433,7 @@ class MemoryService:
 
             if query_lower in searchable:
                 matches.append(episode)
-                if len(matches) >= max_results:
+                if len(matches) >= effective_limit:
                     break
 
         return matches

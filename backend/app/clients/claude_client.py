@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AgentPromptTemplate:
     """Parsed agent prompt template from .md file."""
+
     name: str
     description: str
     model: str
@@ -108,7 +109,7 @@ class ClaudeClient:
             Parsed AgentPromptTemplate
         """
         # Extract YAML frontmatter
-        frontmatter_match = re.match(r'^---\n(.*?)\n---\n(.*)$', content, re.DOTALL)
+        frontmatter_match = re.match(r"^---\n(.*?)\n---\n(.*)$", content, re.DOTALL)
 
         if not frontmatter_match:
             raise ValueError("Invalid prompt template: missing YAML frontmatter")
@@ -118,27 +119,27 @@ class ClaudeClient:
 
         # Parse simple YAML (key: value format)
         frontmatter: Dict[str, str] = {}
-        for line in frontmatter_text.strip().split('\n'):
-            if ':' in line:
-                key, value = line.split(':', 1)
+        for line in frontmatter_text.strip().split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
                 frontmatter[key.strip()] = value.strip()
 
         # Extract input/output format sections if present
         input_format = None
         output_format = None
 
-        input_match = re.search(r'## Input Format\n```(?:json)?\n(.*?)\n```', system_prompt, re.DOTALL)
+        input_match = re.search(r"## Input Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if input_match:
             input_format = input_match.group(1).strip()
 
-        output_match = re.search(r'## Output Format\n```(?:json)?\n(.*?)\n```', system_prompt, re.DOTALL)
+        output_match = re.search(r"## Output Format\n```(?:json)?\n(.*?)\n```", system_prompt, re.DOTALL)
         if output_match:
             output_format = output_match.group(1).strip()
 
         return AgentPromptTemplate(
-            name=frontmatter.get('name', 'unknown'),
-            description=frontmatter.get('description', ''),
-            model=frontmatter.get('model', 'inherit'),
+            name=frontmatter.get("name", "unknown"),
+            description=frontmatter.get("description", ""),
+            model=frontmatter.get("model", "inherit"),
             system_prompt=system_prompt,
             input_format=input_format,
             output_format=output_format,
@@ -166,7 +167,7 @@ class ClaudeClient:
         if not template_file.exists():
             raise FileNotFoundError(f"Agent prompt template not found: {template_file}")
 
-        content = template_file.read_text(encoding='utf-8')
+        content = template_file.read_text(encoding="utf-8")
         template = self._parse_prompt_template(content)
 
         self._prompt_templates[agent_type] = template
@@ -206,8 +207,7 @@ class ClaudeClient:
         """
         if not self.client:
             raise RuntimeError(
-                "Claude API client not initialized. "
-                "Please configure ANTHROPIC_API_KEY in .env or environment."
+                "Claude API client not initialized. Please configure ANTHROPIC_API_KEY in .env or environment."
             )
 
         # Story 3.13 AC-2: Input injection check at LLM client layer
@@ -218,6 +218,7 @@ class ClaudeClient:
                 f"risk_score={inj_check.risk_score}, patterns={inj_check.matched_patterns}"
             )
             from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+
             return {
                 "agent_type": agent_type,
                 "response": SAFETY_BLOCK_INPUT_MESSAGE,
@@ -256,7 +257,7 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
-            if hasattr(block, 'text'):
+            if hasattr(block, "text"):
                 response_text += block.text
 
         logger.info(f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
@@ -319,8 +320,7 @@ class ClaudeClient:
         """
         if not self.client:
             raise RuntimeError(
-                "Claude API client not initialized. "
-                "Please configure ANTHROPIC_API_KEY in .env or environment."
+                "Claude API client not initialized. Please configure ANTHROPIC_API_KEY in .env or environment."
             )
 
         # Load agent prompt template
@@ -338,21 +338,25 @@ class ClaudeClient:
         # Add image blocks
         if images:
             for img in images:
-                content_blocks.append({
-                    "type": "image",
-                    "source": {
-                        "type": "base64",
-                        "media_type": img.get("media_type", "image/png"),
-                        "data": img["data"],
-                    },
-                })
+                content_blocks.append(
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": img.get("media_type", "image/png"),
+                            "data": img["data"],
+                        },
+                    }
+                )
             logger.info(f"Added {len(images)} images to request")
 
         # Add text block
-        content_blocks.append({
-            "type": "text",
-            "text": user_prompt,
-        })
+        content_blocks.append(
+            {
+                "type": "text",
+                "text": user_prompt,
+            }
+        )
 
         # Build messages with content blocks
         messages = [
@@ -362,7 +366,9 @@ class ClaudeClient:
             }
         ]
 
-        logger.info(f"Calling Claude API with agent={agent_type}, model={self.model}, images={len(images) if images else 0}")
+        logger.info(
+            f"Calling Claude API with agent={agent_type}, model={self.model}, images={len(images) if images else 0}"
+        )
 
         # ✅ Verified from Context7:/anthropics/anthropic-sdk-python
         response: Message = await self.client.messages.create(
@@ -376,7 +382,7 @@ class ClaudeClient:
         # Extract text content from response
         response_text = ""
         for block in response.content:
-            if hasattr(block, 'text'):
+            if hasattr(block, "text"):
                 response_text += block.text
 
         logger.info(f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
@@ -412,6 +418,22 @@ class ClaudeClient:
         if not self.client:
             raise RuntimeError("Claude API client not initialized.")
 
+        # Story 3-13 FIX: Input injection check for raw call path
+        injection_result = check_input(user_prompt)
+        if injection_result.is_blocked:
+            logger.warning(
+                "[Story 3.13] call_raw input blocked: risk=%.2f, patterns=%s",
+                injection_result.risk_score,
+                injection_result.matched_patterns,
+            )
+            from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+
+            return {
+                "response": SAFETY_BLOCK_INPUT_MESSAGE,
+                "model": self.model,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
         response: Message = await self.client.messages.create(
             model=self.model,
             max_tokens=self.max_tokens,
@@ -422,8 +444,17 @@ class ClaudeClient:
 
         response_text = ""
         for block in response.content:
-            if hasattr(block, 'text'):
+            if hasattr(block, "text"):
                 response_text += block.text
+
+        # Story 3-13 FIX: Output safety check for raw call path
+        output_result = check_output(response_text, system_prompt=system_prompt)
+        if not output_result.is_safe:
+            logger.warning(
+                "[Story 3.13] call_raw output violation: %s",
+                output_result.violations,
+            )
+            response_text = output_result.sanitized_output
 
         return {
             "response": response_text,

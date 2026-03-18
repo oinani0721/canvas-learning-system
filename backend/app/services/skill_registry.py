@@ -18,6 +18,7 @@ Usage:
     content = registry.get_skill_content("basic-decompose")  # Full template
 """
 
+import asyncio
 import logging
 import re
 import threading
@@ -77,18 +78,28 @@ class SkillRegistry:
     """
 
     _instance: Optional["SkillRegistry"] = None
+    # Use threading.Lock for the synchronous singleton pattern (called from
+    # both sync and async code paths). The lock is only held for object
+    # construction (microseconds), so it does not block the event loop.
     _lock = threading.Lock()
 
     def __init__(self, commands_dir: Optional[Path] = None):
         self._commands_dir = commands_dir or _DEFAULT_COMMANDS_DIR
         self._skills: Dict[str, SkillInfo] = {}
         self._loaded = False
+        # asyncio.Lock for protecting concurrent async operations (e.g. refresh)
+        self._async_lock = asyncio.Lock()
 
     # ─── Singleton ────────────────────────────────────────────────────────
 
     @classmethod
     def get_instance(cls, commands_dir: Optional[Path] = None) -> "SkillRegistry":
-        """Return the singleton SkillRegistry, creating it if needed."""
+        """Return the singleton SkillRegistry, creating it if needed.
+
+        Uses threading.Lock (not asyncio.Lock) because this is a synchronous
+        class method that must work from both sync and async contexts.
+        The lock is held only for object construction (microseconds).
+        """
         if cls._instance is None:
             with cls._lock:
                 if cls._instance is None:
@@ -165,14 +176,29 @@ class SkillRegistry:
         description = ""
         icon = "file-text"  # default icon
 
-        # Try extracting from YAML frontmatter
+        # Try extracting from YAML frontmatter.
+        # Use yaml.safe_load for robust parsing of multi-line values, quoted
+        # strings, and other YAML features that the simple regex misses.
         fm_match = _FRONTMATTER_PATTERN.match(raw)
         if fm_match:
             fm_block = fm_match.group(1)
-            fm_kvs = dict(_YAML_KV_PATTERN.findall(fm_block))
-            name = fm_kvs.get("name", "").strip().strip('"').strip("'")
-            description = fm_kvs.get("description", "").strip().strip('"').strip("'")
-            icon = fm_kvs.get("icon", icon).strip().strip('"').strip("'")
+            try:
+                import yaml
+
+                fm_data = yaml.safe_load(fm_block) or {}
+                if isinstance(fm_data, dict):
+                    name = str(fm_data.get("name", "")).strip()
+                    description = str(fm_data.get("description", "")).strip()
+                    icon = str(fm_data.get("icon", icon)).strip()
+                else:
+                    # YAML parsed but not a dict — fall through to heading
+                    fm_data = {}
+            except Exception:
+                # yaml.safe_load failed — fallback to regex key-value extraction
+                fm_kvs = dict(_YAML_KV_PATTERN.findall(fm_block))
+                name = fm_kvs.get("name", "").strip().strip('"').strip("'")
+                description = fm_kvs.get("description", "").strip().strip('"').strip("'")
+                icon = fm_kvs.get("icon", icon).strip().strip('"').strip("'")
 
         # Fallback: extract name from first # heading
         if not name:

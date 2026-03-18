@@ -231,6 +231,29 @@ async def skip_exam_question(exam_id: str, request: SkipRequest) -> SkipResponse
 # ======================================================================
 
 
+@exam_router.get(
+    "/exam/{exam_id}/cognitive-load",
+    summary="Get cognitive load reminder message (Story 6.7)",
+)
+async def get_cognitive_load(
+    exam_id: str,
+    elapsed_minutes: int = Query(..., ge=0, description="Elapsed active exam time in minutes"),
+) -> dict:
+    """Check if a cognitive load rest reminder should be shown.
+
+    Returns the appropriate reminder message for the given elapsed time,
+    or null if no reminder is warranted.
+
+    [Source: Story 6.7 AC-1]
+    """
+    svc = get_exam_service()
+    session = await svc.get_session(exam_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"Exam session {exam_id} not found")
+    message = svc.get_cognitive_load_message(elapsed_minutes)
+    return {"exam_id": exam_id, "elapsed_minutes": elapsed_minutes, "message": message}
+
+
 @exam_router.post(
     "/exam/{exam_id}/pause",
     response_model=ExamStatusUpdateResponse,

@@ -32,16 +32,25 @@ def setup_mcp_server(app: FastAPI) -> None:
     try:
         from fastapi_mcp import FastApiMCP
 
-        # Create MCP server instance
+        # Register tool endpoints first so they exist when FastApiMCP scans
+        _register_tool_routes(app)
+
+        # Create MCP server instance with route prefix filter.
+        # Only /mcp/tools/* routes are exposed as MCP tools. Without this
+        # filter, FastApiMCP would expose ALL FastAPI routes (health, config,
+        # metrics, etc.) as callable MCP tools — a security and API surface risk.
+        def _include_mcp_tools_only(route) -> bool:
+            """Only include routes under /mcp/tools/ as MCP tools."""
+            path = getattr(route, "path", "")
+            return path.startswith("/mcp/tools/")
+
         mcp = FastApiMCP(
             app,
             name="canvas-learning-mcp",
             description="Canvas Learning System backend tools for mastery tracking, "
             "examination, scoring, memory search, and canvas operations.",
+            include_operations=_include_mcp_tools_only,
         )
-
-        # Register all tool endpoints
-        _register_tool_routes(app)
 
         # Mount MCP server — this exposes /mcp endpoint
         mcp.mount()

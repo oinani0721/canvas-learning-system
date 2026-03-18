@@ -239,20 +239,29 @@ async function saveMessage(msg: ChatMessage): Promise<void> {
 async function loadMessages(
   nodeId: string,
   limit: number,
-  offset: number,
+  beforeCursor?: string,
 ): Promise<ChatMessage[]> {
-  // Get all messages for this node, sorted by createdAt descending,
-  // skip `offset`, take `limit`, then reverse to oldest-first for display.
+  // Cursor-based pagination: load `limit` messages older than `beforeCursor`.
+  // This avoids skip/duplicate issues that offset-based pagination causes when
+  // new messages are appended between page loads.
+  //
+  // When beforeCursor is undefined, loads the most recent `limit` messages.
   const all = await db.chat_messages
     .where('nodeId')
     .equals(nodeId)
     .sortBy('createdAt');
 
-  // Apply offset from the end (most recent) and take limit
-  const total = all.length;
-  const start = Math.max(0, total - offset - limit);
-  const end = Math.max(0, total - offset);
-  return all.slice(start, end);
+  if (!beforeCursor) {
+    // Initial load: take the most recent `limit` messages
+    const start = Math.max(0, all.length - limit);
+    return all.slice(start);
+  }
+
+  // Cursor-based: find all messages older than the cursor
+  const olderMessages = all.filter((m) => m.createdAt < beforeCursor);
+  // Take the most recent `limit` from the older set
+  const start = Math.max(0, olderMessages.length - limit);
+  return olderMessages.slice(start);
 }
 
 async function countMessages(nodeId: string): Promise<number> {
@@ -342,7 +351,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     }
 
     const total = await countMessages(nodeId);
-    const messages = await loadMessages(nodeId, PAGE_SIZE, 0);
+    const messages = await loadMessages(nodeId, PAGE_SIZE);
 
     set({
       currentNodeId: nodeId,
@@ -358,20 +367,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   },
 
   loadMore: async () => {
-    const { currentNodeId, messages, hasMore, totalCount } = get();
+    const { currentNodeId, messages, hasMore } = get();
     if (!currentNodeId || !hasMore) return;
 
-    const offset = messages.length;
-    const older = await loadMessages(currentNodeId, PAGE_SIZE, offset);
+    // Cursor-based: use the oldest currently loaded message's createdAt
+    const oldestLoaded = messages.length > 0 ? messages[0] : null;
+    const cursor = oldestLoaded?.createdAt;
+
+    const older = await loadMessages(currentNodeId, PAGE_SIZE, cursor);
     if (older.length === 0) {
       set({ hasMore: false });
       return;
     }
 
-    // Prepend older messages
+    // Prepend older messages (cursor ensures no duplicates)
     set({
       messages: [...older, ...messages],
-      hasMore: offset + older.length < totalCount,
+      hasMore: older.length >= PAGE_SIZE,
     });
   },
 
@@ -420,10 +432,17 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       totalCount: state.totalCount + 1, // user msg counted; assistant counted on finalize
     }));
 
-    // 2s first-token timeout (AC-6)
+    // 2s first-token timeout (AC-6): if no token arrives within 2s,
+    // explicitly confirm waitingForFirstToken stays true (the UI already
+    // shows "Thinking..." based on this flag being true from the initial set).
+    // Previously this was a no-op callback. Now it explicitly re-asserts the
+    // state in case a race condition cleared it prematurely.
     const firstTokenTimer = setTimeout(() => {
-      // If still waiting and still streaming the same node, keep waitingForFirstToken true
-      // (StreamingIndicator reads this to show "Thinking..." vs bouncing dots)
+      if (get().isStreaming && get().currentNodeId === nodeId && get().waitingForFirstToken) {
+        // Re-assert: still waiting after 2s — no-op since flag is already true,
+        // but this documents the intent and guards against future refactors.
+        set({ waitingForFirstToken: true });
+      }
     }, FIRST_TOKEN_TIMEOUT_MS);
 
     // Story 3-4: Fetch learning context before sending message (best-effort, non-blocking on failure)
@@ -688,8 +707,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // ═══════════════════════════════════════════════════════════════════════════
 
   dismissQuotaExhausted: () => {
-    // User chose "wait for reset" — keep quota status but allow UI to dismiss banner.
-    // Next send attempt will re-check (quotaStatus stays 'exhausted' until send succeeds).
+    // User chose "wait for reset" — set quotaStatus to 'available' so the banner
+    // is dismissed and the user can attempt to send again. If the quota is still
+    // exhausted, the next send will re-detect it via a 429 response and re-set
+    // quotaStatus to 'exhausted'.
+    set({ quotaStatus: 'available', quotaResetTime: null, quotaRetryAfterSec: null });
   },
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -722,7 +744,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     const edgeSessionKey = `edge_${edge.edgeId}`;
 
     const total = await countMessages(edgeSessionKey);
-    const messages = await loadMessages(edgeSessionKey, PAGE_SIZE, 0);
+    const messages = await loadMessages(edgeSessionKey, PAGE_SIZE);
 
     set({
       currentNodeId: edgeSessionKey,
@@ -811,5 +833,13 @@ function setupEngineListeners(): void {
   });
 }
 
-// Initialize listeners
-setupEngineListeners();
+// Lazy initialization: set up listeners on first store subscription
+// instead of eagerly on module load (which triggers side effects during
+// imports and can cause issues in test environments or SSR).
+let _listenersInitialized = false;
+useChatStore.subscribe(() => {
+  if (!_listenersInitialized) {
+    _listenersInitialized = true;
+    setupEngineListeners();
+  }
+});

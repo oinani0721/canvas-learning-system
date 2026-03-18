@@ -77,6 +77,53 @@ class ArchiveManager:
 
     def __init__(self) -> None:
         self._archive_log: Dict[str, ArchiveStatus] = {}
+        self._initialized: bool = False
+
+    async def _restore_archive_markers(self) -> None:
+        """Restore archive markers from Graphiti on first use.
+
+        Story 3-8 FIX M1: Prevents re-archiving conversations after restart
+        by loading previously written archive_marker episodes from memory.
+        """
+        if self._initialized:
+            return
+        self._initialized = True
+        try:
+            from app.config import DEFAULT_GROUP_ID
+            from app.services.memory_service import get_memory_service
+
+            memory_svc = await get_memory_service()
+            results = await memory_svc.search_memories(
+                query="archive_marker",
+                group_id=DEFAULT_GROUP_ID,
+                max_results=500,
+            )
+            if not isinstance(results, list):
+                return
+            for item in results:
+                if not isinstance(item, dict):
+                    continue
+                if item.get("episode_type") != "archive_marker":
+                    continue
+                meta = item.get("metadata", {})
+                nid = meta.get("node_id", "")
+                if not nid or nid in self._archive_log:
+                    continue
+                tier_str = meta.get("tier", "warm")
+                try:
+                    tier = ArchiveTier(tier_str)
+                except ValueError:
+                    tier = ArchiveTier.WARM
+                self._archive_log[nid] = ArchiveStatus(
+                    node_id=nid,
+                    tier=tier,
+                    message_count=meta.get("message_count", 0),
+                    last_archived_at=meta.get("archived_at"),
+                )
+            if self._archive_log:
+                logger.info(f"[Story 3.8] Restored {len(self._archive_log)} archive markers from Graphiti")
+        except Exception as e:
+            logger.warning(f"[Story 3.8] Failed to restore archive markers: {e}")
 
     async def check_and_archive(self, node_id: str) -> Optional[ArchiveStatus]:
         """
@@ -90,6 +137,9 @@ class ArchiveManager:
         Returns:
             ArchiveStatus if archiving occurred, None otherwise.
         """
+        # Story 3-8 FIX M1: Restore archive markers before first check
+        await self._restore_archive_markers()
+
         try:
             messages = await self._get_node_messages(node_id)
             if not messages:
@@ -328,37 +378,40 @@ class ArchiveManager:
             validator = get_extraction_validator()
             session_id = f"archive_{node_id}"
 
+            # Story 3-8 FIX M3: Safe attribute access — DistillationResult models
+            # (ExtractedTip, ExtractedError, ExtractedQA) do not have an 'evidence'
+            # field. Use known model fields directly instead of fragile getattr.
             for tip in result.tips or []:
-                evidence = getattr(tip, "evidence", "") or ""
-                content = getattr(tip, "content", str(tip))
+                content = tip.content if hasattr(tip, "content") else str(tip)
+                title = tip.title if hasattr(tip, "title") else ""
                 await validator.store_record(
                     source_session_id=session_id,
                     source_node_id=node_id,
-                    original_text=evidence,
+                    original_text=title,
                     extracted_content=content,
                     extraction_type="tip",
                 )
 
             for error in result.errors or []:
-                evidence = getattr(error, "evidence", "") or ""
-                content = getattr(error, "content", str(error))
-                subtype = getattr(error, "error_type", None)
+                description = error.description if hasattr(error, "description") else str(error)
+                error_type = error.error_type if hasattr(error, "error_type") else None
                 await validator.store_record(
                     source_session_id=session_id,
                     source_node_id=node_id,
-                    original_text=evidence,
-                    extracted_content=content,
+                    original_text="",
+                    extracted_content=description,
                     extraction_type="error",
-                    extraction_subtype=subtype,
+                    extraction_subtype=error_type,
                 )
 
             for qa in result.qa_highlights or []:
-                evidence = getattr(qa, "evidence", "") or ""
-                content = getattr(qa, "content", str(qa))
+                question = qa.question if hasattr(qa, "question") else ""
+                answer = qa.answer if hasattr(qa, "answer") else ""
+                content = f"Q: {question}\nA: {answer}" if question else str(qa)
                 await validator.store_record(
                     source_session_id=session_id,
                     source_node_id=node_id,
-                    original_text=evidence,
+                    original_text=question,
                     extracted_content=content,
                     extraction_type="key_qa",
                 )
@@ -480,7 +533,12 @@ class ArchiveManager:
         """
         Estimate token count for a list of messages.
 
-        Uses a simple heuristic: ~4 chars per token (rough approximation).
+        Story 3-8 FIX M2: Uses tiktoken for accurate estimation (especially
+        for Chinese text where 4chars/token is very inaccurate — Chinese
+        characters often consume 2-3 tokens each).
+
+        Falls back to a conservative 2 chars/token heuristic if tiktoken
+        is unavailable.
 
         Args:
             messages: The messages to estimate.
@@ -488,8 +546,17 @@ class ArchiveManager:
         Returns:
             Estimated token count.
         """
-        total_chars = sum(len(msg.get("content", "")) for msg in messages)
-        return total_chars // 4
+        full_text = " ".join(msg.get("content", "") for msg in messages)
+        if not full_text:
+            return 0
+        try:
+            import tiktoken
+
+            enc = tiktoken.get_encoding("cl100k_base")
+            return len(enc.encode(full_text))
+        except Exception:
+            # Fallback: conservative estimate (2 chars/token for mixed CJK+Latin)
+            return len(full_text) // 2
 
     def _get_oldest_message_time(self, messages: List[Dict[str, Any]]) -> Optional[datetime]:
         """

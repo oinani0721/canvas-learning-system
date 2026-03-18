@@ -18,7 +18,6 @@ Story 6.8: complete_exam, get_exam_records — exam record persistence
 
 import json
 import logging
-import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -235,52 +234,15 @@ class ExamService:
             ),
         )
 
-    def _classify_content(self, text: str) -> tuple[int, int]:
-        """Count knowledge vs problem signals in text."""
-        knowledge_keywords = [
-            "定义",
-            "概念",
-            "原理",
-            "特征",
-            "性质",
-            "分类",
-            "是指",
-            "定义为",
-            "指的是",
-            "含义",
-            "本质",
-            "区别",
-            "联系",
-            "比较",
-            "组成",
-            "结构",
-        ]
-        problem_keywords = [
-            "求",
-            "计算",
-            "证明",
-            "解",
-            "例题",
-            "练习",
-            "应用",
-            "设计",
-            "分析",
-            "推导",
-            "解答",
-            "已知",
-            "问",
-            "题",
-            "求解",
-        ]
+    @staticmethod
+    def _classify_content(text: str) -> tuple[int, int]:
+        """Count knowledge vs problem signals in text.
 
-        k_count = sum(1 for kw in knowledge_keywords if kw in text)
-        p_count = sum(1 for kw in problem_keywords if kw in text)
+        Delegates to shared utility (6-3 M1: extracted to eliminate duplication).
+        """
+        from app.utils.content_classifier import classify_content
 
-        latex_count = len(re.findall(r"\$[^$]+\$", text))
-        if latex_count > 2:
-            p_count += latex_count
-
-        return k_count, p_count
+        return classify_content(text)
 
     # ═══════════════════════════════════════════════════════════════════════
     # Topic-Level Trigger Detection (Story 6.4 AC-1)
@@ -336,19 +298,29 @@ class ExamService:
         return "regular"
 
     async def _get_canvas_nodes(self, canvas_id: str, target_node_id: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Get nodes from a canvas for content analysis."""
+        """Get nodes from a canvas for content analysis.
+
+        Uses CanvasService with settings.canvas_base_path (6-3 H2 fix).
+        Uses read_canvas + find_node_across_canvases instead of non-existent methods (6-3 H1 fix).
+        """
+        from app.config import settings
         from app.services.canvas_service import CanvasService
 
-        canvas_svc = CanvasService()
+        canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
 
         if target_node_id:
-            node = await canvas_svc.get_node(target_node_id)
+            _canvas_name, node = await canvas_svc.find_node_across_canvases(target_node_id)
             if node:
                 return [node]
             return list(_EMPTY_NODE_LIST)
 
-        nodes = await canvas_svc.get_nodes_by_canvas(canvas_id)
-        return nodes if nodes else list(_EMPTY_NODE_LIST)
+        try:
+            canvas_data = await canvas_svc.read_canvas(canvas_id)
+            nodes = canvas_data.get("nodes", list())
+            return nodes if nodes else list(_EMPTY_NODE_LIST)
+        except Exception as e:
+            logger.debug(f"[Story 6.3] Failed to read canvas {canvas_id}: {e}")
+            return list(_EMPTY_NODE_LIST)
 
     async def _persist_session_to_neo4j(self, session: ExamSessionResponse) -> None:
         """Persist exam session to Neo4j as EpisodicNode."""

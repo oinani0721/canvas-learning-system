@@ -13,7 +13,7 @@
  */
 
 import { create } from 'zustand';
-import { db, type ExamSessionLocal } from '../services/dexie-db';
+import { db, toExamMode, toExamStatus, type ExamSessionLocal } from '../services/dexie-db';
 import { ApiClient } from '../services/api-client';
 
 export type ExamMode = 'point_to_point' | 'comprehensive' | 'mixed';
@@ -117,16 +117,19 @@ export const useExamStore = create<ExamState>((set, get) => ({
     // Load from IndexedDB first
     const local = await db.exam_sessions.get(examId);
     if (local) {
+      // 6-1 M2: Validate enum values via type guards to handle corrupted DB data
+      const validMode = toExamMode(local.examMode);
+      const validStatus = toExamStatus(local.status);
       set({
         currentExamId: local.id,
         sourceCanvasId: local.sourceCanvasId,
-        examMode: local.examMode as ExamMode,
-        examStatus: local.status as ExamStatus,
+        examMode: validMode,
+        examStatus: validStatus,
         startTime: local.startTime,
         examinedNodes: local.examinedNodes,
         discoveredNodes: local.discoveredNodes,
         currentNodeId: local.currentNodeId || null,
-        isExamActive: local.status === 'in_progress',
+        isExamActive: validStatus === 'in_progress',
       });
     }
   },
