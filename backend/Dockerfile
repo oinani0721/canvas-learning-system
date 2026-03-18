@@ -18,6 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
+# Add src/ to Python path for agentic_rag module
+ENV PYTHONPATH="/app:/app/src:${PYTHONPATH}"
+
 # Expose FastAPI port
 EXPOSE 8001
 
