@@ -17,15 +17,13 @@ Majority vote + low-confidence detection per dimension.
 import json
 import logging
 import statistics
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from app.middleware.prompt_injection_guard import check_input, check_output
 from app.models.exam_models import AutoScoreResult, RubricDimension
+from app.services.prompt_registry import get_prompt_registry
 
 logger = logging.getLogger(__name__)
-
-# Prompt template paths
-_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
 
 # Rubric dimension names
 RUBRIC_DIMENSIONS = [
@@ -53,31 +51,37 @@ class AutoScorer:
     """
 
     def __init__(self) -> None:
-        self._stage1_prompt = self._load_prompt("autoscore_v1.md", section="stage1")
-        self._stage2_prompt = self._load_prompt("autoscore_v1.md", section="stage2")
+        content = self._load_prompt_via_registry()
+        self._stage1_prompt = self._extract_section(content, section="stage1")
+        self._stage2_prompt = self._extract_section(content, section="stage2")
 
-    def _load_prompt(self, filename: str, section: str = "") -> str:
-        """Load a prompt template from the prompts directory."""
-        prompt_path = _PROMPTS_DIR / filename
-        if not prompt_path.exists():
-            logger.warning(f"[Story 6.4] Prompt template not found: {prompt_path}")
+    def _load_prompt_via_registry(self) -> str:
+        """Load autoscore prompt template via PromptRegistry.
+
+        Story 2.13 AC-2: All prompt access through PromptRegistry.get().
+        Falls back to empty string if registry not loaded (startup order).
+        """
+        try:
+            registry = get_prompt_registry()
+            return registry.get("autoscore")
+        except Exception as e:
+            logger.warning(
+                "[Story 2.13] Failed to load autoscore prompt via PromptRegistry: %s",
+                e,
+            )
             return ""
 
-        content = prompt_path.read_text(encoding="utf-8")
-
-        if section == "stage1":
-            # Extract Stage 1 section
-            marker = "## 阶段二"
-            idx = content.find(marker)
-            if idx > 0:
-                return content[:idx].strip()
-        elif section == "stage2":
-            # Extract Stage 2 section
-            marker = "## 阶段二"
-            idx = content.find(marker)
-            if idx > 0:
-                return content[idx:].strip()
-
+    @staticmethod
+    def _extract_section(content: str, section: str) -> str:
+        """Extract a stage section from the autoscore prompt content."""
+        if not content:
+            return ""
+        marker = "## 阶段二"
+        idx = content.find(marker)
+        if section == "stage1" and idx > 0:
+            return content[:idx].strip()
+        elif section == "stage2" and idx > 0:
+            return content[idx:].strip()
         return content
 
     async def evaluate(
@@ -106,6 +110,30 @@ class AutoScorer:
         Returns:
             AutoScoreResult with 4-dimension scores, grade, and confidence.
         """
+        # Story 3.13 AC-5: Input injection check on student conversation
+        injection_check = check_input(conversation_segment)
+        if injection_check.is_blocked:
+            logger.warning(
+                f"[Story 3.13] AutoSCORE input blocked: "
+                f"risk_score={injection_check.risk_score}, "
+                f"patterns={injection_check.matched_patterns}"
+            )
+            return AutoScoreResult(
+                node_id=node_id,
+                exam_id=exam_id,
+                question_id=question_id,
+                evidence_points=["Input blocked by safety filter"],
+                concept_accuracy=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
+                reasoning_quality=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
+                knowledge_coverage=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
+                knowledge_integration=RubricDimension(score=0, justification="Safety filter blocked input", low_confidence=True),
+                overall_score=0,
+                grade=1,
+                confidence="low",
+                low_confidence_dimensions=RUBRIC_DIMENSIONS.copy(),
+                feedback_summary="Input was blocked by safety filter due to detected injection patterns.",
+            )
+
         # Stage 1: Evidence extraction
         evidence = await self._extract_evidence(question_text, conversation_segment)
 

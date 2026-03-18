@@ -230,8 +230,7 @@ async def _write_lancedb(
 
     except ImportError:
         logger.warning(
-            "LanceDB client not available (agentic_rag not installed) "
-            "for edge %s",
+            "LanceDB client not available (agentic_rag not installed) for edge %s",
             rationale.edge_id,
         )
         return WriteStatus(
@@ -258,8 +257,7 @@ async def _write_lancedb(
     response_model=EdgeRationaleResponse,
     summary="记录 Edge 连线理由",
     description=(
-        "Agent 调用此端点记录用户对连线理由的解释。"
-        "执行 Graphiti + LanceDB 双写，支持部分失败（207 Multi-Status）。"
+        "Agent 调用此端点记录用户对连线理由的解释。执行 Graphiti + LanceDB 双写，支持部分失败（207 Multi-Status）。"
     ),
     responses={
         200: {"description": "双写全部成功"},

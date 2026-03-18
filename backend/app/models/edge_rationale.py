@@ -17,7 +17,6 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # Request Models
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -36,19 +35,13 @@ class EdgeRationaleCreate(BaseModel):
     edge_id: str = Field(..., description="Canvas edge identifier")
     source_node_id: str = Field(..., description="Source node identifier")
     target_node_id: str = Field(..., description="Target node identifier")
-    source_concept: str = Field(
-        "", description="Source concept name (display label)"
-    )
-    target_concept: str = Field(
-        "", description="Target concept name (display label)"
-    )
+    source_concept: str = Field("", description="Source concept name (display label)")
+    target_concept: str = Field("", description="Target concept name (display label)")
     relation_type: str = Field(
         ...,
         description="Extracted relationship type (e.g. '是前提条件', '是特殊情况', '相互对比')",
     )
-    rationale_text: str = Field(
-        ..., description="User's original explanation of the relationship"
-    )
+    rationale_text: str = Field(..., description="User's original explanation of the relationship")
     confidence: float = Field(
         ...,
         ge=0.0,
@@ -99,12 +92,8 @@ class EdgeRationaleResponse(BaseModel):
     record_id: str = Field(..., description="Unique record identifier")
     edge_id: str = Field(..., description="Edge that was recorded")
     relation_type: str = Field(..., description="Extracted relation type")
-    graphiti_status: WriteStatus = Field(
-        ..., description="Graphiti write result"
-    )
-    lancedb_status: WriteStatus = Field(
-        ..., description="LanceDB write result"
-    )
+    graphiti_status: WriteStatus = Field(..., description="Graphiti write result")
+    lancedb_status: WriteStatus = Field(..., description="LanceDB write result")
     timestamp: str = Field(
         default_factory=lambda: datetime.utcnow().isoformat(),
         description="Recording timestamp (ISO 8601)",

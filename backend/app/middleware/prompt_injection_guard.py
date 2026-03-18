@@ -38,6 +38,18 @@ INJECTION_THRESHOLD = float(os.getenv("INJECTION_THRESHOLD", "0.7"))
 INJECTION_GUARD_ENABLED = os.getenv("INJECTION_GUARD_ENABLED", "true").lower() == "true"
 SYSTEM_BOUNDARY_MARKER = "<!-- SYSTEM_BOUNDARY_f7a9c2e1 -->"
 
+# Story 3.13 AC-2: Safety degradation response messages
+SAFETY_BLOCK_INPUT_MESSAGE = (
+    "\u68c0\u6d4b\u5230\u5f02\u5e38\u8f93\u5165\u6a21\u5f0f"
+    "\uff0c\u8bf7\u91cd\u65b0\u8868\u8ff0\u60a8\u7684\u95ee\u9898\u3002"
+    "\u5982\u679c\u8fd9\u662f\u6b63\u5e38\u5b66\u4e60\u5185\u5bb9"
+    "\uff0c\u8bf7\u5c1d\u8bd5\u7528\u4e0d\u540c\u7684\u65b9\u5f0f\u63d0\u95ee\u3002"
+)
+SAFETY_BLOCK_OUTPUT_PREFIX = (
+    "[\u5b89\u5168\u63d0\u793a] AI \u8f93\u51fa\u4e2d\u68c0\u6d4b\u5230"
+    "\u6f5c\u5728\u4e0d\u5b89\u5168\u5185\u5bb9\uff0c\u5df2\u8fc7\u6ee4\u5904\u7406\u3002"
+)
+
 
 @dataclass
 class InjectionCheckResult:

@@ -4,6 +4,8 @@
  * Story 3-9: Engine Fallback (engine status indicator)
  * Story 3-10: Quota Management (QuotaExhaustedBanner)
  * Story 3-11: Crash Recovery (RecoveryBanner)
+ * Story 4-1: Edge Dialog Trigger — edge mode rendering
+ * Story 4-2: Edge Dialog Agent Reasoning — edge-specific system prompt
  *
  * Features:
  * - Per-node conversation history persisted in Dexie (AC-4)
@@ -17,9 +19,10 @@
  * - Engine status indicator (Claude Code vs API Key) (Story 3-9)
  * - Quota exhaustion banner with countdown + degradation options (Story 3-10)
  * - Crash recovery banner with auto/manual retry status (Story 3-11)
+ * - Edge dialog mode: header shows "A <-> B", edge-specific system prompt (Story 4-1/4-2)
  *
  * Callers:
- * - App.tsx renders this in the right sidebar when a node is selected
+ * - App.tsx renders this in the right sidebar when a node or edge is selected
  *
  * Wiring:
  * - useChatStore (Zustand) — all message state + streaming actions
@@ -35,7 +38,7 @@
 
 import { useEffect, useRef, useCallback } from 'react';
 import type { Node } from '@xyflow/react';
-import { useChatStore } from '../stores/chat-store';
+import { useChatStore, type EdgeContext } from '../stores/chat-store';
 import { MessageBubble } from './chat/MessageBubble';
 import { InputBar } from './chat/InputBar';
 import { StreamingIndicator } from './chat/StreamingIndicator';
@@ -50,7 +53,10 @@ import { RecoveryBanner } from './chat/RecoveryBanner';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 interface ChatPanelProps {
-  selectedNode: Node;
+  /** Selected node (for normal mode). Null when in edge mode. */
+  selectedNode?: Node | null;
+  /** Edge context (for edge mode). Null when in normal mode. */
+  edgeContext?: EdgeContext | null;
   onOpenSettings?: () => void;
 }
 
@@ -58,10 +64,19 @@ interface ChatPanelProps {
 // Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
-  const nodeId = selectedNode.id;
-  const nodeTitle =
-    ((selectedNode.data as Record<string, unknown>).title as string) || 'Untitled';
+export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPanelProps) {
+  // Story 4-1/4-2: Determine mode from props
+  const chatMode = useChatStore((s) => s.chatMode);
+  const currentEdge = useChatStore((s) => s.currentEdge);
+  const isEdgeMode = chatMode === 'edge' && currentEdge !== null;
+
+  // Derive display values based on mode
+  const nodeId = isEdgeMode
+    ? `edge_${currentEdge!.edgeId}`
+    : selectedNode?.id ?? '';
+  const displayTitle = isEdgeMode
+    ? `${currentEdge!.sourceNodeName} \u2194 ${currentEdge!.targetNodeName}`
+    : ((selectedNode?.data as Record<string, unknown>)?.title as string) || 'Untitled';
 
   // ── Store bindings ────────────────────────────────────────────────────
 
@@ -71,6 +86,7 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
   const waitingForFirstToken = useChatStore((s) => s.waitingForFirstToken);
   const hasMore = useChatStore((s) => s.hasMore);
   const switchNode = useChatStore((s) => s.switchNode);
+  const switchToEdge = useChatStore((s) => s.switchToEdge);
   const loadMore = useChatStore((s) => s.loadMore);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const clearHistory = useChatStore((s) => s.clearHistory);
@@ -82,11 +98,15 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
   const sentinelRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // ── Switch node on selection change ───────────────────────────────────
+  // ── Switch node/edge on selection change ──────────────────────────────
 
   useEffect(() => {
-    switchNode(nodeId);
-  }, [nodeId, switchNode]);
+    if (edgeContext) {
+      switchToEdge(edgeContext);
+    } else if (selectedNode) {
+      switchNode(selectedNode.id);
+    }
+  }, [edgeContext, selectedNode, switchNode, switchToEdge]);
 
   // ── Auto-scroll to bottom on new messages ─────────────────────────────
 
@@ -125,9 +145,9 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
 
   const handleSend = useCallback(
     (text: string) => {
-      sendMessage(text, nodeTitle);
+      sendMessage(text, displayTitle);
     },
-    [sendMessage, nodeTitle],
+    [sendMessage, displayTitle],
   );
 
   // ── Clear handler ─────────────────────────────────────────────────────
@@ -148,11 +168,17 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header — Story 3-9: Engine status indicator added */}
+      {/* Header — Story 3-9: Engine status indicator, Story 4-1: Edge mode header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
           <h3 className="text-sm font-medium text-gray-700 truncate">
-            Chat: {nodeTitle}
+            {isEdgeMode ? (
+              <span title="Edge Dialog">
+                <span className="text-blue-500">Edge:</span> {displayTitle}
+              </span>
+            ) : (
+              <>Chat: {displayTitle}</>
+            )}
           </h3>
           <EngineStatusIndicator />
         </div>
@@ -177,7 +203,7 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
       )}
 
       {/* Story 3-11: Crash recovery banner */}
-      <RecoveryBanner nodeTitle={nodeTitle} />
+      <RecoveryBanner nodeTitle={displayTitle} />
 
       {/* Story 3-10: Quota exhaustion banner */}
       {quotaStatus === 'exhausted' && (
@@ -196,11 +222,14 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
           </div>
         )}
 
-        {/* Empty state */}
+        {/* Empty state — Story 4-1: different prompt for edge mode */}
         {messages.length === 0 && !hasMore && (
           <div className="flex items-center justify-center h-full">
             <p className="text-sm text-gray-400 text-center">
-              Ask anything about &quot;{nodeTitle}&quot;
+              {isEdgeMode
+                ? `Discuss the relationship between "${currentEdge!.sourceNodeName}" and "${currentEdge!.targetNodeName}"`
+                : <>Ask anything about &quot;{displayTitle}&quot;</>
+              }
             </p>
           </div>
         )}
@@ -219,22 +248,24 @@ export function ChatPanel({ selectedNode, onOpenSettings }: ChatPanelProps) {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Tips section (collapsible, below messages) */}
-      <div className="shrink-0 border-t border-gray-100 px-3 py-2 max-h-40 overflow-y-auto">
-        <TipsList nodeId={nodeId} />
-      </div>
+      {/* Tips section (collapsible, below messages) — only in node mode */}
+      {!isEdgeMode && (
+        <div className="shrink-0 border-t border-gray-100 px-3 py-2 max-h-40 overflow-y-auto">
+          <TipsList nodeId={nodeId} />
+        </div>
+      )}
 
       {/* Input bar — disabled when quota exhausted (Story 3-10 AC-4) */}
       <InputBar
         isStreaming={isStreaming}
         engineUnavailable={engineUnavailable}
-        nodeTitle={nodeTitle}
+        nodeTitle={displayTitle}
         onSend={handleSend}
         quotaExhausted={quotaStatus === 'exhausted'}
       />
 
-      {/* Text selection toolbar (floating, appears on text select) */}
-      <SelectionToolbar nodeId={nodeId} />
+      {/* Text selection toolbar (floating, appears on text select) — only in node mode */}
+      {!isEdgeMode && <SelectionToolbar nodeId={nodeId} />}
     </div>
   );
 }

@@ -23,6 +23,7 @@ from app.mcp.pipeline_token import (
     PipelineTokenError,
     get_pipeline_token_manager,
 )
+from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE, check_input
 
 logger = logging.getLogger(__name__)
 
@@ -262,6 +263,25 @@ async def score_answer(
     """
     guardian = get_audit_guardian()
     asyncio.create_task(guardian.record_tool_call("score_answer", session_id, node_id))
+
+    # Story 3.13 AC-5: Input injection check on student answer
+    injection_check = check_input(student_answer)
+    if injection_check.is_blocked:
+        logger.warning(
+            f"[Story 3.13] score_answer input blocked: "
+            f"risk_score={injection_check.risk_score}, "
+            f"patterns={injection_check.matched_patterns}"
+        )
+        return ScoreAnswerOutput(
+            question_id=question_id,
+            score=0.0,
+            grade=1,
+            feedback=SAFETY_BLOCK_INPUT_MESSAGE,
+            is_correct=False,
+            pipeline_token="",
+            status="safety_blocked",
+            message="Input blocked by injection detection",
+        ).model_dump()
 
     # Validate pipeline token (AC-3)
     token_mgr = get_pipeline_token_manager()

@@ -73,6 +73,22 @@ function getCrashRecovery(): CrashRecoveryManager {
 export type QuotaStatus = 'available' | 'exhausted' | 'checking';
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Story 4-1/4-2: Edge dialog types
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Chat panel mode: normal node dialog or edge relationship dialog. */
+export type ChatMode = 'normal' | 'edge';
+
+/** Context for the current edge dialog (when chatMode === 'edge'). */
+export interface EdgeContext {
+  edgeId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  sourceNodeName: string;
+  targetNodeName: string;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Store types
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -113,6 +129,12 @@ interface ChatStoreState {
   // ── Story 3-11: Crash Recovery ──────────────────────────────────────
   /** Current crash recovery status. */
   recoveryStatus: RecoveryStatus;
+
+  // ── Story 4-1/4-2: Edge Dialog ──────────────────────────────────────
+  /** Current chat panel mode. */
+  chatMode: ChatMode;
+  /** Edge context when chatMode === 'edge'. */
+  currentEdge: EdgeContext | null;
 }
 
 interface ChatStoreActions {
@@ -179,6 +201,20 @@ interface ChatStoreActions {
    * Called by: RecoveryBanner "Retry" button.
    */
   manualRetry: (nodeTitle: string) => Promise<void>;
+
+  // ── Story 4-1/4-2: Edge dialog ────────────────────────────────────
+  /**
+   * Switch the chat panel to edge dialog mode.
+   * Loads chat history for the edge session (keyed as edge_{edgeId}).
+   * Called by: App.tsx when user clicks an edge.
+   */
+  switchToEdge: (edge: EdgeContext) => Promise<void>;
+
+  /**
+   * Exit edge mode and return to normal node chat (or no selection).
+   * Called by: App.tsx when user clicks away from edge / selects a node.
+   */
+  exitEdgeMode: () => void;
 }
 
 type ChatStore = ChatStoreState & ChatStoreActions;
@@ -219,6 +255,47 @@ async function deleteNodeMessages(nodeId: string): Promise<void> {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// Story 4-1/4-2: Edge dialog system prompt builder
+// [Source: backend/prompts/edge-dialog.md — translated to frontend constant]
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function buildEdgeSystemPrompt(edge: EdgeContext): string {
+  return [
+    `你是一个学习助手，正在帮助用户理解两个概念之间的关系。`,
+    ``,
+    `## 当前连线`,
+    `- **概念 A**：${edge.sourceNodeName}`,
+    `- **概念 B**：${edge.targetNodeName}`,
+    ``,
+    `## 你的任务`,
+    `用户在白板上把「${edge.sourceNodeName}」和「${edge.targetNodeName}」连在了一起。你需要：`,
+    `1. **友好地询问**用户为什么把这两个概念连在一起`,
+    `2. **深入理解**用户对这段关系的认知`,
+    `3. **帮助用户**把模糊的直觉整理成清晰的表述`,
+    ``,
+    `## 对话风格`,
+    `- 像一个好奇的学伴，而不是老师或考官`,
+    `- 用自然的对话语气，不要用教学术语`,
+    `- 保持轻松，用户应该感觉是在"聊天"而不是"做作业"`,
+    ``,
+    `## 追问策略`,
+    `- 开场：用自然语气引用两端概念名称，询问用户为什么把它们连在一起`,
+    `- 深层追问：当用户只给出表面回答时，追问更深层的因果关系`,
+    `- 最多 3-4 轮追问，避免用户疲劳`,
+    `- 用户给出完整因果关系 + 条件限制 + 自己的表述后可以结束`,
+    ``,
+    `## 理由提取`,
+    `当你判断用户已经充分解释后，在对话中自然地总结关系类型。`,
+    `例如："好的，我理解了——${edge.sourceNodeName} 是 ${edge.targetNodeName} 的前提条件。"`,
+    ``,
+    `## 重要`,
+    `- 不要使用 Active Recall 策略——连线时两端概念都在白板上可见`,
+    `- 不要使用教学术语（EI、SE、Active Recall等）`,
+    `- 不要像做练习或考试那样追问`,
+  ].join('\n');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // Store
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -243,6 +320,10 @@ export const useChatStore = create<ChatStore>((set, get) => ({
   // Story 3-11: Crash Recovery
   recoveryStatus: 'idle',
 
+  // Story 4-1/4-2: Edge Dialog
+  chatMode: 'normal',
+  currentEdge: null,
+
   switchNode: async (nodeId: string) => {
     // Abort any in-progress stream for the previous node
     const prevNodeId = get().currentNodeId;
@@ -261,6 +342,9 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       waitingForFirstToken: false,
       hasMore: total > PAGE_SIZE,
       totalCount: total,
+      // Reset edge mode when switching to a node
+      chatMode: 'normal',
+      currentEdge: null,
     });
   },
 
@@ -333,7 +417,11 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       // (StreamingIndicator reads this to show "Thinking..." vs bouncing dots)
     }, FIRST_TOKEN_TIMEOUT_MS);
 
-    const systemPrompt = `You are helping the user learn about "${nodeTitle}". This is a knowledge node in their Canvas Learning System. Provide clear, educational responses. If the node has specific content, reference it in your explanations.`;
+    // Story 4-1/4-2: Edge mode uses edge-specific system prompt
+    const { chatMode: currentMode, currentEdge } = get();
+    const systemPrompt = currentMode === 'edge' && currentEdge
+      ? buildEdgeSystemPrompt(currentEdge)
+      : `You are helping the user learn about "${nodeTitle}". This is a knowledge node in their Canvas Learning System. Provide clear, educational responses. If the node has specific content, reference it in your explanations.`;
 
     // Accumulator for streaming content (avoids repeated store reads)
     let accumulated = '';
@@ -558,6 +646,47 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     // Re-send the cached message
     set({ recoveryStatus: 'recovering' });
     await get().sendMessage(cachedMsg.message, nodeTitle);
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Story 4-1/4-2: Edge dialog
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  switchToEdge: async (edge: EdgeContext) => {
+    // Abort any in-progress stream
+    const prevNodeId = get().currentNodeId;
+    if (prevNodeId && get().isStreaming) {
+      const mgr = getFallbackManager();
+      await mgr.abort(prevNodeId);
+    }
+
+    // Use edge_{edgeId} as the session key for message persistence
+    const edgeSessionKey = `edge_${edge.edgeId}`;
+
+    const total = await countMessages(edgeSessionKey);
+    const messages = await loadMessages(edgeSessionKey, PAGE_SIZE, 0);
+
+    set({
+      currentNodeId: edgeSessionKey,
+      messages,
+      isStreaming: false,
+      waitingForFirstToken: false,
+      hasMore: total > PAGE_SIZE,
+      totalCount: total,
+      chatMode: 'edge',
+      currentEdge: edge,
+    });
+  },
+
+  exitEdgeMode: () => {
+    set({
+      chatMode: 'normal',
+      currentEdge: null,
+      currentNodeId: null,
+      messages: [],
+      hasMore: false,
+      totalCount: 0,
+    });
   },
 }));
 

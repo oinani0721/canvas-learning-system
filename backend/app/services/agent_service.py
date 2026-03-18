@@ -28,6 +28,11 @@ from cachetools import TTLCache
 
 from app.config import DEFAULT_GROUP_ID
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
+from app.middleware.prompt_injection_guard import (
+    SAFETY_BLOCK_INPUT_MESSAGE,
+    check_input,
+    check_output,
+)
 
 # Story 12.G.2: Agent Error Type Enum
 # [Source: specs/api/agent-api.openapi.yml:617-627]
@@ -2531,6 +2536,22 @@ class AgentService:
         start_time = datetime.now()
         bug_id = _generate_bug_id()  # Story 12.G.2: 生成bug_id
 
+        # Story 3.13 AC-2: Input injection detection before LLM call
+        injection_result = check_input(prompt)
+        if injection_result.is_blocked:
+            logger.warning(
+                f"[Story 3.13] Input blocked for {agent_type.value}: "
+                f"risk_score={injection_result.risk_score}, "
+                f"patterns={injection_result.matched_patterns}"
+            )
+            return AgentResult(
+                agent_type=agent_type,
+                success=True,
+                result={"response": SAFETY_BLOCK_INPUT_MESSAGE},
+                data={"response": SAFETY_BLOCK_INPUT_MESSAGE},
+                duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+            )
+
         async with self._semaphore:
             self._active_calls += 1
             self._total_calls += 1
@@ -2542,6 +2563,17 @@ class AgentService:
                     )
                 else:
                     data = await self._call_gemini_api(agent_type, prompt, context, canvas_name=canvas_name, node_id=node_id)
+
+                # Story 3.13 AC-4: Output safety check after LLM response
+                response_text = data.get("response", "") if isinstance(data, dict) else ""
+                if response_text:
+                    output_result = check_output(response_text)
+                    if not output_result.is_safe:
+                        logger.warning(
+                            f"[Story 3.13] Output safety violation for {agent_type.value}: "
+                            f"violations={output_result.violations}"
+                        )
+                        data["response"] = output_result.sanitized_output
 
                 duration_ms = (datetime.now() - start_time).total_seconds() * 1000
                 return AgentResult(
@@ -2895,13 +2927,29 @@ class AgentService:
                 logger.warning(f"[Phase2.5] Memory preload failed for multimodal: {e}")
 
         start_time = datetime.now()
+
+        # Story 3.13 AC-2: Input injection detection for multimodal path
+        injection_check = check_input(prompt)
+        if injection_check.is_blocked:
+            logger.warning(
+                f"[Story 3.13] Multimodal input blocked for {agent_type.value}: "
+                f"risk_score={injection_check.risk_score}, "
+                f"patterns={injection_check.matched_patterns}"
+            )
+            safety_msg = SAFETY_BLOCK_INPUT_MESSAGE
+            return AgentResult(
+                agent_type=agent_type,
+                success=True,
+                result={"response": safety_msg},
+                data={"response": safety_msg},
+                duration_ms=(datetime.now() - start_time).total_seconds() * 1000,
+            )
+
         async with self._semaphore:
             self._active_calls += 1
             self._total_calls += 1
             try:
                 if self._gemini_client:
-                    # ✅ Verified from Context7:/googleapis/python-genai
-                    # Gemini natively supports multimodal input
                     agent_type_str = agent_type.value if isinstance(agent_type, AgentType) else agent_type
 
                     if timeout:
@@ -2916,13 +2964,21 @@ class AgentService:
                             agent_type_str, prompt, images=images, context=context
                         )
                 else:
-                    # Phase 1 FIX: No fallback to mock - raise error if not configured
-                    # [Source: C:\Users\ROG\.claude\plans\wild-purring-umbrella.md - Phase 1]
-                    # [Gemini Migration] Now uses GOOGLE_API_KEY
                     raise RuntimeError(
                         "GeminiClient not configured for multimodal! "
                         "Please set GOOGLE_API_KEY in backend/.env or plugin settings."
                     )
+
+                # Story 3.13 AC-4: Output safety check for multimodal path
+                resp_text = data.get("response", "") if isinstance(data, dict) else ""
+                if resp_text:
+                    out_check = check_output(resp_text)
+                    if not out_check.is_safe:
+                        logger.warning(
+                            f"[Story 3.13] Multimodal output safety violation for {agent_type.value}: "
+                            f"violations={out_check.violations}"
+                        )
+                        data["response"] = out_check.sanitized_output
 
                 duration_ms = (datetime.now() - start_time).total_seconds() * 1000
                 return AgentResult(

@@ -28,6 +28,7 @@ import httpx
 from google import genai
 
 from app.config import get_settings, settings
+from app.middleware.prompt_injection_guard import check_input, check_output
 
 logger = logging.getLogger(__name__)
 
@@ -378,6 +379,21 @@ class GeminiClient:
         if not self.client and not self._http_client:
             raise RuntimeError("Neither genai client nor HTTP client initialized.")
 
+        # Story 3.13 AC-2: Input injection check at LLM client layer
+        inj_check = check_input(user_prompt)
+        if inj_check.is_blocked:
+            logger.warning(
+                f"[Story 3.13] GeminiClient input blocked for {agent_type}: "
+                f"risk_score={inj_check.risk_score}, patterns={inj_check.matched_patterns}"
+            )
+            from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+            return {
+                "agent_type": agent_type,
+                "response": SAFETY_BLOCK_INPUT_MESSAGE,
+                "model": self.model,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
         # Load agent prompt template
         template = self.load_prompt_template(agent_type)
 
@@ -426,6 +442,16 @@ class GeminiClient:
                 temperature=temperature,
             )
             result["agent_type"] = agent_type
+            # Story 3.13 AC-4: Output safety check for OpenAI-compatible path
+            resp_text = result.get("response", "")
+            if resp_text:
+                out_check = check_output(resp_text, system_prompt=system_prompt)
+                if not out_check.is_safe:
+                    logger.warning(
+                        f"[Story 3.13] GeminiClient (OpenAI-compat) output safety violation: "
+                        f"violations={out_check.violations}"
+                    )
+                    result["response"] = out_check.sanitized_output
             return result
         else:
             # Use Google genai library
@@ -473,6 +499,16 @@ class GeminiClient:
                 )
 
             logger.info(f"Gemini API call successful for agent={agent_type}, response_len={len(response_text)}")
+
+            # Story 3.13 AC-4: Output safety check
+            if response_text:
+                out_check = check_output(response_text, system_prompt=system_prompt)
+                if not out_check.is_safe:
+                    logger.warning(
+                        f"[Story 3.13] GeminiClient output safety violation for {agent_type}: "
+                        f"violations={out_check.violations}"
+                    )
+                    response_text = out_check.sanitized_output
 
             return {
                 "agent_type": agent_type,

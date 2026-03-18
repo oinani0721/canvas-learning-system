@@ -22,6 +22,7 @@ from anthropic import AsyncAnthropic
 from anthropic.types import Message
 
 from app.config import settings
+from app.middleware.prompt_injection_guard import check_input, check_output
 
 logger = logging.getLogger(__name__)
 
@@ -209,6 +210,21 @@ class ClaudeClient:
                 "Please configure ANTHROPIC_API_KEY in .env or environment."
             )
 
+        # Story 3.13 AC-2: Input injection check at LLM client layer
+        inj_check = check_input(user_prompt)
+        if inj_check.is_blocked:
+            logger.warning(
+                f"[Story 3.13] ClaudeClient input blocked for {agent_type}: "
+                f"risk_score={inj_check.risk_score}, patterns={inj_check.matched_patterns}"
+            )
+            from app.middleware.prompt_injection_guard import SAFETY_BLOCK_INPUT_MESSAGE
+            return {
+                "agent_type": agent_type,
+                "response": SAFETY_BLOCK_INPUT_MESSAGE,
+                "model": self.model,
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+
         # Load agent prompt template
         template = self.load_prompt_template(agent_type)
 
@@ -244,6 +260,16 @@ class ClaudeClient:
                 response_text += block.text
 
         logger.info(f"Claude API call successful: {response.usage.input_tokens} in, {response.usage.output_tokens} out")
+
+        # Story 3.13 AC-4: Output safety check
+        if response_text:
+            out_check = check_output(response_text, system_prompt=system_prompt)
+            if not out_check.is_safe:
+                logger.warning(
+                    f"[Story 3.13] ClaudeClient output safety violation for {agent_type}: "
+                    f"violations={out_check.violations}"
+                )
+                response_text = out_check.sanitized_output
 
         return {
             "agent_type": agent_type,
