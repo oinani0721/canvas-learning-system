@@ -11,6 +11,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const [editContent, setEditContent] = useState(nodeData.content || '');
   const updateNode = useCanvasStore((s) => s.updateNode);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const masteryStatus = nodeData.masteryStatus ?? 'unlearned';
   const borderColor = getMasteryBorderClass(masteryStatus);
@@ -71,18 +72,29 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     [scheduleSave, editTitle],
   );
 
-  const handleBlur = useCallback(() => {
-    // Flush any pending debounced save
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-    updateNode(id, { title: editTitle, content: editContent });
-    setIsEditing(false);
-  }, [id, editTitle, editContent, updateNode]);
+  // Container-level blur: only exit editing when focus leaves the entire node
+  const handleContainerBlur = useCallback(
+    (e: React.FocusEvent) => {
+      // Check if the new focus target is still inside this node container
+      const relatedTarget = e.relatedTarget as HTMLElement | null;
+      if (containerRef.current && relatedTarget && containerRef.current.contains(relatedTarget)) {
+        // Focus moved to another input within the node (title → content or vice versa)
+        return;
+      }
+      // Focus left the node entirely — save and exit editing
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      updateNode(id, { title: editTitle, content: editContent });
+      setIsEditing(false);
+    },
+    [id, editTitle, editContent, updateNode],
+  );
 
   return (
     <div
+      ref={containerRef}
       className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
       } min-w-[200px] relative`}
@@ -91,6 +103,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         ...(nodeData.color ? { borderColor: nodeData.color } : {}),
       }}
       onDoubleClick={handleDoubleClick}
+      onBlur={isEditing ? handleContainerBlur : undefined}
     >
       {/* Story 5-2: Left mastery color bar indicator */}
       {masteryStatus !== 'unlearned' && (
@@ -113,7 +126,6 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
             type="text"
             value={editTitle}
             onChange={handleTitleChange}
-            onBlur={handleBlur}
             className="w-full text-sm font-medium text-gray-900 border-none outline-none bg-transparent"
             placeholder="Node title..."
             autoFocus
@@ -139,7 +151,6 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
             className="w-full text-xs text-gray-800 border-none outline-none resize-y bg-transparent"
             value={editContent}
             onChange={handleContentChange}
-            onBlur={handleBlur}
             rows={3}
             placeholder="Enter content..."
           />
