@@ -95,10 +95,12 @@ export interface CliCheckResult {
 const SIDECAR_COMMAND_NAME = 'canvas-sidecar';
 
 /**
- * Relative path to the sidecar script from the frontend root.
- * In development: resolved relative to the Vite dev server's working directory.
+ * Absolute path to the sidecar script, injected by Vite at build time.
+ * Tauri binary CWD is src-tauri/target/debug/, not the project root,
+ * so relative paths don't work. Vite's `define` resolves this at compile time.
  */
-const SIDECAR_SCRIPT_PATH = 'sidecar/sidecar.js';
+declare const __SIDECAR_SCRIPT_PATH__: string;
+const SIDECAR_SCRIPT_PATH = __SIDECAR_SCRIPT_PATH__;
 
 /** Default MCP server URL for the backend. */
 const DEFAULT_MCP_URL = 'http://localhost:8001/mcp';

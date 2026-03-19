@@ -1,12 +1,20 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import { resolve } from 'path';
 
 const host = process.env.TAURI_DEV_HOST;
 
 // https://v2.tauri.app/start/frontend/vite/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: {
+    // Inject absolute path to sidecar script at build time.
+    // Tauri binary CWD differs from project root, so relative paths break.
+    __SIDECAR_SCRIPT_PATH__: JSON.stringify(
+      resolve(__dirname, 'sidecar', 'sidecar.js'),
+    ),
+  },
   clearScreen: false,
   server: {
     port: 5173,
