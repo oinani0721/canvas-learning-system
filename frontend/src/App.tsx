@@ -1029,6 +1029,7 @@ function Canvas() {
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
           deleteKeyCode={null}
+          connectionRadius={20}
           panOnDrag={[1, 2]}
           panOnScroll={false}
           selectionOnDrag={false}

@@ -133,7 +133,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       ref={containerRef}
       className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
-      } min-w-[200px] relative w-full h-full flex flex-col`}
+      } min-w-[200px] relative w-full h-full flex flex-col group`}
       style={{
         transition: 'border-color 300ms ease-in-out',
         ...(nodeData.color ? { borderColor: nodeData.color } : {}),
@@ -230,26 +230,26 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         </div>
       </div>
 
-      {/* Handles */}
+      {/* Handles — hidden by default, visible on hover (matches Obsidian Canvas) */}
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-2 !h-2 !bg-gray-400"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-2 !h-2 !bg-gray-400"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
       />
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-2 !h-2 !bg-gray-400"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-2 !h-2 !bg-gray-400"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
       />
     </div>
   );
