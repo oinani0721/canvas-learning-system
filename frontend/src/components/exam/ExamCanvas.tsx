@@ -72,6 +72,7 @@ function ExamCanvasInner() {
   const exitExam = useExamStore((s) => s.exitExam);
   const updateStatus = useExamStore((s) => s.updateStatus);
   const recordNodeExamined = useExamStore((s) => s.recordNodeExamined);
+  const recordNodeDiscovered = useExamStore((s) => s.recordNodeDiscovered);
   const setCurrentNode = useExamStore((s) => s.setCurrentNode);
 
   // End exam confirmation
@@ -146,7 +147,9 @@ function ExamCanvasInner() {
         setNodes((nds) => [...nds, newNode]);
         setSelectedNode(newNode);
         setCurrentNode(newId);
+        recordNodeDiscovered(newId);
         lastClickTimeRef.current = 0;
+        return; // Don't call onPaneClick after double-click creation
       } else {
         lastClickTimeRef.current = now;
         lastClickPosRef.current = { x: event.clientX, y: event.clientY };
@@ -154,7 +157,7 @@ function ExamCanvasInner() {
 
       onPaneClick();
     },
-    [reactFlowInstance, setNodes, setCurrentNode, onPaneClick],
+    [reactFlowInstance, setNodes, setCurrentNode, recordNodeDiscovered, onPaneClick],
   );
 
   // End exam handler

@@ -34,7 +34,8 @@ const HINT_LABELS = [
 
 export function HintButton() {
   const currentExamId = useExamStore((s) => s.currentExamId);
-  const [hintLevel, setHintLevel] = useState(0);
+  const hintLevel = useExamStore((s) => s.hintLevel);
+  const incrementHintLevel = useExamStore((s) => s.incrementHintLevel);
   const [isLoading, setIsLoading] = useState(false);
   const maxLevel = 4;
 
@@ -46,13 +47,13 @@ export function HintButton() {
       await apiClient.post(`/api/v1/exam/${currentExamId}/hint`, {
         hint_level: hintLevel + 1,
       });
-      setHintLevel((prev) => Math.min(prev + 1, maxLevel));
+      incrementHintLevel();
     } catch (err) {
       console.error('[HintButton] Failed to request hint:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [currentExamId, hintLevel, isLoading]);
+  }, [currentExamId, hintLevel, isLoading, incrementHintLevel]);
 
   const isMaxed = hintLevel >= maxLevel;
 

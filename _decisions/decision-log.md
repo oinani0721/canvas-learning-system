@@ -30,10 +30,12 @@
 | 2026-03-18 | Code-Review | Story 2-3/1-9/2-4/2-13 审查 | ⚠️ 1-9+2-13需修复 | 2-3:可复用(2M1L);1-9:需修复(3C3H—cross_subject死代码+ContextVar未接入+driver泄漏);2-4:需修复minor(3M2L);2-13:需修复(2C2H—模板内容被丢弃只用1行+回归测试仅replay无live)。1-9/2-13 CRITICAL已修复(commit e12f592) |
 | 2026-03-18 | Code-Review | BMAD审查 Story 2-5/2-7 | ⚠️ 需修复 | 2-5:3H3M4L(requirements版本+fusion组映射+单例ignoreConfig+z-score单文档bias);2-7:3H4M2L(TOCTOU竞态+vault_path回退C8+零测试+全文件hash读) |
 | 2026-03-18 | Code-Review | BMAD全量补审38个Story | ⛔ 14C54H62M23L=153问题 | 关键：multi_query死数据(2-10)、归档无限循环(3-8)、3-1死代码(旧路径)、信号融合未接入(5-6)、get_nodes_by_canvas不存在(6-3)、score_answer空question(3-2/6-4) |
+| 2026-03-18 | Code-Review | 15新前端组件BMAD审查 | ✅ 0C2H4M7L=13问题(已修复) | ExamCanvas双击deselect(H)+exam-store unsafe cast(H)+HintButton hintLevel local(M)+SkillSelector亮色主题(M)+Dexie silent catch×5(M)+ExamCanvas节点未持久化(M)。全部修复，tsc通过 |
+| 2026-03-18 | Code-Review | 后端17新文件MVP对照审查 | ✅ 0功能蔓延 | 15文件对应MVP#2-#13，2文件(llm_call_logger+prompt_injection_guard)为安全/可观测基础设施。DE-3修正为"技术栈保留+功能扩展" |
 | 2026-03-16 | 对话引擎 | Spawn官方CLI+订阅额度 | ✅ 确认(Review PENDING) | Claude Agent SDK spawn官方Claude Code CLI，用户订阅额度。参考Claudian/Pencil/Zed ACP。Fallback: API Key |
 | 2026-03-17 | DE-1 | Tauri+React+ReactFlow | ✅ 用户确认 | 独立桌面应用替代Obsidian插件。社区+学术双重验证(20+案例+20+论文) |
 | 2026-03-17 | DE-2 | UI全量重写 | ✅ 用户确认 | shadcn/ui+TailwindCSS+Catppuccin Mocha。80+Svelte文件删除。附：未来提供浅色切换 |
-| 2026-03-17 | DE-3 | 后端全部保留 | ✅ 用户确认 | FastAPI/Neo4j/LanceDB/BKT+FSRS/claude-engine/api-client不变 |
+| 2026-03-17 | DE-3 | 后端技术栈保留+功能扩展 | ✅ 用户确认(已修正) | 技术栈(FastAPI/Neo4j/LanceDB)保留。服务层按MVP需求扩展(+17文件/+5746行)。审计确认0功能蔓延:15文件对应MVP#2-#13，2文件为安全/可观测基础设施 |
 | 2026-03-17 | DE-4 | Docker Shell管理 | ✅ 用户确认(Review PENDING) | Tauri Shell Plugin管理Docker Compose生命周期。需验证全路径+退出清理 |
 | 2026-03-17 | DE-5 | CSP策略 | ✅ 用户确认(Review PENDING) | 开发阶段csp:null，上线前改为定向放行(localhost+Claude API) |
 | 2026-03-17 | 工作流 | Pencil UI范式在架构之后编码之前 | ✅ 用户确认(Review PENDING) | Session1架构→Session2 Pencil换皮→确认后编码 |

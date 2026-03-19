@@ -140,17 +140,17 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
   return (
     <div
       ref={containerRef}
-      className="shrink-0 border-t border-gray-200 bg-white shadow-lg rounded-t-lg max-h-60 overflow-hidden flex flex-col"
+      className="shrink-0 border-t border-[#313244] bg-[#1e1e2e] shadow-lg rounded-t-lg max-h-60 overflow-hidden flex flex-col"
     >
       {/* Header */}
-      <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-500">
+      <div className="px-3 py-1.5 border-b border-[#313244] flex items-center justify-between">
+        <span className="text-xs font-medium text-[#6c7086]">
           Skills {query && `— "${query}"`}
         </span>
         <button
           type="button"
           onClick={onDismiss}
-          className="text-xs text-gray-400 hover:text-gray-600"
+          className="text-xs text-[#585b70] hover:text-[#a6adc8]"
           aria-label="Dismiss skill selector"
         >
           Esc
@@ -160,14 +160,14 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
       {/* Loading state */}
       {loading && (
         <div className="px-3 py-4 text-center">
-          <span className="text-xs text-gray-400">Loading skills...</span>
+          <span className="text-xs text-[#585b70]">Loading skills...</span>
         </div>
       )}
 
       {/* Empty state */}
       {!loading && filtered.length === 0 && (
         <div className="px-3 py-4 text-center">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-[#585b70]">
             {skills.length === 0
               ? 'No skills available from backend'
               : `No skills matching "${query}"`}
@@ -190,8 +190,8 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
               onClick={() => onSelect(`/${skill.command}`)}
               className={`px-3 py-2 cursor-pointer flex items-start gap-2 transition-colors ${
                 idx === activeIndex
-                  ? 'bg-blue-50 text-blue-700'
-                  : 'text-gray-700 hover:bg-gray-50'
+                  ? 'bg-[#313244] text-[#89b4fa]'
+                  : 'text-[#cdd6f4] hover:bg-[#313244]/50'
               }`}
             >
               <div className="flex-1 min-w-0">
@@ -200,13 +200,13 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
                     /{skill.command}
                   </span>
                   {skill.category && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500 shrink-0">
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#313244] text-[#6c7086] shrink-0">
                       {skill.category}
                     </span>
                   )}
                 </div>
                 {skill.description && (
-                  <p className="text-xs text-gray-500 mt-0.5 truncate">
+                  <p className="text-xs text-[#6c7086] mt-0.5 truncate">
                     {skill.description}
                   </p>
                 )}
@@ -217,8 +217,8 @@ export function SkillSelector({ query, onSelect, onDismiss }: SkillSelectorProps
       )}
 
       {/* Footer hint */}
-      <div className="px-3 py-1 border-t border-gray-100">
-        <span className="text-[10px] text-gray-400">
+      <div className="px-3 py-1 border-t border-[#313244]">
+        <span className="text-[10px] text-[#585b70]">
           Arrow keys to navigate, Enter to select, Esc to dismiss
         </span>
       </div>

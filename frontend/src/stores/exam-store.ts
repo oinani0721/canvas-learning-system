@@ -38,6 +38,8 @@ interface ExamState {
   currentNodeId: string | null;
   /** Whether an exam is actively running. */
   isExamActive: boolean;
+  /** Current hint level for the active question (0-4, resets per node). */
+  hintLevel: number;
 
   // Actions
   createExam: (
@@ -52,6 +54,8 @@ interface ExamState {
   recordNodeExamined: (nodeId: string) => void;
   recordNodeDiscovered: (nodeId: string) => void;
   setCurrentNode: (nodeId: string | null) => void;
+  incrementHintLevel: () => void;
+  resetHintLevel: () => void;
 }
 
 const apiClient = new ApiClient();
@@ -66,6 +70,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
   discoveredNodes: [],
   currentNodeId: null,
   isExamActive: false,
+  hintLevel: 0,
 
   createExam: async (
     sourceCanvasId: string,
@@ -78,7 +83,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
         console.error('[Story 6.1] Exam creation failed: null response from apiClient');
         return null;
       }
-      const examId = session.id as string;
+      const examId = typeof session.id === 'string' ? session.id : String(session.id ?? '');
       const nowIso = new Date().toISOString();
 
       // Persist to IndexedDB
@@ -160,7 +165,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
       }).catch((err) => console.warn('[Story 6.2] Mode sync failed:', err));
 
       // Update IndexedDB
-      db.exam_sessions.update(currentExamId, { examMode: mode }).catch(() => {});
+      db.exam_sessions.update(currentExamId, { examMode: mode }).catch((e) => console.warn('[exam-store] Dexie mode sync failed:', e));
     }
   },
 
@@ -172,7 +177,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
     });
 
     if (currentExamId) {
-      db.exam_sessions.update(currentExamId, { status }).catch(() => {});
+      db.exam_sessions.update(currentExamId, { status }).catch((e) => console.warn('[exam-store] Dexie status sync failed:', e));
     }
   },
 
@@ -188,7 +193,7 @@ export const useExamStore = create<ExamState>((set, get) => ({
             examinedNodes: updated,
             currentNodeId: nodeId,
           })
-          .catch(() => {});
+          .catch((e) => console.warn('[exam-store] Dexie examined sync failed:', e));
       }
     }
   },
@@ -202,19 +207,28 @@ export const useExamStore = create<ExamState>((set, get) => ({
       if (currentExamId) {
         db.exam_sessions
           .update(currentExamId, { discoveredNodes: updated })
-          .catch(() => {});
+          .catch((e) => console.warn('[exam-store] Dexie discovered sync failed:', e));
       }
     }
   },
 
   setCurrentNode: (nodeId: string | null) => {
     const { currentExamId } = get();
-    set({ currentNodeId: nodeId });
+    set({ currentNodeId: nodeId, hintLevel: 0 }); // Reset hint level when switching nodes
 
     if (currentExamId && nodeId) {
       db.exam_sessions
         .update(currentExamId, { currentNodeId: nodeId })
-        .catch(() => {});
+        .catch((e) => console.warn('[exam-store] Dexie currentNode sync failed:', e));
     }
+  },
+
+  incrementHintLevel: () => {
+    const { hintLevel } = get();
+    set({ hintLevel: Math.min(hintLevel + 1, 4) });
+  },
+
+  resetHintLevel: () => {
+    set({ hintLevel: 0 });
   },
 }));
