@@ -134,10 +134,7 @@ export function ExamSummary({ examId, onReturnDashboard }: ExamSummaryProps) {
     [apiClient, examId],
   );
 
-  // View detailed records handler
-  const handleViewDetails = useCallback(() => {
-    console.log('[ExamSummary] View detailed records for exam:', examId);
-  }, [examId]);
+  // View detailed records — disabled until exam detail view is implemented
 
   const voteButtons: { value: CalibrationVote; label: string; icon: string }[] = [
     { value: 'too_high', label: '偏高了', icon: '↑' },
@@ -357,8 +354,9 @@ export function ExamSummary({ examId, onReturnDashboard }: ExamSummaryProps) {
           {/* Action buttons */}
           <div className="flex gap-3 mt-auto">
             <button
-              onClick={handleViewDetails}
-              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-[#313244] text-[#cdd6f4] hover:bg-[#45475a] transition-colors"
+              disabled
+              className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-[#313244] text-[#585b70] cursor-not-allowed transition-colors"
+              title="详细记录功能开发中"
             >
               查看详细记录
             </button>

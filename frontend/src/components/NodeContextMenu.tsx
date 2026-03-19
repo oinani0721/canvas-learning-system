@@ -187,7 +187,7 @@ function ColorSubmenu({
           <button
             key={opt.name}
             onClick={() => {
-              onColorChange(nodeId, opt.name);
+              onColorChange(nodeId, opt.hex as unknown as NodeColor);
               onClose();
             }}
             className="w-5 h-5 rounded-full transition-transform hover:scale-125 focus:outline-none"

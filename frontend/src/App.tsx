@@ -533,6 +533,8 @@ function Canvas() {
 
   const handleContextMenuDelete = useCallback(
     async (nodeId: string) => {
+      const nodeName = nodes.find((n) => n.id === nodeId)?.data?.title || '此节点';
+      if (!window.confirm(`确定要删除"${nodeName}"吗？此操作不可撤销。`)) return;
       await deleteNodes([nodeId]);
       triggerSync();
       // Remove from ReactFlow state
@@ -544,7 +546,7 @@ function Canvas() {
         setSelectedNodeId(null);
       }
     },
-    [deleteNodes, triggerSync, setNodes, setEdges, selectedNodeId, setSelectedNodeId],
+    [nodes, deleteNodes, triggerSync, setNodes, setEdges, selectedNodeId, setSelectedNodeId],
   );
 
   // Story 4-1: Edge click → open edge dialog in sidebar

@@ -56,16 +56,16 @@ interface AnnotationPanelState {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const TAG_OPTIONS: { value: AnnotationTag; label: string; color: string }[] = [
-  { value: 'tips', label: '💡 Tips', color: 'bg-amber-100 text-amber-800 border-amber-300' },
-  { value: 'error', label: '❌ 错误', color: 'bg-red-100 text-red-800 border-red-300' },
-  { value: 'question', label: '❓ 提问', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-  { value: 'keypoint', label: '📌 关键点', color: 'bg-green-100 text-green-800 border-green-300' },
+  { value: 'tips', label: '💡 Tips', color: 'bg-[#f9e2af]/15 text-[#f9e2af] border-[#f9e2af]/30' },
+  { value: 'error', label: '❌ 错误', color: 'bg-[#f38ba8]/15 text-[#f38ba8] border-[#f38ba8]/30' },
+  { value: 'question', label: '❓ 提问', color: 'bg-[#89b4fa]/15 text-[#89b4fa] border-[#89b4fa]/30' },
+  { value: 'keypoint', label: '📌 关键点', color: 'bg-[#a6e3a1]/15 text-[#a6e3a1] border-[#a6e3a1]/30' },
 ];
 
 const UNDERSTANDING_OPTIONS: { value: UnderstandingLevel; label: string; color: string }[] = [
-  { value: 'understood', label: '已懂', color: 'bg-green-500 text-white' },
-  { value: 'fuzzy', label: '模糊', color: 'bg-yellow-500 text-white' },
-  { value: 'not-understood', label: '不懂', color: 'bg-red-500 text-white' },
+  { value: 'understood', label: '已懂', color: 'bg-[#a6e3a1]/20 text-[#a6e3a1]' },
+  { value: 'fuzzy', label: '模糊', color: 'bg-[#f9e2af]/20 text-[#f9e2af]' },
+  { value: 'not-understood', label: '不懂', color: 'bg-[#f38ba8]/20 text-[#f38ba8]' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -362,7 +362,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
     return (
       <div
         ref={panelRef}
-        className="fixed z-[9999] w-[420px] rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden"
+        className="fixed z-[9999] w-[420px] rounded-xl bg-[#1e1e2e] shadow-2xl border border-[#313244] overflow-hidden"
         style={{
           top: toolbarPosition ? Math.max(toolbarPosition.top - 40, 60) : 100,
           left: toolbarPosition
@@ -371,8 +371,8 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
         }}
       >
         {/* 面板头部 */}
-        <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
-          <h4 className="text-sm font-semibold text-gray-800">添加标注</h4>
+        <div className="flex items-center justify-between px-4 py-3 bg-[#181825] border-b border-[#313244]">
+          <h4 className="text-sm font-semibold text-[#cdd6f4]">添加标注</h4>
           <button
             type="button"
             onClick={closePanel}
@@ -384,8 +384,8 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
         </div>
 
         {/* 选中文本预览 */}
-        <div className="px-4 py-3 bg-gray-50/50 border-b border-gray-100">
-          <p className="text-xs text-gray-500 mb-1">选中内容</p>
+        <div className="px-4 py-3 bg-[#181825]/50 border-b border-[#313244]">
+          <p className="text-xs text-[#6c7086] mb-1">选中内容</p>
           <p className="text-sm text-gray-700 leading-relaxed line-clamp-3 italic">
             &ldquo;{panelState.selectedText}&rdquo;
           </p>
@@ -406,7 +406,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
                   className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
                     activeTag === tag.value
                       ? `${tag.color} ring-2 ring-offset-1 ring-gray-300`
-                      : 'bg-gray-50 text-gray-500 border-gray-200 hover:bg-gray-100'
+                      : 'bg-[#313244] text-[#6c7086] border-[#45475a] hover:bg-[#45475a]'
                   }`}
                 >
                   {tag.label}
@@ -426,7 +426,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
               onChange={(e) => setNote(e.target.value)}
               placeholder="写下你的想法或疑问..."
               rows={3}
-              className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent placeholder:text-gray-300"
+              className="w-full px-3 py-2 text-sm border border-[#313244] bg-[#181825] text-[#cdd6f4] rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-[#89b4fa] focus:border-transparent placeholder:text-[#585b70]"
             />
           </div>
 
@@ -444,7 +444,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
                   className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
                     understanding === opt.value
                       ? `${opt.color} shadow-sm ring-2 ring-offset-1 ring-gray-300`
-                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      : 'bg-[#313244] text-[#6c7086] hover:bg-[#45475a]'
                   }`}
                 >
                   {opt.label}
@@ -455,11 +455,11 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
         </div>
 
         {/* 操作按钮 */}
-        <div className="flex items-center justify-end gap-2 px-4 py-3 bg-gray-50 border-t border-gray-200">
+        <div className="flex items-center justify-end gap-2 px-4 py-3 bg-[#181825] border-t border-[#313244]">
           <button
             type="button"
             onClick={closePanel}
-            className="px-4 py-2 text-xs font-medium text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+            className="px-4 py-2 text-xs font-medium text-[#6c7086] hover:text-[#a6adc8] hover:bg-[#313244] rounded-lg transition-colors"
           >
             取消
           </button>
@@ -467,7 +467,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="px-5 py-2 text-xs font-medium text-white bg-blue-500 hover:bg-blue-600 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-5 py-2 text-xs font-medium text-[#1e1e2e] bg-[#cba6f7] hover:bg-[#b4befe] rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isSaving ? '保存中...' : '确认标注'}
           </button>
@@ -484,7 +484,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
       ref={toolbarRef}
       role="toolbar"
       aria-label="内联标注工具栏"
-      className="fixed z-[9999] flex items-center gap-0.5 rounded-lg bg-gray-900 px-1 py-1 shadow-lg"
+      className="fixed z-[9999] flex items-center gap-0.5 rounded-lg bg-[#181825] border border-[#313244] px-1 py-1 shadow-lg"
       style={{
         top: toolbarPosition.top,
         left: toolbarPosition.left,
@@ -494,7 +494,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
       <button
         type="button"
         onClick={() => openPanel('keypoint')}
-        className="rounded px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        className="rounded px-2.5 py-1.5 text-xs font-medium text-[#cdd6f4] transition-colors hover:bg-[#313244] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#89b4fa]"
         title="标注为关键点"
       >
         📌 标注
@@ -505,7 +505,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
       <button
         type="button"
         onClick={() => openPanel('tips')}
-        className="rounded px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        className="rounded px-2.5 py-1.5 text-xs font-medium text-[#cdd6f4] transition-colors hover:bg-[#313244] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#89b4fa]"
         title="添加 Tips 备注"
       >
         💡 Tips
@@ -516,7 +516,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
       <button
         type="button"
         onClick={() => openPanel('question')}
-        className="rounded px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+        className="rounded px-2.5 py-1.5 text-xs font-medium text-[#cdd6f4] transition-colors hover:bg-[#313244] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#89b4fa]"
         title="标注为疑问"
       >
         ❓ 提问
@@ -528,7 +528,7 @@ export function InlineAnnotation({ nodeId, onPullToNode }: InlineAnnotationProps
         type="button"
         onClick={handlePullToNode}
         disabled={!onPullToNode}
-        className="rounded px-2.5 py-1.5 text-xs font-medium text-gray-100 transition-colors hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 disabled:cursor-not-allowed disabled:opacity-40"
+        className="rounded px-2.5 py-1.5 text-xs font-medium text-[#cdd6f4] transition-colors hover:bg-[#313244] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#89b4fa] disabled:cursor-not-allowed disabled:opacity-40"
         title="拉取到节点"
       >
         拉到节点
