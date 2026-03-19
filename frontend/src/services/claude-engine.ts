@@ -661,6 +661,19 @@ export class ClaudeEngine {
         queryCmd.resume = existingSessionId;
       }
 
+      // F4: Set cwd to vault path so SDK can discover vault files
+      try {
+        const settingsJson = localStorage.getItem('canvas-learning-settings');
+        if (settingsJson) {
+          const settings = JSON.parse(settingsJson) as { vaultPath?: string };
+          if (settings.vaultPath) {
+            queryCmd.cwd = settings.vaultPath;
+          }
+        }
+      } catch {
+        // Settings unavailable — SDK uses process.cwd() as fallback
+      }
+
       // MCP servers (default: backend at localhost:8001/mcp)
       queryCmd.mcpServers = {
         canvas: { type: 'http', url: DEFAULT_MCP_URL },
