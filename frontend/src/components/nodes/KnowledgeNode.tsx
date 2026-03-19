@@ -199,7 +199,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
             placeholder="Enter content..."
           />
         ) : (
-          <div className="nodrag nopan min-h-[40px]">
+          <div className="min-h-[40px]">
             {nodeData.content ? (
               <div className="prose prose-sm max-w-none break-words text-gray-600 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                 <ReactMarkdown
