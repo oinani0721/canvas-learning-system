@@ -147,8 +147,8 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         isVisible={selected}
         minWidth={200}
         minHeight={80}
-        lineClassName="!border-blue-400"
-        handleClassName="!w-2 !h-2 !bg-blue-500 !border-blue-500"
+        lineClassName="!border-blue-400 !border-[3px]"
+        handleClassName="!w-2.5 !h-2.5 !bg-blue-500 !border-blue-500"
       />
       {/* Story 5-2: Left mastery color bar indicator */}
       {masteryStatus !== 'unlearned' && (
