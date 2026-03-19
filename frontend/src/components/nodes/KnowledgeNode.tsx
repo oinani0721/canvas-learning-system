@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react';
 import type { KnowledgeNodeData } from '../../types';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { getMasteryBorderClass, getMasteryColor } from '../../services/mastery-utils';
@@ -10,6 +10,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const [editTitle, setEditTitle] = useState(nodeData.title || '');
   const [editContent, setEditContent] = useState(nodeData.content || '');
   const updateNode = useCanvasStore((s) => s.updateNode);
+  const { setNodes } = useReactFlow();
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -43,15 +44,31 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     setIsEditing(true);
   }, []);
 
-  // Debounced save to Dexie (300ms per AC-2)
+  // Save to Dexie + update ReactFlow in-memory state
+  const saveAndSync = useCallback(
+    (title: string, content: string) => {
+      updateNode(id, { title, content });
+      // Sync ReactFlow node data so view mode shows updated content
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === id
+            ? { ...n, data: { ...n.data, title, content } }
+            : n,
+        ),
+      );
+    },
+    [id, updateNode, setNodes],
+  );
+
+  // Debounced save (300ms per AC-2)
   const scheduleSave = useCallback(
     (title: string, content: string) => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        updateNode(id, { title, content });
+        saveAndSync(title, content);
       }, 300);
     },
-    [id, updateNode],
+    [saveAndSync],
   );
 
   const handleTitleChange = useCallback(
@@ -86,10 +103,10 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         clearTimeout(debounceRef.current);
         debounceRef.current = null;
       }
-      updateNode(id, { title: editTitle, content: editContent });
+      saveAndSync(editTitle, editContent);
       setIsEditing(false);
     },
-    [id, editTitle, editContent, updateNode],
+    [editTitle, editContent, saveAndSync],
   );
 
   return (
@@ -97,7 +114,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       ref={containerRef}
       className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
-      } min-w-[200px] relative w-full h-full`}
+      } min-w-[200px] relative w-full h-full flex flex-col`}
       style={{
         transition: 'border-color 300ms ease-in-out',
         ...(nodeData.color ? { borderColor: nodeData.color } : {}),
@@ -152,25 +169,24 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Content area — always visible, click to edit */}
-      {isEditing ? (
-        <div className="px-3 py-2">
+      {/* Content area — always visible, click to edit, fills available space */}
+      <div className="px-3 py-2 flex-1 overflow-auto">
+        {isEditing ? (
           <textarea
-            className="w-full text-xs text-gray-800 border-none outline-none resize-y bg-transparent"
+            className="w-full h-full text-sm text-gray-800 border-none outline-none resize-none bg-transparent min-h-[60px]"
             value={editContent}
             onChange={handleContentChange}
-            rows={3}
             placeholder="Enter content..."
           />
-        </div>
-      ) : (
-        <div
-          className="px-3 py-2 text-xs text-gray-600 min-h-[2rem] cursor-text"
-          onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-        >
-          {nodeData.content || <span className="text-gray-300 italic">Click to add content...</span>}
-        </div>
-      )}
+        ) : (
+          <div
+            className="text-sm text-gray-600 min-h-[40px] cursor-text whitespace-pre-wrap break-words"
+            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+          >
+            {nodeData.content || <span className="text-gray-300 italic">Click to add content...</span>}
+          </div>
+        )}
+      </div>
 
       {/* Mastery bar (Story 5-2: uses mastery status color) */}
       <div className="px-3 pb-2">
