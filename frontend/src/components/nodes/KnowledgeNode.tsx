@@ -234,22 +234,22 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 !pointer-events-none group-hover:!opacity-100 group-hover:!pointer-events-auto !transition-opacity"
       />
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 !pointer-events-none group-hover:!opacity-100 group-hover:!pointer-events-auto !transition-opacity"
       />
       <Handle
         type="target"
         position={Position.Left}
-        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 !pointer-events-none group-hover:!opacity-100 group-hover:!pointer-events-auto !transition-opacity"
       />
       <Handle
         type="source"
         position={Position.Right}
-        className="!w-2 !h-2 !bg-gray-400 !opacity-0 group-hover:!opacity-100 !transition-opacity"
+        className="!w-2 !h-2 !bg-gray-400 !opacity-0 !pointer-events-none group-hover:!opacity-100 group-hover:!pointer-events-auto !transition-opacity"
       />
     </div>
   );
