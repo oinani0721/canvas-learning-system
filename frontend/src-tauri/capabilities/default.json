@@ -45,6 +45,12 @@
           "cmd": "docker-compose",
           "args": true,
           "sidecar": false
+        },
+        {
+          "name": "canvas-sidecar",
+          "cmd": "node",
+          "args": true,
+          "sidecar": false
         }
       ]
     },
@@ -78,6 +84,12 @@
         {
           "name": "cp",
           "cmd": "cp",
+          "args": true,
+          "sidecar": false
+        },
+        {
+          "name": "canvas-sidecar",
+          "cmd": "node",
           "args": true,
           "sidecar": false
         }

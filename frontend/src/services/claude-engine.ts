@@ -1,36 +1,35 @@
 /**
- * Canvas Learning System - Claude Code Engine (Tauri 2.0)
+ * Canvas Learning System - Claude Code Engine (Tauri 2.0 + Agent SDK Sidecar)
  *
- * Spawns the official `claude` CLI binary as a child process via
- * @tauri-apps/plugin-shell to provide AI dialogue capabilities.
- * Inherits authentication from the user's Claude Code subscription
- * (~/.claude/.credentials.json).
+ * Communicates with a long-running Node.js sidecar process that wraps
+ * @anthropic-ai/claude-agent-sdk. The sidecar runs Agent SDK's query()
+ * function and streams results back via stdin/stdout NDJSON.
  *
  * Key features:
- * - Per-node sessions via --resume (conversation continuity)
+ * - Per-node sessions via SDK resume (conversation continuity)
  * - Authentication auto-inheritance from Claude Code subscription
- * - NDJSON stream-json parsing for real-time token streaming
+ * - NDJSON IPC for real-time token streaming
  * - Error classification (auth_failed, rate_limited, crash)
- * - Auto-reconnect on crash (restart process with --resume)
- * - System prompt injection via --append-system-prompt
+ * - Singleton sidecar process with multiplexed conversations
+ * - System prompt injection via SDK native systemPrompt option
+ * - MCP tool integration via SDK native mcpServers option
  *
  * Architecture:
  *   Tauri App (React UI)
- *     -> ClaudeEngine
- *       -> @tauri-apps/plugin-shell Command.create('claude-cli', [...args])
- *         -> --resume $nodeSessionId
- *         -> --output-format stream-json
- *         -> --append-system-prompt "learning context"
+ *     -> ClaudeEngine (singleton sidecar management)
+ *       -> @tauri-apps/plugin-shell Command.create('canvas-sidecar', [sidecarPath])
+ *         -> stdin: {"cmd":"query","id":"req-1","prompt":"...","resume":"session-id",...}
+ *         -> stdout: {"id":"req-1","type":"text","text":"Hello"}
  *     -> StreamEvent -> React State -> UI
  *
- * Reference: v1-ref/src/services/claude-code-engine.ts (Obsidian version)
- * Reference: Claudian (YishenTu/claudian) - spawn mode, session management
+ * Reference: Solo IDE (Tauri+SDK+sidecar), Opcode (public source)
+ * Supersedes: CLI spawn mode (Mode D → Spawn CLI → SDK migration → Tier B → Agent SDK sidecar)
  */
 
 import { Command, type Child } from '@tauri-apps/plugin-shell';
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// Types
+// Types (UNCHANGED — preserved for backward compatibility)
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Classification of engine errors for UI-level handling. */
@@ -54,7 +53,7 @@ export interface EngineError {
 export type EngineErrorCallback = (error: EngineError) => void;
 
 /**
- * Stream events emitted during a Claude CLI conversation.
+ * Stream events emitted during a Claude conversation.
  * Consumers iterate over these to update the UI in real time.
  */
 export type StreamEvent =
@@ -91,21 +90,27 @@ export interface CliCheckResult {
 
 /**
  * Scoped command name configured in src-tauri/capabilities/default.json.
- * Maps to the `claude` binary on the system PATH.
+ * Maps to `node` binary on the system PATH (sidecar: false).
  */
-const CLAUDE_COMMAND_NAME = 'claude-cli';
-
-/** Exit code indicating authentication failure from Claude CLI. */
-const AUTH_FAILED_EXIT_CODE = 2;
-
-/** Maximum auto-restart attempts on crash before giving up. */
-const MAX_CRASH_RESTARTS = 2;
-
-/** Delay (ms) before auto-restart after a crash. */
-const CRASH_RESTART_DELAY_MS = 1500;
+const SIDECAR_COMMAND_NAME = 'canvas-sidecar';
 
 /**
- * Patterns that indicate a 429 rate limit error in stderr or stream-json output.
+ * Relative path to the sidecar script from the frontend root.
+ * In development: resolved relative to the Vite dev server's working directory.
+ */
+const SIDECAR_SCRIPT_PATH = 'sidecar/sidecar.js';
+
+/** Default MCP server URL for the backend. */
+const DEFAULT_MCP_URL = 'http://localhost:8001/mcp';
+
+/** Timeout (ms) to wait for sidecar ready signal. */
+const SIDECAR_READY_TIMEOUT_MS = 15000;
+
+/** Timeout (ms) for shutdown before force kill. */
+const SHUTDOWN_TIMEOUT_MS = 5000;
+
+/**
+ * Patterns that indicate a 429 rate limit error.
  */
 const RATE_LIMIT_PATTERNS = [
   /rate.?limit/i,
@@ -121,7 +126,6 @@ const RATE_LIMIT_PATTERNS = [
 
 /**
  * Extract retry-after seconds from error text, if available.
- * Tries "retry-after: N" header-style and "try again in N seconds/minutes" natural language.
  */
 function extractRetryAfter(text: string): number | null {
   const headerMatch = text.match(/retry[- ]after[:\s]+(\d+)/i);
@@ -146,8 +150,14 @@ function isRateLimitError(text: string): boolean {
   return RATE_LIMIT_PATTERNS.some((p) => p.test(text));
 }
 
+/** Generate a unique request ID for IPC multiplexing. */
+let reqCounter = 0;
+function generateRequestId(): string {
+  return `req-${Date.now()}-${++reqCounter}`;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// Session Store (in-memory with localStorage persistence)
+// Session Store (in-memory with localStorage persistence) — UNCHANGED
 // ═══════════════════════════════════════════════════════════════════════════════
 
 /** Persistent node-to-session-ID mapping. */
@@ -227,18 +237,309 @@ class SessionStore {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// ClaudeEngine
+// Pending Request Tracker
+// ═══════════════════════════════════════════════════════════════════════════════
+
+interface PendingRequest {
+  nodeId: string;
+  onEvent: (event: StreamEvent) => void;
+  resolve: () => void;
+  reject: (err: Error) => void;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ClaudeEngine — Singleton Sidecar Mode
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export class ClaudeEngine {
   private sessionStore: SessionStore;
   private errorCallbacks: EngineErrorCallback[] = [];
-  private activeProcesses: Map<string, Child> = new Map();
-  /** Track crash restart counts per node to prevent infinite restart loops. */
-  private crashCounts: Map<string, number> = new Map();
+
+  /** Singleton sidecar process. */
+  private sidecarChild: Child | null = null;
+  /** Promise that resolves when sidecar is ready. */
+  private sidecarReady: Promise<void> | null = null;
+
+  /** Pending requests waiting for sidecar responses, keyed by request ID. */
+  private pendingRequests: Map<string, PendingRequest> = new Map();
+  /** Map nodeId → requestId for abort lookups. */
+  private nodeToRequestId: Map<string, string> = new Map();
+
+  /** Buffer for incomplete NDJSON lines from stdout. */
+  private stdoutBuffer = '';
 
   constructor() {
     this.sessionStore = new SessionStore();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Sidecar Process Management
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Ensure the singleton sidecar process is running.
+   * Lazy-starts on first use and reuses for subsequent calls.
+   */
+  private async ensureSidecar(): Promise<Child> {
+    // Already running
+    if (this.sidecarChild) {
+      return this.sidecarChild;
+    }
+
+    // Already starting — wait for it
+    if (this.sidecarReady) {
+      await this.sidecarReady;
+      if (this.sidecarChild) return this.sidecarChild;
+      throw new Error('Sidecar failed to start');
+    }
+
+    // Start the sidecar
+    this.sidecarReady = new Promise<void>((resolve, reject) => {
+      this.startSidecar(resolve, reject);
+    });
+
+    await this.sidecarReady;
+
+    if (!this.sidecarChild) {
+      throw new Error('Sidecar failed to start');
+    }
+    return this.sidecarChild;
+  }
+
+  /**
+   * Start the Node.js sidecar process via Tauri shell plugin.
+   */
+  private startSidecar(
+    onReady: () => void,
+    onFailure: (err: Error) => void,
+  ): void {
+    const command = Command.create(SIDECAR_COMMAND_NAME, [SIDECAR_SCRIPT_PATH]);
+
+    // Ready timeout
+    const readyTimeout = setTimeout(() => {
+      onFailure(new Error('Sidecar startup timed out'));
+    }, SIDECAR_READY_TIMEOUT_MS);
+
+    let readyResolved = false;
+
+    // Handle stdout: parse NDJSON lines and route to pending requests
+    command.stdout.on('data', (line: string) => {
+      this.stdoutBuffer += line;
+      const lines = this.stdoutBuffer.split('\n');
+      this.stdoutBuffer = lines.pop() ?? '';
+
+      for (const rawLine of lines) {
+        const trimmed = rawLine.trim();
+        if (!trimmed) continue;
+
+        let parsed: Record<string, unknown>;
+        try {
+          parsed = JSON.parse(trimmed) as Record<string, unknown>;
+        } catch {
+          continue; // Skip non-JSON output
+        }
+
+        // Handle sidecar ready signal (L-3 fix: defer until sidecarChild is set)
+        if (parsed.type === 'ready' && !readyResolved) {
+          readyResolved = true;
+          clearTimeout(readyTimeout);
+          // Wait for spawn().then() to set sidecarChild before resolving
+          const waitForChild = () => {
+            if (this.sidecarChild) {
+              onReady();
+            } else {
+              setTimeout(waitForChild, 10);
+            }
+          };
+          waitForChild();
+          continue;
+        }
+
+        // Route to pending request by ID
+        this.handleSidecarMessage(parsed);
+      }
+    });
+
+    // Handle stderr: log sidecar debug output
+    command.stderr.on('data', (line: string) => {
+      console.debug('[sidecar]', line.trim());
+    });
+
+    // Handle process exit
+    command.on('close', (payload) => {
+      const { code } = payload;
+      console.warn(`[ClaudeEngine] Sidecar exited with code ${code}`);
+
+      this.sidecarChild = null;
+      this.sidecarReady = null;
+      this.stdoutBuffer = '';
+
+      // Reject all pending requests
+      for (const [reqId, pending] of this.pendingRequests) {
+        pending.onEvent({
+          type: 'error',
+          error: 'Sidecar process exited unexpectedly',
+        });
+        pending.resolve();
+        this.pendingRequests.delete(reqId);
+      }
+      this.nodeToRequestId.clear();
+
+      if (!readyResolved) {
+        readyResolved = true;
+        clearTimeout(readyTimeout);
+        onFailure(new Error(`Sidecar exited during startup (code ${code})`));
+      }
+    });
+
+    command.on('error', (errorMsg: string) => {
+      console.error(`[ClaudeEngine] Sidecar error: ${errorMsg}`);
+      if (!readyResolved) {
+        readyResolved = true;
+        clearTimeout(readyTimeout);
+        onFailure(new Error(`Sidecar error: ${errorMsg}`));
+      }
+    });
+
+    // Spawn the process
+    command.spawn().then(
+      (child) => {
+        this.sidecarChild = child;
+      },
+      (err) => {
+        clearTimeout(readyTimeout);
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        const isNotFound =
+          errorMessage.includes('not found') ||
+          errorMessage.includes('ENOENT') ||
+          errorMessage.includes('program not found');
+
+        if (!readyResolved) {
+          readyResolved = true;
+          onFailure(
+            new Error(
+              isNotFound
+                ? 'Node.js not found. Please install Node.js first.'
+                : `Failed to start sidecar: ${errorMessage}`,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  /**
+   * Route a parsed NDJSON message from the sidecar to the correct pending request.
+   */
+  private handleSidecarMessage(msg: Record<string, unknown>): void {
+    const reqId = msg.id as string | null;
+    if (!reqId) return; // Skip messages without an ID (like ready)
+
+    const pending = this.pendingRequests.get(reqId);
+    if (!pending) return; // No matching request — likely already resolved
+
+    const msgType = msg.type as string;
+
+    switch (msgType) {
+      case 'text':
+        pending.onEvent({
+          type: 'text',
+          text: msg.text as string,
+        });
+        break;
+
+      case 'tool_use':
+        pending.onEvent({
+          type: 'tool_use',
+          toolName: msg.toolName as string,
+          toolInput: (msg.toolInput as Record<string, unknown>) || {},
+        });
+        break;
+
+      case 'tool_result':
+        pending.onEvent({
+          type: 'tool_result',
+          toolResult: msg.toolResult as string,
+        });
+        break;
+
+      case 'done': {
+        const sessionId = msg.sessionId as string | undefined;
+        const costUsd = msg.costUsd as number | undefined;
+
+        // Save session ID for future resume
+        if (sessionId) {
+          const currentSessionId = this.sessionStore.getSessionId(pending.nodeId);
+          if (currentSessionId !== sessionId) {
+            this.sessionStore.setSession(pending.nodeId, sessionId);
+          } else {
+            this.sessionStore.updateLastActive(pending.nodeId);
+          }
+        }
+
+        pending.onEvent({
+          type: 'done',
+          sessionId,
+          costUsd,
+        });
+
+        // Clean up and resolve
+        this.pendingRequests.delete(reqId);
+        this.nodeToRequestId.delete(pending.nodeId);
+        pending.resolve();
+        break;
+      }
+
+      case 'error': {
+        const errorText = msg.error as string;
+        const errorType = msg.errorType as EngineErrorType | undefined;
+        const retryAfterSec = msg.retryAfterSec as number | undefined;
+
+        pending.onEvent({
+          type: 'error',
+          error: errorText,
+        });
+
+        // Emit engine-level error for fallback handling
+        if (errorType && errorType !== 'crash') {
+          this.emitError({
+            type: errorType,
+            message: errorText,
+            retryAfterSec,
+          });
+        } else if (isRateLimitError(errorText)) {
+          this.emitError({
+            type: 'rate_limited',
+            message: errorText,
+            retryAfterSec: retryAfterSec ?? extractRetryAfter(errorText) ?? undefined,
+          });
+        }
+
+        // Clean up and resolve
+        this.pendingRequests.delete(reqId);
+        this.nodeToRequestId.delete(pending.nodeId);
+        pending.resolve();
+        break;
+      }
+
+      case 'ack':
+        // Acknowledgment for abort/shutdown — no action needed
+        break;
+
+      default:
+        // Unknown message type — ignore
+        break;
+    }
+  }
+
+  /**
+   * Write a JSON command to the sidecar's stdin.
+   */
+  private async writeSidecarCommand(cmd: Record<string, unknown>): Promise<void> {
+    if (!this.sidecarChild) {
+      throw new Error('Sidecar not running');
+    }
+    await this.sidecarChild.write(JSON.stringify(cmd) + '\n');
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -246,44 +547,43 @@ export class ClaudeEngine {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Check if the `claude` CLI is installed and accessible.
-   * Runs `claude --version` and parses the output.
+   * Check if the sidecar can be started (Node.js available + sidecar script exists).
    */
   async checkCliAvailable(): Promise<CliCheckResult> {
     try {
-      const output = await Command.create(CLAUDE_COMMAND_NAME, [
+      // Check if node is available
+      const output = await Command.create(SIDECAR_COMMAND_NAME, [
         '--version',
       ]).execute();
 
       if (output.code === 0) {
-        const version = output.stdout.trim();
+        const version = `sidecar (node ${output.stdout.trim()})`;
         return { available: true, version };
       }
 
       return {
         available: false,
-        error: `claude --version exited with code ${output.code}: ${output.stderr}`,
+        error: `Node.js check failed (code ${output.code}): ${output.stderr}`,
       };
     } catch (err) {
       return {
         available: false,
         error: err instanceof Error
           ? err.message
-          : 'Failed to execute claude CLI',
+          : 'Failed to check Node.js availability',
       };
     }
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
-  // Message Sending (Streaming)
+  // Message Sending (Streaming via Sidecar IPC)
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Send a message to Claude Code for a specific node.
+   * Send a message to Claude for a specific node.
    *
-   * Spawns `claude -p "message" --output-format stream-json` and streams
-   * NDJSON events back to the caller via callback. Uses --resume if the
-   * node has an existing session.
+   * Sends a query command to the sidecar via stdin. The sidecar runs
+   * Agent SDK's query() and streams NDJSON events back to us via stdout.
    *
    * @param options - Message options (nodeId, message, systemPrompt, etc.)
    * @param onEvent - Callback invoked for each StreamEvent.
@@ -295,8 +595,9 @@ export class ClaudeEngine {
   ): Promise<void> {
     const { nodeId } = options;
 
-    // Prevent concurrent processes for the same node
-    if (this.activeProcesses.has(nodeId)) {
+    // Prevent concurrent conversations for the same node
+    const existingReqId = this.nodeToRequestId.get(nodeId);
+    if (existingReqId && this.pendingRequests.has(existingReqId)) {
       onEvent({
         type: 'error',
         error: `A conversation is already active for node ${nodeId}. Please wait for it to complete.`,
@@ -304,89 +605,21 @@ export class ClaudeEngine {
       return;
     }
 
-    // Reset crash count for fresh message attempts
-    this.crashCounts.delete(nodeId);
-
-    await this.spawnAndStream(options, onEvent, 0);
-  }
-
-  /**
-   * Internal: spawn the CLI process and handle streaming.
-   * Supports auto-restart on crash via the `attemptNumber` parameter.
-   */
-  private async spawnAndStream(
-    options: SendMessageOptions,
-    onEvent: (event: StreamEvent) => void,
-    attemptNumber: number,
-  ): Promise<void> {
-    const { nodeId, message, systemPrompt, mcpConfigPath, allowedTools } = options;
-
-    // Build CLI arguments
-    const args = this.buildArgs(message, {
-      systemPrompt,
-      mcpConfigPath,
-      allowedTools,
-    });
-
-    // Add --resume if this node has an existing session
-    const existingSessionId = this.sessionStore.getSessionId(nodeId);
-    if (existingSessionId) {
-      args.push('--resume', existingSessionId);
-    }
-
-    // Create the Command via Tauri shell plugin
-    const command = Command.create(CLAUDE_COMMAND_NAME, args);
-
-    // State for NDJSON parsing
-    let stdoutBuffer = '';
-    let stderrOutput = '';
-    let lastSessionId: string | null = null;
-
-    // Handle stdout: accumulate NDJSON lines and parse them
-    command.stdout.on('data', (line: string) => {
-      stdoutBuffer += line;
-
-      // Process complete lines (NDJSON = one JSON object per line)
-      const lines = stdoutBuffer.split('\n');
-      stdoutBuffer = lines.pop() ?? ''; // Keep incomplete last line in buffer
-
-      for (const rawLine of lines) {
-        const trimmed = rawLine.trim();
-        if (!trimmed) continue;
-
-        const event = this.parseNdjsonLine(trimmed);
-        if (event) {
-          // Extract session ID from result events
-          if (event.type === 'done' && event.sessionId) {
-            lastSessionId = event.sessionId;
-          }
-          onEvent(event);
-        }
-      }
-    });
-
-    // Handle stderr: accumulate for error classification
-    command.stderr.on('data', (line: string) => {
-      stderrOutput += line;
-    });
-
-    // Spawn the process
-    let child: Child;
+    // Ensure sidecar is running
     try {
-      child = await command.spawn();
-      this.activeProcesses.set(nodeId, child);
+      await this.ensureSidecar();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err);
       const isNotFound =
         errorMessage.includes('not found') ||
         errorMessage.includes('ENOENT') ||
-        errorMessage.includes('program not found');
+        errorMessage.includes('Node.js not found');
 
       const engineError: EngineError = {
         type: isNotFound ? 'not_installed' : 'spawn_failed',
         message: isNotFound
-          ? 'Claude Code CLI not found. Please install Claude Code (https://docs.anthropic.com/en/docs/claude-code) first.'
-          : `Failed to spawn Claude Code: ${errorMessage}`,
+          ? 'Node.js not found. Claude Code requires Node.js to be installed.'
+          : `Failed to start sidecar: ${errorMessage}`,
         cause: err,
       };
       this.emitError(engineError);
@@ -394,124 +627,54 @@ export class ClaudeEngine {
       return;
     }
 
-    // Wait for the process to close
-    return new Promise<void>((resolve) => {
-      command.on('close', async (payload) => {
-        const { code, signal } = payload;
+    // Generate request ID and register pending request
+    const reqId = generateRequestId();
 
-        // Process any remaining stdout buffer
-        if (stdoutBuffer.trim()) {
-          const event = this.parseNdjsonLine(stdoutBuffer.trim());
-          if (event) {
-            if (event.type === 'done' && event.sessionId) {
-              lastSessionId = event.sessionId;
-            }
-            onEvent(event);
-          }
-          stdoutBuffer = '';
-        }
-
-        // Clean up active process tracking
-        this.activeProcesses.delete(nodeId);
-
-        // Classify the exit
-        if (signal !== null) {
-          // External termination (e.g., user killed)
-          onEvent({
-            type: 'error',
-            error: `Process terminated by signal ${signal}`,
-          });
-        } else if (code === AUTH_FAILED_EXIT_CODE) {
-          // Auth failure
-          const engineError: EngineError = {
-            type: 'auth_failed',
-            message:
-              'Claude Code authentication failed. Please log in to Claude Code.',
-            exitCode: AUTH_FAILED_EXIT_CODE,
-          };
-          this.emitError(engineError);
-          onEvent({ type: 'error', error: engineError.message });
-        } else if (code !== null && code !== 0 && isRateLimitError(stderrOutput)) {
-          // 429 Rate Limit
-          const retryAfterSec = extractRetryAfter(stderrOutput);
-          const engineError: EngineError = {
-            type: 'rate_limited',
-            message: 'Subscription quota exhausted. Please try again later.',
-            exitCode: code,
-            retryAfterSec: retryAfterSec ?? undefined,
-          };
-          this.emitError(engineError);
-          onEvent({ type: 'error', error: engineError.message });
-        } else if (code !== null && code !== 0) {
-          // Other non-zero exit: crash
-          const crashCount = (this.crashCounts.get(nodeId) ?? 0) + 1;
-          this.crashCounts.set(nodeId, crashCount);
-
-          if (crashCount <= MAX_CRASH_RESTARTS && lastSessionId) {
-            // Auto-restart with --resume
-            console.warn(
-              `[ClaudeEngine] Crash detected for node "${nodeId}" (attempt ${crashCount}/${MAX_CRASH_RESTARTS}). Auto-restarting in ${CRASH_RESTART_DELAY_MS}ms...`,
-            );
-            onEvent({
-              type: 'error',
-              error: `Process crashed (exit code ${code}). Restarting automatically...`,
-            });
-
-            // Save session before restart
-            if (lastSessionId) {
-              this.sessionStore.setSession(nodeId, lastSessionId);
-            }
-
-            await new Promise<void>((r) =>
-              setTimeout(r, CRASH_RESTART_DELAY_MS),
-            );
-
-            // Restart with same options (--resume will pick up the saved session)
-            await this.spawnAndStream(options, onEvent, attemptNumber + 1);
-            resolve();
-            return;
-          }
-
-          // Max restarts exceeded or no session to resume
-          const msg =
-            stderrOutput.trim() || `Process exited with code ${code}`;
-          const engineError: EngineError = {
-            type: 'crash',
-            message: msg,
-            exitCode: code,
-          };
-          this.emitError(engineError);
-          onEvent({ type: 'error', error: msg });
-        }
-
-        // Save session ID for future --resume
-        if (lastSessionId) {
-          const currentSessionId = this.sessionStore.getSessionId(nodeId);
-          if (currentSessionId !== lastSessionId) {
-            this.sessionStore.setSession(nodeId, lastSessionId);
-          } else {
-            this.sessionStore.updateLastActive(nodeId);
-          }
-        }
-
-        // Emit done event
-        onEvent({
-          type: 'done',
-          sessionId: lastSessionId ?? undefined,
-        });
-
-        resolve();
+    return new Promise<void>((resolve, reject) => {
+      this.pendingRequests.set(reqId, {
+        nodeId,
+        onEvent,
+        resolve,
+        reject,
       });
+      this.nodeToRequestId.set(nodeId, reqId);
 
-      // Handle spawn-level errors (distinct from process exit)
-      command.on('error', (errorMsg: string) => {
-        this.activeProcesses.delete(nodeId);
-        const engineError: EngineError = {
-          type: 'crash',
-          message: `Claude Code process error: ${errorMsg}`,
-        };
-        this.emitError(engineError);
-        onEvent({ type: 'error', error: engineError.message });
+      // Build and send query command
+      const existingSessionId = this.sessionStore.getSessionId(nodeId);
+
+      const queryCmd: Record<string, unknown> = {
+        cmd: 'query',
+        id: reqId,
+        prompt: options.message,
+        nodeId,
+      };
+
+      // System prompt (SDK native option)
+      if (options.systemPrompt) {
+        queryCmd.systemPrompt = options.systemPrompt;
+      }
+
+      // Session resume
+      if (existingSessionId) {
+        queryCmd.resume = existingSessionId;
+      }
+
+      // MCP servers (default: backend at localhost:8001/mcp)
+      queryCmd.mcpServers = {
+        canvas: { type: 'http', url: DEFAULT_MCP_URL },
+      };
+
+      // Allowed tools
+      if (options.allowedTools && options.allowedTools.length > 0) {
+        queryCmd.allowedTools = options.allowedTools;
+      }
+
+      // Send command to sidecar stdin
+      this.writeSidecarCommand(queryCmd).catch((err) => {
+        const errorMessage = err instanceof Error ? err.message : String(err);
+        onEvent({ type: 'error', error: `Failed to send command: ${errorMessage}` });
+        this.pendingRequests.delete(reqId);
+        this.nodeToRequestId.delete(nodeId);
         resolve();
       });
     });
@@ -526,24 +689,42 @@ export class ClaudeEngine {
     return this.sessionStore.getSessionId(nodeId);
   }
 
-  /** Check if a node has an active conversation process. */
+  /** Check if a node has an active conversation. */
   isActive(nodeId: string): boolean {
-    return this.activeProcesses.has(nodeId);
+    const reqId = this.nodeToRequestId.get(nodeId);
+    return reqId ? this.pendingRequests.has(reqId) : false;
   }
 
   /**
-   * Abort the active conversation for a node by killing the child process.
+   * Abort the active conversation for a node by sending an abort command.
    */
   async abort(nodeId: string): Promise<void> {
-    const child = this.activeProcesses.get(nodeId);
-    if (child) {
-      await child.kill();
-      this.activeProcesses.delete(nodeId);
+    const reqId = this.nodeToRequestId.get(nodeId);
+    if (!reqId) return;
+
+    const pending = this.pendingRequests.get(reqId);
+
+    try {
+      await this.writeSidecarCommand({
+        cmd: 'abort',
+        id: generateRequestId(),
+        nodeId,
+      });
+    } catch {
+      // Sidecar may be down — clean up locally
     }
+
+    // Clean up pending request
+    if (pending) {
+      pending.onEvent({ type: 'error', error: 'Conversation aborted' });
+      pending.resolve();
+    }
+    this.pendingRequests.delete(reqId);
+    this.nodeToRequestId.delete(nodeId);
   }
 
   /**
-   * Destroy the session for a node: kill active process and remove session mapping.
+   * Destroy the session for a node: abort active conversation and remove session mapping.
    */
   async destroySession(nodeId: string): Promise<void> {
     await this.abort(nodeId);
@@ -551,24 +732,54 @@ export class ClaudeEngine {
   }
 
   /**
-   * Clean up all resources: kill all active processes and clear error callbacks.
+   * Clean up all resources: shutdown sidecar and clear state.
    */
   async destroyAll(): Promise<void> {
-    const killPromises: Promise<void>[] = [];
-    for (const [nodeId, child] of this.activeProcesses) {
-      killPromises.push(
-        child.kill().catch((err) => {
-          console.warn(
-            `[ClaudeEngine] Failed to kill process for node "${nodeId}":`,
-            err,
-          );
-        }),
-      );
+    // Send shutdown command to sidecar
+    if (this.sidecarChild) {
+      try {
+        await this.writeSidecarCommand({
+          cmd: 'shutdown',
+          id: generateRequestId(),
+        });
+
+        // M-1 fix: Wait for graceful exit with timeout, no polling interval
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            const check = () => {
+              if (!this.sidecarChild) { resolve(); return; }
+              setTimeout(check, 100);
+            };
+            check();
+          }),
+          new Promise<void>((resolve) => {
+            setTimeout(async () => {
+              if (this.sidecarChild) {
+                await this.sidecarChild.kill().catch(() => {});
+              }
+              resolve();
+            }, SHUTDOWN_TIMEOUT_MS);
+          }),
+        ]);
+      } catch {
+        // Force kill on any error
+        if (this.sidecarChild) {
+          await this.sidecarChild.kill().catch(() => {});
+        }
+      }
     }
-    await Promise.all(killPromises);
-    this.activeProcesses.clear();
+
+    // Clean up all state
+    this.sidecarChild = null;
+    this.sidecarReady = null;
+    this.stdoutBuffer = '';
+
+    for (const [, pending] of this.pendingRequests) {
+      pending.resolve();
+    }
+    this.pendingRequests.clear();
+    this.nodeToRequestId.clear();
     this.errorCallbacks = [];
-    this.crashCounts.clear();
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -583,161 +794,6 @@ export class ClaudeEngine {
   /** Remove an error callback. */
   offError(callback: EngineErrorCallback): void {
     this.errorCallbacks = this.errorCallbacks.filter((cb) => cb !== callback);
-  }
-
-  // ═══════════════════════════════════════════════════════════════════════════
-  // Internal Methods
-  // ═══════════════════════════════════════════════════════════════════════════
-
-  /**
-   * Build CLI arguments for the `claude` command.
-   *
-   * Base args: `-p "message" --output-format stream-json`
-   * Optional: `--append-system-prompt`, `--mcp-config`, `--allowedTools`
-   */
-  private buildArgs(
-    message: string,
-    opts: {
-      systemPrompt?: string;
-      mcpConfigPath?: string;
-      allowedTools?: string[];
-    } = {},
-  ): string[] {
-    const args: string[] = [
-      '-p',
-      message,
-      '--output-format',
-      'stream-json',
-      '--verbose',
-    ];
-
-    // Inject learning context as appended system prompt
-    if (opts.systemPrompt) {
-      args.push('--append-system-prompt', opts.systemPrompt);
-    }
-
-    // Add MCP config if available
-    if (opts.mcpConfigPath) {
-      args.push('--mcp-config', opts.mcpConfigPath);
-    }
-
-    // Restrict allowed tools if specified
-    if (opts.allowedTools && opts.allowedTools.length > 0) {
-      for (const tool of opts.allowedTools) {
-        args.push('--allowedTools', tool);
-      }
-    }
-
-    return args;
-  }
-
-  /**
-   * Parse a single NDJSON line from Claude Code's stream-json output.
-   *
-   * Expected formats from the CLI:
-   * - `{"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}`
-   * - `{"type":"result","subtype":"success","session_id":"abc123","cost_usd":0.001}`
-   * - `{"type":"system","message":"..."}`
-   * - `{"type":"error","error":{"type":"rate_limit_error","message":"..."}}`
-   */
-  private parseNdjsonLine(line: string): StreamEvent | null {
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(line) as Record<string, unknown>;
-    } catch {
-      // Not valid JSON - skip (could be progress dots or other non-JSON output)
-      return null;
-    }
-
-    const eventType = parsed.type as string;
-
-    // Handle assistant message events
-    if (eventType === 'assistant') {
-      const message = parsed.message as
-        | Record<string, unknown>
-        | undefined;
-      if (message?.content && Array.isArray(message.content)) {
-        const contentBlocks = message.content as Array<
-          Record<string, unknown>
-        >;
-        for (const block of contentBlocks) {
-          if (block.type === 'text') {
-            return {
-              type: 'text',
-              text: block.text as string,
-              raw: line,
-            };
-          }
-          if (block.type === 'tool_use') {
-            return {
-              type: 'tool_use',
-              toolName: block.name as string,
-              toolInput: block.input as Record<string, unknown>,
-              raw: line,
-            };
-          }
-          if (block.type === 'tool_result') {
-            return {
-              type: 'tool_result',
-              toolResult: block.content as string,
-              raw: line,
-            };
-          }
-        }
-      }
-      return null;
-    }
-
-    // Handle result events (end of response)
-    if (eventType === 'result') {
-      return {
-        type: 'done',
-        sessionId: parsed.session_id as string | undefined,
-        costUsd: parsed.cost_usd as number | undefined,
-        raw: line,
-      };
-    }
-
-    // Handle system/error events
-    if (eventType === 'system' || eventType === 'error') {
-      const errorObj = parsed.error as
-        | Record<string, unknown>
-        | string
-        | undefined;
-      const errorType =
-        typeof errorObj === 'object'
-          ? (errorObj?.type as string)
-          : undefined;
-      const errorMsg =
-        (typeof errorObj === 'object'
-          ? (errorObj?.message as string)
-          : (errorObj as string)) ??
-        (parsed.message as string) ??
-        'Unknown error';
-
-      // Detect rate_limit_error from stream-json
-      if (errorType === 'rate_limit_error' || isRateLimitError(errorMsg)) {
-        const retryAfterSec = extractRetryAfter(errorMsg);
-        this.emitError({
-          type: 'rate_limited',
-          message: 'Subscription quota exhausted. Please try again later.',
-          retryAfterSec: retryAfterSec ?? undefined,
-        });
-      }
-
-      return {
-        type: 'error',
-        error: errorMsg,
-        raw: line,
-      };
-    }
-
-    // Unknown event type - return as raw text for debugging
-    return {
-      type: 'text',
-      text: '',
-      raw: line,
-    };
   }
 
   /** Emit an error to all registered callbacks. */

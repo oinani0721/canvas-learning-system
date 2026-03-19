@@ -1,0 +1,11 @@
+{
+  "name": "canvas-learning-sidecar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Node.js sidecar process for Canvas Learning System — runs Agent SDK, communicates via stdin/stdout NDJSON",
+  "main": "sidecar.js",
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.74"
+  }
+}
