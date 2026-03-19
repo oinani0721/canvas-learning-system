@@ -313,6 +313,9 @@ class HintResponse(BaseModel):
     remaining_levels: int = Field(..., ge=0, le=3, description="How many hint levels remain")
     status: str = "ok"
     message: str = ""
+    # F12: Scaffolding gradual deprecation
+    hint_available: bool = Field(True, description="Whether hints are available (F12 mastery fade-out)")
+    max_allowed_level: int = Field(4, ge=0, le=4, description="Highest hint level allowed by mastery")
 
 
 class HintUsage(BaseModel):

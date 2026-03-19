@@ -210,15 +210,41 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
     """Generate a progressive hint using LLM based on hint level.
 
     Chain-of-Hints (2025): from vague direction to scaffolded guide.
-    Uses litellm.acompletion with the configured AI model.
+    F12: Scaffolding gradual deprecation — restricts hint levels based on mastery.
 
-    [Source: Story 6.6 AC-1, AC-3, AC-6]
+    Fade policy (Vygotsky ZPD + Karpicke 2011 retrieval practice):
+    - p_mastery < 0.50: All 4 levels available
+    - p_mastery 0.50~0.65: Levels 1-3 (L4 disabled)
+    - p_mastery 0.65~0.75: Levels 1-2 (L3-4 disabled)
+    - p_mastery >= 0.75: All hints disabled
+
+    [Source: Story 6.6 AC-1, AC-3, AC-6 + F12 Scaffolding Fade]
     """
     import litellm
 
     from app.config import settings
 
-    level = max(1, min(4, request.hint_level))
+    # F12: Check mastery-based hint eligibility
+    max_allowed_level = 4
+    hint_available = True
+    try:
+        max_allowed_level = await _get_max_hint_level_by_mastery(request.node_id)
+        hint_available = max_allowed_level > 0
+    except Exception as e:
+        logger.debug(f"[F12] Mastery check failed (allowing all hints): {e}")
+
+    if not hint_available:
+        return HintResponse(
+            hint_text="",
+            current_level=request.hint_level,
+            remaining_levels=0,
+            status="disabled",
+            message="你已经掌握了这个知识点，不再需要提示了！继续独立思考吧。",
+            hint_available=False,
+            max_allowed_level=0,
+        )
+
+    level = max(1, min(max_allowed_level, request.hint_level))
     prompt_file = _PROMPTS_DIR / f"hint_level{level}.md"
 
     if not prompt_file.exists():
@@ -293,9 +319,55 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
     return HintResponse(
         hint_text=hint_text,
         current_level=level,
-        remaining_levels=4 - level,
+        remaining_levels=max_allowed_level - level,
         status="ok",
+        hint_available=True,
+        max_allowed_level=max_allowed_level,
     )
+
+
+async def _get_max_hint_level_by_mastery(node_id: str) -> int:
+    """F12: Determine max allowed hint level based on node mastery.
+
+    Scaffolding fade policy (Vygotsky ZPD + Karpicke 2011 retrieval practice):
+    - p_mastery < 0.50: All 4 levels (full scaffolding)
+    - p_mastery 0.50~0.65: Levels 1-3 (L4 scaffolded guide disabled)
+    - p_mastery 0.65~0.75: Levels 1-2 (L3-4 disabled, only direction + keywords)
+    - p_mastery >= 0.75: 0 (all hints disabled — independent practice)
+
+    Reference: Khanmigo (Khan Academy) implements similar mastery-based hint fading.
+
+    Returns:
+        Max allowed hint level (0=disabled, 1-4=available up to that level).
+        Defaults to 4 (all available) on any error (graceful degradation).
+    """
+    try:
+        from app.clients.neo4j_client import get_neo4j_client
+        from app.services.mastery_store import MasteryStore
+
+        neo4j = get_neo4j_client()
+        store = MasteryStore(neo4j)
+
+        from app.config import DEFAULT_GROUP_ID
+
+        concept = await store.get_concept(concept_id=node_id, group_id=DEFAULT_GROUP_ID)
+
+        if concept is None or concept.p_mastery is None:
+            return 4  # No mastery data → full hints available
+
+        p = concept.p_mastery
+
+        if p >= 0.75:
+            return 0  # Mastered → no hints
+        if p >= 0.65:
+            return 2  # Direction + keywords only
+        if p >= 0.50:
+            return 3  # Up to partial framework
+        return 4  # Full scaffolding
+
+    except Exception as e:
+        logger.debug(f"[F12] Mastery lookup failed for {node_id}, defaulting to full hints: {e}")
+        return 4
 
 
 def _get_fallback_hint(level: int) -> str:

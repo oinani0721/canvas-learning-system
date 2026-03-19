@@ -37,25 +37,48 @@ export function HintButton() {
   const hintLevel = useExamStore((s) => s.hintLevel);
   const incrementHintLevel = useExamStore((s) => s.incrementHintLevel);
   const [isLoading, setIsLoading] = useState(false);
-  const maxLevel = 4;
+  // F12: Track mastery-based hint availability
+  const [hintDisabledByMastery, setHintDisabledByMastery] = useState(false);
+  const [maxAllowedLevel, setMaxAllowedLevel] = useState(4);
+  const [fadeMessage, setFadeMessage] = useState('');
+
+  const effectiveMax = Math.min(4, maxAllowedLevel);
 
   const requestHint = useCallback(async () => {
-    if (!currentExamId || hintLevel >= maxLevel || isLoading) return;
+    if (!currentExamId || hintLevel >= effectiveMax || isLoading || hintDisabledByMastery) return;
 
     setIsLoading(true);
     try {
-      await apiClient.post(`/api/v1/exam/${currentExamId}/hint`, {
+      const resp = await apiClient.post<{
+        hint_available: boolean;
+        max_allowed_level: number;
+        message: string;
+        status: string;
+      }>(`/api/v1/exam/${currentExamId}/hint`, {
         hint_level: hintLevel + 1,
       });
+
+      // F12: Handle mastery-based fade-out response
+      if (resp.hint_available === false) {
+        setHintDisabledByMastery(true);
+        setMaxAllowedLevel(0);
+        setFadeMessage(resp.message || '你已经掌握了这个知识点！');
+        return;
+      }
+
+      if (resp.max_allowed_level !== undefined) {
+        setMaxAllowedLevel(resp.max_allowed_level);
+      }
+
       incrementHintLevel();
     } catch (err) {
       console.error('[HintButton] Failed to request hint:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [currentExamId, hintLevel, isLoading, incrementHintLevel]);
+  }, [currentExamId, hintLevel, effectiveMax, isLoading, hintDisabledByMastery, incrementHintLevel]);
 
-  const isMaxed = hintLevel >= maxLevel;
+  const isMaxed = hintLevel >= effectiveMax || hintDisabledByMastery;
 
   return (
     <div className="relative group">
@@ -70,9 +93,11 @@ export function HintButton() {
               : 'bg-[#313244] text-[#f9e2af] hover:bg-[#45475a] hover:text-[#f9e2af]'
         }`}
         title={
-          isMaxed
-            ? 'All hints used'
-            : `Request hint (${hintLevel}/${maxLevel} used)`
+          hintDisabledByMastery
+            ? fadeMessage || '你已经掌握了这个知识点！'
+            : isMaxed
+              ? 'All hints used'
+              : `Request hint (${hintLevel}/${effectiveMax} used)`
         }
       >
         {/* Lightbulb icon */}
@@ -89,7 +114,7 @@ export function HintButton() {
           <span className="animate-pulse">...</span>
         ) : (
           <span>
-            Hint {hintLevel}/{maxLevel}
+            Hint {hintLevel}/{effectiveMax}
           </span>
         )}
       </button>
