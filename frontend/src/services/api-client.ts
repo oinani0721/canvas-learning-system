@@ -161,7 +161,7 @@ export class ApiClient {
   async checkHealth(): Promise<HealthResponse | null> {
     try {
       const envelope = await this.get<ApiResponse<HealthResponse>>(
-        '/api/v1/system/health',
+        '/api/v1/health',
       );
       return envelope.data;
     } catch {

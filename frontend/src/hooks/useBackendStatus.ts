@@ -21,7 +21,7 @@ export function useBackendStatus(): BackendStatus {
       const backendUrl = localStorage.getItem('canvas-learning-settings')
         ? JSON.parse(localStorage.getItem('canvas-learning-settings')!).backendUrl || DEFAULT_BACKEND_URL
         : DEFAULT_BACKEND_URL;
-      const res = await fetch(`${backendUrl}/api/v1/system/health`, { signal: AbortSignal.timeout(5000) });
+      const res = await fetch(`${backendUrl}/api/v1/health`, { signal: AbortSignal.timeout(5000) });
       setStatus(res.ok ? 'connected' : 'disconnected');
     } catch {
       setStatus('disconnected');
