@@ -175,28 +175,31 @@ function ColorSubmenu({
   onClose: () => void;
 }) {
   return (
-    <div
-      className="absolute left-full top-0 ml-1 rounded-lg shadow-lg border py-2 px-3"
-      style={{
-        backgroundColor: '#1e1e2e',
-        borderColor: '#313244',
-      }}
-    >
-      <div className="flex gap-2">
-        {COLOR_OPTIONS.map((opt) => (
-          <button
-            key={opt.name}
-            onClick={() => {
-              onColorChange(nodeId, opt.hex as unknown as NodeColor);
-              onClose();
-            }}
-            className="w-5 h-5 rounded-full transition-transform hover:scale-125 focus:outline-none"
-            style={{
-              backgroundColor: opt.hex,
-            }}
-            title={opt.label}
-          />
-        ))}
+    <div className="absolute left-full top-0 pl-1">
+      {/* pl-1 creates an invisible hover bridge between menu and submenu */}
+      <div
+        className="rounded-lg shadow-lg border py-2 px-3"
+        style={{
+          backgroundColor: '#1e1e2e',
+          borderColor: '#313244',
+        }}
+      >
+        <div className="flex gap-2">
+          {COLOR_OPTIONS.map((opt) => (
+            <button
+              key={opt.name}
+              onClick={() => {
+                onColorChange(nodeId, opt.hex as unknown as NodeColor);
+                onClose();
+              }}
+              className="w-5 h-5 rounded-full transition-transform hover:scale-125 focus:outline-none"
+              style={{
+                backgroundColor: opt.hex,
+              }}
+              title={opt.label}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
