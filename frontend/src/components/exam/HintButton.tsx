@@ -19,7 +19,7 @@
  * - useExamStore.currentExamId
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { ApiClient } from '../../services/api-client';
 import { useExamStore } from '../../stores/exam-store';
 
@@ -34,6 +34,7 @@ const HINT_LABELS = [
 
 export function HintButton() {
   const currentExamId = useExamStore((s) => s.currentExamId);
+  const currentNodeId = useExamStore((s) => s.currentNodeId);
   const hintLevel = useExamStore((s) => s.hintLevel);
   const incrementHintLevel = useExamStore((s) => s.incrementHintLevel);
   const [isLoading, setIsLoading] = useState(false);
@@ -42,10 +43,17 @@ export function HintButton() {
   const [maxAllowedLevel, setMaxAllowedLevel] = useState(4);
   const [fadeMessage, setFadeMessage] = useState('');
 
+  // F12: Reset fade state when node changes
+  useEffect(() => {
+    setHintDisabledByMastery(false);
+    setMaxAllowedLevel(4);
+    setFadeMessage('');
+  }, [currentNodeId]);
+
   const effectiveMax = Math.min(4, maxAllowedLevel);
 
   const requestHint = useCallback(async () => {
-    if (!currentExamId || hintLevel >= effectiveMax || isLoading || hintDisabledByMastery) return;
+    if (!currentExamId || !currentNodeId || hintLevel >= effectiveMax || isLoading || hintDisabledByMastery) return;
 
     setIsLoading(true);
     try {
@@ -55,7 +63,10 @@ export function HintButton() {
         message: string;
         status: string;
       }>(`/api/v1/exam/${currentExamId}/hint`, {
+        exam_id: currentExamId,
+        node_id: currentNodeId,
         hint_level: hintLevel + 1,
+        question_context: '',
       });
 
       // F12: Handle mastery-based fade-out response
