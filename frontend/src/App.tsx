@@ -1029,10 +1029,10 @@ function Canvas() {
           onDragOver={onDragOver}
           nodeTypes={nodeTypes}
           deleteKeyCode={null}
-          connectionRadius={20}
+          connectionRadius={12}
           panOnDrag={[1, 2]}
           panOnScroll={false}
-          selectionOnDrag={false}
+          selectionOnDrag
           selectionKeyCode="Shift"
           multiSelectionKeyCode="Control"
           fitView
