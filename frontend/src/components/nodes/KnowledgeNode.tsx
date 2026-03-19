@@ -1,5 +1,5 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
-import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { Handle, Position, NodeResizer, type NodeProps } from '@xyflow/react';
 import type { KnowledgeNodeData } from '../../types';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { getMasteryBorderClass, getMasteryColor } from '../../services/mastery-utils';
@@ -97,7 +97,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       ref={containerRef}
       className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
-      } min-w-[200px] relative`}
+      } min-w-[200px] relative w-full h-full`}
       style={{
         transition: 'border-color 300ms ease-in-out',
         ...(nodeData.color ? { borderColor: nodeData.color } : {}),
@@ -105,6 +105,14 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       onDoubleClick={handleDoubleClick}
       onBlur={isEditing ? handleContainerBlur : undefined}
     >
+      {/* Node resize handles — visible when selected */}
+      <NodeResizer
+        isVisible={selected}
+        minWidth={200}
+        minHeight={80}
+        lineClassName="!border-blue-400"
+        handleClassName="!w-2 !h-2 !bg-blue-500 !border-blue-500"
+      />
       {/* Story 5-2: Left mastery color bar indicator */}
       {masteryStatus !== 'unlearned' && (
         <div
