@@ -118,6 +118,11 @@ def _register_tool_routes(app: FastAPI) -> None:
         record_calibration,
         search_memories,
     )
+    from app.mcp.tools.note_search_tools import (
+        NoteSearchInput,
+        NoteSearchOutput,
+        search_notes,
+    )
 
     # Tag for grouping in OpenAPI docs
     MCP_TAG = "MCP Tools"
@@ -374,4 +379,29 @@ def _register_tool_routes(app: FastAPI) -> None:
         result = await svc.skip_question(input)
         return result.model_dump()
 
-    logger.info("[Story 3.2] Registered 13 MCP tool routes (incl. Story 6.6 request_hint, skip_question)")
+    # ═══════════════════════════════════════════════════════════════════════════
+    # Note Search Tool (F2: MVP #10 笔记精准检索返回)
+    # ═══════════════════════════════════════════════════════════════════════════
+
+    @app.post(
+        "/mcp/tools/search_notes",
+        response_model=NoteSearchOutput,
+        tags=[MCP_TAG],
+        summary="Search Vault notes (6-source RAG pipeline)",
+        description="Search the user's Vault markdown notes and related sources using "
+        "the full RAG pipeline: semantic search (BGE-M3), knowledge graph (Graphiti), "
+        "multimodal, textbook, and cross-canvas retrieval with fusion and reranking. "
+        "Claude should use this tool when it needs to find relevant notes, "
+        "examples, or study materials from the user's knowledge base.",
+    )
+    async def _search_notes(input: NoteSearchInput) -> Dict[str, Any]:
+        return await search_notes(
+            query=input.query,
+            canvas_file=input.canvas_file,
+            subject_id=input.subject_id,
+            max_results=input.max_results,
+            cross_subject=input.cross_subject,
+            fusion_strategy=input.fusion_strategy,
+        )
+
+    logger.info("[Story 3.2] Registered 14 MCP tool routes (incl. F2 search_notes)")
