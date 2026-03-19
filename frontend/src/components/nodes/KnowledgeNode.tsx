@@ -1,8 +1,11 @@
 import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { Handle, Position, NodeResizer, useReactFlow, type NodeProps } from '@xyflow/react';
+import ReactMarkdown from 'react-markdown';
+import rehypeSanitize from 'rehype-sanitize';
 import type { KnowledgeNodeData } from '../../types';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { getMasteryBorderClass, getMasteryColor } from '../../services/mastery-utils';
+import { preprocessWikiLinks, markdownComponents } from '../markdown/markdown-renderers';
 
 function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as KnowledgeNodeData;
@@ -180,10 +183,21 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
           />
         ) : (
           <div
-            className="text-sm text-gray-600 min-h-[40px] cursor-text whitespace-pre-wrap break-words"
+            className="min-h-[40px] cursor-text"
             onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
           >
-            {nodeData.content || <span className="text-gray-300 italic">Click to add content...</span>}
+            {nodeData.content ? (
+              <div className="prose prose-sm max-w-none break-words text-gray-600 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <ReactMarkdown
+                  rehypePlugins={[rehypeSanitize]}
+                  components={markdownComponents}
+                >
+                  {preprocessWikiLinks(nodeData.content)}
+                </ReactMarkdown>
+              </div>
+            ) : (
+              <span className="text-gray-300 italic text-sm">Click to add content...</span>
+            )}
           </div>
         )}
       </div>

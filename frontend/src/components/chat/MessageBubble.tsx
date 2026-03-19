@@ -19,11 +19,10 @@
  * - obsidian-link service for [[wiki-link]] click handling
  */
 
-import { useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import type { ChatMessage } from '../../services/dexie-db';
-import { openInObsidian, parseWikiLink } from '../../services/obsidian-link';
+import { preprocessWikiLinks, markdownComponents } from '../markdown/markdown-renderers';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -52,114 +51,6 @@ function formatRelativeTime(iso: string): string {
     minute: '2-digit',
   });
 }
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Wiki-link preprocessing
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Regex to match [[wiki-links]] including optional #heading.
- * Matches: [[file]], [[file#heading]], [[path/to/file#heading]]
- * Does NOT match already-escaped links inside code blocks (handled by markdown).
- */
-const WIKI_LINK_RE = /\[\[([^\]]+)\]\]/g;
-
-/**
- * Pre-process message content to convert [[wiki-links]] into markdown links.
- * Converts [[file#section]] -> [file#section](wiki-link://file#section)
- *
- * Uses a custom `wiki-link://` protocol as a marker so we can intercept clicks
- * in the ReactMarkdown link renderer without conflicting with real URLs.
- */
-function preprocessWikiLinks(content: string): string {
-  return content.replace(WIKI_LINK_RE, (_match, linkText: string) => {
-    // Encode the link text for URL safety
-    const encoded = encodeURIComponent(linkText);
-    return `[${linkText}](wiki-link://${encoded})`;
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// Wiki-link click handler component
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Custom link renderer for ReactMarkdown.
- * Intercepts wiki-link:// protocol links and opens them in Obsidian.
- * Regular links render as normal anchor tags.
- */
-function WikiLinkAnchor({
-  href,
-  children,
-}: {
-  href?: string;
-  children?: React.ReactNode;
-}) {
-  const handleWikiLinkClick = useCallback(
-    async (event: React.MouseEvent) => {
-      if (!href?.startsWith('wiki-link://')) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-
-      // Decode the link text from the URL
-      const encoded = href.replace('wiki-link://', '');
-      const linkText = decodeURIComponent(encoded);
-      const { filePath, heading } = parseWikiLink(linkText);
-
-      const result = await openInObsidian(filePath, heading);
-
-      if (!result.success && result.copyPath) {
-        // Attempt to copy path to clipboard as fallback
-        try {
-          await navigator.clipboard.writeText(result.copyPath);
-        } catch {
-          // Clipboard API may not be available
-          console.warn('[wiki-link] Could not copy path to clipboard:', result.copyPath);
-        }
-        if (result.error) {
-          console.warn('[wiki-link]', result.error);
-        }
-      }
-    },
-    [href],
-  );
-
-  // Wiki-link: render as styled clickable span
-  if (href?.startsWith('wiki-link://')) {
-    return (
-      <button
-        type="button"
-        onClick={handleWikiLinkClick}
-        className="inline-flex items-center gap-0.5 px-1 py-0 rounded text-blue-500 hover:text-blue-600 hover:bg-blue-50 cursor-pointer transition-colors text-sm font-medium no-underline"
-        title="Open in Obsidian"
-      >
-        <span className="text-xs opacity-70">[[</span>
-        {children}
-        <span className="text-xs opacity-70">]]</span>
-      </button>
-    );
-  }
-
-  // Regular link: render normally
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer">
-      {children}
-    </a>
-  );
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// ReactMarkdown custom components
-// ═══════════════════════════════════════════════════════════════════════════════
-
-/**
- * Custom component map for ReactMarkdown.
- * Overrides the `a` tag renderer to handle wiki-links.
- */
-const markdownComponents = {
-  a: WikiLinkAnchor,
-} as const;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // MessageBubble Component
