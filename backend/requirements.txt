@@ -98,10 +98,10 @@ ftfy>=6.0.0
 # ==========================================================
 # Spaced Repetition (Story 32.1)
 # ✅ Verified from https://github.com/open-spaced-repetition/py-fsrs
-# FSRS-4.5 algorithm for scientifically-optimized review intervals
+# FSRS-6 algorithm — Scheduler class (renamed from FSRS in 6.0.0)
 # Package name on PyPI is 'fsrs' (not 'py-fsrs')
 # ==========================================================
-fsrs>=1.0.0
+fsrs>=6.0.0,<7.0.0
 
 # ==========================================================
 # Result Merging (Story 33.7)

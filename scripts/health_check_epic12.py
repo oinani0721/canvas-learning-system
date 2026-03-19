@@ -161,13 +161,13 @@ def check_fsrs() -> Tuple[bool, str, Dict[str, Any]]:
         (passed, message, details)
     """
     try:
-        from fsrs import FSRS, Rating
+        from fsrs import Scheduler, Rating
 
-        # 创建FSRS实例测试
-        fsrs = FSRS()
+        # 创建Scheduler实例测试 (FSRS类在py-fsrs 6.0.0中重命名为Scheduler)
+        scheduler = Scheduler()
 
         return True, "Initialized", {
-            "version": getattr(fsrs, 'version', 'N/A')
+            "version": getattr(scheduler, 'version', 'N/A')
         }
     except ImportError:
         return False, "fsrs package not installed", {}
