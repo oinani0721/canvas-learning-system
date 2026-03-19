@@ -16,6 +16,7 @@
  * - 2s first-token timeout with "Thinking..." indicator (AC-6)
  * - Input bar with Enter/Shift+Enter/Escape shortcuts (AC-5)
  * - Text selection toolbar for Add Tip / Pull to Node
+ * - Inline annotation panel for rich text annotation (FR-CONV-05/06)
  * - Engine status indicator (Claude Code vs API Key) (Story 3-9)
  * - Quota exhaustion banner with countdown + degradation options (Story 3-10)
  * - Crash recovery banner with auto/manual retry status (Story 3-11)
@@ -29,7 +30,7 @@
  * - MessageBubble — individual message rendering
  * - InputBar — text input with keyboard shortcuts
  * - StreamingIndicator — animated streaming feedback
- * - SelectionToolbar — text selection actions
+ * - InlineAnnotation — rich text annotation panel + Pull to Node (FR-CONV-05/06, replaces SelectionToolbar)
  * - TipsList — displays saved tips for the node
  * - EngineStatusIndicator — shows active engine (Story 3-9)
  * - QuotaExhaustedBanner — quota degradation UI (Story 3-10)
@@ -42,7 +43,7 @@ import { useChatStore, type EdgeContext } from '../stores/chat-store';
 import { MessageBubble } from './chat/MessageBubble';
 import { InputBar } from './chat/InputBar';
 import { StreamingIndicator } from './chat/StreamingIndicator';
-import { SelectionToolbar } from './chat/SelectionToolbar';
+import { InlineAnnotation } from './chat/InlineAnnotation';
 import { TipsList } from './chat/TipsList';
 import { EngineStatusIndicator } from './chat/EngineStatusIndicator';
 import { QuotaExhaustedBanner } from './chat/QuotaExhaustedBanner';
@@ -317,9 +318,11 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
         quotaExhausted={quotaStatus === 'exhausted'}
       />
 
-      {/* Text selection toolbar (floating, appears on text select) — only in node mode */}
+      {/* Inline annotation toolbar + panel (floating, appears on text select) — only in node mode
+           Replaces SelectionToolbar with richer annotation flow (FR-CONV-05/06)
+           while preserving Pull to Node functionality */}
       {!isEdgeMode && (
-        <SelectionToolbar nodeId={nodeId} onPullToNode={handlePullToNode} />
+        <InlineAnnotation nodeId={nodeId} onPullToNode={handlePullToNode} />
       )}
     </div>
   );

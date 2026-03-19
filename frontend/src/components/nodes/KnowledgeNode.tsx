@@ -25,6 +25,18 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     }
   }, [nodeData.title, nodeData.content, isEditing]);
 
+  // DD-11 Wiring: Listen for rename event from context menu
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.nodeId === id) {
+        setIsEditing(true);
+      }
+    };
+    window.addEventListener('canvas-learning:rename-node', handler);
+    return () => window.removeEventListener('canvas-learning:rename-node', handler);
+  }, [id]);
+
   const handleDoubleClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
     setIsEditing(true);
@@ -71,10 +83,13 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
 
   return (
     <div
-      className={`bg-white rounded-lg shadow-md border-2 ${borderColor} ${
+      className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
       } min-w-[200px] max-w-[300px] relative`}
-      style={{ transition: 'border-color 300ms ease-in-out' }}
+      style={{
+        transition: 'border-color 300ms ease-in-out',
+        ...(nodeData.color ? { borderColor: nodeData.color } : {}),
+      }}
       onDoubleClick={handleDoubleClick}
     >
       {/* Story 5-2: Left mastery color bar indicator */}

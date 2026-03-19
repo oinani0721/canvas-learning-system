@@ -40,6 +40,8 @@ export interface CanvasNode {
   ocrSummary?: string;       // one-line summary
   ocrConcepts?: string[];    // extracted concept terms
   ocrError?: string;         // error message on failure
+  // Visual customization
+  color?: string;            // user-assigned node color (red/orange/yellow/green/blue/purple/gray)
   createdAt: string;
   updatedAt: string;
 }

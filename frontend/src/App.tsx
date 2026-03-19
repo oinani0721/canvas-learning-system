@@ -32,8 +32,9 @@ import { ReviewItem } from './components/dashboard/ReviewItem';
 import { ExamCard } from './components/dashboard/ExamCard';
 import { useMasteryStore } from './stores/mastery-store';
 import type { ExamSession } from './services/api-client';
-import { NodeContextMenu, type ContextMenuState } from './components/NodeContextMenu';
+import { NodeContextMenu, type ContextMenuState, type NodeColor } from './components/NodeContextMenu';
 import { ExamCanvas } from './components/exam/ExamCanvas';
+import { ExamSummary } from './components/exam/ExamSummary';
 import { ExamModeSelector } from './components/exam/ExamModeSelector';
 import { useExamStore } from './stores/exam-store';
 
@@ -220,6 +221,9 @@ function Canvas() {
 
   // Story 6.1/6.2: Exam whiteboard state
   const isExamActive = useExamStore((s) => s.isExamActive);
+  const examStatus = useExamStore((s) => s.examStatus);
+  const currentExamId = useExamStore((s) => s.currentExamId);
+  const exitExam = useExamStore((s) => s.exitExam);
   const enterExam = useExamStore((s) => s.enterExam);
   const [showExamModeSelector, setShowExamModeSelector] = useState(false);
   const [examTargetNodeId, setExamTargetNodeId] = useState<string | undefined>(undefined);
@@ -325,6 +329,13 @@ function Canvas() {
     setShowExamModeSelector(false);
     await enterExam(examId);
   }, [enterExam]);
+
+  // Return to dashboard from ExamSummary — clean up exam state
+  const handleReturnFromExamSummary = useCallback(() => {
+    exitExam();
+    goToDashboard();
+    loadBoards();
+  }, [exitExam, goToDashboard, loadBoards]);
 
   // Load boards on mount
   useEffect(() => {
@@ -446,31 +457,6 @@ function Canvas() {
   );
 
   // Scene 1.11: Context menu action handlers
-  const handleContextMenuEdit = useCallback(
-    (nodeId: string) => {
-      setSelectedNodeId(nodeId);
-      setSelectedEdgeContext(null);
-      setSidebarTab('chat');
-    },
-    [setSelectedNodeId],
-  );
-
-  const handleContextMenuDelete = useCallback(
-    async (nodeId: string) => {
-      await deleteNodes([nodeId]);
-      triggerSync();
-      // Remove from ReactFlow state
-      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-      setEdges((eds) =>
-        eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
-      );
-      if (selectedNodeId === nodeId) {
-        setSelectedNodeId(null);
-      }
-    },
-    [deleteNodes, triggerSync, setNodes, setEdges, selectedNodeId, setSelectedNodeId],
-  );
-
   const handleContextMenuStartChat = useCallback(
     (nodeId: string) => {
       setSelectedNodeId(nodeId);
@@ -487,6 +473,78 @@ function Canvas() {
       setSidebarTab('profile');
     },
     [setSelectedNodeId],
+  );
+
+  const handleContextMenuRename = useCallback(
+    (nodeId: string) => {
+      // Select the node and trigger inline editing by dispatching a custom event
+      // that KnowledgeNode can listen to, or simulating a double-click.
+      // For now: select the node — the KnowledgeNode double-click handler enters edit mode.
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeContext(null);
+      // Dispatch a custom event that KnowledgeNode can pick up to enter rename mode
+      window.dispatchEvent(new CustomEvent('canvas-learning:rename-node', { detail: { nodeId } }));
+    },
+    [setSelectedNodeId],
+  );
+
+  const handleContextMenuColorChange = useCallback(
+    async (nodeId: string, color: NodeColor) => {
+      // Persist color as a non-indexed property on the CanvasNode in Dexie
+      await db.canvas_nodes.update(nodeId, { color, updatedAt: new Date().toISOString() });
+      // Update ReactFlow node data to reflect the color change visually
+      setNodes((nds) =>
+        nds.map((n) =>
+          n.id === nodeId
+            ? { ...n, data: { ...n.data, color } }
+            : n,
+        ),
+      );
+      triggerSync();
+    },
+    [setNodes, triggerSync],
+  );
+
+  const handleContextMenuStartExam = useCallback(
+    (nodeId: string) => {
+      setExamTargetNodeId(nodeId);
+      setExamSourceBoardId(currentBoardId);
+      setShowExamModeSelector(true);
+    },
+    [currentBoardId],
+  );
+
+  const handleContextMenuViewRelations = useCallback(
+    (nodeId: string) => {
+      // Select the node so the user sees it highlighted
+      setSelectedNodeId(nodeId);
+      // Find edges connected to this node and highlight them
+      setEdges((eds) =>
+        eds.map((e) =>
+          e.source === nodeId || e.target === nodeId
+            ? { ...e, animated: true, selected: true }
+            : { ...e, animated: false, selected: false },
+        ),
+      );
+      console.log(`[查看关联] 节点 ${nodeId} 的关联边已高亮显示。完整关联图功能开发中。`);
+    },
+    [setSelectedNodeId, setEdges],
+  );
+
+  const handleContextMenuDelete = useCallback(
+    async (nodeId: string) => {
+      await deleteNodes([nodeId]);
+      triggerSync();
+      // Remove from ReactFlow state
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
+      );
+      if (selectedNodeId === nodeId) {
+        setSelectedNodeId(null);
+      }
+    },
+    [deleteNodes, triggerSync, setNodes, setEdges, selectedNodeId, setSelectedNodeId],
   );
 
   // Story 4-1: Edge click → open edge dialog in sidebar
@@ -722,6 +780,16 @@ function Canvas() {
     : null;
 
   // --- Render ---
+
+  // Exam completed — show ExamSummary panel
+  if (examStatus === 'completed' && currentExamId) {
+    return (
+      <ExamSummary
+        examId={currentExamId}
+        onReturnDashboard={handleReturnFromExamSummary}
+      />
+    );
+  }
 
   // Story 6.1/6.2: Exam mode — render ExamCanvas when active
   if (isExamActive) {
@@ -993,10 +1061,13 @@ function Canvas() {
           <NodeContextMenu
             state={contextMenu}
             onClose={() => setContextMenu(null)}
-            onEdit={handleContextMenuEdit}
-            onDelete={handleContextMenuDelete}
             onStartChat={handleContextMenuStartChat}
             onViewProfile={handleContextMenuViewProfile}
+            onRename={handleContextMenuRename}
+            onColorChange={handleContextMenuColorChange}
+            onStartExam={handleContextMenuStartExam}
+            onViewRelations={handleContextMenuViewRelations}
+            onDelete={handleContextMenuDelete}
           />
         )}
       </div>

@@ -40,6 +40,7 @@ export function dexieNodeToReactFlow(n: CanvasNode): Node<KnowledgeNodeData> {
     indexStatus: (n.indexStatus as KnowledgeNodeData['indexStatus']) ?? 'none',
     imageData: n.imageData,
     ocr: n.ocrText ? { text: n.ocrText, summary: n.ocrSummary ?? '', concepts: n.ocrConcepts ?? [] } : undefined,
+    color: n.color,
     tips: [],
     interactionCount: 0,
     examCount: 0,

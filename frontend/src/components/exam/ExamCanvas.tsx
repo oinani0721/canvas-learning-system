@@ -69,7 +69,6 @@ function ExamCanvasInner() {
   const examMode = useExamStore((s) => s.examMode);
   const startTime = useExamStore((s) => s.startTime);
   const examinedNodes = useExamStore((s) => s.examinedNodes);
-  const exitExam = useExamStore((s) => s.exitExam);
   const updateStatus = useExamStore((s) => s.updateStatus);
   const recordNodeExamined = useExamStore((s) => s.recordNodeExamined);
   const recordNodeDiscovered = useExamStore((s) => s.recordNodeDiscovered);
@@ -160,7 +159,9 @@ function ExamCanvasInner() {
     [reactFlowInstance, setNodes, setCurrentNode, recordNodeDiscovered, onPaneClick],
   );
 
-  // End exam handler
+  // End exam handler — transitions to 'completed' status.
+  // ExamSummary will be shown by App.tsx; exitExam() is called from there
+  // after the user clicks "return to dashboard".
   const handleEndExam = useCallback(() => {
     updateStatus('completed');
 
@@ -175,9 +176,8 @@ function ExamCanvasInner() {
         );
     }
 
-    exitExam();
     setShowEndConfirm(false);
-  }, [currentExamId, updateStatus, exitExam]);
+  }, [currentExamId, updateStatus]);
 
   // Escape key closes end-exam dialog
   useEffect(() => {

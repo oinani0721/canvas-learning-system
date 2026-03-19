@@ -206,6 +206,10 @@ export interface KnowledgeNodeData extends Record<string, unknown> {
 	/** OCR extraction results. */
 	ocr?: OCRData;
 
+	// ── Visual customization ──────────────────────────────────────────
+	/** User-assigned node color (from context menu color picker). */
+	color?: string;
+
 	// ── Tips ───────────────────────────────────────────────────────────
 	/** Tip annotations attached to this node. */
 	tips: TipItem[];
