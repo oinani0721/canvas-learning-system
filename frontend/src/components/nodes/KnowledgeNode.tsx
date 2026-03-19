@@ -190,10 +190,10 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       </div>
 
       {/* Content area — nowheel enables scroll inside node instead of canvas zoom */}
-      <div className="nowheel px-3 py-2 flex-1 overflow-auto">
+      <div className={`nowheel px-3 py-2 flex-1 ${isEditing ? 'overflow-hidden' : 'overflow-auto'}`}>
         {isEditing ? (
           <textarea
-            className="nodrag nopan nowheel w-full h-full text-sm text-gray-800 border-none outline-none resize-none bg-transparent min-h-[60px]"
+            className="nodrag nopan nowheel w-full h-full text-sm text-gray-800 border-none outline-none resize-none bg-transparent min-h-[60px] overflow-auto"
             value={editContent}
             onChange={handleContentChange}
             placeholder="Enter content..."
