@@ -1,46 +1,8 @@
 {
-  "research_topic": "前端重构技术选型验证 — Tauri 2.0 + React 19 + ReactFlow + shadcn/ui + TailwindCSS + Catppuccin Mocha",
-  "active_decisions": [
-    "DE-1: Tauri 2.0 + React 19 + ReactFlow 独立桌面应用(替代Obsidian插件). 6-agent调研推荐, 20+案例+20+论文验证. 已通过编译+ReactFlow集成验证.",
-    "DE-2: shadcn/ui + TailwindCSS v4 + Catppuccin Mocha 全量UI重写. 87个Pencil设计组件. 80+旧Svelte文件删除.",
-    "DE-3: 后端全部保留(FastAPI/Neo4j/LanceDB/BKT+FSRS). api-client保持框架无关.",
-    "DE-4: Tauri Shell Plugin管理Docker Compose生命周期. Rust子进程控制.",
-    "DE-5: CSP策略 — 开发阶段csp:null, 上线前定向放行(localhost+Claude API).",
-    "Frontend-first + Backend sync架构模式(跨平台保留, 实现从Svelte store改为React state + 本地JSON)",
-    "对话引擎: Spawn官方Claude Code CLI + 用户订阅额度(Mode D架构)"
-  ],
-  "do_not_research": [
-    "Svelte 5/4 — 已确认弃用, Electron编译问题",
-    "Preact — 早期否决",
-    "CRDT同步 — 明确否决",
-    "Obsidian Canvas原生(.canvas文件) — 项目用自建白板",
-    "5维Beta-Bayesian面板 — 用户确认非刚需",
-    "自建白板从零开始 — 无成功先例, 用ReactFlow",
-    "HyDE/Self-RAG/KG-RAG/CRAG/LongLLMLingua — 已否决的RAG方案",
-    "Kafka/Qdrant/Milvus/tiktoken — 否决的基础设施",
-    "纯苏格拉底引导/直接给答案 — 交互模式已否决"
-  ],
-  "priority_gaps": [
-    "HIGH: Tauri+React+ReactFlow选型缺少formal Decision-Review审计",
-    "HIGH: shadcn/ui覆盖14项MVP需求未验证",
-    "HIGH: Tauri前端↔Python后端API协议未定义",
-    "HIGH: Claude Code CLI spawn集成缺少设计深度",
-    "MEDIUM: 本地JSON存储schema未规范",
-    "MEDIUM: 旧Obsidian插件废弃路径未定义",
-    "MEDIUM: React+ReactFlow下ChatPanel/Edge复杂度未评估"
-  ],
-  "decision_clusters": [
-    "C1: 平台演进 Obsidian→Tauri(核心驱动链)",
-    "C2: Frontend-first架构模式(跨平台保留)",
-    "C3: 框架演进 Svelte→PureTS→React(平台驱动)",
-    "C4: 5-Epic实施规划(依赖确认选型)",
-    "C5: Obsidian Canvas脱离(启动一切的gateway决策)",
-    "C6: Session D前端调研血统(13个brainstorming文档)"
-  ],
-  "warnings": [
-    "React被否决(03-12)后被采纳(03-17)不是矛盾, 是平台从Obsidian切换到Tauri后的合理演进",
-    "后端完全不变(DE-3), 只有前端切换",
-    "56个已否决方案, 不要重新调研除非发现颠覆性证据"
-  ],
-  "injection_instruction": "你是GDR Wave 2调研agent。必须先阅读以上上下文。do_not_research中的方向无需深入(除非发现颠覆性证据标记CONFLICT)。priority_gaps是重点。所有发现必须标注与active_decisions的关系: 验证/冲突/新发现。"
+  "research_topic": "Docker后端PRD/架构/算法实现真实性审核 + BMAD并行Story遗漏根因 + 社区成熟开发流程",
+  "active_decisions_summary": "13 active: Docker 3-container, Mode D MCP, Tier B CLI, BKT+FSRS hybrid, LanceDB+BGE-M3, gte-reranker, Tauri+React, 6 Epics, DD-01~10, Lightweight Loop, 15 PRD decisions",
+  "do_not_research": "HyDE/Self-RAG/CRAG/Qdrant/Milvus/Kafka/tiktoken/Docling/Svelte5/IndexedDB/DSPy/Full-Agentic-RAG/WebWorker/Beta-Bayesian",
+  "priority_gaps": "P0: 5-NO_STORY cascade(CLI cwd→MCP→Vault→RAG), learning_context last-mile disconnect, canvas.py stubs, BMAD 3 root causes. P1: Query-Rewrite/Reranking stubs, 13 dead endpoints, algorithm verification debt",
+  "clusters": "5 clusters: Algorithm(BKT+FSRS working/disconnected), Retrieval(LanceDB+BGE-M3 working), ConvEngine(Tier B CLI not implemented), DevWorkflow(Lightweight replacing BMAD Story-level), Frontend(Tauri+React VALIDATED)",
+  "supersedes": "Mode D→SDK→Tier B CLI | bge-reranker→gte-reranker | MiniLM→bge-m3 | bge-m3-sparse→BM25-FTS | BMAD-full→Lightweight | Obsidian→Tauri | Epic-v1→Epic-v2"
 }
