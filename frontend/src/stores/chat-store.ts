@@ -281,9 +281,22 @@ async function deleteNodeMessages(nodeId: string): Promise<void> {
  * Build system prompt for node conversations.
  * Defines the learning assistant role and guides MCP tool usage.
  */
-function buildNodeSystemPrompt(nodeTitle: string): string {
+function buildNodeSystemPrompt(nodeTitle: string, nodeContent?: string): string {
+  const contentSection = nodeContent
+    ? [
+        ``,
+        `## 节点内容（用户写在白板上的笔记）`,
+        `以下是用户在「${nodeTitle}」节点上写的内容，请基于这些内容展开教学：`,
+        ``,
+        `\`\`\``,
+        nodeContent,
+        `\`\`\``,
+      ]
+    : [];
+
   return [
     `你是 Canvas Learning System 的学习助手，正在帮助用户学习「${nodeTitle}」。`,
+    ...contentSection,
     ``,
     `## 你的角色`,
     `- 像一个耐心的私教，根据用户的水平调整讲解深度`,
@@ -516,10 +529,23 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       }
     }
 
+    // Read node content from Dexie (if available) to pass to Claude
+    let nodeContent = '';
+    if (currentMode !== 'edge') {
+      try {
+        const nodeRecord = await db.canvas_nodes.get(nodeId);
+        if (nodeRecord?.content) {
+          nodeContent = nodeRecord.content as string;
+        }
+      } catch {
+        // Non-blocking: content unavailable doesn't prevent chat
+      }
+    }
+
     // Story 4-1/4-2: Edge mode uses edge-specific system prompt
     const baseSystemPrompt = currentMode === 'edge' && currentEdge
       ? buildEdgeSystemPrompt(currentEdge)
-      : buildNodeSystemPrompt(nodeTitle);
+      : buildNodeSystemPrompt(nodeTitle, nodeContent || undefined);
 
     // Inject learning context into system prompt if available
     const systemPrompt = learningContext
