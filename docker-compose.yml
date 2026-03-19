@@ -106,6 +106,7 @@ services:
       - CANVAS_BASE_PATH=/app/data
       - PYTHONPATH=/app:/app/src
       - DEBUG=true
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md
 
     volumes:
       - ./backend:/app
@@ -119,7 +120,7 @@ services:
         condition: service_healthy
 
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/v1/system/health || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:8001/api/v1/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
