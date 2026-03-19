@@ -23,6 +23,7 @@ from app.api.v1.endpoints.edges import edges_router  # Story 4.1-4.4
 from app.api.v1.endpoints.exam import exam_router
 from app.api.v1.endpoints.exam_sessions import exam_sessions_router
 from app.api.v1.endpoints.index_image import index_image_router
+from app.api.v1.endpoints.inheritance import inheritance_router  # F9
 from app.api.v1.endpoints.intelligent_parallel import (
     intelligent_parallel_router,
     single_agent_router,
@@ -390,6 +391,18 @@ router.include_router(
     prefix="/skills",
     tags=["Skills"],
     responses={404: {"description": "Skill not found"}, 500: {"description": "Skill registry error"}},
+)
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Conversation Inheritance Routes (F9)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# F9: Edge-based conversation distillation trigger
+# [Source: PRD "Edge 標標語義検索 + LLM 摘要の分層継承方案"]
+router.include_router(
+    inheritance_router,
+    tags=["Inheritance"],
+    responses={500: {"description": "Distillation error"}},
 )
 
 # ═══════════════════════════════════════════════════════════════════════════════

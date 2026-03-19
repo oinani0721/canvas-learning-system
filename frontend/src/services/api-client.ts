@@ -817,6 +817,31 @@ export class ApiClient {
       };
     }
   }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // F9: Conversation Distillation Trigger
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * F9: Trigger conversation distillation for a node after dialogue ends.
+   * Sends message history to backend for LLM-based extraction of summary,
+   * tips, errors, and Q&A highlights. Results are persisted for Edge inheritance.
+   * Fire-and-forget: returns null on any failure (non-blocking).
+   */
+  async triggerDistillation(
+    nodeId: string,
+    messages: { role: string; content: string }[],
+  ): Promise<{ success: boolean; summary: string } | null> {
+    try {
+      return await this.post<{ success: boolean; summary: string }>(
+        `/api/v1/chat/${encodeURIComponent(nodeId)}/distill`,
+        { messages },
+      );
+    } catch (err) {
+      console.warn('[F9] triggerDistillation failed (non-blocking):', err);
+      return null;
+    }
+  }
 }
 
 /** Response from record_edge_rationale endpoint. */

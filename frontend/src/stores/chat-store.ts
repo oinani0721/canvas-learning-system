@@ -665,6 +665,22 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   );
                 }
 
+                // F9: Trigger conversation distillation (fire-and-forget)
+                // Extracts summary/tips/errors for Edge-based context inheritance
+                const { chatMode: distillMode } = get();
+                if (distillMode !== 'edge') {
+                  const distillClient = getChatApiClient();
+                  const recentMsgs = get().messages
+                    .filter((m) => m.role !== 'error')
+                    .slice(-20)
+                    .map((m) => ({ role: m.role, content: m.content }));
+                  if (recentMsgs.length >= 2) {
+                    distillClient.triggerDistillation(nodeId, recentMsgs).catch((err) =>
+                      console.warn('[F9] Distillation trigger failed (non-blocking):', err)
+                    );
+                  }
+                }
+
                 set((state) => ({
                   isStreaming: false,
                   waitingForFirstToken: false,

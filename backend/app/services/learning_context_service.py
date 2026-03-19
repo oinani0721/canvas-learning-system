@@ -353,12 +353,43 @@ async def get_node_context(
     ]
     tier2 = {"neighbors": neighbors}
 
+    # F9: Fetch inherited conversation context from Edge-connected neighbors
+    inherited_context = await _fetch_inherited_context(node_id, group_id)
+
     return {
         "node_id": node_id,
         "node_name": tier1["node_name"],
         "tier1": tier1,
         "tier2": tier2,
+        "inherited_context": inherited_context,
     }
+
+
+async def _fetch_inherited_context(node_id: str, group_id: str) -> list[dict]:
+    """F9: Fetch conversation summaries from Edge-connected neighbors.
+
+    PRD: "Edge 标签语义検索 + LLM 摘要的分層継承方案"
+    Architecture: Fills Tier 2 adjacent node summaries.
+
+    Returns list of dicts with neighbor_name, edge_label, conversation_summary, key_insights.
+    Graceful degradation: returns empty on failure.
+    """
+    try:
+        from app.services.conversation_inheritance import get_inherited_context
+
+        inherited = await get_inherited_context(node_id, group_id)
+        return [
+            {
+                "neighbor_name": ctx.neighbor_name,
+                "edge_label": ctx.edge_label,
+                "conversation_summary": ctx.conversation_summary,
+                "key_insights": ctx.key_insights,
+            }
+            for ctx in inherited
+        ]
+    except Exception as e:
+        logger.warning("Failed to fetch inherited context for %s: %s", node_id, e)
+        return list()
 
 
 async def _fetch_neighbor_records(node_id: str) -> list[dict]:
@@ -465,8 +496,30 @@ def format_as_markdown(ctx: dict) -> str:
         if reason_lines:
             sections.append("### 连线关系\n" + "\n".join(reason_lines))
 
+    # F9: Inherited conversation context (Tier 2 — adjacent node summaries via Edge)
+    inherited = ctx.get("inherited_context", list())
+    if inherited:
+        inh_lines = list()
+        for inh in inherited:
+            name = inh.get("neighbor_name", "")
+            label = inh.get("edge_label", "")
+            summary = inh.get("conversation_summary", "")
+            if not name or not summary:
+                continue
+            line = f"- 与「{name}」的关联"
+            if label:
+                line += f"（{label}）"
+            line += f"：{summary}"
+            insights = inh.get("key_insights", list())
+            if insights:
+                for insight in insights[:2]:
+                    line += f"\n  - {insight}"
+            inh_lines.append(line)
+        if inh_lines:
+            sections.append("### 关联知识上下文（通过 Edge 继承）\n" + "\n".join(inh_lines))
+
     # Tier 2: Neighbors
-    neighbors = tier2.get("neighbors", [])
+    neighbors = tier2.get("neighbors", list())
     if neighbors:
         neighbor_lines = []
         for nb in neighbors:
