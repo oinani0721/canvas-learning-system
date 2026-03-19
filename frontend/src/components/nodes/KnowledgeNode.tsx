@@ -92,6 +92,22 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     [scheduleSave, editTitle],
   );
 
+  // Escape key exits editing (matches Obsidian Canvas behavior)
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        if (debounceRef.current) {
+          clearTimeout(debounceRef.current);
+          debounceRef.current = null;
+        }
+        saveAndSync(editTitle, editContent);
+        setIsEditing(false);
+      }
+    },
+    [editTitle, editContent, saveAndSync],
+  );
+
   // Container-level blur: only exit editing when focus leaves the entire node
   const handleContainerBlur = useCallback(
     (e: React.FocusEvent) => {
@@ -124,6 +140,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
       }}
       onDoubleClick={handleDoubleClick}
       onBlur={isEditing ? handleContainerBlur : undefined}
+      onKeyDown={isEditing ? handleKeyDown : undefined}
     >
       {/* Node resize handles — visible when selected */}
       <NodeResizer
@@ -154,7 +171,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
             type="text"
             value={editTitle}
             onChange={handleTitleChange}
-            className="w-full text-sm font-medium text-gray-900 border-none outline-none bg-transparent"
+            className="nodrag nopan w-full text-sm font-medium text-gray-900 border-none outline-none bg-transparent"
             placeholder="Node title..."
             autoFocus
           />
@@ -172,20 +189,17 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Content area — always visible, click to edit, fills available space */}
-      <div className="px-3 py-2 flex-1 overflow-auto">
+      {/* Content area — nowheel enables scroll inside node instead of canvas zoom */}
+      <div className="nowheel px-3 py-2 flex-1 overflow-auto">
         {isEditing ? (
           <textarea
-            className="w-full h-full text-sm text-gray-800 border-none outline-none resize-none bg-transparent min-h-[60px]"
+            className="nodrag nopan nowheel w-full h-full text-sm text-gray-800 border-none outline-none resize-none bg-transparent min-h-[60px]"
             value={editContent}
             onChange={handleContentChange}
             placeholder="Enter content..."
           />
         ) : (
-          <div
-            className="min-h-[40px] cursor-text"
-            onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
-          >
+          <div className="nodrag nopan min-h-[40px]">
             {nodeData.content ? (
               <div className="prose prose-sm max-w-none break-words text-gray-600 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                 <ReactMarkdown
@@ -196,7 +210,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
                 </ReactMarkdown>
               </div>
             ) : (
-              <span className="text-gray-300 italic text-sm">Click to add content...</span>
+              <span className="text-gray-300 italic text-sm">Double-click to add content...</span>
             )}
           </div>
         )}
