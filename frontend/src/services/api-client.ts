@@ -36,6 +36,9 @@ export interface ExamSession { id: string; sourceBoardId: string; sourceBoardNam
 export interface MasteryBatchResponse { concepts: MasteryConceptResponse[]; topicSummary: Record<string, { avgProficiency: number; conceptCount: number; examWeight: number }> }
 export interface MasteryConceptResponse { conceptId: string; name: string; topic: string; effectiveProficiency: number; masteryLevel: number; masteryLabel: string; masteryColor: string; retrievability: number; freshness: string; fsrsDueDate: string | null; overrideActive: boolean; overrideValue: number | null; selfAssessValue: number | null; falseMasteryRisk: number; interactionCount: number; fluentCount: number; pMastery: number; lastInteractionTs: string | null }
 export interface NodeMasteryData { effectiveProficiency: number | null; hasInteraction: boolean; hasExamRecord: boolean; fsrsNextReview: string | null }
+/** A skill available for selection from the backend. */
+export interface SkillItem { id: string; name: string; description: string; command: string; category?: string }
+
 /** [CHANGED] Callback replaces direct masteryState Svelte store mutation */
 export type MasteryUpdateCallback = (nodeId: string, data: Partial<NodeMasteryData>) => void;
 /** [CHANGED] Slimmed from CanvasLearningSettings - only backend-relevant fields */
@@ -439,6 +442,76 @@ export class ApiClient {
   // Story 1.5: Sync Batch API (AC-7)
   // [Source: _bmad-output/implementation-artifacts/1-5-canvas-data-sync-backend-kg.md#Task 7]
   // ═══════════════════════════════════════════════════════════════════════════
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Tips API — backend sync for tip annotations (MVP #5)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Save a tip annotation to the backend.
+   * POST /api/v1/tips
+   *
+   * Graceful degradation: returns null on failure (localStorage still has it).
+   */
+  async saveTip(
+    nodeId: string,
+    content: string,
+    tags: string[] = [],
+  ): Promise<TipItem | null> {
+    try {
+      return await this.post<TipItem>('/api/v1/tips', {
+        nodeId,
+        content,
+        tags,
+      });
+    } catch (err) {
+      console.warn(
+        '[Canvas Learning] Failed to save tip to backend:',
+        err instanceof Error ? err.message : err,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Get tips for a node from the backend.
+   * GET /api/v1/tips?node_id={nodeId}
+   *
+   * Graceful degradation: returns empty array on failure.
+   */
+  async getTips(nodeId: string): Promise<TipItem[]> {
+    try {
+      const result = await this.get<{ tips: TipItem[]; total: number }>(
+        `/api/v1/tips?node_id=${encodeURIComponent(nodeId)}`,
+      );
+      return result.tips;
+    } catch {
+      console.warn(
+        `[Canvas Learning] Failed to fetch tips for "${nodeId}" from backend`,
+      );
+      return new Array<TipItem>();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Skills API — list available skills (MVP #13)
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Get available skills from the backend.
+   * GET /api/v1/skills
+   *
+   * Graceful degradation: returns empty array on failure.
+   */
+  async getSkills(): Promise<SkillItem[]> {
+    try {
+      const result = await this.get<{ skills: SkillItem[] }>('/api/v1/skills');
+      return result.skills;
+    } catch {
+      console.warn('[Canvas Learning] Failed to fetch skills from backend');
+      return new Array<SkillItem>();
+    }
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // Story 5.3: Profile API (Learning Profile Panel)

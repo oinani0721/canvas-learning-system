@@ -1,5 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { TipItem } from '../../types';
+import { ApiClient } from '../../services/api-client';
+
+const tipApiClient = new ApiClient();
 
 interface SelectionToolbarProps {
   /** The node ID used as localStorage key namespace for tips. */
@@ -108,7 +111,13 @@ export function SelectionToolbar({ nodeId, onPullToNode }: SelectionToolbarProps
       contextMessages: [],
     };
 
+    // Write to localStorage first (instant, offline-safe)
     localStorage.setItem(storageKey, JSON.stringify([...existing, newTip]));
+
+    // Async POST to backend — fire-and-forget, localStorage is the source of truth
+    tipApiClient.saveTip(nodeId, selectedText, []).catch(() => {
+      // Silently ignored — localStorage already has the tip
+    });
 
     // Clear browser selection and hide toolbar.
     window.getSelection()?.removeAllRanges();

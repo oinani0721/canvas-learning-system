@@ -1,5 +1,8 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { TipItem } from '../../types';
+import { ApiClient } from '../../services/api-client';
+
+const tipsApiClient = new ApiClient();
 
 interface TipsListProps {
   /** The node ID whose tips are displayed. */
@@ -22,12 +25,30 @@ export function TipsList({ nodeId }: TipsListProps) {
 
   const storageKey = `tips:${nodeId}`;
 
-  // ── Read tips from localStorage ──────────────────────────────────────
+  // ── Read tips from localStorage + backend merge ─────────────────────
 
   const loadTips = useCallback(() => {
+    // Load local tips immediately for instant display
     const raw = localStorage.getItem(storageKey);
-    setTips(raw ? (JSON.parse(raw) as TipItem[]) : []);
-  }, [storageKey]);
+    const localTips: TipItem[] = raw ? (JSON.parse(raw) as TipItem[]) : [];
+    setTips(localTips);
+
+    // Async fetch from backend and merge (dedup by tipId)
+    tipsApiClient.getTips(nodeId).then((backendTips) => {
+      if (backendTips.length === 0) return;
+      const localRaw = localStorage.getItem(storageKey);
+      const currentLocal: TipItem[] = localRaw ? (JSON.parse(localRaw) as TipItem[]) : [];
+      const localIds = new Set(currentLocal.map((t) => t.tipId));
+      const newFromBackend = backendTips.filter((t) => !localIds.has(t.tipId));
+      if (newFromBackend.length > 0) {
+        const merged = [...currentLocal, ...newFromBackend];
+        localStorage.setItem(storageKey, JSON.stringify(merged));
+        setTips(merged);
+      }
+    }).catch(() => {
+      // Silently ignored — local tips are already displayed
+    });
+  }, [storageKey, nodeId]);
 
   // Reload when the nodeId changes.
   useEffect(() => {

@@ -36,9 +36,10 @@ interface InputBarProps {
   /** Called when the user submits a message. */
   onSend: (text: string) => void;
   /**
-   * Called when '/' is typed at the start of a line.
+   * Called when '/' is typed at the start of a line, or when '/' is removed.
    * Provides the current input value for prefix matching.
-   * Story 3.5 will consume this event for SkillSelector.
+   * Called with the empty string when the input no longer starts with '/'.
+   * Story 3.5 / Fix 3: SkillSelector consumes this event.
    */
   onSlashTrigger?: (inputValue: string) => void;
   /**
@@ -130,9 +131,14 @@ export function InputBar({
       const value = e.target.value;
       setInput(value);
 
-      // Detect '/' at start of input for skill selector trigger (Story 3.5)
-      if (onSlashTrigger && value.startsWith('/')) {
-        onSlashTrigger(value);
+      // Detect '/' at start of input for skill selector trigger (Fix 3: MVP #13)
+      if (onSlashTrigger) {
+        if (value.startsWith('/')) {
+          onSlashTrigger(value);
+        } else {
+          // Signal that '/' is no longer at start (dismiss selector)
+          onSlashTrigger('');
+        }
       }
     },
     [onSlashTrigger],

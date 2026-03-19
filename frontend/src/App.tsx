@@ -32,6 +32,10 @@ import { ReviewItem } from './components/dashboard/ReviewItem';
 import { ExamCard } from './components/dashboard/ExamCard';
 import { useMasteryStore } from './stores/mastery-store';
 import type { ExamSession } from './services/api-client';
+import { NodeContextMenu, type ContextMenuState } from './components/NodeContextMenu';
+import { ExamCanvas } from './components/exam/ExamCanvas';
+import { ExamModeSelector } from './components/exam/ExamModeSelector';
+import { useExamStore } from './stores/exam-store';
 
 // --- Inline input dialog (replaces prompt()) ---
 
@@ -203,6 +207,9 @@ function Canvas() {
   // Story 5-3: Sidebar tab (chat vs profile) when a node is selected
   const [sidebarTab, setSidebarTab] = useState<'chat' | 'profile'>('chat');
 
+  // Scene 1.11: Right-click context menu state
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
   // Story 5-4: Dashboard tab state
   const [dashboardTab, setDashboardTab] = useState<'boards' | 'exams' | 'review'>('boards');
   const [examSessions, setExamSessions] = useState<ExamSession[]>([]);
@@ -210,6 +217,13 @@ function Canvas() {
   const [backendOffline, setBackendOffline] = useState(false);
   const reviewNodes = useMasteryStore((s) => s.reviewNodes);
   const loadBatchData = useMasteryStore((s) => s.loadBatchData);
+
+  // Story 6.1/6.2: Exam whiteboard state
+  const isExamActive = useExamStore((s) => s.isExamActive);
+  const enterExam = useExamStore((s) => s.enterExam);
+  const [showExamModeSelector, setShowExamModeSelector] = useState(false);
+  const [examTargetNodeId, setExamTargetNodeId] = useState<string | undefined>(undefined);
+  const [examSourceBoardId, setExamSourceBoardId] = useState<string | null>(null);
 
   const reactFlowInstance = useReactFlow();
 
@@ -293,6 +307,24 @@ function Canvas() {
     }
     setDashboardLoading(false);
   }, [apiClient, loadBatchData]);
+
+  // Story 6.1: Open exam mode selector (from dashboard or profile)
+  const handleStartExamFromProfile = useCallback((nodeId: string) => {
+    setExamTargetNodeId(nodeId);
+    setExamSourceBoardId(currentBoardId);
+    setShowExamModeSelector(true);
+  }, [currentBoardId]);
+
+  const handleStartExamFromDashboard = useCallback((boardId: string) => {
+    setExamTargetNodeId(undefined);
+    setExamSourceBoardId(boardId);
+    setShowExamModeSelector(true);
+  }, []);
+
+  const handleExamCreated = useCallback(async (examId: string) => {
+    setShowExamModeSelector(false);
+    await enterExam(examId);
+  }, [enterExam]);
 
   // Load boards on mount
   useEffect(() => {
@@ -384,16 +416,77 @@ function Canvas() {
     [storeAddEdge, setEdges, triggerSync],
   );
 
-  // Node click → select (and exit edge mode)
+  // Node click → select (and exit edge mode), close context menu
   const onNodeClick = useCallback(
     (_event: React.MouseEvent, node: Node) => {
       setSelectedNodeId(node.id);
       setSelectedEdgeContext(null);
+      setContextMenu(null);
       if (chatMode === 'edge') {
         exitEdgeMode();
       }
     },
     [setSelectedNodeId, chatMode, exitEdgeMode],
+  );
+
+  // Scene 1.11: Right-click → show context menu
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      const title =
+        ((node.data as Record<string, unknown>)?.title as string) || 'Untitled';
+      setContextMenu({
+        nodeId: node.id,
+        nodeTitle: title,
+        x: event.clientX,
+        y: event.clientY,
+      });
+    },
+    [],
+  );
+
+  // Scene 1.11: Context menu action handlers
+  const handleContextMenuEdit = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeContext(null);
+      setSidebarTab('chat');
+    },
+    [setSelectedNodeId],
+  );
+
+  const handleContextMenuDelete = useCallback(
+    async (nodeId: string) => {
+      await deleteNodes([nodeId]);
+      triggerSync();
+      // Remove from ReactFlow state
+      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+      setEdges((eds) =>
+        eds.filter((e) => e.source !== nodeId && e.target !== nodeId),
+      );
+      if (selectedNodeId === nodeId) {
+        setSelectedNodeId(null);
+      }
+    },
+    [deleteNodes, triggerSync, setNodes, setEdges, selectedNodeId, setSelectedNodeId],
+  );
+
+  const handleContextMenuStartChat = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeContext(null);
+      setSidebarTab('chat');
+    },
+    [setSelectedNodeId],
+  );
+
+  const handleContextMenuViewProfile = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      setSelectedEdgeContext(null);
+      setSidebarTab('profile');
+    },
+    [setSelectedNodeId],
   );
 
   // Story 4-1: Edge click → open edge dialog in sidebar
@@ -451,6 +544,7 @@ function Canvas() {
       }
       setSelectedNodeId(null);
       setSelectedEdgeContext(null);
+      setContextMenu(null);
       if (chatMode === 'edge') {
         exitEdgeMode();
       }
@@ -628,6 +722,12 @@ function Canvas() {
     : null;
 
   // --- Render ---
+
+  // Story 6.1/6.2: Exam mode — render ExamCanvas when active
+  if (isExamActive) {
+    return <ExamCanvas />;
+  }
+
   if (view === 'settings') {
     return <Settings onBack={goToDashboard} />;
   }
@@ -711,6 +811,16 @@ function Canvas() {
                           Updated: {new Date(board.updatedAt).toLocaleDateString()}
                         </p>
                       </div>
+                      {/* Story 6.1: Generate Exam button per board */}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartExamFromDashboard(board.id);
+                        }}
+                        className="mt-2 w-full px-3 py-1.5 text-xs font-medium text-purple-600 bg-purple-50 rounded-md hover:bg-purple-100 transition-colors opacity-0 group-hover:opacity-100"
+                      >
+                        Generate Exam
+                      </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -816,6 +926,16 @@ function Canvas() {
             onCancel={() => setDeletingBoard(null)}
           />
         )}
+
+        {/* Story 6.1/6.2: Exam mode selector modal */}
+        {showExamModeSelector && examSourceBoardId && (
+          <ExamModeSelector
+            sourceCanvasId={examSourceBoardId}
+            targetNodeId={examTargetNodeId}
+            onExamCreated={handleExamCreated}
+            onCancel={() => setShowExamModeSelector(false)}
+          />
+        )}
       </div>
     );
   }
@@ -831,6 +951,7 @@ function Canvas() {
           onEdgesChange={handleEdgesChange}
           onConnect={onConnect}
           onNodeClick={onNodeClick}
+          onNodeContextMenu={onNodeContextMenu}
           onEdgeClick={onEdgeClick}
           onPaneClick={onPaneClick}
           onEdgeDoubleClick={onEdgeDoubleClick}
@@ -864,6 +985,18 @@ function Canvas() {
           <EdgeGuideTooltip
             position={edgeGuidePosition}
             onDismiss={() => setShowEdgeGuide(false)}
+          />
+        )}
+
+        {/* Scene 1.11: Node right-click context menu */}
+        {contextMenu && (
+          <NodeContextMenu
+            state={contextMenu}
+            onClose={() => setContextMenu(null)}
+            onEdit={handleContextMenuEdit}
+            onDelete={handleContextMenuDelete}
+            onStartChat={handleContextMenuStartChat}
+            onViewProfile={handleContextMenuViewProfile}
           />
         )}
       </div>
@@ -957,6 +1090,7 @@ function Canvas() {
                 <LearningProfile
                   nodeId={selectedNode.id}
                   nodeTitle={(selectedNode.data as Record<string, unknown>).title as string}
+                  onStartExam={handleStartExamFromProfile}
                   onSwitchToChat={() => setSidebarTab('chat')}
                 />
               )}
@@ -985,6 +1119,16 @@ function Canvas() {
           </div>
         )}
       </div>
+
+      {/* Story 6.1/6.2: Exam mode selector modal (canvas view) */}
+      {showExamModeSelector && examSourceBoardId && (
+        <ExamModeSelector
+          sourceCanvasId={examSourceBoardId}
+          targetNodeId={examTargetNodeId}
+          onExamCreated={handleExamCreated}
+          onCancel={() => setShowExamModeSelector(false)}
+        />
+      )}
     </div>
   );
 }

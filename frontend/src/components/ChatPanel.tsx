@@ -36,7 +36,7 @@
  * - RecoveryBanner — crash recovery UI (Story 3-11)
  */
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { Node } from '@xyflow/react';
 import { useChatStore, type EdgeContext } from '../stores/chat-store';
 import { MessageBubble } from './chat/MessageBubble';
@@ -47,6 +47,8 @@ import { TipsList } from './chat/TipsList';
 import { EngineStatusIndicator } from './chat/EngineStatusIndicator';
 import { QuotaExhaustedBanner } from './chat/QuotaExhaustedBanner';
 import { RecoveryBanner } from './chat/RecoveryBanner';
+import { SkillSelector } from './chat/SkillSelector';
+import { usePullToNode } from '../hooks/usePullToNode';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Types
@@ -78,6 +80,17 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
     ? `${currentEdge!.sourceNodeName} \u2194 ${currentEdge!.targetNodeName}`
     : ((selectedNode?.data as Record<string, unknown>)?.title as string) || 'Untitled';
 
+  // ── PullToNode hook (Fix 2: MVP #14) ─────────────────────────────────
+  const { pullToNode } = usePullToNode();
+
+  const handlePullToNode = useCallback(
+    (selectedText: string) => {
+      if (!nodeId || isEdgeMode) return;
+      pullToNode(selectedText, nodeId);
+    },
+    [nodeId, isEdgeMode, pullToNode],
+  );
+
   // ── Store bindings ────────────────────────────────────────────────────
 
   const messages = useChatStore((s) => s.messages);
@@ -91,6 +104,36 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
   const sendMessage = useChatStore((s) => s.sendMessage);
   const clearHistory = useChatStore((s) => s.clearHistory);
   const quotaStatus = useChatStore((s) => s.quotaStatus);
+
+  // ── SkillSelector state (Fix 3: MVP #13) ───────────────────────────
+  const [skillSelectorVisible, setSkillSelectorVisible] = useState(false);
+  const [skillSearchQuery, setSkillSearchQuery] = useState('');
+
+  const handleSlashTrigger = useCallback((inputValue: string) => {
+    if (inputValue.startsWith('/')) {
+      setSkillSelectorVisible(true);
+      setSkillSearchQuery(inputValue.slice(1)); // strip leading '/'
+    } else {
+      // '/' removed from input — dismiss the selector
+      setSkillSelectorVisible(false);
+      setSkillSearchQuery('');
+    }
+  }, []);
+
+  const handleSkillSelect = useCallback(
+    (command: string) => {
+      setSkillSelectorVisible(false);
+      setSkillSearchQuery('');
+      // Send the skill command as a chat message
+      sendMessage(command, displayTitle);
+    },
+    [sendMessage, displayTitle],
+  );
+
+  const handleSkillDismiss = useCallback(() => {
+    setSkillSelectorVisible(false);
+    setSkillSearchQuery('');
+  }, []);
 
   // ── Refs ──────────────────────────────────────────────────────────────
 
@@ -255,17 +298,29 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
         </div>
       )}
 
+      {/* SkillSelector popup — appears on '/' trigger (Fix 3: MVP #13) */}
+      {skillSelectorVisible && (
+        <SkillSelector
+          query={skillSearchQuery}
+          onSelect={handleSkillSelect}
+          onDismiss={handleSkillDismiss}
+        />
+      )}
+
       {/* Input bar — disabled when quota exhausted (Story 3-10 AC-4) */}
       <InputBar
         isStreaming={isStreaming}
         engineUnavailable={engineUnavailable}
         nodeTitle={displayTitle}
         onSend={handleSend}
+        onSlashTrigger={handleSlashTrigger}
         quotaExhausted={quotaStatus === 'exhausted'}
       />
 
       {/* Text selection toolbar (floating, appears on text select) — only in node mode */}
-      {!isEdgeMode && <SelectionToolbar nodeId={nodeId} />}
+      {!isEdgeMode && (
+        <SelectionToolbar nodeId={nodeId} onPullToNode={handlePullToNode} />
+      )}
     </div>
   );
 }
