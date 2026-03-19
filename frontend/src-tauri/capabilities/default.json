@@ -16,7 +16,7 @@
     "fs:allow-remove",
     "fs:allow-rename",
     "fs:allow-copy-file",
-    "fs:scope-app-local-data",
+    "fs:scope-applocaldata",
     {
       "identifier": "fs:scope",
       "allow": [
