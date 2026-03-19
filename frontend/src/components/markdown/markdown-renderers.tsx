@@ -10,6 +10,9 @@
  */
 
 import { useCallback } from 'react';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import { openInObsidian, parseWikiLink } from '../../services/obsidian-link';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -121,3 +124,9 @@ function WikiLinkAnchor({
 export const markdownComponents = {
   a: WikiLinkAnchor,
 } as const;
+
+/** remark plugins: math syntax ($...$, $$...$$) */
+export const remarkPlugins = [remarkMath];
+
+/** rehype plugins: KaTeX rendering + HTML sanitization (caller adds rehypeSanitize) */
+export const rehypeExtraPlugins = [rehypeKatex];

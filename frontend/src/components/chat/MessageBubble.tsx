@@ -22,7 +22,7 @@
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import type { ChatMessage } from '../../services/dexie-db';
-import { preprocessWikiLinks, markdownComponents } from '../markdown/markdown-renderers';
+import { preprocessWikiLinks, markdownComponents, remarkPlugins, rehypeExtraPlugins } from '../markdown/markdown-renderers';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -101,7 +101,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
           {processedContent ? (
             <div className="prose prose-sm prose-gray max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
               <ReactMarkdown
-                rehypePlugins={[rehypeSanitize]}
+                remarkPlugins={remarkPlugins}
+                rehypePlugins={[...rehypeExtraPlugins, rehypeSanitize]}
                 components={markdownComponents}
               >
                 {processedContent}

@@ -5,7 +5,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import type { KnowledgeNodeData } from '../../types';
 import { useCanvasStore } from '../../stores/canvas-store';
 import { getMasteryBorderClass, getMasteryColor } from '../../services/mastery-utils';
-import { preprocessWikiLinks, markdownComponents } from '../markdown/markdown-renderers';
+import { preprocessWikiLinks, markdownComponents, remarkPlugins, rehypeExtraPlugins } from '../markdown/markdown-renderers';
 
 function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
   const nodeData = data as KnowledgeNodeData;
@@ -203,7 +203,8 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
             {nodeData.content ? (
               <div className="prose prose-sm max-w-none break-words text-gray-600 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
                 <ReactMarkdown
-                  rehypePlugins={[rehypeSanitize]}
+                  remarkPlugins={remarkPlugins}
+                  rehypePlugins={[...rehypeExtraPlugins, rehypeSanitize]}
                   components={markdownComponents}
                 >
                   {preprocessWikiLinks(nodeData.content)}
