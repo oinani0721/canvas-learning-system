@@ -138,9 +138,9 @@ async def _fetch_distillation_summary(
         Tuple of (summary_text, key_insights_list). Empty on no data (graceful degradation).
     """
     try:
-        from app.services.memory_service import MemoryService
+        from app.services.memory_service import get_memory_service
 
-        memory = MemoryService()
+        memory = await get_memory_service()
         episodes = await memory.search_memories(
             query=f"conversation_distillation {node_id}",
             group_id=group_id,
@@ -157,15 +157,25 @@ async def _fetch_distillation_summary(
         insights: list[str] = list()
 
         if isinstance(content, str) and content:
-            summary = content[:400] if len(content) > 400 else content
+            # Strip distiller prefix: "Distilled summary for node {id}: ..."
+            prefix_marker = ": "
+            prefix_idx = content.find(prefix_marker)
+            clean_content = content[prefix_idx + len(prefix_marker):] if prefix_idx > 0 and prefix_idx < 60 else content
+            summary = clean_content[:400] if len(clean_content) > 400 else clean_content
 
-        metadata = latest.get("metadata", {})
-        if isinstance(metadata, dict):
-            if metadata.get("summary"):
-                summary = metadata["summary"]
-            tips_data = metadata.get("tips")
-            if tips_data:
-                insights = [t.get("content", "") for t in tips_data[:3] if isinstance(t, dict)]
+        # Distiller stores tip_count/error_count in metadata (not full tips list).
+        # Tips are stored separately as episode_type="learning_tip" in MemoryService.
+        # Search for tips associated with this node for key insights.
+        try:
+            tip_episodes = await memory.search_memories(
+                query=f"learning_tip {node_id}",
+                group_id=group_id,
+                max_results=3,
+            )
+            if tip_episodes:
+                insights = [ep.get("content", "")[:100] for ep in tip_episodes if ep.get("content")]
+        except Exception:
+            pass  # Tips are supplementary, not critical
 
         return summary, insights
 
