@@ -608,6 +608,7 @@ export class ClaudeEngine {
       message,
       '--output-format',
       'stream-json',
+      '--verbose',
     ];
 
     // Inject learning context as appended system prompt
