@@ -85,7 +85,7 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
     <div
       className={`bg-white rounded-lg shadow-md border-2 ${nodeData.color ? '' : borderColor} ${
         selected ? 'ring-2 ring-blue-500' : ''
-      } min-w-[200px] max-w-[300px] relative`}
+      } min-w-[200px] relative`}
       style={{
         transition: 'border-color 300ms ease-in-out',
         ...(nodeData.color ? { borderColor: nodeData.color } : {}),
@@ -132,11 +132,11 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
         )}
       </div>
 
-      {/* Content area */}
+      {/* Content area — always visible, click to edit */}
       {isEditing ? (
         <div className="px-3 py-2">
           <textarea
-            className="w-full text-xs text-gray-800 border-none outline-none resize-none bg-transparent"
+            className="w-full text-xs text-gray-800 border-none outline-none resize-y bg-transparent"
             value={editContent}
             onChange={handleContentChange}
             onBlur={handleBlur}
@@ -145,11 +145,12 @@ function KnowledgeNodeComponent({ id, data, selected }: NodeProps) {
           />
         </div>
       ) : (
-        nodeData.content && (
-          <div className="px-3 py-2 text-xs text-gray-600 line-clamp-3">
-            {nodeData.content}
-          </div>
-        )
+        <div
+          className="px-3 py-2 text-xs text-gray-600 min-h-[2rem] cursor-text"
+          onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+        >
+          {nodeData.content || <span className="text-gray-300 italic">Click to add content...</span>}
+        </div>
       )}
 
       {/* Mastery bar (Story 5-2: uses mastery status color) */}
