@@ -1,8 +1,30 @@
 {
-  "research_topic": "Docker后端PRD/架构/算法实现真实性审核 + BMAD并行Story遗漏根因 + 社区成熟开发流程",
-  "active_decisions_summary": "13 active: Docker 3-container, Mode D MCP, Tier B CLI, BKT+FSRS hybrid, LanceDB+BGE-M3, gte-reranker, Tauri+React, 6 Epics, DD-01~10, Lightweight Loop, 15 PRD decisions",
-  "do_not_research": "HyDE/Self-RAG/CRAG/Qdrant/Milvus/Kafka/tiktoken/Docling/Svelte5/IndexedDB/DSPy/Full-Agentic-RAG/WebWorker/Beta-Bayesian",
-  "priority_gaps": "P0: 5-NO_STORY cascade(CLI cwd→MCP→Vault→RAG), learning_context last-mile disconnect, canvas.py stubs, BMAD 3 root causes. P1: Query-Rewrite/Reranking stubs, 13 dead endpoints, algorithm verification debt",
-  "clusters": "5 clusters: Algorithm(BKT+FSRS working/disconnected), Retrieval(LanceDB+BGE-M3 working), ConvEngine(Tier B CLI not implemented), DevWorkflow(Lightweight replacing BMAD Story-level), Frontend(Tauri+React VALIDATED)",
-  "supersedes": "Mode D→SDK→Tier B CLI | bge-reranker→gte-reranker | MiniLM→bge-m3 | bge-m3-sparse→BM25-FTS | BMAD-full→Lightweight | Obsidian→Tauri | Epic-v1→Epic-v2"
+  "research_topic": "Obsidian Canvas 节点交互完全复制（Markdown渲染、滚轮滚动、编辑模式切换、内容溢出处理）",
+  "active_decisions": [
+    "ReactFlow 12.8.2 作为白板引擎，替代 Obsidian Canvas API",
+    "双击进入 Markdown 编辑模式（Core Finding）",
+    "滚轮缩放 30%-200%（画布级别）",
+    "pan/zoom/drag 是核心体验，必须与 Obsidian Canvas 一致",
+    "白板操作交互应与 Obsidian Canvas 操作保持一致（用户要求）",
+    "Tauri 2.0 桌面应用 + React 19 + shadcn/ui + Catppuccin Mocha"
+  ],
+  "do_not_research": [
+    "Obsidian 原生 Canvas 插件方案（已迁移到 Tauri+ReactFlow）",
+    ".canvas 文件存储（已弃用）",
+    "WYSIWYG 编辑器（用户要求对标 Obsidian = raw text 编辑）",
+    "AI 自动生成 Canvas 节点（用户明确禁止）"
+  ],
+  "priority_gaps": [
+    "P1: 节点内滚轮行为 — 节点内容区 wheel 事件应滚动内容而非缩放画布",
+    "P1: 编辑模式切换 — 当前单击进入编辑，应改为双击（Obsidian Canvas 行为）",
+    "P1: 长内容溢出显示策略 — Markdown 渲染后超出节点的处理",
+    "P2: 视图/编辑模式切换的视觉过渡",
+    "P2: 节点内键盘快捷键（Escape 退出编辑等）",
+    "P2: 节点尺寸与内容自适应"
+  ],
+  "decision_clusters": [
+    "平台迁移链: Obsidian -> 自建 -> Tauri+ReactFlow",
+    "节点交互模型: Canvas-Append -> 对话-选择-白板 模式",
+    "渲染架构: tldraw 的 HTML节点+SVG边 双层模式"
+  ]
 }
