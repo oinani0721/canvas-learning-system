@@ -103,7 +103,7 @@ services:
       - NEO4J_USER=${NEO4J_USER:-neo4j}
       - NEO4J_PASSWORD=${NEO4J_PASSWORD:-password}
       - OLLAMA_HOST=http://ollama:11434
-      - CANVAS_BASE_PATH=/app/data
+      - CANVAS_BASE_PATH=/app/vault
       - PYTHONPATH=/app:/app/src
       - DEBUG=true
       - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://tauri.localhost,app://obsidian.md
@@ -112,6 +112,9 @@ services:
       - ./backend:/app
       - ./src:/app/src
       - ./data:/app/data
+      # Obsidian vault notes for RAG indexing
+      - "C:/Users/Heishing/Desktop/spring course 2026/CS188:/app/vault/CS188:ro"
+      - "C:/Users/Heishing/Desktop/spring course 2026/CS 189:/app/vault/CS189:ro"
 
     depends_on:
       neo4j:
@@ -130,6 +133,7 @@ services:
 
     networks:
       - canvas-network
+      - cliproxyapi-network
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Networks
@@ -138,3 +142,6 @@ networks:
   canvas-network:
     driver: bridge
     name: canvas-learning-network
+  cliproxyapi-network:
+    external: true
+    name: cliproxyapi_default
