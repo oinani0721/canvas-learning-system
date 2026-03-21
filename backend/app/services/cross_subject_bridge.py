@@ -97,7 +97,7 @@ async def expand_search_subjects(
     # 1. Fetch all known subjects from Neo4j
     all_subject_ids: List[str] = []
     try:
-        async with neo4j_driver.session() as session:
+        async with await neo4j_driver.session() as session:
             result = await session.run(
                 "MATCH (s:Subject) RETURN s.id AS id"
             )
@@ -154,7 +154,7 @@ async def get_subject_tags_from_neo4j(
     RETURN n.title AS title, n.ocrConcepts AS concepts
     """
     try:
-        async with neo4j_driver.session() as session:
+        async with await neo4j_driver.session() as session:
             result = await session.run(query, subject_id=subject_id)
             records = await result.data()
             for rec in records:

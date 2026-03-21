@@ -718,7 +718,7 @@ async def _test_neo4j_connection() -> bool:
         raise RuntimeError("Neo4j driver not initialized")
 
     try:
-        async with _cached_neo4j_driver.session(database=settings.neo4j_database) as session:
+        async with await _cached_neo4j_driver.session(database=settings.neo4j_database) as session:
             result = await session.run("RETURN 1 as test")
             await result.consume()
         return True

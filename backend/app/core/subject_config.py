@@ -79,7 +79,7 @@ async def list_subjects_from_neo4j(neo4j_driver: "AsyncDriver") -> List[dict]:
     """
     subjects: List[dict] = []
     try:
-        async with neo4j_driver.session() as session:
+        async with await neo4j_driver.session() as session:
             result = await session.run(query)
             records = await result.data()
             for rec in records:
