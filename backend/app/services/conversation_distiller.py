@@ -194,41 +194,61 @@ class ConversationDistiller:
         from app.config import settings
         from app.core.litellm_config import format_litellm_model, get_runtime_model_config
 
-        # F9/CLIProxyAPI: Try CLIProxyAPI first (uses Claude subscription, zero API cost)
-        # Fallback to configured LiteLLM provider if CLIProxyAPI unavailable
+        # F9 Distillation model cascade (3 tiers):
+        # Tier 1: Ollama Qwen3 local (free, Chinese-native, no encoding issues)
+        # Tier 2: CLIProxyAPI Claude Haiku (subscription, English-only due to encoding bug)
+        # Tier 3: Configured LiteLLM provider (API key fallback)
+        ollama_base = os.environ.get("OLLAMA_API_BASE", "http://canvas-learning-system-ollama:11434")
+        ollama_model = os.environ.get("DISTILL_OLLAMA_MODEL", "ollama/qwen3:8b")
         cli_proxy_base = os.environ.get("CLI_PROXY_API_BASE", "http://cli-proxy-api:8317/v1")
         cli_proxy_key = os.environ.get("CLI_PROXY_API_KEY", "dummy")
         cli_proxy_model = os.environ.get("CLI_PROXY_MODEL", "openai/claude-haiku-4-5-20251001")
 
         prompt = DISTILLATION_PROMPT.format(conversation_text=conversation_text)
+        response = None
 
-        # Try CLIProxyAPI first
+        # Tier 1: Ollama Qwen3 (best for Chinese content)
         try:
             response = await litellm.acompletion(
-                model=cli_proxy_model,
+                model=ollama_model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=1500,
                 temperature=0.2,
-                api_key=cli_proxy_key,
-                api_base=cli_proxy_base,
-                timeout=60,
+                api_base=ollama_base,
+                timeout=120,
             )
-            logger.info("[F9] Distillation via CLIProxyAPI succeeded")
-        except Exception as proxy_err:
-            logger.warning("[F9] CLIProxyAPI failed (%s), falling back to configured provider", proxy_err)
-            # Fallback to original configured provider
-            runtime_cfg = get_runtime_model_config()
-            api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
-            provider = settings.AI_PROVIDER
-            model_name = settings.AI_MODEL_NAME
-            model = format_litellm_model(provider, model_name)
-            response = await litellm.acompletion(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                max_tokens=1500,
-                temperature=0.2,
-                api_key=api_key,
-            )
+            logger.info("[F9] Distillation via Ollama Qwen3 succeeded")
+        except Exception as ollama_err:
+            logger.warning("[F9] Ollama failed (%s), trying CLIProxyAPI", str(ollama_err)[:100])
+
+            # Tier 2: CLIProxyAPI (Claude subscription, English content only)
+            try:
+                response = await litellm.acompletion(
+                    model=cli_proxy_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500,
+                    temperature=0.2,
+                    api_key=cli_proxy_key,
+                    api_base=cli_proxy_base,
+                    timeout=60,
+                )
+                logger.info("[F9] Distillation via CLIProxyAPI succeeded")
+            except Exception as proxy_err:
+                logger.warning("[F9] CLIProxyAPI failed (%s), trying configured provider", str(proxy_err)[:100])
+
+                # Tier 3: Configured LiteLLM provider (requires API key)
+                runtime_cfg = get_runtime_model_config()
+                api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
+                provider = settings.AI_PROVIDER
+                model_name = settings.AI_MODEL_NAME
+                model = format_litellm_model(provider, model_name)
+                response = await litellm.acompletion(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=1500,
+                    temperature=0.2,
+                    api_key=api_key,
+                )
 
         content = response.choices[0].message.content.strip()
 
