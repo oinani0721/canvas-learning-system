@@ -13,6 +13,7 @@
 
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
@@ -193,30 +194,41 @@ class ConversationDistiller:
         from app.config import settings
         from app.core.litellm_config import format_litellm_model, get_runtime_model_config
 
-        # Story 3-7 FIX: Use RuntimeModelConfigManager for API key; warn if absent
-        runtime_cfg = get_runtime_model_config()
-        api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
-        if not api_key:
-            logger.warning(
-                "[Story 3.8] No API key configured for distillation. "
-                "LiteLLM call may fail silently. "
-                "Set API key via Settings Tab or AI_API_KEY env var."
-            )
-
-        # Use the standard format_litellm_model utility for provider-agnostic model strings
-        provider = settings.AI_PROVIDER
-        model_name = settings.AI_MODEL_NAME
-        model = format_litellm_model(provider, model_name)
+        # F9/CLIProxyAPI: Try CLIProxyAPI first (uses Claude subscription, zero API cost)
+        # Fallback to configured LiteLLM provider if CLIProxyAPI unavailable
+        cli_proxy_base = os.environ.get("CLI_PROXY_API_BASE", "http://cli-proxy-api:8317/v1")
+        cli_proxy_key = os.environ.get("CLI_PROXY_API_KEY", "dummy")
+        cli_proxy_model = os.environ.get("CLI_PROXY_MODEL", "openai/claude-haiku-4-5-20251001")
 
         prompt = DISTILLATION_PROMPT.format(conversation_text=conversation_text)
 
-        response = await litellm.acompletion(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=1500,
-            temperature=0.2,
-            api_key=api_key,
-        )
+        # Try CLIProxyAPI first
+        try:
+            response = await litellm.acompletion(
+                model=cli_proxy_model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.2,
+                api_key=cli_proxy_key,
+                api_base=cli_proxy_base,
+                timeout=60,
+            )
+            logger.info("[F9] Distillation via CLIProxyAPI succeeded")
+        except Exception as proxy_err:
+            logger.warning("[F9] CLIProxyAPI failed (%s), falling back to configured provider", proxy_err)
+            # Fallback to original configured provider
+            runtime_cfg = get_runtime_model_config()
+            api_key = runtime_cfg.get_scoring_api_key() or settings.AI_API_KEY or None
+            provider = settings.AI_PROVIDER
+            model_name = settings.AI_MODEL_NAME
+            model = format_litellm_model(provider, model_name)
+            response = await litellm.acompletion(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1500,
+                temperature=0.2,
+                api_key=api_key,
+            )
 
         content = response.choices[0].message.content.strip()
 
