@@ -83,7 +83,7 @@ class SyncService:
         failed = 0
         start_time = datetime.now(timezone.utc)
 
-        async with await driver.session(database=settings.NEO4J_DATABASE) as session:
+        async with driver.session(database=settings.NEO4J_DATABASE) as session:
             async with session.begin_transaction() as tx:
                 for op in request.operations:
                     try:

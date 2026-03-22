@@ -436,7 +436,7 @@ class Neo4jClient:
         )
         async def _execute_with_retry() -> List[Dict[str, Any]]:
             """Execute query with retry on transient errors."""
-            async with await self._driver.session(database=self._database) as session:
+            async with self._driver.session(database=self._database) as session:
                 result = await session.run(query, params)
                 records = await result.data()
                 return records

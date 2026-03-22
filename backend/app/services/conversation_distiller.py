@@ -219,7 +219,7 @@ class ConversationDistiller:
             )
             logger.info("[F9] Distillation via Ollama Qwen3 succeeded")
         except Exception as ollama_err:
-            logger.warning("[F9] Ollama failed (%s), trying CLIProxyAPI", str(ollama_err)[:100])
+            logger.warning("[F9] Ollama Tier1 failed: %s (type=%s)", str(ollama_err)[:200], type(ollama_err).__name__)
 
             # Tier 2: CLIProxyAPI (Claude subscription, English content only)
             try:

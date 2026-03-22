@@ -51,7 +51,7 @@ async def _check_neo4j(settings: Settings) -> ComponentStatus:
             auth=(settings.NEO4J_USER, settings.NEO4J_PASSWORD),
         )
         try:
-            async with await driver.session(database=settings.NEO4J_DATABASE) as session:
+            async with driver.session(database=settings.NEO4J_DATABASE) as session:
                 result = await session.run("RETURN 1 AS n")
                 record = await result.single()
                 if record and record["n"] == 1:
