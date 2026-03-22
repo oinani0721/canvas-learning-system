@@ -84,7 +84,7 @@ class SyncService:
         start_time = datetime.now(timezone.utc)
 
         async with driver.session(database=settings.NEO4J_DATABASE) as session:
-            async with session.begin_transaction() as tx:
+            async with await session.begin_transaction() as tx:
                 for op in request.operations:
                     try:
                         await self._execute_operation(tx, op, request.canvas_id, request.subject_id)
