@@ -111,6 +111,7 @@ services:
     volumes:
       - ./backend:/app
       - ./src:/app/src
+      - canvas-lancedb:/app/data/lancedb
       - ./data:/app/data
       # Obsidian vault notes for RAG indexing
       - "C:/Users/Heishing/Desktop/spring course 2026/CS188:/app/vault/CS188:ro"
@@ -145,3 +146,7 @@ networks:
   cliproxyapi-network:
     external: true
     name: cliproxyapi_default
+
+volumes:
+  canvas-lancedb:
+    name: canvas-lancedb-data
