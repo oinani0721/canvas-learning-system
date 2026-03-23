@@ -12,7 +12,7 @@
 |------|------|------|------|------|
 | 2026-03-15 | #11 | 四层搜索+A-RAG | ✅ 确认 | RAG+CLI+Graphiti+Grep 四层路由 + A-RAG 回源验证 + Reranker 升级 |
 | 2026-03-15 | #1-15 | 15项PRD决策 | ✅ 全部确认 | 用户逐项增量确认，详见 memory/decision_15_incremental_confirmed.md |
-| 2026-03-15 | Mode D | Mode D 架构 | ✅ 确认(Review PENDING) | MCP暴露+Tool-UI Bridge+LiteLLM+Ollama+6层防御 |
+| 2026-03-15 | Mode D | Mode D 架构 | ⚠️ 已被Agent SDK sidecar取代 | 原MCP暴露方案→经SDK→Tier B→最终Agent SDK sidecar(2026-03-19) |
 | 2026-03-16 | DD-01~10 | 10条开发纪律 | ✅ 固化 | 学术实证/符合实际/禁mock/参考案例/Pencil/Obsidian/测试/Graphiti/增量提问/防蔓延 |
 | 2026-03-16 | MVP刚需 | 14项+2底层 | ✅ 用户确认 | 见 memory/project_mvp_essentials.md |
 | 2026-03-16 | Edge策略 | Edge对话2重策略 | ✅ 确认 | 用户改为2重（非PRD原版3重） |
@@ -29,7 +29,7 @@
 | 2026-03-18 | Code-Review | Story 1-8/2-2/1-11 审查 | ✅ 全部通过 | 1-8:安全修复后PASS(tauri-plugin-fs替代cmd/sh,7/7检查项)；2-2:PASS(Multimodal格式+去重+Graphiti写+Reranker+CRAG+改写,7/7)；1-11:PASS(None guard+健康监控+RAGAS NLI,7/7) |
 | 2026-03-18 | Code-Review | Story 2-3/1-9/2-4/2-13 审查 | ⚠️ 1-9+2-13需修复 | 2-3:可复用(2M1L);1-9:需修复(3C3H—cross_subject死代码+ContextVar未接入+driver泄漏);2-4:需修复minor(3M2L);2-13:需修复(2C2H—模板内容被丢弃只用1行+回归测试仅replay无live)。1-9/2-13 CRITICAL已修复(commit e12f592) |
 | 2026-03-18 | Code-Review | BMAD审查 Story 2-5/2-7 | ⚠️ 需修复 | 2-5:3H3M4L(requirements版本+fusion组映射+单例ignoreConfig+z-score单文档bias);2-7:3H4M2L(TOCTOU竞态+vault_path回退C8+零测试+全文件hash读) |
-| 2026-03-18 | Code-Review | BMAD全量补审38个Story | ⛔ 14C54H62M23L=153问题 | 关键：multi_query死数据(2-10)、归档无限循环(3-8)、3-1死代码(旧路径)、信号融合未接入(5-6)、get_nodes_by_canvas不存在(6-3)、score_answer空question(3-2/6-4) |
+| 2026-03-18 | Code-Review | BMAD全量补审38个Story | ✅ 153问题已全部修复 | 14C54H62M23L全部修复。Docker E2E 12/12通过，模块导入15/15通过，Vite构建通过 |
 | 2026-03-18 | Code-Review | 15新前端组件BMAD审查 | ✅ 0C2H4M7L=13问题(已修复) | ExamCanvas双击deselect(H)+exam-store unsafe cast(H)+HintButton hintLevel local(M)+SkillSelector亮色主题(M)+Dexie silent catch×5(M)+ExamCanvas节点未持久化(M)。全部修复，tsc通过 |
 | 2026-03-18 | Code-Review | 后端17新文件MVP对照审查 | ✅ 0功能蔓延 | 15文件对应MVP#2-#13，2文件(llm_call_logger+prompt_injection_guard)为安全/可观测基础设施。DE-3修正为"技术栈保留+功能扩展" |
 | 2026-03-16 | 对话引擎 | Spawn官方CLI+订阅额度 | ✅ 确认(Review PENDING) | Claude Agent SDK spawn官方Claude Code CLI，用户订阅额度。参考Claudian/Pencil/Zed ACP。Fallback: API Key |
@@ -56,9 +56,9 @@
 
 | 日期 | 标题 | 需验证的维度 |
 |------|------|------------|
-| 2026-03-15 | Mode D 架构 | MCP暴露可行性、Tool-UI Bridge延迟、LiteLLM稳定性 |
+| 2026-03-15 | ~~Mode D 架构~~ | ~~已被Agent SDK sidecar取代(2026-03-19)，Review关闭~~ |
 | 2026-03-16 | Hook强制读取规则 | 新session是否实际Read文件并遵守规则 |
 | 2026-03-16 | Epic结构 | Epic边界清晰、FR覆盖完整、依赖链正确、Story可独立交付 |
 | 2026-03-16 | 对话引擎Spawn CLI | spawn模式长期稳定性(政策风险)、per-node session性能、stream-json实时性、MCP动态注入可靠性、Fallback切换成本 |
-| 2026-03-17 | Pencil UI范式工作流 | 18场景适配新架构完整性/shadcn组件映射/用户确认流程效率 |
+| 2026-03-17 | ~~Pencil UI范式工作流~~ | ~~已VALIDATED(18帧覆盖68场景)，见已完成验证区~~ |
 | 2026-03-17 | OBS-LINK Obsidian跳转 | Advanced URI插件安装率/Windows协议注册可靠性/Tauri openUrl延迟/降级链自动检测/Linux .desktop配置 |

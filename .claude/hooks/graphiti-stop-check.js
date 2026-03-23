@@ -1,11 +1,14 @@
 /**
- * Graphiti Stop Hook — JSON Decision Blocking v5
+ * Graphiti Stop Hook — JSON Decision Blocking v7
  *
- * v5 新增：开发纪律检测 DD-04(代码无参考案例) + DD-10(新功能无刚需评估)
+ * v7 新增：读取审计日志检查未 commit 的文件修改
  *
  * 关键设计：stop_hook_active 时只跳过低优先级检测（层4/5），
- * 高优先级检测（Decision-Review 闭环、Code-Review、深度澄清、开发纪律）仍然执行。
+ * 高优先级检测（Decision-Review 闭环、Code-Review、深度澄清、开发纪律、commit）仍然执行。
  */
+const fs = require('fs');
+const path = require('path');
+
 const chunks = [];
 process.stdin.on('data', (chunk) => chunks.push(chunk));
 process.stdin.on('end', () => {
@@ -65,7 +68,14 @@ process.stdin.on('end', () => {
       block('[DD-06] Obsidian 代码包含反模式。修复：innerHTML→setText/createEl, style.X→addClass+CSS, createElement→createEl, addEventListener→registerEvent。编辑后跑 lint:obsidian');
     }
 
-    // 1f. [DD-10] 引入新功能但未评估用户刚需
+    // 1f. Agent 完成但未记录 [Agent-Activity]
+    const agentCompleted = /Agent.*完成|Agent.*returned|agent.*completed|背景.*任务.*完成|Agent.*已完成/i.test(msg);
+    const hasAgentRecord = /\[Agent-Activity\]|\[Agent-Error\]/i.test(msg);
+    if (agentCompleted && !hasAgentRecord && !isRetry) {
+      block('Agent 完成但未记录。请 add_memory("[Agent-Activity] {agent类型} — 修改了哪些文件+原因", group_id: "canvas-dev")。如有错误记 "[Agent-Error]"。');
+    }
+
+    // 1g. [DD-10] 引入新功能但未评估用户刚需
     const introducedFeature = /新增.*功能|添加.*功能|引入.*功能|实现.*新.*特性|加入.*能力/i.test(msg);
     const checkedNeed = /刚需|MVP.*清单|用户.*需求|用户.*初衷|search_memory_facts.*初衷|search_memory_facts.*刚需/i.test(msg);
     if (introducedFeature && !checkedNeed && !isRetry) {
@@ -79,17 +89,33 @@ process.stdin.on('end', () => {
       block('代码分析无独立审查。启动独立 agent 记录 [Code-Review]（可复用/需修复/需重写）。');
     }
 
-    // 2b. ⛔ 开发完成后必须代码审查 + commit
-    const wroteOrEditedCode = /Edit|Write|已完成|完成了|实现了|Agent.*completed|Agent.*完成|创建.*\.py|修改.*\.py|新增.*\.py|新建.*\.py/i.test(msg);
-    const mentionedReview = /\[Code-Review\]|对抗.*审查|代码审查|code.?review|审查.*Agent|Review.*Agent/i.test(msg);
-    const mentionedCommit = /commit|提交|git.*add|git.*push|备份/i.test(msg);
-    if (wroteOrEditedCode && !mentionedReview && !mentionedCommit && !isRetry) {
-      block('⛔ 开发完成但未安排代码审查或提交。Story 开发后必须：(1) 启动独立 Agent 对抗性审查 (2) commit + push 到 backup。');
+    // 2b. ⛔ 有文件修改但未 commit — 用 git status 检查实际未提交文件
+    const mentionedCommit = /git commit|git add|git push|已提交|已推送|commit.*完成|push.*完成|备份.*完成/i.test(msg);
+    if (!mentionedCommit && !isRetry) {
+      try {
+        const { execSync } = require('child_process');
+        const projectDir = process.env.CLAUDE_PROJECT_DIR || '';
+        const gitOut = execSync('git status --porcelain', { cwd: projectDir, encoding: 'utf8', timeout: 5000 });
+        // Filter to only modified/added tracked files (M/A/??), exclude .claude/ and non-code files
+        const uncommitted = gitOut.split('\n').filter(l => {
+          if (!l.trim()) return false;
+          const f = l.slice(3).trim();
+          // Skip files outside git repo or in .claude/ directory
+          if (f.startsWith('.claude/') || f.startsWith('"')) return false;
+          // Only flag source code files
+          return /\.(tsx?|jsx?|py|rs|css|html|json)$/i.test(f);
+        });
+        if (uncommitted.length > 0) {
+          const fileList = uncommitted.map(l => l.slice(3).trim()).slice(0, 5);
+          block('⛔ git status 发现 ' + uncommitted.length + ' 个源码文件未 commit。文件：' + fileList.join(', ') + '。请 git add + git commit + git push。');
+        }
+      } catch (e) { /* git status 失败时不阻止 */ }
     }
 
     // 2c. ⛔ DD-11 并行Agent完成后未验证管道打通性
     const parallelAgentsDone = /并行.*完成|Agent.*全部完成|3.*个.*Agent.*完成|两个.*Agent.*完成/i.test(msg);
     const mentionedWiring = /接线|管道.*打通|调用链|调用方|Grep.*调用|wir(e|ing)|pipeline.*connect/i.test(msg);
+    const mentionedReview = /\[Code-Review\]|代码审查|code.?review|BMAD.*审查|对抗性.*审查/i.test(msg);
     if (parallelAgentsDone && !mentionedWiring && !mentionedReview && !isRetry) {
       block('⛔ DD-11 并行Agent完成但未验证管道打通性。必须检查每个新函数是否有调用方（Grep验证），无调用方=死代码，必须接线。');
     }

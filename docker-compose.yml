@@ -73,14 +73,14 @@ services:
 
     restart: unless-stopped
 
-    # GPU passthrough (optional - uncomment if NVIDIA GPU available)
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    # GPU passthrough for Ollama (RTX 4060 — Qwen3 8B inference ~37s vs CPU 120s)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     networks:
       - canvas-network

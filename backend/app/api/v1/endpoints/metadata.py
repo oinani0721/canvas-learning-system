@@ -483,8 +483,8 @@ async def index_vault_notes(
             vault_path=vault_path,
             skip_dirs=skip_dirs,
             table_name="vault_notes",
-            chunk_size=chunk_size,
-            chunk_overlap=chunk_overlap,
+            max_tokens=chunk_size,
+            overlap_tokens=chunk_overlap,
             subject=DEFAULT_GROUP_ID
         )
 

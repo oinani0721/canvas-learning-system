@@ -128,7 +128,13 @@ def _chunk_text(text: str, max_tokens: int = 512, overlap_tokens: int = 50) -> L
     enc = tiktoken.get_encoding("cl100k_base")
 
     def _count_tokens(t: str) -> int:
-        return len(enc.encode(t))
+        try:
+            return len(enc.encode(t))
+        except ValueError:
+            # tiktoken regex backtracking overflow on exotic content —
+            # fall back to char-based estimate (1 token ≈ 4 chars for English,
+            # ≈ 1.5 chars for Chinese; use conservative 2 chars/token)
+            return len(t) // 2
 
     # Empty text guard
     if not text or not text.strip():
