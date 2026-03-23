@@ -130,7 +130,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 |---|------|---------|------|
 | 1 | 多信号融合（5-6 核心信号） | 贝叶斯融合理论，Nature 2025 确认 >5 变量边际递减 | BKT+FSRS+考察评分+校准+自信度自评 → 单维掌握度 + 题目标签统计薄弱方向。信号互补性验收：相关系数 < 0.7 |
 | 2 | Calibration Tracking（校准追踪） | Area9 Lyceum（3000 万用户）2x2 置信度矩阵 | 答前显式自评"你觉得自己会吗？" + 答案正误对比。三阶段：<10 条仅收集/10-20 初步趋势/20+ 可靠评估（Fleming & Lau 2014） |
-| 3 | Agentic RAG Level 1+2 + 六路搜索 | LangGraph Corrective RAG + A-RAG (arXiv:2602.03442) | 六路搜索协作：LanceDB Dense 语义 + LanceDB Sparse 关键词（jieba 中文分词）+ Graphiti 时序记忆 + Vault 笔记搜索 + Obsidian CLI 图遍历 + 图片 OCR 搜索，分层 RRF 融合 + bge-reranker 精排。迭代 Retrieve-Verify 循环（最多 2 次） |
+| 3 | Agentic RAG Level 1+2 + 六路搜索 | LangGraph Corrective RAG + A-RAG (arXiv:2602.03442) | 六路搜索协作：LanceDB Dense 语义 + LanceDB Sparse 关键词（jieba 中文分词）+ Graphiti 时序记忆 + Vault 笔记搜索 + Obsidian CLI 图遍历 + 图片 OCR 搜索，分层 RRF 融合 + gte-reranker-modernbert-base 精排。迭代 Retrieve-Verify 循环（最多 2 次） |
 | 4 | 白箱 Inspectable OLM | Bull & Kay OLM 研究 + LAK'24 处方性 Dashboard 效应量 ES=1.36 | 单维掌握度 + 题目标签统计薄弱方向 + 趋势曲线。处方性展示（"建议复习 X"）优于描述性展示（"你的 X 是 40%"） |
 
 #### Layer 3：实验层（全球独创，附回退策略）
@@ -285,7 +285,7 @@ Canvas Learning System 是一个 Obsidian 插件，将可视化知识图谱与 A
 ### 算法架构
 
 **核心算法管道**：
-- 核心算法：BKT（掌握度追踪）、FSRS（复习调度）、KG 三角协作（选题排序）、ACP（考察数据包）、Hybrid Search + Agentic RAG（六路检索 + 分层 RRF 融合 + bge-reranker 精排 + CRAG 质量门控）
+- 核心算法：BKT（掌握度追踪）、FSRS（复习调度）、KG 三角协作（选题排序）、ACP（考察数据包）、Hybrid Search + Agentic RAG（六路检索 + 分层 RRF 融合 + gte-reranker-modernbert-base 精排 + CRAG 质量门控）
 - 检验白板功能组合 ACP、FSRS、BKT、Karpicke 检索练习等算法
 - 算法实现本身不是最大工作量，管道集成和测试才是
 

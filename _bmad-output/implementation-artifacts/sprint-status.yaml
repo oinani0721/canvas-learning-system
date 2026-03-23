@@ -27,9 +27,11 @@
 # - Mark epic as 'in-progress' when starting work on its first story
 # - SM typically creates next story ONLY after previous one is 'done' to incorporate learnings
 # - Dev moves story to 'review', then Dev runs code-review (fresh context, ideally different LLM)
-# - Architecture: Tauri 2.0 + React + ReactFlow + shadcn/ui (DE-1~DE-5)
+# - Architecture (DE-1~DE-5 target): Tauri 2.0 + React + ReactFlow + shadcn/ui
+# - Dialogue Engine: Agent SDK sidecar (2026-03-19, supersedes Mode D/SDK/Tier B)
 # - Dependencies: E1/E2 parallel → E3 → {E4, E5} → E6
 # - E7(QA) dissolved: FR-QA-01~07 distributed to E1/E2/E3/E5/E6
+# - Reranker: gte-reranker-modernbert-base (Story 2.5, supersedes bge-reranker)
 
 generated: 2026-03-17
 project: Canvas

@@ -185,7 +185,7 @@ This document provides the complete epic and story breakdown for Canvas Learning
 - FR-RET-P-03: 渐进范围扩展搜索
 - FR-RET-P-04: Wiki-links 1-hop 邻居扩展
 - FR-RET-P-05: 3 组分层 RRF 融合
-- FR-RET-P-06: bge-reranker-v2-m3 精排
+- FR-RET-P-06: gte-reranker-modernbert-base 精排（Story 2.5 已从 bge-reranker-v2-m3 切换）
 - FR-RET-P-07: Adaptive-k 动态返回数量
 - FR-RET-P-08: 检索结果附带来源信息
 
@@ -321,7 +321,7 @@ This document provides the complete epic and story breakdown for Canvas Learning
 | FR-KG-01~07 | Epic 1 | 节点/连线 CRUD、画布操作、KG 同步、概念推荐、图片节点、索引状态 |
 | FR-RET-01~12 | Epic 2 | 混合检索、上下文注入、Graphiti 记忆、智能路由、六路搜索、回源验证、增量索引、分块保护、中文检索、精排、质量降级、上下文压缩 |
 | FR-IDX-01~08 | Epic 2 | 文件指纹索引、标题智能分块、面包屑前缀、bge-m3 双向量、jieba 中文、OCR 索引、去重、全量重建 |
-| FR-RET-P-01~08 | Epic 2 | 6 路并行、课程过滤、渐进范围、Wiki-links 扩展、分层 RRF、bge-reranker、Adaptive-k、来源信息 |
+| FR-RET-P-01~08 | Epic 2 | 6 路并行、课程过滤、渐进范围、Wiki-links 扩展、分层 RRF、gte-reranker-modernbert-base、Adaptive-k、来源信息 |
 | FR-QA-P-01~05 | Epic 2 | CRAG 门控、查询改写、安全降级、上下文压缩、掌握度注入 |
 | FR-OPS-01~04 | Epic 2 | Config 传递、参数可配置、多学科隔离、vault 名配置 |
 | FR-CONV-01~09 | Epic 3 | 独立对话窗口、跨 session 历史、上下文注入、/命令、Tips 标注、错误归档、三层归档、拉出节点、异步生成 |

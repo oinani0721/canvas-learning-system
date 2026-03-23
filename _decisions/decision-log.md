@@ -44,6 +44,7 @@
 | 2026-03-17 | GDR-P1-3 | Docker HTTP IPC备选 | ✅ 用户确认 | DE-4主方案不变,增加HTTP IPC备选缓解Windows Shell bug(#11513/#4949) |
 | 2026-03-17 | GDR-P1-4 | IPC载荷硬约束 | ✅ 用户确认 | 单次IPC<100KB+delta更新。Windows IPC 10MB=200ms vs macOS 5ms |
 | 2026-03-17 | OBS-LINK | Obsidian跳转方案 | ⏳ 待用户确认(Review PENDING) | obsidian://adv-uri(Advanced URI插件)+Tauri Opener。三级降级:adv-uri→内置URI→文件级。修正:不用内部预览,直接跳转Obsidian |
+| 2026-03-19 | Agent SDK sidecar | 对话引擎切换至sidecar模式 | ✅ 确认(Review PENDING) | Node.js sidecar运行Agent SDK。取代Mode D→SDK→Tier B。架构:Tauri 2+React+Node.js sidecar。待验证:进程管理/MCP注入/Windows spawn稳定性 |
 
 ## 已完成验证（Decision-Review VALIDATED）
 
@@ -59,6 +60,7 @@
 | 2026-03-15 | ~~Mode D 架构~~ | ~~已被Agent SDK sidecar取代(2026-03-19)，Review关闭~~ |
 | 2026-03-16 | Hook强制读取规则 | 新session是否实际Read文件并遵守规则 |
 | 2026-03-16 | Epic结构 | Epic边界清晰、FR覆盖完整、依赖链正确、Story可独立交付 |
-| 2026-03-16 | 对话引擎Spawn CLI | spawn模式长期稳定性(政策风险)、per-node session性能、stream-json实时性、MCP动态注入可靠性、Fallback切换成本 |
+| 2026-03-16 | ~~对话引擎Spawn CLI~~ | ~~已被Agent SDK sidecar取代(2026-03-19)，验证维度转移至sidecar条目~~ |
+| 2026-03-19 | Agent SDK sidecar | 进程管理可靠性/MCP tool injection方法/Windows spawn稳定性 |
 | 2026-03-17 | ~~Pencil UI范式工作流~~ | ~~已VALIDATED(18帧覆盖68场景)，见已完成验证区~~ |
 | 2026-03-17 | OBS-LINK Obsidian跳转 | Advanced URI插件安装率/Windows协议注册可靠性/Tauri openUrl延迟/降级链自动检测/Linux .desktop配置 |

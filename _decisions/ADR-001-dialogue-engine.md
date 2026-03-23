@@ -1,6 +1,6 @@
 # ADR-001: 对话引擎选型 — Spawn 官方 Claude Code CLI
 
-**状态**：✅ 已确认（2026-03-16）
+**状态**：⚠️ 实现方案已演进至 Agent SDK sidecar（2026-03-19）。核心决策（订阅额度、Spawn CLI 路线）仍有效，但具体实现路径已从直接 spawn CLI 演进为 Node.js sidecar 运行 Agent SDK。原确认日期：2026-03-16
 **决策者**：ROG
 **来源 Session**：Epics-Stories 创建 session（Party Mode 深度调研）
 
@@ -49,7 +49,13 @@ Canvas Learning System 的每个知识节点需要独立的 AI 对话 session（
 
 ## 具体实现方案
 
+> **⚠️ 2026-03-19 更新**：实现路径已从下方原始方案演进为 **Agent SDK sidecar 模式**：
+> Tauri 2 桌面壳 + React 前端 + Node.js sidecar（运行 Agent SDK）。
+> 演化链：Mode D → SDK直接嵌入（Tauri WebView不支持Node.js）→ Tier B增强CLI（CLI hanging + Tauri spawn bug）→ **Agent SDK sidecar**（当前活跃）。
+> 核心决策（订阅额度、CLI spawn）不变，但宿主环境从 Obsidian Plugin 改为 Tauri + Node.js sidecar。
+
 ```
+# 原始方案（2026-03-16，已被 sidecar 模式取代）
 Obsidian Plugin (Svelte UI)
   → @anthropic-ai/claude-agent-sdk query()
     → spawnClaudeCodeProcess (自定义 spawn 回调)

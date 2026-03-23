@@ -881,11 +881,70 @@ class LanceDBClient:
             self._vectorizer_initialized = True
             return False
 
+    async def _ollama_embed(self, text: str) -> Optional[List[float]]:
+        """
+        Embed text via Ollama API (GPU-accelerated).
+
+        Uses the bge-m3 model loaded in the Ollama container with GPU passthrough.
+        Returns None if Ollama is unavailable, allowing fallback to CPU vectorizer.
+        """
+        import aiohttp
+
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{ollama_url}/api/embed",
+                    json={"model": "bge-m3", "input": text},
+                    timeout=aiohttp.ClientTimeout(total=30),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        embeddings = data.get("embeddings")
+                        if embeddings and len(embeddings) > 0:
+                            return embeddings[0]
+                    if LOGURU_ENABLED:
+                        logger.debug(f"Ollama embed returned status {resp.status}")
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"Ollama embed unavailable: {e}")
+        return None
+
+    async def _ollama_embed_batch(self, texts: List[str]) -> Optional[List[List[float]]]:
+        """
+        Batch embed texts via Ollama API (GPU-accelerated).
+
+        Ollama /api/embed supports batch input natively.
+        Returns None if Ollama is unavailable.
+        """
+        import aiohttp
+
+        ollama_url = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"{ollama_url}/api/embed",
+                    json={"model": "bge-m3", "input": texts},
+                    timeout=aiohttp.ClientTimeout(total=120),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        embeddings = data.get("embeddings")
+                        if embeddings and len(embeddings) == len(texts):
+                            return embeddings
+                    if LOGURU_ENABLED:
+                        logger.debug(f"Ollama batch embed returned status {resp.status}")
+        except Exception as e:
+            if LOGURU_ENABLED:
+                logger.debug(f"Ollama batch embed unavailable: {e}")
+        return None
+
     async def embed(self, text: str) -> List[float]:
         """
         文本向量化
 
         Story 2.3: 使用 bge-m3 生成 1024 维 Dense 向量
+        优先使用 Ollama GPU embedding，失败时 fallback 到 sentence-transformers CPU。
 
         Args:
             text: 要向量化的文本
@@ -894,18 +953,23 @@ class LanceDBClient:
             List[float]: embedding向量 (1024维, bge-m3 Dense)
 
         Raises:
-            RuntimeError: 如果vectorizer初始化失败
+            RuntimeError: 如果所有 embedding 方式都失败
         """
+        # Try Ollama GPU first
+        result = await self._ollama_embed(text)
+        if result is not None:
+            return result
+
+        # Fallback to CPU vectorizer
         await self._init_vectorizer()
 
         if self._vectorizer is None:
             raise RuntimeError(
-                "Vectorizer not available. Install sentence-transformers: pip install sentence-transformers"
+                "Vectorizer not available. Neither Ollama nor sentence-transformers is working."
             )
 
-        # ✅ Verified from MultimodalVectorizer.vectorize_text() (line 244-290)
-        result = await self._vectorizer.vectorize_text(text)
-        return result.vector
+        vec_result = await self._vectorizer.vectorize_text(text)
+        return vec_result.vector
 
     async def index_canvas(
         self,
@@ -1143,14 +1207,20 @@ class LanceDBClient:
             if not chunks:
                 continue
 
-            # Batch vectorize chunks for this file
+            # Batch vectorize chunks for this file (Ollama GPU → CPU fallback)
             texts = [c["content"] for c in chunks]
-            try:
-                vectorized = await self._vectorizer.batch_vectorize(texts)
-            except Exception as e:
-                if LOGURU_ENABLED:
-                    logger.error(f"Vectorization failed for {rel_path}: {e}")
-                continue
+            ollama_vectors = await self._ollama_embed_batch(texts)
+            if ollama_vectors is not None:
+                # Wrap in namedtuple-like objects for compatibility
+                from types import SimpleNamespace
+                vectorized = [SimpleNamespace(vector=v) for v in ollama_vectors]
+            else:
+                try:
+                    vectorized = await self._vectorizer.batch_vectorize(texts)
+                except Exception as e:
+                    if LOGURU_ENABLED:
+                        logger.error(f"Vectorization failed for {rel_path}: {e}")
+                    continue
 
             # Build documents
             documents = []
