@@ -187,8 +187,8 @@ DEFAULT_CONFIG = CanvasRAGConfig(
     # === 质量门控 ===
     quality_threshold=0.7,
     max_rewrite_iterations=2,
-    quality_check_model="gemini/gemini-2.0-flash",
-    rewrite_model="gemini/gemini-2.0-flash",
+    quality_check_model="ollama/qwen3:8b",
+    rewrite_model="ollama/qwen3:8b",
     # === 压缩 (Story 2.10) ===
     context_max_tokens=3000,
     mastery_injection_enabled=True,

@@ -33,6 +33,7 @@ Updated: 2025-12-12
 """
 
 import logging
+import os
 import re
 import time
 from typing import Any, Dict, List, Optional
@@ -1253,14 +1254,22 @@ async def check_quality(state: CanvasRAGState, runtime: Runtime[CanvasRAGConfig]
 
         import asyncio
 
+        # Ollama local models need api_base and more tokens
+        # (Qwen3 thinking mode consumes ~100-300 tokens before actual response)
+        ollama_base = os.environ.get("OLLAMA_BASE_URL", "http://ollama:11434")
+        is_ollama = quality_check_model.startswith("ollama/")
+        litellm_kwargs: Dict[str, Any] = {
+            "model": quality_check_model,
+            "messages": [{"role": "user", "content": grading_prompt}],
+            "max_tokens": 1000 if is_ollama else 100,
+            "temperature": 0.0,
+        }
+        if is_ollama:
+            litellm_kwargs["api_base"] = ollama_base
+
         response = await asyncio.wait_for(
-            litellm.acompletion(
-                model=quality_check_model,
-                messages=[{"role": "user", "content": grading_prompt}],
-                max_tokens=100,
-                temperature=0.0,
-            ),
-            timeout=5.0,
+            litellm.acompletion(**litellm_kwargs),
+            timeout=60.0 if is_ollama else 10.0,
         )
 
         llm_answer = response.choices[0].message.content.strip().lower()
