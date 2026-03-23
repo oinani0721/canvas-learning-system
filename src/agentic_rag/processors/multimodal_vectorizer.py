@@ -33,7 +33,8 @@ except ImportError:
 try:
     from FlagEmbedding import BGEM3FlagModel
     FLAG_EMBEDDING_AVAILABLE = True
-except ImportError:
+except (ImportError, Exception):
+    # FlagEmbedding may fail due to transformers version conflict
     FLAG_EMBEDDING_AVAILABLE = False
 
 
@@ -187,6 +188,7 @@ class MultimodalVectorizer:
         self._model = None
         self._initialized = False
         self._embedding_dim = None
+        self._use_sentence_transformers = False
 
         # Statistics
         self._stats = {
@@ -214,29 +216,40 @@ class MultimodalVectorizer:
             )
 
         if self._is_bge_m3:
-            if not FLAG_EMBEDDING_AVAILABLE:
-                raise ImportError(
-                    "FlagEmbedding is required for bge-m3. "
-                    "Install with: pip install FlagEmbedding"
-                )
+            # Try FlagEmbedding first, fallback to sentence-transformers
+            if FLAG_EMBEDDING_AVAILABLE:
+                try:
+                    loop = asyncio.get_event_loop()
+                    use_fp16 = self.device != "cpu"
+                    self._model = await loop.run_in_executor(
+                        None,
+                        lambda: BGEM3FlagModel(
+                            self.model_name,
+                            use_fp16=use_fp16,
+                        )
+                    )
+                    self._embedding_dim = 1024
+                    self._initialized = True
+                    return True
+                except Exception:
+                    pass  # Fall through to sentence-transformers
 
+            # Fallback: sentence-transformers can also load bge-m3
             try:
+                from sentence_transformers import SentenceTransformer
                 loop = asyncio.get_event_loop()
-                use_fp16 = self.device != "cpu"
                 self._model = await loop.run_in_executor(
                     None,
-                    lambda: BGEM3FlagModel(
-                        self.model_name,
-                        use_fp16=use_fp16,
-                    )
+                    lambda: SentenceTransformer(self.model_name, device=self.device)
                 )
-                # bge-m3 Dense output dimension is always 1024
-                self._embedding_dim = 1024
+                self._embedding_dim = self._model.get_sentence_embedding_dimension()
                 self._initialized = True
+                self._use_sentence_transformers = True
                 return True
-
             except Exception as e:
-                raise EmbeddingModelError(f"Failed to load bge-m3 model: {e}") from e
+                raise EmbeddingModelError(
+                    f"Failed to load bge-m3 via both FlagEmbedding and sentence-transformers: {e}"
+                ) from e
         else:
             # Legacy path for sentence-transformers models (deprecated)
             try:
@@ -503,8 +516,8 @@ class MultimodalVectorizer:
         # Encode all texts in batch
         try:
             loop = asyncio.get_event_loop()
-            if self._is_bge_m3:
-                # bge-m3: encode returns dict with 'dense_vecs' key
+            if self._is_bge_m3 and not getattr(self, '_use_sentence_transformers', False):
+                # bge-m3 via FlagEmbedding: encode returns dict with 'dense_vecs' key
                 vectors = await loop.run_in_executor(
                     None,
                     lambda: self._model.encode(
@@ -562,8 +575,8 @@ class MultimodalVectorizer:
 
         # Run encoding in thread pool
         loop = asyncio.get_event_loop()
-        if self._is_bge_m3:
-            # bge-m3: encode expects list, returns dict with 'dense_vecs'
+        if self._is_bge_m3 and not getattr(self, '_use_sentence_transformers', False):
+            # bge-m3 via FlagEmbedding: encode expects list, returns dict with 'dense_vecs'
             vector = await loop.run_in_executor(
                 None,
                 lambda: self._model.encode(
