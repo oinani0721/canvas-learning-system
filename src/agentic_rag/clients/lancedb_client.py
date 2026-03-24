@@ -327,7 +327,7 @@ class LanceDBClient:
         db_path: str = "data/lancedb",  # ✅ Story 38.1 Fix: 从 backend/ 目录运行时路径正确
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         embedding_model: str = "BAAI/bge-m3",
-        timeout_ms: int = 400,
+        timeout_ms: int = 5000,  # Raised from 400ms: Ollama GPU embedding ~300ms + LanceDB search ~100ms
         batch_size: int = 100,
         enable_fallback: bool = True,
     ):
@@ -1116,12 +1116,11 @@ class LanceDBClient:
         if not self._initialized:
             await self.initialize()
 
+        # Try CPU vectorizer init (may fail in Docker — Ollama GPU is primary path)
         await self._init_vectorizer()
-
-        if self._vectorizer is None:
-            if LOGURU_ENABLED:
-                logger.warning("Vectorizer not available, skipping index_vault_notes")
-            return 0
+        # Note: _vectorizer may be None here, but Ollama GPU batch path at
+        # _ollama_embed_batch() does not require it. Only bail out if BOTH
+        # Ollama and vectorizer are unavailable (checked per-file below).
 
         if skip_dirs is None:
             skip_dirs = [".obsidian", ".git", ".trash", "node_modules"]
@@ -1215,6 +1214,10 @@ class LanceDBClient:
                 from types import SimpleNamespace
                 vectorized = [SimpleNamespace(vector=v) for v in ollama_vectors]
             else:
+                if self._vectorizer is None:
+                    if LOGURU_ENABLED:
+                        logger.error(f"Both Ollama and CPU vectorizer unavailable, skipping {rel_path}")
+                    continue
                 try:
                     vectorized = await self._vectorizer.batch_vectorize(texts)
                 except Exception as e:
