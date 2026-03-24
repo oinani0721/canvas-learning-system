@@ -61,7 +61,9 @@ export type StreamEvent =
   | { type: 'tool_use'; toolName: string; toolInput: Record<string, unknown>; raw?: string }
   | { type: 'tool_result'; toolResult: string; raw?: string }
   | { type: 'error'; error: string; raw?: string }
-  | { type: 'done'; sessionId?: string; costUsd?: number; raw?: string };
+  | { type: 'done'; sessionId?: string; costUsd?: number; raw?: string }
+  // GDR: Permission request from sidecar PreToolUse hook
+  | { type: 'permission_request'; toolUseId: string; toolName: string; toolInput: Record<string, unknown>; nodeId: string; raw?: string };
 
 /** Options for sending a message to a node. */
 export interface SendMessageOptions {
@@ -474,6 +476,17 @@ export class ClaudeEngine {
         });
         break;
 
+      case 'permission_request':
+        // GDR: Sidecar PreToolUse hook requests user confirmation for sensitive tools
+        pending.onEvent({
+          type: 'permission_request',
+          toolUseId: msg.toolUseId as string,
+          toolName: msg.toolName as string,
+          toolInput: (msg.toolInput as Record<string, unknown>) || {},
+          nodeId: msg.nodeId as string,
+        });
+        break;
+
       case 'done': {
         const sessionId = msg.sessionId as string | undefined;
         const costUsd = msg.costUsd as number | undefined;
@@ -552,6 +565,19 @@ export class ClaudeEngine {
       throw new Error('Sidecar not running');
     }
     await this.sidecarChild.write(JSON.stringify(cmd) + '\n');
+  }
+
+  /**
+   * GDR: Send permission response to sidecar for a PreToolUse hook request.
+   * Called by chat-store when user approves or denies a sensitive tool call.
+   */
+  async sendPermissionResponse(toolUseId: string, decision: 'allow' | 'deny'): Promise<void> {
+    await this.writeSidecarCommand({
+      cmd: 'permission_response',
+      id: `perm-${toolUseId}`,
+      toolUseId,
+      decision,
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -224,6 +224,12 @@ interface ChatStoreActions {
    * Called by: App.tsx when user clicks away from edge / selects a node.
    */
   exitEdgeMode: () => void;
+
+  // ── GDR: Tool permission approval/denial ──────────────────────────────
+  /** Approve a blocked tool call. Sends 'allow' to sidecar. */
+  approveToolCall: (messageId: string) => void;
+  /** Deny a blocked tool call. Sends 'deny' to sidecar. */
+  denyToolCall: (messageId: string) => void;
 }
 
 type ChatStore = ChatStoreState & ChatStoreActions;
@@ -640,6 +646,29 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               break;
             }
 
+            case 'permission_request': {
+              // GDR: Sidecar requests user confirmation for sensitive tool
+              clearTimeout(firstTokenTimer);
+              const permToolMsgId = crypto.randomUUID();
+              const permToolMsg: ChatMessage = {
+                id: permToolMsgId,
+                nodeId,
+                role: 'tool_use',
+                content: `${event.toolName.replace(/_/g, ' ')} 需要你的确认才能执行`,
+                createdAt: new Date().toISOString(),
+                toolName: event.toolName,
+                toolCallState: 'blocked',
+                toolInput: JSON.stringify(event.toolInput),
+                metadata: JSON.stringify({ toolUseId: event.toolUseId }),
+              };
+              saveMessage(permToolMsg).catch(() => {});
+              set((state) => ({
+                waitingForFirstToken: false,
+                messages: [...state.messages, permToolMsg],
+              }));
+              break;
+            }
+
             case 'error': {
               clearTimeout(firstTokenTimer);
 
@@ -909,6 +938,58 @@ export const useChatStore = create<ChatStore>((set, get) => ({
       hasMore: false,
       totalCount: 0,
     });
+  },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // GDR: Tool permission approval/denial
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  approveToolCall: (messageId: string) => {
+    const msg = get().messages.find((m) => m.id === messageId);
+    if (!msg || msg.role !== 'tool_use' || !msg.metadata) return;
+
+    // Extract toolUseId from metadata and send allow to sidecar
+    try {
+      const meta = JSON.parse(msg.metadata);
+      if (meta.toolUseId) {
+        const mgr = getFallbackManager();
+        mgr.getClaudeEngine()?.sendPermissionResponse(meta.toolUseId, 'allow');
+      }
+    } catch { /* metadata parse failed */ }
+
+    // Update message state: blocked → running
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId ? { ...m, toolCallState: 'running' as const } : m,
+      ),
+    }));
+    const updated = get().messages.find((m) => m.id === messageId);
+    if (updated) saveMessage(updated).catch(() => {});
+  },
+
+  denyToolCall: (messageId: string) => {
+    const msg = get().messages.find((m) => m.id === messageId);
+    if (!msg || msg.role !== 'tool_use' || !msg.metadata) return;
+
+    // Extract toolUseId from metadata and send deny to sidecar
+    try {
+      const meta = JSON.parse(msg.metadata);
+      if (meta.toolUseId) {
+        const mgr = getFallbackManager();
+        mgr.getClaudeEngine()?.sendPermissionResponse(meta.toolUseId, 'deny');
+      }
+    } catch { /* metadata parse failed */ }
+
+    // Update message state: blocked → error (denied by user)
+    set((state) => ({
+      messages: state.messages.map((m) =>
+        m.id === messageId
+          ? { ...m, toolCallState: 'error' as const, content: '用户拒绝了此操作' }
+          : m,
+      ),
+    }));
+    const updated = get().messages.find((m) => m.id === messageId);
+    if (updated) saveMessage(updated).catch(() => {});
   },
 }));
 

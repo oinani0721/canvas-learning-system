@@ -302,6 +302,8 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
               key={msg.id}
               message={msg}
               resultMessage={resultMessage}
+              onToolApprove={(id) => useChatStore.getState().approveToolCall(id)}
+              onToolDeny={(id) => useChatStore.getState().denyToolCall(id)}
             />
           );
         })}

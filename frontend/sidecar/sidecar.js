@@ -32,6 +32,24 @@ import { createInterface } from 'node:readline';
  */
 const activeQueries = new Map();
 
+// ─── Permission Request Tracking (GDR: PreToolUse selective hook) ────────────
+
+/** Tools that require user confirmation before execution. */
+const SENSITIVE_TOOLS = new Set([
+  'record_learning_memory',
+  'record_error',
+]);
+
+/**
+ * Pending permission requests: toolUseId → { resolve, timer }
+ * When a sensitive tool is called, we emit a permission_request to the frontend
+ * and wait for a permission_response command via stdin.
+ */
+const pendingPermissions = new Map();
+
+/** Timeout (ms) for user to respond to permission request. Auto-allow after timeout. */
+const PERMISSION_TIMEOUT_MS = 60000;
+
 // ─── IPC Helpers ────────────────────────────────────────────────────────────
 
 /** Write a single JSON line to stdout (NDJSON protocol). */
@@ -88,6 +106,35 @@ async function handleQuery(cmd) {
         // breaking agentic tool-use workflows (Issue #214).
         // Must explicitly set effort:high to restore proper tool-use behavior.
         effort: 'high',
+        // GDR: PreToolUse selective permission hook — only pause for sensitive tools
+        hooks: {
+          preToolUse: async (toolInput, toolUseId, context) => {
+            const toolName = toolInput?.tool_name || '';
+            if (!SENSITIVE_TOOLS.has(toolName)) {
+              // Non-sensitive: auto-allow
+              return undefined;
+            }
+            // Sensitive tool: emit permission_request to frontend and wait for response
+            emit({
+              id,
+              type: 'permission_request',
+              toolUseId,
+              toolName,
+              toolInput: toolInput?.input || {},
+              nodeId,
+            });
+            // Wait for frontend to respond via stdin permission_response command
+            return new Promise((resolve) => {
+              const timer = setTimeout(() => {
+                // Auto-allow after timeout to prevent hanging
+                pendingPermissions.delete(toolUseId);
+                log(`[Permission] Auto-allowed ${toolName} after ${PERMISSION_TIMEOUT_MS}ms timeout`);
+                resolve(undefined); // undefined = allow
+              }, PERMISSION_TIMEOUT_MS);
+              pendingPermissions.set(toolUseId, { resolve, timer });
+            });
+          },
+        },
       },
     };
 
@@ -363,6 +410,29 @@ rl.on('line', (line) => {
         log(`Unhandled query error: ${err.message}`);
       });
       break;
+
+    case 'permission_response': {
+      // GDR: Frontend responds to a permission_request (allow/deny)
+      const { toolUseId, decision } = cmd; // decision: 'allow' | 'deny'
+      const pending = pendingPermissions.get(toolUseId);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pendingPermissions.delete(toolUseId);
+        if (decision === 'deny') {
+          // Return { permissionDecision: 'deny' } to block the tool call
+          pending.resolve({ permissionDecision: 'deny' });
+          log(`[Permission] User denied tool ${toolUseId}`);
+        } else {
+          // Allow: return undefined (SDK treats undefined as allow)
+          pending.resolve(undefined);
+          log(`[Permission] User allowed tool ${toolUseId}`);
+        }
+      } else {
+        log(`[Permission] No pending request for ${toolUseId} (may have timed out)`);
+      }
+      emit({ id, type: 'ack' });
+      break;
+    }
 
     default:
       emit({ id, type: 'error', error: `Unknown command: ${cmd.cmd}`, errorType: 'crash' });
