@@ -108,7 +108,7 @@ class LocalReranker:
         self.model = CrossEncoder(
             model_name,
             device=device,
-            model_args=model_kwargs if model_kwargs else None,
+            model_kwargs=model_kwargs if model_kwargs else None,
         )
 
         # Story 2.5 AC-5: Startup logging — model name, device, precision, param count
