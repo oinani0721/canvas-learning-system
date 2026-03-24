@@ -113,9 +113,12 @@ def _register_tool_routes(app: FastAPI) -> None:
     from app.mcp.tools.memory_tools import (
         RecordCalibrationInput,
         RecordCalibrationOutput,
+        RecordLearningMemoryInput,
+        RecordLearningMemoryOutput,
         SearchMemoriesInput,
         SearchMemoriesOutput,
         record_calibration,
+        record_learning_memory,
         search_memories,
     )
     from app.mcp.tools.note_search_tools import (
@@ -271,6 +274,28 @@ def _register_tool_routes(app: FastAPI) -> None:
             actual_score=input.actual_score,
             question_type=input.question_type,
             difficulty=input.difficulty,
+        )
+
+    @app.post(
+        "/mcp/tools/record_learning_memory",
+        response_model=RecordLearningMemoryOutput,
+        tags=[MCP_TAG],
+        summary="Record learning memory (Observer write path)",
+        description=(
+            "Record a student learning event (misconception, problem trap, "
+            "logical fallacy, guided thinking) to the Graphiti knowledge graph. "
+            "Call when you detect student misunderstanding during dialogue. "
+            "No pipeline token required. Max 2 calls per turn."
+        ),
+    )
+    async def _record_learning_memory(input: RecordLearningMemoryInput) -> Dict[str, Any]:
+        return await record_learning_memory(
+            node_id=input.node_id,
+            entity_type=input.entity_type,
+            concept=input.concept,
+            topic=input.topic,
+            details=input.details,
+            severity=input.severity,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════

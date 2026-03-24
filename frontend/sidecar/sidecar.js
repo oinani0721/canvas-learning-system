@@ -125,6 +125,10 @@ async function handleQuery(cmd) {
     // Track emitted tool_use block IDs to deduplicate across partial messages
     const emittedToolIds = new Set();
 
+    // Learning Observer: track if record_learning_memory was called this turn
+    let learningRecorded = false;
+    const collectedTexts = [];  // collect assistant text for fallback extraction
+
     for await (const msg of queryResult) {
       // ── stream_event: Real-time text streaming via BetaRawMessageStreamEvent ──
       if (msg.type === 'stream_event') {
@@ -134,6 +138,7 @@ async function handleQuery(cmd) {
         // Text delta: emit incremental text for real-time UI rendering
         if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
           emit({ id, type: 'text', text: event.delta.text });
+          collectedTexts.push(event.delta.text);
         }
 
         // Tool use start: emit when a tool call begins
@@ -148,6 +153,10 @@ async function handleQuery(cmd) {
               toolName: block.name,
               toolInput: block.input || {},
             });
+            // Learning Observer: track if memory recording tool was called
+            if (block.name === 'record_learning_memory' || block.name === 'record_error') {
+              learningRecorded = true;
+            }
           }
         }
         continue;
@@ -198,6 +207,31 @@ async function handleQuery(cmd) {
       // ── result: Final result with session_id and cost ──
       if (msg.type === 'result') {
         const errorType = msg.subtype === 'success' ? undefined : msg.subtype;
+
+        // Learning Observer fallback: if no memory tool was called this turn,
+        // send conversation to backend for Ollama-based extraction (fire-and-forget)
+        if (!learningRecorded && msg.subtype === 'success' && collectedTexts.length > 0) {
+          const backendUrl = process.env.CANVAS_BACKEND_URL || 'http://localhost:8001';
+          fetch(`${backendUrl}/api/v1/memory/extract-conversation`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              node_id: nodeId,
+              session_id: msg.session_id || '',
+              messages: [
+                { role: 'user', content: prompt },
+                { role: 'assistant', content: collectedTexts.join('') },
+              ],
+            }),
+            signal: AbortSignal.timeout(30000),
+          }).then(r => {
+            if (r.ok) log(`[Observer] Fallback extraction for ${nodeId}: OK`);
+            else log(`[Observer] Fallback extraction failed: HTTP ${r.status}`);
+          }).catch(err => {
+            log(`[Observer] Fallback extraction error (non-fatal): ${err.message || err}`);
+          });
+        }
+
         emit({
           id,
           type: 'done',

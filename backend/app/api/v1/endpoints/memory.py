@@ -391,3 +391,85 @@ async def create_batch_episodes(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to process batch episodes: {str(e)}"
         )
+
+
+# =============================================================================
+# POST /extract-conversation - Sidecar fallback learning extraction
+# =============================================================================
+
+from pydantic import BaseModel, Field
+
+
+class ExtractConversationRequest(BaseModel):
+    """Request for sidecar fallback conversation extraction."""
+    node_id: str = Field(..., description="Canvas node identifier")
+    session_id: str = Field("", description="Dialogue session identifier")
+    messages: List[dict] = Field(..., description="List of {role, content} message dicts")
+
+
+class ExtractConversationResponse(BaseModel):
+    """Response from fallback extraction."""
+    extracted: bool = False
+    extracted_count: int = 0
+    status: str = "ok"
+    message: str = ""
+
+
+@memory_router.post(
+    "/extract-conversation",
+    response_model=ExtractConversationResponse,
+    summary="Extract learning events from conversation (sidecar fallback)",
+    description=(
+        "Called by sidecar when a conversation turn completes without "
+        "record_learning_memory being invoked. Uses ConversationDistiller "
+        "(Ollama Tier1) to extract structured learning data and write to Graphiti."
+    ),
+)
+async def extract_conversation_learning(
+    request: ExtractConversationRequest,
+    memory_service: MemoryServiceDep,
+) -> ExtractConversationResponse:
+    try:
+        from app.services.conversation_distiller import ConversationDistiller
+
+        distiller = ConversationDistiller()
+        result = await distiller.distill(
+            messages=request.messages,
+            node_id=request.node_id,
+        )
+
+        extracted_count = 0
+        from app.config import DEFAULT_GROUP_ID
+
+        for tip in result.tips:
+            await memory_service.record_knowledge_entity(
+                event_type="learning_tip",
+                content=f"[Tip] {tip.title}: {tip.content}",
+                metadata={"node_id": request.node_id, "source": "sidecar_fallback", "tags": tip.tags},
+                group_id=DEFAULT_GROUP_ID,
+            )
+            extracted_count += 1
+
+        for error in result.errors:
+            await memory_service.record_knowledge_entity(
+                event_type="misconception",
+                content=f"[Error] {error.description}",
+                metadata={"node_id": request.node_id, "source": "sidecar_fallback", "error_type": error.error_type},
+                group_id=DEFAULT_GROUP_ID,
+            )
+            extracted_count += 1
+
+        logger.info(f"[Observer-Fallback] Extracted {extracted_count} items for node {request.node_id}")
+
+        return ExtractConversationResponse(
+            extracted=extracted_count > 0,
+            extracted_count=extracted_count,
+            status="ok",
+            message=f"Extracted {extracted_count} learning items",
+        )
+
+    except Exception as e:
+        logger.error(f"[Observer-Fallback] extract-conversation error: {e}")
+        return ExtractConversationResponse(
+            extracted=False, status="error", message=str(e)[:200],
+        )

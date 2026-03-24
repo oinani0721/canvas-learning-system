@@ -1,7 +1,7 @@
 # Canvas Learning System - MCP Memory Tools
 # Story 3.2: MCP Tool Exposure (AC-2)
 #
-# Tools: search_memories, record_calibration
+# Tools: search_memories, record_calibration, record_learning_memory
 # These tools provide Agent access to the Graphiti learning memory system.
 #
 # [Source: _bmad-output/implementation-artifacts/3-2-mcp-tool-exposure-backend-api.md#Task 2.4]
@@ -77,6 +77,39 @@ class RecordCalibrationOutput(BaseModel):
     node_id: str
     recorded: bool
     calibration_gap: float = Field(..., description="Absolute gap between predicted and actual score")
+    status: str = "ok"
+    message: str = ""
+
+
+class RecordLearningMemoryInput(BaseModel):
+    """Input schema for record_learning_memory tool.
+
+    Agent calls this when it detects a student learning event during dialogue.
+    """
+
+    node_id: str = Field(..., description="Canvas node ID where the learning event occurred.")
+    entity_type: str = Field(
+        ...,
+        description=(
+            "Type of learning event: "
+            "Misconception (知识点误解), "
+            "ProblemTrap (做题思维陷阱), "
+            "LogicalFallacy (逻辑推理谬误), "
+            "GuidedThinking (引导思考记录)."
+        ),
+    )
+    concept: str = Field(..., min_length=1, max_length=200, description="Specific concept name (e.g. 'A* admissibility').")
+    topic: str = Field(..., min_length=1, max_length=100, description="Broader topic (e.g. 'Search', 'MDPs').")
+    details: str = Field(..., description="What the student got wrong and what is correct. Be specific.")
+    severity: Optional[str] = Field(None, description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.")
+
+
+class RecordLearningMemoryOutput(BaseModel):
+    """Output schema for record_learning_memory tool."""
+
+    node_id: str
+    recorded: bool
+    entity_type: str = ""
     status: str = "ok"
     message: str = ""
 
@@ -262,4 +295,103 @@ async def record_calibration(
             calibration_gap=calibration_gap,
             status="error",
             message=str(e),
+        ).model_dump()
+
+
+async def record_learning_memory(
+    node_id: str,
+    entity_type: str,
+    concept: str,
+    topic: str,
+    details: str,
+    severity: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Record a learning event (misconception, problem trap, logical fallacy,
+    or guided thinking) to the Graphiti knowledge graph.
+
+    Call this tool when you detect that the student has:
+    - A misconception: states something factually wrong about a concept
+    - A problem-solving trap: applies wrong procedure or falls for a common trap
+    - A logical fallacy: reasoning contains an invalid step
+    - A guided thinking event: completed a teaching exchange worth recording
+
+    When NOT to call:
+    - Simple typos or language errors (not conceptual)
+    - Student merely asks a question (asking != misunderstanding)
+    - You are unsure — ask a follow-up first
+    - Same misconception already recorded this session
+
+    Rate limit: maximum 2 calls per conversation turn.
+
+    Args:
+        node_id: Canvas node identifier.
+        entity_type: Misconception | ProblemTrap | LogicalFallacy | GuidedThinking
+        concept: Specific concept name (e.g. 'A* admissibility').
+        topic: Broader topic (e.g. 'Search', 'MDPs').
+        details: What the student got wrong and what is correct.
+        severity: Optional 'critical' | 'moderate' | 'minor'.
+
+    Returns:
+        Dict with recording status.
+    """
+    guardian = get_audit_guardian()
+    asyncio.create_task(guardian.record_tool_call("record_learning_memory", "", node_id))
+
+    valid_types = {"Misconception", "ProblemTrap", "LogicalFallacy", "GuidedThinking"}
+    if entity_type not in valid_types:
+        return RecordLearningMemoryOutput(
+            node_id=node_id, recorded=False, entity_type=entity_type,
+            status="validation_error",
+            message=f"Invalid entity_type: {entity_type}. Must be one of {valid_types}",
+        ).model_dump()
+
+    try:
+        from app.config import DEFAULT_GROUP_ID
+        from app.core.memory_format import build_entity_name, build_episode_body
+        from app.services.memory_service import get_memory_service
+
+        memory_svc = await get_memory_service()
+
+        name = build_entity_name(entity_type, concept)
+        body = build_episode_body(entity_type, topic=topic, error=details, correct="")
+        content = f"{body}"
+        if severity:
+            content += f" | Severity: {severity}"
+
+        await memory_svc.record_knowledge_entity(
+            event_type=entity_type.lower(),
+            content=content,
+            metadata={
+                "entity_type": entity_type,
+                "concept": concept,
+                "topic": topic,
+                "details": details,
+                "severity": severity,
+                "node_id": node_id,
+                "source": "observer_agent",
+                "name": name,
+            },
+            group_id=DEFAULT_GROUP_ID,
+        )
+
+        logger.info(f"[LearningMemory] Recorded {entity_type}: {concept} node={node_id}")
+
+        return RecordLearningMemoryOutput(
+            node_id=node_id, recorded=True, entity_type=entity_type,
+            status="ok",
+            message=f"Recorded {entity_type}: {concept}",
+        ).model_dump()
+
+    except ImportError as e:
+        logger.warning(f"[LearningMemory] service not available: {e}")
+        return RecordLearningMemoryOutput(
+            node_id=node_id, recorded=False, entity_type=entity_type,
+            status="service_unavailable", message=str(e),
+        ).model_dump()
+    except Exception as e:
+        logger.error(f"[LearningMemory] error: {e}")
+        return RecordLearningMemoryOutput(
+            node_id=node_id, recorded=False, entity_type=entity_type,
+            status="error", message=str(e),
         ).model_dump()
