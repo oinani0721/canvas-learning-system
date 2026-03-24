@@ -232,7 +232,11 @@ export function ToolCallCard({ message, resultMessage, onApprove, onDeny }: Tool
           {message.toolInput && (
             <div className="mt-1.5 text-[10px] text-[#6c7086]">
               <span className="font-medium">参数: </span>
-              <code className="text-[#89b4fa] break-all">{message.toolInput}</code>
+              <code className="text-[#89b4fa] break-all">
+                {message.toolInput.length > 200
+                  ? `${message.toolInput.slice(0, 200)}...`
+                  : message.toolInput}
+              </code>
             </div>
           )}
 
@@ -248,26 +252,35 @@ export function ToolCallCard({ message, resultMessage, onApprove, onDeny }: Tool
         </div>
       )}
 
-      {/* ── Blocked state: approval buttons ── */}
+      {/* ── Blocked state: show info + approval buttons when callbacks are wired ── */}
       {state === 'blocked' && (
         <div className="px-3 pb-2.5 border-t border-yellow-400/20">
           <p className="text-[11px] text-[#a6adc8] mt-1.5 mb-2">
             {message.content || `${displayName} 需要你的确认才能执行`}
           </p>
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={() => onDeny?.(message.id)}
-              className="px-3 py-1 text-[11px] bg-[#45475a] text-[#cdd6f4] rounded-md hover:bg-[#585b70] transition-colors"
-            >
-              拒绝
-            </button>
-            <button
-              onClick={() => onApprove?.(message.id)}
-              className="px-3 py-1 text-[11px] bg-[#a6e3a1] text-[#1e1e2e] font-semibold rounded-md hover:bg-[#94e2d5] transition-colors"
-            >
-              允许
-            </button>
-          </div>
+          {/* Approval buttons only render when callbacks are connected.
+              Currently sidecar lacks PreToolUse permission protocol — buttons disabled until wired. */}
+          {(onApprove || onDeny) && (
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => onDeny?.(message.id)}
+                className="px-3 py-1 text-[11px] bg-[#45475a] text-[#cdd6f4] rounded-md hover:bg-[#585b70] transition-colors"
+              >
+                拒绝
+              </button>
+              <button
+                onClick={() => onApprove?.(message.id)}
+                className="px-3 py-1 text-[11px] bg-[#a6e3a1] text-[#1e1e2e] font-semibold rounded-md hover:bg-[#94e2d5] transition-colors"
+              >
+                允许
+              </button>
+            </div>
+          )}
+          {!onApprove && !onDeny && (
+            <div className="text-[10px] text-yellow-400/60">
+              ⏳ 等待 sidecar 权限协议接入...
+            </div>
+          )}
         </div>
       )}
 

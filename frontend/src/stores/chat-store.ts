@@ -605,7 +605,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 toolCallState: 'running',
                 toolInput: JSON.stringify(event.toolInput),
               };
-              saveMessage(toolMsg);
+              saveMessage(toolMsg).catch(() => {/* non-fatal: in-memory state is authoritative */});
               set((state) => ({
                 waitingForFirstToken: false,
                 messages: [...state.messages, toolMsg],
@@ -623,7 +623,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                 content: event.toolResult,
                 createdAt: new Date().toISOString(),
               };
-              saveMessage(resultMsg);
+              saveMessage(resultMsg).catch(() => {/* non-fatal */});
               set((state) => {
                 // Find the most recent tool_use message still in 'running' state and mark completed
                 const updatedMessages = [...state.messages, resultMsg];
@@ -631,7 +631,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   const m = updatedMessages[i];
                   if (m.role === 'tool_use' && m.toolCallState === 'running') {
                     updatedMessages[i] = { ...m, toolCallState: 'completed' };
-                    saveMessage(updatedMessages[i]);
+                    saveMessage(updatedMessages[i]).catch(() => {/* non-fatal */});
                     break;
                   }
                 }
@@ -655,11 +655,19 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               set((state) => ({
                 engineUnavailable: isUnavailable || state.engineUnavailable,
                 waitingForFirstToken: false,
-                messages: state.messages.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, role: 'error' as ChatMessageRole, content: errText }
-                    : m,
-                ),
+                messages: state.messages.map((m) => {
+                  // Update assistant message to error
+                  if (m.id === assistantId) {
+                    return { ...m, role: 'error' as ChatMessageRole, content: errText };
+                  }
+                  // C2 fix: Also mark any running tool_use as error
+                  if (m.role === 'tool_use' && m.toolCallState === 'running') {
+                    const updated = { ...m, toolCallState: 'error' as const };
+                    saveMessage(updated).catch(() => {/* non-fatal */});
+                    return updated;
+                  }
+                  return m;
+                }),
               }));
               break;
             }
