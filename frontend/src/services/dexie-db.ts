@@ -83,8 +83,8 @@ export interface CrashRecoveryEntry {
   timestamp: string;
 }
 
-/** Chat message roles. */
-export type ChatMessageRole = 'user' | 'assistant' | 'error';
+/** Chat message roles. GDR-P0-2: Added tool_use/tool_result for tool call visibility. */
+export type ChatMessageRole = 'user' | 'assistant' | 'error' | 'tool_use' | 'tool_result';
 
 /**
  * Persisted chat message entity.
@@ -103,6 +103,15 @@ export interface ChatMessage {
   createdAt: string;
   /** Optional metadata (tool usage, cost, session ID, etc.). */
   metadata?: string;
+  // ── GDR-P0-2: Tool call fields ──
+  /** Tool name (only for role=tool_use). */
+  toolName?: string;
+  /** Tool call state machine: pending → running → completed | error | blocked. */
+  toolCallState?: 'pending' | 'running' | 'completed' | 'error' | 'blocked';
+  /** Tool input parameters JSON string (only for role=tool_use). */
+  toolInput?: string;
+  /** Learning annotation — why this tool was called (Observer-generated). */
+  learningAnnotation?: string;
 }
 
 /** Valid exam modes (6-1 M2: enum type guard). */

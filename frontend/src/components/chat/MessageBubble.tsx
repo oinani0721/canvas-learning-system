@@ -23,9 +23,16 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import type { ChatMessage } from '../../services/dexie-db';
 import { preprocessWikiLinks, markdownComponents, remarkPlugins, rehypeExtraPlugins } from '../markdown/markdown-renderers';
+import { ToolCallCard } from './ToolCallCard';
 
 interface MessageBubbleProps {
   message: ChatMessage;
+  /** Paired tool_result message (passed by ChatPanel for tool_use messages). */
+  resultMessage?: ChatMessage;
+  /** Callback when user approves a blocked tool call. */
+  onToolApprove?: (messageId: string) => void;
+  /** Callback when user denies a blocked tool call. */
+  onToolDeny?: (messageId: string) => void;
 }
 
 /**
@@ -56,8 +63,29 @@ function formatRelativeTime(iso: string): string {
 // MessageBubble Component
 // ═══════════════════════════════════════════════════════════════════════════════
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ message, resultMessage, onToolApprove, onToolDeny }: MessageBubbleProps) {
   const timestamp = formatRelativeTime(message.createdAt);
+
+  // GDR-P0-2: Tool call card — route tool_use messages to ToolCallCard
+  if (message.role === 'tool_use') {
+    return (
+      <div className="flex justify-start" data-chat-message="tool_use">
+        <div className="w-full">
+          <ToolCallCard
+            message={message}
+            resultMessage={resultMessage}
+            onApprove={onToolApprove}
+            onDeny={onToolDeny}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Tool result messages are not rendered directly — they are paired with tool_use via resultMessage prop
+  if (message.role === 'tool_result') {
+    return null;
+  }
 
   // User message: right-aligned, accent bubble
   if (message.role === 'user') {

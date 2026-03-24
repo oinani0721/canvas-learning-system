@@ -46,6 +46,7 @@ import { StreamingIndicator } from './chat/StreamingIndicator';
 import { InlineAnnotation } from './chat/InlineAnnotation';
 import { TipsList } from './chat/TipsList';
 import { EngineStatusIndicator } from './chat/EngineStatusIndicator';
+import { ObserverBadge } from './chat/ObserverBadge';
 import { QuotaExhaustedBanner } from './chat/QuotaExhaustedBanner';
 import { RecoveryBanner } from './chat/RecoveryBanner';
 import { SkillSelector } from './chat/SkillSelector';
@@ -278,14 +279,44 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
           </div>
         )}
 
-        {/* Message bubbles */}
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id} message={msg} />
-        ))}
+        {/* Message bubbles — GDR-P0-2: pair tool_use with next tool_result */}
+        {messages.map((msg, idx) => {
+          // Skip tool_result messages — they are rendered via the paired tool_use card
+          if (msg.role === 'tool_result') return null;
+
+          // For tool_use messages, find the next tool_result in the sequence
+          let resultMessage;
+          if (msg.role === 'tool_use') {
+            for (let j = idx + 1; j < messages.length; j++) {
+              if (messages[j].role === 'tool_result') {
+                resultMessage = messages[j];
+                break;
+              }
+              // Stop searching if we hit another tool_use or user message
+              if (messages[j].role === 'tool_use' || messages[j].role === 'user') break;
+            }
+          }
+
+          return (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              resultMessage={resultMessage}
+            />
+          );
+        })}
 
         {/* Streaming indicator */}
         {isStreaming && (
           <StreamingIndicator waitingForFirstToken={waitingForFirstToken} />
+        )}
+
+        {/* GDR-P0-3: Observer badge — show after streaming completes if tool calls were made */}
+        {!isStreaming && messages.some((m) => m.role === 'tool_use') && (
+          <ObserverBadge
+            eventCount={messages.filter((m) => m.role === 'tool_use' && m.toolCallState === 'completed').length}
+            graphitiStatus={messages.some((m) => m.toolName === 'record_learning_memory') ? 'success' : 'idle'}
+          />
         )}
 
         {/* Scroll anchor */}

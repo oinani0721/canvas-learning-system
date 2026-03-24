@@ -591,20 +591,54 @@ export const useChatStore = create<ChatStore>((set, get) => ({
               }));
               break;
 
-            case 'tool_use':
-              accumulated += `\n\n*Using tool: ${event.toolName}...*\n`;
+            case 'tool_use': {
+              // GDR-P0-2: Create a separate tool_use message with 4-state machine
+              clearTimeout(firstTokenTimer);
+              const toolMsgId = crypto.randomUUID();
+              const toolMsg: ChatMessage = {
+                id: toolMsgId,
+                nodeId,
+                role: 'tool_use',
+                content: '',
+                createdAt: new Date().toISOString(),
+                toolName: event.toolName,
+                toolCallState: 'running',
+                toolInput: JSON.stringify(event.toolInput),
+              };
+              saveMessage(toolMsg);
               set((state) => ({
-                messages: state.messages.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: accumulated }
-                    : m,
-                ),
+                waitingForFirstToken: false,
+                messages: [...state.messages, toolMsg],
               }));
               break;
+            }
 
-            case 'tool_result':
-              // Internal context - not displayed
+            case 'tool_result': {
+              // GDR-P0-2: Create tool_result message and update paired tool_use to 'completed'
+              const resultMsgId = crypto.randomUUID();
+              const resultMsg: ChatMessage = {
+                id: resultMsgId,
+                nodeId,
+                role: 'tool_result',
+                content: event.toolResult,
+                createdAt: new Date().toISOString(),
+              };
+              saveMessage(resultMsg);
+              set((state) => {
+                // Find the most recent tool_use message still in 'running' state and mark completed
+                const updatedMessages = [...state.messages, resultMsg];
+                for (let i = updatedMessages.length - 1; i >= 0; i--) {
+                  const m = updatedMessages[i];
+                  if (m.role === 'tool_use' && m.toolCallState === 'running') {
+                    updatedMessages[i] = { ...m, toolCallState: 'completed' };
+                    saveMessage(updatedMessages[i]);
+                    break;
+                  }
+                }
+                return { messages: updatedMessages };
+              });
               break;
+            }
 
             case 'error': {
               clearTimeout(firstTokenTimer);
