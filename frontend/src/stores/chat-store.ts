@@ -891,13 +891,21 @@ function setupEngineListeners(): void {
       // Story 3-11: Handle crash via CrashRecoveryManager
       const recovery = getCrashRecovery();
       const result = recovery.recordCrash(error.exitCode ?? null, error.message);
-      useChatStore.setState({
-        recoveryStatus: result.action === 'auto_retry'
-          ? 'recovering'
-          : result.action === 'circuit_open'
+
+      if (result.action === 'auto_retry' && result.lastMessage) {
+        // Auto-retry: actually resend the cached message
+        useChatStore.setState({ recoveryStatus: 'recovering' });
+        const nodeTitle = useChatStore.getState().currentNodeId ?? '';
+        useChatStore.getState().sendMessage(result.lastMessage.message, nodeTitle)
+          .then(() => useChatStore.setState({ recoveryStatus: 'idle' }))
+          .catch(() => useChatStore.setState({ recoveryStatus: 'failed' }));
+      } else {
+        useChatStore.setState({
+          recoveryStatus: result.action === 'circuit_open'
             ? 'circuit_open'
             : 'failed',
-      });
+        });
+      }
     }
   });
 

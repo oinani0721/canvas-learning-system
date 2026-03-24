@@ -387,6 +387,15 @@ export class ClaudeEngine {
       }
       this.nodeToRequestId.clear();
 
+      // Emit crash error so CrashRecoveryManager can handle it
+      if (code !== 0) {
+        this.emitError({
+          type: 'crash',
+          message: `Sidecar process exited with code ${code}`,
+          exitCode: code,
+        });
+      }
+
       if (!readyResolved) {
         readyResolved = true;
         clearTimeout(readyTimeout);
@@ -502,12 +511,13 @@ export class ClaudeEngine {
           error: errorText,
         });
 
-        // Emit engine-level error for fallback handling
-        if (errorType && errorType !== 'crash') {
+        // Emit engine-level error for fallback handling (including crash)
+        if (errorType) {
           this.emitError({
             type: errorType,
             message: errorText,
             retryAfterSec,
+            exitCode: msg.exitCode as number | undefined,
           });
         } else if (isRateLimitError(errorText)) {
           this.emitError({
