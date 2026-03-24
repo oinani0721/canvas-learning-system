@@ -1,0 +1,641 @@
+{
+  "agent": "D",
+  "role": "Survey论文员",
+  "topic": "前端工具调用UI + 可观测性闭环",
+  "timestamp": "2026-03-24",
+  "search_strategies_executed": 5,
+  "total_supplementary_searches": 8,
+  "findings": [
+    {
+      "id": "D-01",
+      "category": "AI Agent工具调用透明度/可解释性",
+      "title": "Visibility into AI Agents",
+      "authors": "Chan, Ezell, Kaufmann, Wei, Hammond, Bradley, Bluemke, Rajkumar, Krueger, Kolt, Heim, Anderljung",
+      "year": 2024,
+      "venue": "ACM FAccT 2024",
+      "arxiv": "2401.13138",
+      "url": "https://arxiv.org/abs/2401.13138",
+      "type": "framework_paper",
+      "key_findings": [
+        "提出AI agent可见性三大类措施：agent identifiers（身份标识）、real-time monitoring（实时监控）、activity logging（活动日志）",
+        "分析各措施在侵入性(intrusiveness)和信息量(informativeness)之间的权衡",
+        "针对部署AI agent的组织（银行、云服务商等）的风险：fine-tuning、外部工具连接、调用结构化",
+        "将visibility定义为：在哪里、为什么、如何、由谁使用AI agent的信息"
+      ],
+      "relevance_to_project": "直接相关——为Canvas系统中Agent工具调用的UI展示提供了框架：需要展示agent身份、实时监控状态、活动日志。三层visibility模型可直接映射到Observer写入+前端展示的设计",
+      "design_implications": [
+        "工具调用UI需包含：agent身份标识、调用实时状态、历史活动日志",
+        "可见性等级应可配置（侵入性vs信息量的平衡）",
+        "activity logging是最低侵入性的可见性措施，适合Observer后台写入"
+      ]
+    },
+    {
+      "id": "D-02",
+      "category": "AI Agent工具调用透明度/可解释性",
+      "title": "From Features to Actions: Explainability in Traditional and Agentic AI Systems",
+      "authors": "未详列",
+      "year": 2026,
+      "venue": "arXiv preprint",
+      "arxiv": "2602.06841",
+      "url": "https://arxiv.org/abs/2602.06841",
+      "type": "empirical_survey",
+      "key_findings": [
+        "桥接静态可解释性与agentic可解释性：对比attribution-based explanations与trace-based diagnostics",
+        "静态场景attribution方法Spearman ρ=0.86，但无法可靠诊断agentic执行失败",
+        "Trace-grounded rubric evaluation能一致性定位行为崩溃点",
+        "State tracking inconsistency在失败运行中多2.7倍，降低成功概率49%",
+        "Agentic系统需要新型可解释性：必须考虑action sequences、tool interactions、state evolution"
+      ],
+      "relevance_to_project": "高度相关——证明了工具调用需要trace-based可视化而非简单attribution。Canvas的Observer需要捕获完整执行轨迹（action sequences + tool interactions + state evolution），前端需要展示trace而非简单结果",
+      "design_implications": [
+        "前端工具调用UI应展示完整执行轨迹（trace），而非仅最终结果",
+        "需要trace-grounded的错误定位能力——当学习分析失败时能定位到具体步骤",
+        "State tracking是关键：Observer需记录每个工具调用的state变化"
+      ]
+    },
+    {
+      "id": "D-03",
+      "category": "AI Agent可观测性框架",
+      "title": "AgentTrace: A Structured Logging Framework for Agent System Observability",
+      "authors": "未详列",
+      "year": 2026,
+      "venue": "arXiv preprint",
+      "arxiv": "2602.10133",
+      "url": "https://arxiv.org/abs/2602.10133",
+      "type": "framework_paper",
+      "key_findings": [
+        "三表面分类法(three-surface taxonomy)：cognitive（认知）、operational（操作）、contextual（上下文）",
+        "运行时动态插桩，无需代码修改",
+        "集成OpenTelemetry等现有遥测基础设施",
+        "schema-based结构化日志，支持多层内省(multi-level introspection)",
+        "解决LLM agent的非确定性行为带来的静态审计局限",
+        "支持实时监控、安全审计、可信度校准"
+      ],
+      "relevance_to_project": "直接可参考的架构设计——三表面模型可映射到Canvas Observer: cognitive=学习推理过程, operational=工具调用执行, contextual=学习上下文环境。无侵入式插桩+OpenTelemetry集成是成熟的工程方案",
+      "design_implications": [
+        "Observer写入应按三表面分类：认知层（学习推理）、操作层（工具调用）、上下文层（学习环境）",
+        "采用schema-based结构化日志格式，便于前端解析展示",
+        "运行时插桩设计——不修改现有代码即可接入",
+        "与OpenTelemetry标准对齐，便于扩展和集成"
+      ]
+    },
+    {
+      "id": "D-04",
+      "category": "AI Agent可观测性框架",
+      "title": "Beyond Black-Box Benchmarking: Observability, Analytics, and Optimization of Agentic Systems",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2503.06745",
+      "url": "https://arxiv.org/abs/2503.06745",
+      "type": "survey",
+      "key_findings": [
+        "超越黑箱基准测试，提出agentic系统的可观测性、分析和优化框架",
+        "OpenLLMetry扩展OpenTelemetry标准捕获LLM特定指标：token使用、成本、延迟",
+        "为LLM框架和向量数据库提供全面支持",
+        "强调从benchmarking到production observability的转变"
+      ],
+      "relevance_to_project": "提供了从黑箱评估到可观测性的方法论转变思路。Canvas的学习分析不应只看最终分数（黑箱），而应提供过程可观测性。OpenLLMetry的token/cost/latency指标可参考",
+      "design_implications": [
+        "学习分析需从结果导向转向过程可观测",
+        "关键指标维度：使用量(token)、成本(cost)、响应延迟(latency)",
+        "与OpenTelemetry标准对齐的遥测框架"
+      ]
+    },
+    {
+      "id": "D-05",
+      "category": "AI Agent工具调用透明度/可解释性",
+      "title": "Towards Transparent AI: A Survey on Explainable Large Language Models",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2506.21812",
+      "url": "https://arxiv.org/abs/2506.21812",
+      "type": "survey",
+      "key_findings": [
+        "XAI for LLMs在高风险领域对透明度和信任至关重要",
+        "研究者开发了多种可解释性方法提供人类可理解的解释",
+        "涵盖LLM推理过程的透明化方法综述"
+      ],
+      "relevance_to_project": "为Canvas中LLM辅助学习分析的透明化提供方法论参考。当Agent给出学习建议时，需要提供可理解的解释",
+      "design_implications": [
+        "Agent学习建议需附带人类可理解的解释",
+        "工具调用结果的展示需要透明化处理"
+      ]
+    },
+    {
+      "id": "D-06",
+      "category": "AI Agent工具调用透明度/可解释性",
+      "title": "LLM-Based Agents for Tool Learning: A Survey",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "Data Science and Engineering, Springer",
+      "url": "https://link.springer.com/article/10.1007/s41019-025-00296-9",
+      "type": "survey",
+      "key_findings": [
+        "系统综述LLM agent的工具学习能力",
+        "涵盖工具选择、参数生成、调用执行的完整管道",
+        "ChatGPT-3.5+支持native function calling，自主决定是否调用工具并生成参数"
+      ],
+      "relevance_to_project": "工具学习管道（工具选择→参数生成→调用执行）可映射到Canvas前端的工具调用UI展示流程",
+      "design_implications": [
+        "工具调用UI应展示三阶段：工具选择理由、参数构建过程、执行结果",
+        "支持native function calling的展示模式"
+      ]
+    },
+    {
+      "id": "D-07",
+      "category": "AI Agent工具调用透明度/可解释性",
+      "title": "Improving Large Language Models Function Calling and Interpretability via Guided-Structured Templates",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2509.18076",
+      "url": "https://arxiv.org/abs/2509.18076",
+      "type": "method_paper",
+      "key_findings": [
+        "提出结构化推理模板(structured reasoning templates)引导LLM逐步生成function calls",
+        "通过deliberate step-by-step指令提高function call的可解释性",
+        "模板化方法同时提升准确性和可理解性"
+      ],
+      "relevance_to_project": "结构化模板思路可用于Canvas Agent的工具调用过程展示——将隐式推理显式化为可视步骤",
+      "design_implications": [
+        "工具调用推理过程可模板化展示：识别意图→选择工具→构建参数→执行→验证",
+        "结构化展示比自由文本解释更清晰"
+      ]
+    },
+    {
+      "id": "D-08",
+      "category": "AI Agent评估与可观测性",
+      "title": "The 2025 AI Agent Index: Documenting Technical and Safety Features of Deployed Agentic AI Systems",
+      "authors": "未详列",
+      "year": 2026,
+      "venue": "arXiv preprint",
+      "arxiv": "2602.17753",
+      "url": "https://arxiv.org/abs/2602.17753",
+      "type": "index_report",
+      "key_findings": [
+        "2025年AI agent论文数量超过2020-2024总和的2倍",
+        "62%被调查公司报告正在试验AI agent",
+        "文档透明度框架：datasheets、model cards、system cards、factsheets",
+        "记录已部署agentic AI系统的技术和安全特征"
+      ],
+      "relevance_to_project": "透明度文档框架（system cards等）可参考用于Canvas Agent的信息展示设计",
+      "design_implications": [
+        "Agent能力和限制的文档化展示（类system card）",
+        "安全特征的可视化呈现"
+      ]
+    },
+    {
+      "id": "D-09",
+      "category": "AI Agent评估与可观测性",
+      "title": "The Measurement Imbalance in Agentic AI Evaluation Undermines Industry Productivity Claims",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2506.02064",
+      "url": "https://arxiv.org/abs/2506.02064",
+      "type": "survey",
+      "key_findings": [
+        "系统综述84篇2023-2025学术和产业论文",
+        "技术性能评估占83%，人本评估仅30%，两者兼具仅15%",
+        "产业生产力声明缺乏人本评估支撑",
+        "呼吁平衡技术指标和人本体验评估"
+      ],
+      "relevance_to_project": "重要警示——Canvas的学习分析不能只关注技术指标（准确率等），必须同等重视人本体验（学习者感受、教师可用性）。可观测性设计需要兼顾技术dashboard和人本反馈",
+      "design_implications": [
+        "Dashboard设计必须平衡技术指标和人本体验指标",
+        "需要纳入学习者主观反馈机制",
+        "避免'指标好看但体验差'的陷阱"
+      ]
+    },
+    {
+      "id": "D-10",
+      "category": "学习分析(LA)仪表板设计",
+      "title": "AI-powered Learning Analytics Dashboards: A Systematic Review of Applications, Techniques, and Research Gaps",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "Discover Education, Springer",
+      "url": "https://link.springer.com/article/10.1007/s44217-025-00964-y",
+      "type": "systematic_review",
+      "key_findings": [
+        "系统文献综述21篇AI-powered LAD研究（2013-2024）",
+        "主要用途：预测学业表现、支持自我调节学习、教师端洞察",
+        "反复出现的局限：小规模评估、预测-干预因果证据薄弱、真实课堂部署不足",
+        "AI增强的LAD与传统LAD的关键差异分析"
+      ],
+      "relevance_to_project": "直接相关——Canvas LAD设计的文献基础。三大用途（成绩预测、SRL支持、教师洞察）可对照MVP刚需清单。小规模评估和因果证据不足是已知坑",
+      "design_implications": [
+        "Dashboard三大功能方向：学习状态预测、自我调节支持、教学洞察",
+        "避免只做预测不做干预——需要actionable insights",
+        "真实场景部署验证是必须的（不能只做lab study）"
+      ]
+    },
+    {
+      "id": "D-11",
+      "category": "学习分析(LA)仪表板设计",
+      "title": "Evaluation of LLM-based Explanations for a Learning Analytics Dashboard",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2511.11671",
+      "url": "https://arxiv.org/abs/2511.11671",
+      "type": "empirical_study",
+      "key_findings": [
+        "评估LLM生成的学习分析dashboard解释",
+        "LLM解释技能状态和学习推荐显著优于standalone dashboard",
+        "LLM可将复杂数据可视化转化为自然语言解释",
+        "用户显著偏好LLM增强的dashboard"
+      ],
+      "relevance_to_project": "高度相关——直接支持Canvas使用LLM为学习分析结果生成自然语言解释的设计。Dashboard不只展示图表，还需Agent生成文字解释。实验证据支持这一方向",
+      "design_implications": [
+        "Dashboard中每个数据可视化应附带LLM生成的自然语言解释",
+        "解释内容包含：技能状态说明 + 学习推荐",
+        "LLM解释显著提升用户体验——这是必做功能"
+      ]
+    },
+    {
+      "id": "D-12",
+      "category": "学习分析(LA)仪表板设计",
+      "title": "Have Learning Analytics Dashboards Lived Up to the Hype? A Systematic Review",
+      "authors": "Kaliisa et al.",
+      "year": 2024,
+      "venue": "arXiv preprint",
+      "arxiv": "2312.15042",
+      "url": "https://arxiv.org/abs/2312.15042",
+      "type": "systematic_review",
+      "key_findings": [
+        "审视15年学习分析研究中Dashboard的承诺与现实",
+        "Dashboard经历了hype cycle：早期热潮→实际效果检验→理性回归",
+        "学习分析Dashboard正从'分析中心'转向'学习中心'",
+        "SRL、自动反馈、多模态分析等有理论基础的子领域在上升"
+      ],
+      "relevance_to_project": "重要方向指引——Canvas Dashboard设计应'以学习为中心'而非'以分析为中心'。避免重蹈LA Dashboard hype cycle的覆辙",
+      "design_implications": [
+        "设计原则：学习优先，分析服务于学习",
+        "避免数据展示过度——关注可操作的学习洞察",
+        "理论驱动设计（SRL框架等）比数据驱动更可靠"
+      ]
+    },
+    {
+      "id": "D-13",
+      "category": "学习分析(LA)仪表板设计",
+      "title": "Learning Analytics Dashboards for Advisors — A Systematic Literature Review",
+      "authors": "未详列",
+      "year": 2024,
+      "venue": "arXiv preprint",
+      "arxiv": "2402.01671",
+      "url": "https://arxiv.org/abs/2402.01671",
+      "type": "systematic_review",
+      "key_findings": [
+        "针对学业顾问(advisors)的LAD系统文献综述",
+        "关注不同角色（学生vs教师vs顾问）对dashboard需求的差异",
+        "advisor视角的dashboard功能需求与学生/教师不同"
+      ],
+      "relevance_to_project": "Canvas可能需要多角色Dashboard视图——学习者视图vs教学辅助视图vs系统管理视图",
+      "design_implications": [
+        "考虑多角色视图设计",
+        "不同角色需要不同粒度的数据展示"
+      ]
+    },
+    {
+      "id": "D-14",
+      "category": "学习分析(LA)仪表板设计",
+      "title": "Fifteen Years of Learning Analytics Research: Topics, Trends, and Challenges",
+      "authors": "未详列",
+      "year": 2026,
+      "venue": "arXiv preprint",
+      "arxiv": "2601.07629",
+      "url": "https://arxiv.org/abs/2601.07629",
+      "type": "survey",
+      "key_findings": [
+        "15年学习分析研究的主题、趋势和挑战综述",
+        "SRL、自动反馈、多模态分析在上升",
+        "Dashboard和结果预测在早期hype后下降",
+        "数据所有权和隐私路径不明确",
+        "预测未能清晰转化为教学行动"
+      ],
+      "relevance_to_project": "战略性参考——确认了LA领域的方向变化。Canvas应关注上升趋势（SRL支持、自动反馈、多模态），而非下降趋势（单纯dashboard展示、结果预测）",
+      "design_implications": [
+        "重点投入：自我调节学习支持、自动化反馈、多模态交互分析",
+        "降低优先级：纯展示性dashboard、单纯成绩预测",
+        "数据隐私设计需前置考虑"
+      ]
+    },
+    {
+      "id": "D-15",
+      "category": "智能辅导系统(ITS)可观测性",
+      "title": "A Comprehensive Review of AI-based Intelligent Tutoring Systems: Applications and Challenges",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2507.18882",
+      "url": "https://arxiv.org/abs/2507.18882",
+      "type": "comprehensive_review",
+      "key_findings": [
+        "系统综述2010-2025年AI-ITS研究",
+        "涵盖教学策略、NLP、自适应学习、学生建模、领域特定应用",
+        "2019-2023高峰期（生成式AI推动）",
+        "ITS现在构成课堂核心基础设施：自动化形成性评估、个性化节奏、细粒度分析",
+        "评估方法差异大：主观参与指标vs标准化表现评估，难以直接比较",
+        "长期影响和跨场景适用性研究不足"
+      ],
+      "relevance_to_project": "Canvas作为学习系统的ITS定位参考。核心能力应包括：自动化形成性评估+个性化学习节奏+细粒度分析。评估方法需标准化",
+      "design_implications": [
+        "可观测性需覆盖：学习进度追踪、知识掌握度评估、学习路径分析",
+        "形成性评估的自动化是核心功能",
+        "需要标准化的评估方法（不能只靠主观指标）"
+      ]
+    },
+    {
+      "id": "D-16",
+      "category": "智能辅导系统(ITS)可观测性",
+      "title": "Enhancing LLM-Based Feedback: Insights from Intelligent Tutoring Systems and the Learning Sciences",
+      "authors": "未详列",
+      "year": 2024,
+      "venue": "arXiv preprint",
+      "arxiv": "2405.04645",
+      "url": "https://arxiv.org/abs/2405.04645",
+      "type": "position_paper",
+      "key_findings": [
+        "将ITS和学习科学的洞察应用于增强LLM反馈",
+        "LLM反馈需要借鉴ITS的成熟经验",
+        "学习科学理论（如ZPD、scaffolding）应指导LLM反馈设计"
+      ],
+      "relevance_to_project": "Canvas Agent的学习反馈设计应参考ITS成熟经验和学习科学理论，而非纯技术驱动",
+      "design_implications": [
+        "Agent反馈设计需基于学习科学理论",
+        "参考ITS的scaffolding方法论"
+      ]
+    },
+    {
+      "id": "D-17",
+      "category": "智能辅导系统(ITS)可观测性",
+      "title": "ClassMind: Scaling Classroom Observation and Instructional Feedback with Multimodal AI",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2509.18020",
+      "url": "https://arxiv.org/abs/2509.18020",
+      "type": "system_paper",
+      "key_findings": [
+        "使用多模态AI（语音、视频、文本）实现课堂观察自动化",
+        "ML评分教学质量、NLP提取教师问题、CV捕获课堂活动",
+        "大型预训练foundation models支持跨模态理解和推理",
+        "自动化课堂观察可扩展教学反馈"
+      ],
+      "relevance_to_project": "Observer自动事件提取的参考——ClassMind展示了如何从多模态数据中自动提取学习事件。Canvas Observer可参考其事件提取流水线设计",
+      "design_implications": [
+        "Observer事件提取可参考ClassMind的多模态流水线",
+        "自动化观察→结构化事件→反馈闭环的完整链路"
+      ]
+    },
+    {
+      "id": "D-18",
+      "category": "自动误解检测(Misconception Detection)",
+      "title": "Artificial Intelligence Applications in Education: Natural Language Processing in Detecting Misconceptions",
+      "authors": "未详列",
+      "year": 2024,
+      "venue": "Education and Information Technologies, Springer",
+      "url": "https://link.springer.com/article/10.1007/s10639-024-12919-1",
+      "type": "empirical_study",
+      "key_findings": [
+        "使用NLP+ML自动检测学生misconceptions（以温室效应概念为例）",
+        "用AI算法替代人类专家判断misconceptions",
+        "Multilayer Perceptron(MLP)在预测misconceptions中准确率最高",
+        "NLP分析学生文本→ML分类→misconception识别的完整管道"
+      ],
+      "relevance_to_project": "直接相关——Canvas需要自动检测学习者的misconceptions。NLP文本分析→ML分类的管道可参考。但需注意：该研究是特定领域（温室效应），Canvas需要更通用的方案",
+      "design_implications": [
+        "Misconception检测管道：学习者文本/交互→NLP提取→ML分类→标注misconception",
+        "Observer可集成misconception检测作为学习事件类型之一",
+        "需要领域适配的misconception知识库"
+      ]
+    },
+    {
+      "id": "D-19",
+      "category": "自动误解检测(Misconception Detection)",
+      "title": "Survey of Natural Language Processing for Education",
+      "authors": "未详列",
+      "year": 2024,
+      "venue": "arXiv preprint",
+      "arxiv": "2401.07518",
+      "url": "https://arxiv.org/abs/2401.07518",
+      "type": "survey",
+      "key_findings": [
+        "教育NLP综述，涵盖学生写作分析、认知过程提取、语言能力评估",
+        "NLP可分析学生写作并提取认知过程洞察",
+        "个性化反馈的自动化是核心应用方向",
+        "涵盖误解检测作为教育NLP的重要子任务"
+      ],
+      "relevance_to_project": "为Canvas的NLP能力提供全景参考——不仅是misconception检测，还包括认知过程提取、语言能力评估等更广泛的学习分析NLP能力",
+      "design_implications": [
+        "Observer的NLP能力应覆盖：写作分析、认知过程提取、误解检测、语言能力评估",
+        "个性化反馈生成是NLP能力的核心输出"
+      ]
+    },
+    {
+      "id": "D-20",
+      "category": "知识追踪与学习建模",
+      "title": "A Survey of Explainable Knowledge Tracing",
+      "authors": "Bai, Zhao et al.",
+      "year": 2024,
+      "venue": "Applied Intelligence, Springer / arXiv 2403.07279",
+      "arxiv": "2403.07279",
+      "url": "https://arxiv.org/abs/2403.07279",
+      "type": "survey",
+      "key_findings": [
+        "可解释知识追踪(xKT)综述",
+        "分类：transparent models vs black-box models",
+        "三阶段可解释方法：ante-hoc、post-hoc、其他维度",
+        "EKT可可视化知识获取追踪和学生表现预测",
+        "高准确率和可理解性需要同时实现"
+      ],
+      "relevance_to_project": "核心参考——Canvas的知识追踪需要可解释性。xKT的transparent model路线更适合前端可视化。EKT的多概念追踪+可视化是直接可参考的方案",
+      "design_implications": [
+        "知识追踪选择transparent model路线（而非black-box）以支持前端可视化",
+        "知识状态可视化需展示：概念掌握度、获取轨迹、预测依据",
+        "ante-hoc可解释性优于post-hoc（设计时就考虑可解释）"
+      ]
+    },
+    {
+      "id": "D-21",
+      "category": "知识追踪与学习建模",
+      "title": "Automated Knowledge Concept Annotation and Question Representation Learning for Knowledge Tracing",
+      "authors": "未详列",
+      "year": 2024,
+      "venue": "arXiv preprint",
+      "arxiv": "2410.01727",
+      "url": "https://arxiv.org/abs/2410.01727",
+      "type": "method_paper",
+      "key_findings": [
+        "KCQRL框架：自动化知识概念标注+问题表征学习",
+        "使用LLM生成问题解法，然后标注每个解题步骤的知识概念(KC)",
+        "可提升任何现有KT模型的效果",
+        "自动化KC标注流程取代人工标注"
+      ],
+      "relevance_to_project": "直接可用——Canvas可用LLM自动标注学习材料的知识概念，取代人工标注。这为Observer自动提取学习事件中的知识点提供了方法",
+      "design_implications": [
+        "Observer可集成LLM自动KC标注：分析学习材料→生成解法→标注知识概念",
+        "自动化标注降低人工成本，提高可扩展性"
+      ]
+    },
+    {
+      "id": "D-22",
+      "category": "Agent数据可视化",
+      "title": "CoDA: Agentic Systems for Collaborative Data Visualization",
+      "authors": "Chen et al.",
+      "year": 2025,
+      "venue": "arXiv preprint (Google Research)",
+      "arxiv": "2510.03194",
+      "url": "https://arxiv.org/abs/2510.03194",
+      "type": "system_paper",
+      "key_findings": [
+        "多Agent协作数据可视化系统",
+        "专门化Agent：metadata分析、任务规划、代码生成、自我反思",
+        "四阶段工作流：Understanding→Planning→Generation→Self-Reflection",
+        "Overall Score比基线高41.5%",
+        "质量评估+反馈循环实现自我改进"
+      ],
+      "relevance_to_project": "多Agent协作可视化的架构参考。Canvas的学习分析可视化可采用类似的专门化Agent流水线：理解查询→规划可视化→生成图表→自我评估质量",
+      "design_implications": [
+        "学习数据可视化可采用multi-agent流水线",
+        "自我反思(Self-Reflection)环节确保可视化质量",
+        "Understanding→Planning→Generation→Reflection的四阶段流程"
+      ]
+    },
+    {
+      "id": "D-23",
+      "category": "OpenTelemetry与Agent可观测性标准",
+      "title": "OpenTelemetry GenAI Semantic Conventions for Agentic Systems",
+      "authors": "OpenTelemetry community + Microsoft",
+      "year": 2025,
+      "venue": "OpenTelemetry official blog + GitHub semantic-conventions",
+      "url": "https://opentelemetry.io/blog/2025/ai-agent-observability/",
+      "type": "standard_specification",
+      "key_findings": [
+        "定义AI agent可观测性的语义约定(semantic conventions)",
+        "标准化遥测属性：tasks、actions、agents、teams、artifacts、memory",
+        "Microsoft推动multi-agent可观测性标准化",
+        "标准化关键指标：质量、性能、安全、成本",
+        "OpenLLMetry开源实现：基于OTel的GenAI/LLM可观测性"
+      ],
+      "relevance_to_project": "工程标准参考——Canvas Observer应对齐OpenTelemetry GenAI语义约定。标准化的属性定义（task/action/agent/artifact/memory）可直接复用。确保与生态系统工具兼容",
+      "design_implications": [
+        "Observer数据模型对齐OTel GenAI semantic conventions",
+        "标准化属性：task_id, action_type, agent_name, artifact_ref, memory_state",
+        "支持与Grafana/Jaeger等标准可观测性工具集成",
+        "六维指标：质量、性能、安全、成本、可靠性、用户体验"
+      ]
+    },
+    {
+      "id": "D-24",
+      "category": "自我调节学习与过程挖掘",
+      "title": "Discovering Self-Regulated Learning Patterns in Chatbot-Powered Education Environment",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2510.01275",
+      "url": "https://arxiv.org/abs/2510.01275",
+      "type": "empirical_study",
+      "key_findings": [
+        "首次将过程挖掘(process mining)应用于建模和可视化学习者SRL路径",
+        "使用真实学生-chatbot交互数据",
+        "发现不平衡的SRL行为分布和非顺序模式",
+        "chatbot环境中的SRL模式与传统环境不同"
+      ],
+      "relevance_to_project": "直接相关——Canvas是chatbot辅助学习环境，需要理解和可视化SRL模式。过程挖掘方法可用于Observer提取的学习事件序列分析",
+      "design_implications": [
+        "Observer收集的学习事件可用过程挖掘分析SRL模式",
+        "可视化学习路径（非线性）",
+        "检测SRL行为不平衡（如过度依赖某种策略）"
+      ]
+    },
+    {
+      "id": "D-25",
+      "category": "事件提取与LLM",
+      "title": "Event Extraction in Large Language Model: A Holistic Survey of Method, Modality, and Future",
+      "authors": "未详列",
+      "year": 2025,
+      "venue": "arXiv preprint",
+      "arxiv": "2512.19537",
+      "url": "https://arxiv.org/abs/2512.19537",
+      "type": "survey",
+      "key_findings": [
+        "LLM改变了事件提取范式：prompting和generation可在zero-shot/few-shot设置下产出结构化输出",
+        "多模态LLM支持跨模态事件提取",
+        "涵盖方法(method)、模态(modality)、未来方向的全面综述"
+      ],
+      "relevance_to_project": "Observer事件提取的方法论参考——LLM的zero-shot/few-shot事件提取能力可用于自动提取学习事件，无需大量标注数据",
+      "design_implications": [
+        "Observer可用LLM进行zero-shot学习事件提取",
+        "减少对标注数据的依赖",
+        "支持多模态输入（文本+交互+视觉）的事件提取"
+      ]
+    }
+  ],
+  "synthesis": {
+    "cross_cutting_themes": [
+      {
+        "theme": "Trace-based可观测性优于黑箱评估",
+        "evidence": ["D-02 (trace vs attribution)", "D-03 (AgentTrace三表面)", "D-04 (beyond black-box)"],
+        "implication": "Canvas Observer+前端必须提供trace级别的过程可视化，而非仅展示最终结果"
+      },
+      {
+        "theme": "OpenTelemetry正在成为Agent可观测性标准",
+        "evidence": ["D-03 (AgentTrace集成OTel)", "D-04 (OpenLLMetry)", "D-23 (OTel GenAI conventions)"],
+        "implication": "Canvas Observer的数据模型和遥测应对齐OpenTelemetry标准，确保生态兼容"
+      },
+      {
+        "theme": "LLM生成的自然语言解释显著提升Dashboard体验",
+        "evidence": ["D-11 (LLM explanations for LAD)", "D-05 (XAI for LLMs)", "D-16 (ITS feedback)"],
+        "implication": "Canvas Dashboard每个可视化组件应附带Agent生成的自然语言解释"
+      },
+      {
+        "theme": "学习分析从'分析中心'向'学习中心'转变",
+        "evidence": ["D-12 (LAD hype cycle)", "D-14 (15年LA趋势)", "D-09 (人本评估不足)"],
+        "implication": "Canvas Dashboard设计原则：学习优先，分析服务于学习行为改善"
+      },
+      {
+        "theme": "LLM零样本事件提取+自动知识概念标注",
+        "evidence": ["D-25 (LLM event extraction)", "D-21 (KCQRL自动KC标注)", "D-17 (ClassMind)"],
+        "implication": "Observer可用LLM进行零样本学习事件提取和知识点自动标注，降低人工成本"
+      },
+      {
+        "theme": "可解释知识追踪(xKT)支持前端可视化",
+        "evidence": ["D-20 (xKT survey)", "D-07 (structured templates)"],
+        "implication": "知识追踪选择transparent model路线，设计时就内建可解释性"
+      }
+    ],
+    "architecture_recommendation": {
+      "observer_layer": {
+        "data_model": "对齐OTel GenAI semantic conventions（D-23）",
+        "event_extraction": "LLM zero-shot提取+KCQRL自动标注（D-21, D-25）",
+        "logging_framework": "AgentTrace三表面分类：cognitive/operational/contextual（D-03）",
+        "misconception_detection": "NLP+ML管道自动检测学习者误解（D-18, D-19）"
+      },
+      "frontend_tool_call_ui": {
+        "visibility_model": "Chan et al.三层模型：identifier+monitoring+logging（D-01）",
+        "trace_visualization": "展示完整执行轨迹而非仅结果（D-02）",
+        "structured_display": "工具调用三阶段展示：选择→参数→执行（D-06, D-07）",
+        "transparency_level": "可配置的可见性等级（D-01）"
+      },
+      "learning_analytics_dashboard": {
+        "design_principle": "学习中心而非分析中心（D-12, D-14）",
+        "llm_explanations": "每个可视化附带自然语言解释（D-11）",
+        "knowledge_visualization": "透明xKT模型+知识状态可视化（D-20）",
+        "srl_support": "过程挖掘可视化学习路径（D-24）",
+        "multi_role_views": "学习者/教师/管理不同视图（D-13）",
+        "evaluation_balance": "技术指标+人本体验并重（D-09）"
+      }
+    },
+    "key_papers_for_deep_read": [
+      "D-01: Visibility into AI Agents (Chan et al., FAccT 2024) — 工具调用UI框架基础",
+      "D-03: AgentTrace (2026) — Observer架构直接参考",
+      "D-11: LLM-based Explanations for LAD (2025) — Dashboard LLM解释实证",
+      "D-02: From Features to Actions (2026) — Trace-based可解释性实证",
+      "D-20: Explainable Knowledge Tracing Survey (2024) — 知识追踪可视化方法论",
+      "D-23: OTel GenAI Semantic Conventions (2025) — 工程标准对齐"
+    ]
+  }
+}
