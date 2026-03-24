@@ -45,6 +45,10 @@
 | 2026-03-17 | GDR-P1-4 | IPC载荷硬约束 | ✅ 用户确认 | 单次IPC<100KB+delta更新。Windows IPC 10MB=200ms vs macOS 5ms |
 | 2026-03-17 | OBS-LINK | Obsidian跳转方案 | ⏳ 待用户确认(Review PENDING) | obsidian://adv-uri(Advanced URI插件)+Tauri Opener。三级降级:adv-uri→内置URI→文件级。修正:不用内部预览,直接跳转Obsidian |
 | 2026-03-19 | Agent SDK sidecar | 对话引擎切换至sidecar模式 | ✅ 确认(Review PENDING) | Node.js sidecar运行Agent SDK。取代Mode D→SDK→Tier B。架构:Tauri 2+React+Node.js sidecar。待验证:进程管理/MCP注入/Windows spawn稳定性 |
+| 2026-03-24 | GDR-P0-1 | 事件传输方式 | ✅ 用户确认(Review PENDING) | sidecar解析stream-json→Tauri Channel→React。参考Solo IDE(同架构生产运行)。否决WebSocket直连 |
+| 2026-03-24 | GDR-P0-2 | 工具调用UI状态机 | ✅ 用户确认(Review PENDING) | Claudian 4态:pending→running→completed/error/blocked。blocked=Claude Code permission require。对话框须具备Claudian一切能力+学习扩展 |
+| 2026-03-24 | GDR-P0-3 | Observer触发机制 | ✅ 用户确认(Review PENDING) | PostToolUse hook主触发(替代prompt-based解决触发率低)。辅助:轮次结束+出错+用户说不懂。BEA 4维度提取。fire-and-track Outbox写入 |
+| 2026-03-24 | GDR-P0-4 | 安全+SDK修复 | ✅ 用户确认 | graphiti-core>=0.28.2修复CVE-2026-32247 + Agent SDK effort:high修复默认medium bug |
 
 ## 已完成验证（Decision-Review VALIDATED）
 
@@ -64,3 +68,4 @@
 | 2026-03-19 | Agent SDK sidecar | 进程管理可靠性/MCP tool injection方法/Windows spawn稳定性 |
 | 2026-03-17 | ~~Pencil UI范式工作流~~ | ~~已VALIDATED(18帧覆盖68场景)，见已完成验证区~~ |
 | 2026-03-17 | OBS-LINK Obsidian跳转 | Advanced URI插件安装率/Windows协议注册可靠性/Tauri openUrl延迟/降级链自动检测/Linux .desktop配置 |
+| 2026-03-24 | GDR-P0-1~P0-3 | P0-1:Tauri Channel Windows长时间streaming稳定性；P0-2:blocked状态UX流畅度；P0-3:hook触发率100%验证+Outbox WAL可靠性+graphiti-core 0.28 API兼容性 |
