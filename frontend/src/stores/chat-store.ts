@@ -492,21 +492,16 @@ export const useChatStore = create<ChatStore>((set, get) => ({
     };
     await saveMessage(userMsg);
 
-    // Create assistant placeholder (not yet persisted — persisted on finalize)
+    // GDR fix: Delay assistant message creation until first text event.
+    // This ensures tool_use cards appear BEFORE assistant text in the conversation flow.
     const assistantId = crypto.randomUUID();
-    const assistantMsg: ChatMessage = {
-      id: assistantId,
-      nodeId,
-      role: 'assistant',
-      content: '',
-      createdAt: new Date().toISOString(),
-    };
+    let assistantCreated = false;
 
     set((state) => ({
-      messages: [...state.messages, userMsg, assistantMsg],
+      messages: [...state.messages, userMsg],
       isStreaming: true,
       waitingForFirstToken: true,
-      totalCount: state.totalCount + 1, // user msg counted; assistant counted on finalize
+      totalCount: state.totalCount + 1,
     }));
 
     // 2s first-token timeout (AC-6): if no token arrives within 2s,
@@ -584,18 +579,36 @@ export const useChatStore = create<ChatStore>((set, get) => ({
           if (get().currentNodeId !== nodeId) return;
 
           switch (event.type) {
-            case 'text':
+            case 'text': {
               clearTimeout(firstTokenTimer);
               accumulated += event.text;
-              set((state) => ({
-                waitingForFirstToken: false,
-                messages: state.messages.map((m) =>
-                  m.id === assistantId
-                    ? { ...m, content: accumulated }
-                    : m,
-                ),
-              }));
+              if (!assistantCreated) {
+                // GDR fix: Create assistant message on first text event (not at send time).
+                // This ensures tool_use cards render BEFORE the text response.
+                assistantCreated = true;
+                const assistantMsg: ChatMessage = {
+                  id: assistantId,
+                  nodeId,
+                  role: 'assistant',
+                  content: accumulated,
+                  createdAt: new Date().toISOString(),
+                };
+                set((state) => ({
+                  waitingForFirstToken: false,
+                  messages: [...state.messages, assistantMsg],
+                }));
+              } else {
+                set((state) => ({
+                  waitingForFirstToken: false,
+                  messages: state.messages.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, content: accumulated }
+                      : m,
+                  ),
+                }));
+              }
               break;
+            }
 
             case 'tool_use': {
               // GDR-P0-2: Create a separate tool_use message with 4-state machine
@@ -720,7 +733,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
                   nodeId,
                   role: 'assistant',
                   content: finalContent,
-                  createdAt: assistantMsg.createdAt,
+                  createdAt: new Date().toISOString(),
                   metadata: event.sessionId
                     ? JSON.stringify({ sessionId: event.sessionId, costUsd: event.costUsd })
                     : undefined,
@@ -799,7 +812,7 @@ export const useChatStore = create<ChatStore>((set, get) => ({
         nodeId,
         role: 'error',
         content: errorMsg,
-        createdAt: assistantMsg.createdAt,
+        createdAt: new Date().toISOString(),
       };
       await saveMessage(errorChatMsg);
 

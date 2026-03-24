@@ -14,9 +14,11 @@ interface ObserverBadgeProps {
   eventCount: number;
   /** Whether Graphiti write was successful. */
   graphitiStatus: 'pending' | 'success' | 'failed' | 'idle';
+  /** List of tool names that were called (for detailed display). */
+  toolNames?: string[];
 }
 
-export function ObserverBadge({ eventCount, graphitiStatus }: ObserverBadgeProps) {
+export function ObserverBadge({ eventCount, graphitiStatus, toolNames = [] }: ObserverBadgeProps) {
   // Don't show badge if no events and idle
   if (eventCount === 0 && graphitiStatus === 'idle') {
     return null;
@@ -41,6 +43,11 @@ export function ObserverBadge({ eventCount, graphitiStatus }: ObserverBadgeProps
       <span className="text-[10px] text-[#6c7086]">👁</span>
       <span className="text-[10px] text-[#6c7086]">
         Observer: {eventCount > 0 ? `已记录 ${eventCount} 个学习事件` : '监听中'}
+        {toolNames.length > 0 && (
+          <span className="ml-1 text-[#89b4fa]">
+            ({[...new Set(toolNames)].map(n => n.replace(/_/g, ' ')).join(', ')})
+          </span>
+        )}
         {graphitiStatus !== 'idle' && (
           <span className={`ml-1 ${statusColor}`}>
             · Graphiti {statusIcon}

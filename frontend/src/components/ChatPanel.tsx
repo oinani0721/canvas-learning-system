@@ -317,7 +317,14 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
         {!isStreaming && messages.some((m) => m.role === 'tool_use') && (
           <ObserverBadge
             eventCount={messages.filter((m) => m.role === 'tool_use' && m.toolCallState === 'completed').length}
-            graphitiStatus={messages.some((m) => m.toolName === 'record_learning_memory') ? 'success' : 'idle'}
+            graphitiStatus={
+              messages.some((m) => m.toolName === 'record_learning_memory' && m.toolCallState === 'completed')
+                ? 'success'
+                : messages.some((m) => m.toolName === 'record_learning_memory' && m.toolCallState === 'running')
+                  ? 'pending'
+                  : 'idle'
+            }
+            toolNames={messages.filter((m) => m.role === 'tool_use' && m.toolName).map((m) => m.toolName!)}
           />
         )}
 
