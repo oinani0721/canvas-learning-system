@@ -31,26 +31,21 @@ export function ObserverBadge({ eventCount, graphitiStatus, toolNames = [] }: Ob
     idle: '',
   }[graphitiStatus];
 
-  const statusColor = {
-    pending: 'text-yellow-400',
-    success: 'text-green-400',
-    failed: 'text-red-400',
-    idle: 'text-[#6c7086]',
-  }[graphitiStatus];
+  // Show badge whenever there are tool calls (learning events or otherwise)
+  const showBadge = eventCount > 0 || toolNames.length > 0;
+  if (!showBadge) return null;
 
   return (
     <div className="flex items-center gap-1.5 px-1 py-0.5" data-observer-badge>
       <span className="text-[10px] text-[#6c7086]">👁</span>
       <span className="text-[10px] text-[#6c7086]">
-        Observer: {eventCount > 0 ? `已记录 ${eventCount} 个学习事件` : '监听中'}
+        Observer: {eventCount > 0
+          ? <span className="text-[#a6e3a1]">已记录 {eventCount} 个学习事件 · Graphiti {statusIcon}</span>
+          : '未检测到需记录的学习事件'
+        }
         {toolNames.length > 0 && (
           <span className="ml-1 text-[#89b4fa]">
-            ({[...new Set(toolNames)].map(n => n.replace(/_/g, ' ')).join(', ')})
-          </span>
-        )}
-        {graphitiStatus !== 'idle' && (
-          <span className={`ml-1 ${statusColor}`}>
-            · Graphiti {statusIcon}
+            · 工具调用: {[...new Set(toolNames)].map(n => n.replace(/_/g, ' ')).join(', ')}
           </span>
         )}
       </span>

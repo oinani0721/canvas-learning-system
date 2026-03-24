@@ -314,19 +314,26 @@ export function ChatPanel({ selectedNode, edgeContext, onOpenSettings }: ChatPan
         )}
 
         {/* GDR-P0-3: Observer badge — show after streaming completes if tool calls were made */}
-        {!isStreaming && messages.some((m) => m.role === 'tool_use') && (
-          <ObserverBadge
-            eventCount={messages.filter((m) => m.role === 'tool_use' && m.toolCallState === 'completed').length}
-            graphitiStatus={
-              messages.some((m) => m.toolName === 'record_learning_memory' && m.toolCallState === 'completed')
-                ? 'success'
-                : messages.some((m) => m.toolName === 'record_learning_memory' && m.toolCallState === 'running')
-                  ? 'pending'
-                  : 'idle'
-            }
-            toolNames={messages.filter((m) => m.role === 'tool_use' && m.toolName).map((m) => m.toolName!)}
-          />
-        )}
+        {/* GDR-P0-3: Observer badge — only count actual learning event tools, not all tool calls */}
+        {!isStreaming && messages.some((m) => m.role === 'tool_use') && (() => {
+          const LEARNING_TOOLS = ['record_learning_memory', 'record_error'];
+          const allTools = messages.filter((m) => m.role === 'tool_use' && m.toolCallState === 'completed');
+          const learningEvents = allTools.filter((m) => m.toolName && LEARNING_TOOLS.includes(m.toolName));
+          const otherTools = allTools.filter((m) => m.toolName && !LEARNING_TOOLS.includes(m.toolName));
+          return (
+            <ObserverBadge
+              eventCount={learningEvents.length}
+              graphitiStatus={
+                learningEvents.length > 0
+                  ? 'success'
+                  : messages.some((m) => m.toolName && LEARNING_TOOLS.includes(m.toolName) && m.toolCallState === 'running')
+                    ? 'pending'
+                    : 'idle'
+              }
+              toolNames={otherTools.map((m) => m.toolName!)}
+            />
+          );
+        })()}
 
         {/* Scroll anchor */}
         <div ref={messagesEndRef} />
