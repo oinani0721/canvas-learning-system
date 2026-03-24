@@ -1,0 +1,13 @@
+{
+  "research_topic": "Frontend Tool Call UI + Observability Closed Loop",
+  "researcher": "GDR Wave 2 Agent I",
+  "date": "2026-03-24",
+  "sources": [
+    "https://platform.claude.com/docs/en/agent-sdk/typescript",
+    "https://platform.claude.com/docs/en/agent-sdk/typescript-v2-preview",
+    "https://platform.claude.com/docs/en/api/messages-streaming",
+    "https://github.com/YishenTu/claudian",
+    "https://github.com/anthropics/claude-agent-sdk-typescript"
+  ],
+  "note": "Full findings are available in the conversation context. This file serves as a pointer."
+}
