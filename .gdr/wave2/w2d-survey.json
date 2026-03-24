@@ -1,297 +1,244 @@
 {
   "agent": "W2-D",
   "role": "Survey Paper Researcher",
-  "timestamp": "2026-03-17T13:30:00Z",
-  "research_topic": "Academic validation of Canvas Learning System frontend technology choices (Tauri+React+ReactFlow)",
-  "methodology": "WebSearch across arxiv, PMC, Springer, ACM DL, ResearchGate, ERIC for survey/meta-analysis papers",
-  "dimensions": [
+  "timestamp": "2026-03-23T00:00:00Z",
+  "research_topic": "AI learning assistant: automatic learning data extraction, student error detection, and memory injection architecture",
+  "wave1_context": {
+    "active_decisions": "5 weakness types (concept misconception / reasoning error / prerequisite gap / depth-of-understanding / metacognitive bias); Observer accuracy target >80%",
+    "rejected_approaches": "HyDE, Self-RAG",
+    "key_gap": "6-type weakness classification MECE validity unverified"
+  },
+  "methodology": "WebSearch across arxiv, ACM DL, Springer, PMC, MDPI, EMNLP/BEA proceedings for survey/review/meta-analysis papers 2023-2025",
+  "search_queries_executed": 11,
+  "papers_reviewed": 42,
+
+  "findings": [
     {
-      "id": "D1",
-      "title": "Knowledge Graph Visualization in Education Effectiveness",
-      "relevance": "Validates ReactFlow for knowledge-graph whiteboard as academically grounded",
-      "verdict": "STRONGLY_SUPPORTED",
-      "confidence": 0.95,
-      "summary": "Multiple meta-analyses and systematic reviews confirm that knowledge graph / concept map visualization significantly improves learning outcomes with moderate-to-large effect sizes. Node-link diagrams (the visual paradigm ReactFlow implements) are the dominant representation for educational knowledge graphs.",
-      "key_findings": [
-        {
-          "finding": "Concept mapping produces statistically significant moderate effect on learning (g=0.58, p<0.001), with CREATING maps (g=0.72) more effective than STUDYING them (g=0.43)",
-          "source": "Schroeder, Nesbit & Anguiano (2018). Studying and Constructing Concept Maps: a Meta-Analysis. Educational Psychology Review, 30, 431-455.",
-          "url": "https://link.springer.com/article/10.1007/s10648-017-9403-9",
-          "type": "meta-analysis",
-          "sample_size": "142 effect sizes, n=11,814",
-          "effect_size": "g=0.58 overall; g=0.72 for creating maps"
-        },
-        {
-          "finding": "Concept mapping in STEM education shows moderate overall effect size (ES=0.630) on student achievement across 37 studies from 2004-2023",
-          "source": "Concept mapping in STEM education: a meta-analysis of its impact on students' achievement (2004-2023). International Journal of STEM Education (2025).",
-          "url": "https://stemeducationjournal.springeropen.com/articles/10.1186/s40594-025-00554-2",
-          "type": "meta-analysis",
-          "sample_size": "37 studies",
-          "effect_size": "ES=0.630"
-        },
-        {
-          "finding": "In science education, concept maps show moderate-to-large effects: overall science g=0.776, biology g=0.671, chemistry g=0.590, physics/earth science g=1.040",
-          "source": "The Effectiveness of Concept Maps on Students' Achievement in Science: A Meta-Analysis. Educational Psychology Review (2024).",
-          "url": "https://link.springer.com/article/10.1007/s10648-024-09877-y",
-          "type": "meta-analysis",
-          "effect_size": "g=0.776 overall science"
-        },
-        {
-          "finding": "Knowledge graphs in education show sharp research increase; primarily used in higher education for computer science, mathematics, engineering. Key applications: knowledge representation, personalized learning recommendations, concept mapping.",
-          "source": "A Survey of Knowledge Graph Approaches and Applications in Education. Electronics, 13(13), 2537 (2024).",
-          "url": "https://www.mdpi.com/2079-9292/13/13/2537",
-          "type": "survey",
-          "sample_size": "48 publications analyzed"
-        },
-        {
-          "finding": "Systematic literature review of KG construction and application in education confirms KGs are indispensable for personalized learning, curriculum design, concept mapping, and content recommendation",
-          "source": "A systematic literature review of knowledge graph construction and application in education. Heliyon, 10(4), e25383 (2024).",
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC10847940/",
-          "type": "systematic-review"
-        },
-        {
-          "finding": "Earlier foundational meta-analysis: concept/knowledge maps associated with increased knowledge retention across Grade 4 to postsecondary, with effect sizes ranging from small to large depending on usage mode",
-          "source": "Nesbit & Adesope (2006). Learning With Concept and Knowledge Maps: A Meta-Analysis. Review of Educational Research, 76(3), 413-448.",
-          "url": "https://journals.sagepub.com/doi/10.3102/00346543076003413",
-          "type": "meta-analysis",
-          "sample_size": "67 effect sizes from 55 studies, n=5,818"
-        },
-        {
-          "finding": "Knowledge graph visualization using generative AI enhances understanding of computer science concepts in undergraduate education",
-          "source": "Utilization of knowledge graphs created with generative AI and visualization techniques to enhance understanding of CS concepts. Multimedia Tools and Applications (2026).",
-          "url": "https://link.springer.com/article/10.1007/s11042-026-21254-1",
-          "type": "empirical-study"
-        }
+      "topic": "ITS Student Model: Misconception Detection Architecture",
+      "insight": "The ITS four-component architecture (Domain Model, Student Model, Tutor Model, UI) is the canonical framework. The Student Model tracks misconceptions by comparing student actions to the Domain Model using Bayesian networks, ML, and data mining. Recent LLM-based ITS systems use JSON-based tutoring prompts that systematically guide reflection while tracking misconceptions, synthesizing context-aware feedback at the granularity of single errors.",
+      "detail": "A 2025 comprehensive review (arXiv:2507.18882) covering 2010-2025 confirms the four-component ITS architecture remains dominant. The Student Model component is the locus of error detection, using probabilistic (BN/BKT), logistic (IRT/MIRT), and deep learning (RNN, memory networks, attention, GNN) methods. LLM-based systems add a new paradigm: rather than pre-enumerating misconceptions, they can dynamically detect and classify errors from dialogue context. However, this comes with accuracy limitations -- GPT-4 achieves ~80% accuracy on single-error diagnosis in structured domains like College Algebra, degrading with multi-error responses. 35% of generated hints are too general, incorrect, or give away the answer.",
+      "maturity": "HIGH -- four-component ITS architecture is decades-old and well-validated. LLM-based dynamic detection is EMERGING (2023-2025) with promising but imperfect accuracy.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2507.18882v1",
+        "https://arxiv.org/html/2501.06682v1",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC12078640/",
+        "https://arxiv.org/html/2404.02548v2"
       ],
-      "implication_for_project": "ReactFlow's node-link diagram paradigm directly maps to the concept/knowledge map visualization that meta-analyses show produces g=0.58-0.72 effect sizes on learning. The Canvas Learning System's core interaction model (users creating and manipulating knowledge node graphs) is strongly supported by decades of educational research. Active map CREATION (which the system enables) is more effective than passive map STUDY."
+      "relation_to_existing": "DIRECTLY SUPPORTS Wave1 Observer >80% accuracy target. Literature confirms ~80% is achievable for single-error detection in structured domains, but multi-error scenarios degrade. The 5-type weakness taxonomy maps loosely to ITS Student Model dimensions but needs validation against established cognitive diagnosis frameworks.",
+      "confidence": 0.90
     },
     {
-      "id": "D2",
-      "title": "Desktop Application vs Web Application in Education Tools",
-      "relevance": "Validates choosing Tauri (native desktop) over pure web application",
-      "verdict": "SUPPORTED_WITH_CAVEATS",
-      "confidence": 0.7,
-      "summary": "No direct peer-reviewed comparison study of desktop vs web education tools was found. However, industry benchmarks and technical analyses strongly favor native desktop for performance-sensitive educational tools. Tauri's architecture (native webview + Rust backend) addresses key desktop advantages (offline capability, system resource access, lower latency) while maintaining web technology accessibility.",
-      "key_findings": [
-        {
-          "finding": "Tauri apps use ~28MB RAM vs Electron's ~250MB; launch in 0.4s vs 1.5s; bundle size under 10MB vs 100MB+. Tauri adoption up 35% YoY after 2.0 release in late 2024.",
-          "source": "Multiple technical comparisons (RaftLabs, Codeology, gethopp.app, levminer.com) 2024-2025",
-          "url": "https://codeology.co.nz/articles/tauri-vs-electron-2025-desktop-development.html",
-          "type": "technical-benchmark",
-          "effect_size": "~9x less RAM, ~3.75x faster launch, ~10x smaller bundle"
-        },
-        {
-          "finding": "Desktop applications can function offline - crucial for education environments with unreliable connectivity. Web apps require constant internet connection.",
-          "source": "Multiple industry analyses (uniridge.co, seguetech.com, technology.org)",
-          "url": "https://www.seguetech.com/desktop-vs-web-applications/",
-          "type": "industry-analysis"
-        },
-        {
-          "finding": "Native WebView apps provide superior user experience and engagement compared to pure web due to lower latency. For education, hybrid approaches using WebView are ideal for content delivery while native preferred for interactive simulations.",
-          "source": "median.co, hybridtonative.com industry analyses 2024-2025",
-          "url": "https://hybridtonative.com/native-ui-vs-webview-why-ui-performance-matters/",
-          "type": "industry-analysis"
-        },
-        {
-          "finding": "Education apps are 2nd most downloaded on Google Play, 3rd on Apple App Store (455,000+ educational apps). Progressive web apps market projected 31.1% CAGR from 2024-2030.",
-          "source": "Business of Apps Education App Benchmarks 2026",
-          "url": "https://www.businessofapps.com/data/education-app-benchmarks/",
-          "type": "market-data"
-        }
+      "topic": "BEA 2025 Shared Task: Pedagogical Ability Assessment of AI Tutors",
+      "insight": "The BEA 2025 Shared Task (50+ international teams) established the first large-scale benchmark for evaluating AI tutors' ability to (1) identify student mistakes, (2) localize mistakes, (3) provide guidance, and (4) give actionable feedback. Best macro-F1 scores range 58-78% across tracks, showing this is a hard and unsolved problem.",
+      "detail": "The BEA 2025 Shared Task (arXiv:2507.10579) created a benchmark from MathDial and Bridge student-tutor dialogue collections. Each tutor response was annotated along four pedagogical dimensions: mistake identification, mistake localization, providing guidance, and feedback actionability. Over 50 teams participated. Key approaches included: (a) fine-tuned LLM misconception generators + embedding retrieval + reranking (arXiv:2602.02414), (b) MPNet ensembles (arXiv:2506.01817), (c) retrieval-augmented prompting (arXiv:2506.10627), (d) disagreement-aware instruction tuning (arXiv:2505.18549). Best results: mistake identification ~78% F1, but guidance quality only ~58% F1. This demonstrates that error DETECTION is more tractable than error REMEDIATION.",
+      "maturity": "EMERGING -- first standardized benchmark released in 2025. Community actively developing methods. State-of-the-art is still well below human performance.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2507.10579v1",
+        "https://arxiv.org/html/2602.02414",
+        "https://arxiv.org/html/2506.01817v1",
+        "https://arxiv.org/html/2506.10627",
+        "https://arxiv.org/html/2505.18549",
+        "https://sig-edu.org/sharedtask/2025"
       ],
-      "implication_for_project": "While no academic RCT directly compares desktop vs web for education tools, Tauri's technical advantages (9x less memory, offline capability, near-native performance) are well-documented. For an interactive knowledge graph tool where real-time manipulation responsiveness is critical to the learning experience, desktop-class performance reduces cognitive friction. The Tauri architecture specifically addresses the known gap between web and native performance."
+      "relation_to_existing": "CRITICAL BENCHMARK for Wave1 Observer design. The 4-dimension annotation scheme (identify / localize / guide / actionable-feedback) provides a validated framework that the Canvas system's Observer should align with. The ~78% F1 for mistake identification aligns with the >80% accuracy target but suggests it is at the frontier of current capabilities.",
+      "confidence": 0.95
     },
     {
-      "id": "D3",
-      "title": "Interactive Canvas/Whiteboard in Learning: Cognitive Effects",
-      "relevance": "Validates the canvas/whiteboard interaction paradigm for the learning system",
-      "verdict": "STRONGLY_SUPPORTED",
-      "confidence": 0.9,
-      "summary": "Meta-analyses confirm interactive whiteboard/canvas-based instruction positively impacts cognitive learning outcomes. The spatial contiguity principle (Mayer's multimedia learning theory) provides strong theoretical grounding for canvas-based learning where content and relationships are spatially organized. Effect sizes range from moderate to large.",
-      "key_findings": [
-        {
-          "finding": "Interactive whiteboard-based instruction positively influences students' cognitive learning outcomes compared to traditional lectures. Most effective with independent/personalized learning approaches.",
-          "source": "Shi, Zhang, Yang & Yang (2020). Effects of Interactive Whiteboard-based Instruction on Students' Cognitive Learning Outcomes: A Meta-Analysis. Interactive Learning Environments, 29(2).",
-          "url": "https://www.tandfonline.com/doi/full/10.1080/10494820.2020.1769683",
-          "type": "meta-analysis",
-          "sample_size": "23 high-quality peer-reviewed articles"
-        },
-        {
-          "finding": "Spatial contiguity principle: people learn more when related words and pictures are spatially near each other. Meta-analysis of 58 comparisons: overall effect size g=0.63; median d=0.79 for spatial contiguity in multimedia design.",
-          "source": "Schroeder & Cenkci (2018). Spatial Contiguity and Spatial Split-Attention Effects in Multimedia Learning Environments: a Meta-Analysis. Educational Psychology Review, 30, 679-701.",
-          "url": "https://link.springer.com/article/10.1007/s10648-018-9435-9",
-          "type": "meta-analysis",
-          "sample_size": "58 effect sizes, n=2,426",
-          "effect_size": "g=0.63; median d=0.79"
-        },
-        {
-          "finding": "Schools adopting interactive whiteboards experienced 25% increase in student engagement and involvement rates (2023 data).",
-          "source": "Research.com Interactive Learning Statistics 2026",
-          "url": "https://research.com/education/interactive-learning-statistics",
-          "type": "statistical-report"
-        },
-        {
-          "finding": "Interactive whiteboards support constructivist learning - students as active participants in knowledge construction rather than passive recipients. Enable visualization, simulation, collaboration, and experimentation.",
-          "source": "faytech.us STEM education whiteboard research review",
-          "url": "https://www.faytech.us/interactive-whiteboard/how-do-interactive-whiteboards-support-hands-on-learning-in-stem-education/",
-          "type": "research-review"
-        },
-        {
-          "finding": "Digital whiteboards engage students with different learning styles, promote active learning, and help students achieve knowledge organization through concept maps and spatial information arrangement.",
-          "source": "PMC research: Using a digital whiteboard for student engagement in distance education (2021)",
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC8494483/",
-          "type": "empirical-study"
-        },
-        {
-          "finding": "Dual coding theory: students process verbal and visual information through different cognitive pathways, creating stronger memory connections when both engaged simultaneously. Concept maps leverage this by spatially representing relationships.",
-          "source": "Moreno & Mayer (1999). Cognitive Principles of Multimedia Learning: The Role of Modality and Contiguity.",
-          "url": "https://www.researchgate.net/publication/228698670_Cognitive_Principles_of_Multimedia_Learning_The_Role_of_Modality_and_Contiguity",
-          "type": "theoretical-foundation"
-        },
-        {
-          "finding": "Extraneous cognitive load in digital learning is more nuanced than previously thought - some interactive elements that increase load can also promote motivation and learning when well-designed.",
-          "source": "Understanding Cognitive Load in Digital and Online Learning: a New Perspective on Extraneous Cognitive Load. Educational Psychology Review (2021).",
-          "url": "https://link.springer.com/article/10.1007/s10648-021-09624-7",
-          "type": "theoretical-review"
-        }
+      "topic": "Cognitive Diagnosis Models: Student Error Classification Taxonomies",
+      "insight": "Cognitive Diagnosis Models (CDMs) provide the most rigorous framework for classifying student errors. A 2024 survey (arXiv:2407.05458) covers IRT, MIRT, DINA, and neural CDMs. Multi-tier diagnostic technologies (MTDTs) distinguish surface memorization vs. deep understanding vs. lack of knowledge. Option Tracing extends Knowledge Tracing by tracking misconception-specific response patterns.",
+      "detail": "The CDM survey (arXiv:2407.05458) identifies two generations: (1) traditional psychometrics (IRT, MIRT, DINA) using numerical response data, and (2) neural CDMs trainable on real-world data with inductive diagnosis capability. A systematic review of multi-tier diagnostic technologies in science education (MDPI Sustainability 2025) shows that 2nd-tier approaches provide deeper misconception root-cause analysis, while 3rd/4th-tier approaches add confidence assessment to distinguish deep understanding, surface memorization, and genuine lack of knowledge. Option Tracing (Journal of Learning Analytics) extends KT by modeling misconception-specific skill components alongside correct-answer skills, using million-level K-12 math assignment records. Explainable KT (arXiv:2403.07279) integrates MIRT parameters into RNNs for interpretable student state prediction. CRITICAL: None of these established frameworks use exactly the 5-category taxonomy proposed in Wave1. The closest established taxonomy is Bloom's 4 knowledge types (factual/conceptual/procedural/metacognitive) combined with CDM skill mastery levels.",
+      "maturity": "HIGH -- CDMs are well-established in educational measurement. Neural CDMs are EMERGING. Multi-tier diagnostics are MATURE in science education.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2407.05458v1",
+        "https://www.mdpi.com/2071-1050/17/7/3145",
+        "https://learning-analytics.info/index.php/JLA/article/view/8557",
+        "https://arxiv.org/pdf/2403.07279",
+        "https://link.springer.com/article/10.1007/s10489-024-05509-8",
+        "https://arxiv.org/html/2105.15106v4"
       ],
-      "implication_for_project": "The Canvas Learning System's canvas-based interaction directly leverages spatial contiguity (d=0.79) and dual coding principles. Placing knowledge nodes, their relationships, and learning content in a spatially organized canvas is one of the most well-supported interaction paradigms in multimedia learning research. The system's approach of letting users actively create and arrange knowledge maps (rather than just study them) aligns with the strongest effect sizes (g=0.72 for creation vs g=0.43 for studying)."
+      "relation_to_existing": "VALIDATES the Wave1 gap: the 5-type weakness taxonomy is NOT grounded in any established CDM/ITS framework. Established taxonomies use different decompositions: (a) Bloom's 4 knowledge types, (b) CDM skill mastery vectors, (c) multi-tier confidence levels, (d) misconception-specific option patterns. The Wave1 taxonomy should be re-derived from established frameworks to ensure MECE validity.",
+      "confidence": 0.88
     },
     {
-      "id": "D4",
-      "title": "Frontend Technology Choice Impact on Education Tool UX",
-      "relevance": "Validates React + ReactFlow as appropriate frontend stack",
-      "verdict": "SUPPORTED",
-      "confidence": 0.75,
-      "summary": "React remains the dominant frontend framework (State of Frontend 2024 survey, 6,028 developers from 139 countries). ReactFlow is specifically designed for node-based interactive UIs and has direct applications in mind mapping and knowledge visualization. LMS UX research shows frontend responsiveness and usability directly impact learning outcomes.",
-      "key_findings": [
-        {
-          "finding": "React remains the de facto framework for web development. State of Frontend 2024 based on 6,028 developers from 139 countries confirms React + Next.js as the dominant combination.",
-          "source": "State of Frontend 2024 (TSH)",
-          "url": "https://tsh.io/state-of-frontend",
-          "type": "industry-survey",
-          "sample_size": "6,028 developers, 139 countries"
-        },
-        {
-          "finding": "ReactFlow enables interactive mind maps for brainstorming, note-taking, and knowledge organization with hierarchical structures, drag-and-drop nodes, rich text editing. HTML DOM-based rendering (vs Canvas) allows greater custom node flexibility than Cytoscape/VisJS.",
-          "source": "ReactFlow official documentation and tutorials",
-          "url": "https://reactflow.dev/learn/tutorials/mind-map-app-with-react-flow",
-          "type": "technical-documentation"
-        },
-        {
-          "finding": "LMS user experience evaluation using UEQ (User Experience Questionnaire) across 867 participants from Jordanian institutions shows that UX quality of learning platforms directly correlates with perceived learning effectiveness.",
-          "source": "Exploring user experience of learning management system. International Journal of Information and Learning Technology (2021).",
-          "url": "https://www.emerald.com/insight/content/doi/10.1108/IJILT-03-2021-0046/full/html",
-          "type": "empirical-study",
-          "sample_size": "867 participants"
-        },
-        {
-          "finding": "Usability and user experience evaluation of LMS: systematic mapping study identifies frontend responsiveness, visual design, and interaction patterns as critical factors in educational tool adoption.",
-          "source": "Usability and User Experience Evaluation of Learning Management Systems: A Systematic Mapping Study.",
-          "url": "https://www.academia.edu/33608960/Usability_and_User_Experience_Evaluation_of_Learning_Management_Systems_A_Systematic_Mapping_Study",
-          "type": "systematic-mapping"
-        },
-        {
-          "finding": "Web-based graph visualization libraries (D3.js, ECharts.js, G6.js) are the dominant tools for knowledge graph visualization. ReactFlow provides equivalent node-link capabilities with React component model integration.",
-          "source": "Graph visualization efficiency of popular web-based libraries. PMC (2025).",
-          "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC12061801/",
-          "type": "technical-comparison"
-        }
+      "topic": "LLM Misconception Diagnosis: Generate-Retrieve-Rerank Pipeline",
+      "insight": "State-of-the-art LLM misconception diagnosis uses a 3-stage pipeline: (1) fine-tuned LLM generates plausible misconceptions, (2) embedding similarity retrieves top candidates from a misconception bank, (3) another fine-tuned LLM reranks for relevance. LLMs use a solve-first, error-injection strategy -- solving correctly first, then simulating misconception-driven errors.",
+      "detail": "ArXiv:2602.02414 presents a generate-retrieve-rerank pipeline for misconception diagnosis from student-tutor dialogue. Key insight: LLMs predominantly use a 'solve-first, error-injection' strategy that mirrors misconception-based methods in educational literature. The correct answer serves as a critical anchor. For distractor generation (arXiv:2603.15547), LLMs first solve problems correctly, identify potential misconceptions, simulate resulting errors, then generate corresponding distractors. MathEDU (arXiv:2505.18056) generates feedback on problem-solving processes. Springer IJAIED 2025 demonstrates in-context personalized feedback generation. Key limitation: LLMs can struggle to correctly interpret students' mathematical reasoning, sometimes affirming flawed logic. The reliability of assessing intermediate problem-solving steps remains an open question.",
+      "maturity": "EMERGING -- pipeline architecture is well-defined but accuracy is still insufficient for unsupervised deployment. Human-in-the-loop quality control is still required.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2602.02414",
+        "https://arxiv.org/html/2603.15547",
+        "https://arxiv.org/html/2505.18056",
+        "https://link.springer.com/article/10.1007/s40593-025-00505-6"
       ],
-      "implication_for_project": "React's ecosystem dominance ensures long-term maintainability and talent availability. ReactFlow's HTML DOM-based rendering (vs Canvas-based alternatives) is specifically advantageous for the Canvas Learning System because it allows rich, customizable node content (progress indicators, mastery colors, embedded content) that Canvas-based graph libraries cannot easily provide. LMS UX research confirms that frontend quality directly impacts learning effectiveness."
+      "relation_to_existing": "DIRECTLY INFORMS Observer implementation. The generate-retrieve-rerank pipeline is a validated architecture pattern the Canvas system can adopt. The solve-first-then-diagnose pattern aligns with the Observer watching student interactions and comparing against correct solution paths. The accuracy limitations reinforce the >80% target as ambitious but achievable with structured domains.",
+      "confidence": 0.85
     },
     {
-      "id": "D5",
-      "title": "Offline-First / Local-First Architecture in Education",
-      "relevance": "Validates frontend-first architecture with local data ownership",
-      "verdict": "SUPPORTED",
-      "confidence": 0.8,
-      "summary": "The local-first software paradigm (Kleppmann et al. 2019, Ink & Switch) provides strong theoretical and practical foundation. UNESCO/ITU data confirms 2.6 billion people remain offline (2024), with education in developing regions severely impacted by connectivity gaps. Offline-first is not just a technical preference but an accessibility imperative for education tools.",
-      "key_findings": [
-        {
-          "finding": "Local-first software design principles: work offline, collaborate across devices, improve security/privacy/long-term preservation/user control. CRDTs enable conflict-free multi-device sync. Published at ACM SIGPLAN Onward! 2019.",
-          "source": "Kleppmann, Wiggins, van Hardenberg & McGranaghan (2019). Local-first software: You own your data, in spite of the cloud. ACM SIGPLAN International Symposium on New Ideas, New Paradigms, and Reflections on Programming and Software.",
-          "url": "https://www.inkandswitch.com/essay/local-first/",
-          "type": "peer-reviewed-paper",
-          "venue": "ACM SIGPLAN Onward! 2019"
-        },
-        {
-          "finding": "2.6 billion people (32% of world population) remain offline in 2024. Africa: only 37% internet penetration. Rural areas: only 48% vs 83% urban. 1.8 billion offline people live in rural areas.",
-          "source": "ITU/UN Global Internet statistics 2024",
-          "url": "https://etradeforall.org/news/global-internet-use-continues-rise-disparities-remain-especially-low-income-regions",
-          "type": "statistical-report"
-        },
-        {
-          "finding": "UNESCO Global Education Monitoring Report 2023-2024: delivery in some jurisdictions hampered by limited digital infrastructure and accessibility to online learning. Challenges include unstable network signals and lack of educational resources.",
-          "source": "UNESCO Global Education Monitoring Report 2024 (Pacific region)",
-          "url": "https://unesdoc.unesco.org/ark:/48223/pf0000391211",
-          "type": "institutional-report"
-        },
-        {
-          "finding": "Offline-first architecture enables education apps to function without internet: service workers intercept network requests, IndexedDB stores data locally, sync when connectivity returns via push/pull operations.",
-          "source": "Multiple technical sources (aalpha.net, techaheadcorp.com, rxdb.info)",
-          "url": "https://rxdb.info/offline-first.html",
-          "type": "technical-documentation"
-        },
-        {
-          "finding": "OECD Digital Education Outlook 2023 highlights the need for effective education ecosystems that work across varying infrastructure conditions.",
-          "source": "OECD Digital Education Outlook 2023, reviewed in Hungarian Educational Research Journal 15(2) (2024).",
-          "url": "https://akjournals.com/view/journals/063/15/2/article-p284.xml",
-          "type": "institutional-report"
-        }
+      "topic": "LLM Educational Agents: Comprehensive Capability Survey",
+      "insight": "A 2025 survey on LLM Agents for Education (EMNLP 2025, arXiv:2503.11733) identifies key agent capabilities: memory, planning, tool use, and personalization. Agent roles include Gap Identifier, Learner Profiler, and adaptive feedback generator. Error detection and correction span academic writing, programming, and mathematical reasoning domains. LLMs dynamically adapt feedback to learner proficiency level.",
+      "detail": "The EMNLP 2025 survey (arXiv:2503.11733) provides the most comprehensive taxonomy of LLM agents in education. Key capabilities: (1) Error detection and correction as critical ITS components, enabling real-time context-aware feedback; (2) LLM agents serve as intelligent reviewers, debuggers, and writing assistants; (3) Agent designs include Gap Identifier (identifies knowledge gaps from learning traces) and Learner Profiler (builds student model from interaction data); (4) Teacher-student interactions via task-specific prompts with agents responding using memory, planning, tool use, and personalization. The COLING 2025 Tutorial on LLMs in Education covers novel perspectives on challenges and opportunities. GitHub repository awesome-ai-llm4education curates the growing body of work.",
+      "maturity": "EMERGING -- field is rapidly growing with major NLP venue attention (EMNLP, COLING, BEA). Practical deployments still limited.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2503.11733v1",
+        "https://aclanthology.org/2025.findings-emnlp.743.pdf",
+        "https://coling2025-edu-llms.github.io/",
+        "https://github.com/GeminiLight/awesome-ai-llm4education"
       ],
-      "implication_for_project": "The Canvas Learning System's Tauri+local-storage architecture inherently supports local-first principles. Users' knowledge graphs and learning progress persist locally regardless of connectivity. This is not just a nice-to-have but an accessibility requirement validated by UNESCO/ITU data showing 1/3 of the world remains offline. Kleppmann's local-first principles (2019 ACM) provide the theoretical framework for the architecture. For an educational tool that manages personal learning data, local-first also addresses data ownership and privacy concerns."
+      "relation_to_existing": "DIRECTLY SUPPORTS the Canvas system's Observer + memory injection architecture. The Gap Identifier and Learner Profiler agent roles map to the Observer's function. Memory, planning, tool use, and personalization capabilities are exactly the agent capabilities the Canvas system needs. The EMNLP survey validates that educational LLM agents are a recognized research frontier with growing institutional support.",
+      "confidence": 0.88
+    },
+    {
+      "topic": "AI Agent Memory: Forms, Functions, and Dynamics (Comprehensive Survey)",
+      "insight": "The 2024 survey 'Memory in the Age of AI Agents' (arXiv:2512.13564) proposes a 3-dimensional taxonomy: Forms (token-level, parametric, latent), Functions (factual, experiential, working), and Dynamics (formation, evolution, retrieval). Factual memory = declarative knowledge base; Experiential memory = procedural knowledge (case-based, strategy-based, skill-based); Working memory = active reasoning context. This supersedes simplistic long/short-term classifications.",
+      "detail": "The survey identifies that traditional long/short-term memory taxonomies are insufficient for modern agent memory. The functional taxonomy is most relevant to the Canvas system: (1) Factual Memory maintains user profiles and environmental states (maps to student model persistence); (2) Experiential Memory captures how to solve problems -- divided into case-based (raw trajectory replay), strategy-based (abstracted workflows/insights), and skill-based (executable tool APIs); (3) Working Memory supports active reasoning. The dynamics dimension covers: formation (how memories are created from interactions), evolution (how they update with new information), and retrieval (how they are accessed). Emerging frontiers: memory automation, RL integration, multimodal memory, multi-agent memory, trustworthiness. A parallel survey 'AI Meets Brain' (arXiv:2512.23343) provides cognitive neuroscience grounding.",
+      "maturity": "EMERGING but RAPIDLY CRYSTALLIZING -- taxonomy is well-defined and gaining community adoption. Implementation frameworks are multiplying (Mem0, Zep/Graphiti, A-MEM, MemArchitect).",
+      "evidence_urls": [
+        "https://arxiv.org/abs/2512.13564",
+        "https://arxiv.org/html/2512.23343v1",
+        "https://github.com/Shichun-Liu/Agent-Memory-Paper-List",
+        "https://dl.acm.org/doi/10.1145/3748302"
+      ],
+      "relation_to_existing": "CRITICAL FRAMEWORK for Canvas memory injection architecture. The factual/experiential/working taxonomy directly maps to Canvas needs: (1) Factual = student weakness profiles, mastery levels, misconception records; (2) Experiential = learning strategies that worked, problem-solving patterns, successful remediation approaches; (3) Working = current session context for the Observer. The Canvas system should adopt this taxonomy rather than an ad hoc memory design.",
+      "confidence": 0.92
+    },
+    {
+      "topic": "Graphiti/Zep: Temporal Knowledge Graph for Agent Memory",
+      "insight": "Graphiti (by Zep, arXiv:2501.13956) is a temporally-aware knowledge graph engine that outperforms MemGPT on the DMR benchmark (94.8% vs 93.4%). It uses bi-temporal modeling (event time + ingestion time), hybrid search (semantic + BM25 + graph traversal), and intelligent conflict resolution via temporal metadata. P95 retrieval latency of 300ms with no LLM calls during retrieval.",
+      "detail": "Graphiti addresses the core challenge of learning data persistence: facts change over time. Its bi-temporal model tracks both when an event occurred and when it was ingested. Every edge includes validity intervals. When new knowledge conflicts with existing knowledge, Graphiti uses temporal metadata to update or invalidate (but not discard) outdated information. LongMemEval benchmark: up to 18.5% accuracy improvement with 90% latency reduction vs. baselines. The system supports both prescribed and learned ontology, allowing the knowledge graph schema to evolve. Key advantage over RAG: graph traversal enables multi-hop reasoning about relationships between entities, not just similarity-based retrieval.",
+      "maturity": "HIGH for the specific framework -- Graphiti is already deployed in Canvas system via MCP. The temporal knowledge graph pattern is well-validated. Academic publication (Jan 2025) provides formal evaluation.",
+      "evidence_urls": [
+        "https://arxiv.org/abs/2501.13956",
+        "https://arxiv.org/html/2501.13956v1",
+        "https://github.com/getzep/graphiti",
+        "https://neo4j.com/blog/developer/graphiti-knowledge-graph-memory/"
+      ],
+      "relation_to_existing": "ALREADY IN USE -- Graphiti is the Canvas system's memory layer (group_id: canvas-dev, MCP integration). This survey validates the choice academically. The bi-temporal model is ideal for tracking student weakness evolution over time (a weakness detected today may be resolved tomorrow). The temporal invalidation mechanism prevents stale misconception records from polluting the student model.",
+      "confidence": 0.95
+    },
+    {
+      "topic": "A-MEM and Agentic Memory Paradigms for Knowledge Extraction",
+      "insight": "A-MEM (arXiv:2502.12110) follows the Zettelkasten principle of atomicity for autonomous extraction of implicit knowledge from raw interactions. Reflective Memory (arXiv:2503.08026) adds retrospective reflection to refine retrieval. MemArchitect provides memory lifecycle governance (decay, conflict resolution, privacy). These represent the frontier of automatic learning data extraction.",
+      "detail": "A-MEM's Zettelkasten-inspired approach decomposes interactions into atomic knowledge units, each with metadata for linking and retrieval. This is directly applicable to extracting learning data from student interactions -- each misconception, each successful understanding, each struggle becomes an atomic memory unit. Reflective Memory addresses the problem of fixed-granularity fragmentation by incorporating retrospective reflection to refine what is stored and retrieved. Contextual Memory Intelligence (arXiv:2506.05370) introduces an 'Insight Layer' that embeds memory-aware capabilities enabling systems to remember why, when, and how knowledge is used. Long-Term Memory (arXiv:2410.15665) argues LTM should be kept independent from the foundation model as an external knowledge base. MemArchitect adds governance: explicit rules for memory decay, conflict resolution, and privacy controls -- critical for educational contexts where student data has regulatory requirements.",
+      "maturity": "EMERGING -- individual frameworks are well-designed but no standardized architecture exists. Integration patterns are still being explored.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2502.12110v11",
+        "https://arxiv.org/pdf/2503.08026",
+        "https://arxiv.org/html/2506.05370v1",
+        "https://arxiv.org/html/2410.15665v4"
+      ],
+      "relation_to_existing": "DIRECTLY INFORMS Canvas Observer's memory injection pipeline. The Zettelkasten atomicity principle maps perfectly to decomposing student interactions into atomic weakness observations. A-MEM's autonomous extraction + Graphiti's temporal persistence = a complete learning data extraction + memory injection architecture. MemArchitect's governance layer addresses the data lifecycle concerns (when to decay old weakness records, how to handle conflicting assessments).",
+      "confidence": 0.82
+    },
+    {
+      "topic": "Knowledge Tracing: State-of-the-Art Models and Concept Drift",
+      "insight": "Knowledge Tracing (KT) surveys (arXiv:2105.15106, IEEE TLT 2024) categorize methods into Bayesian (BKT), logistic (IRT/MIRT), and deep learning (DKT, SAKT, AKT, GKT). A 2025 study on concept drift (arXiv:2511.00704) reveals KT models are vulnerable to shifts in student learning patterns over time. Explainable KT (arXiv:2403.07279) integrates MIRT parameters into RNNs for interpretable state prediction.",
+      "detail": "The comprehensive KT survey proposes a taxonomy: Bayesian models, logistic models, and deep learning models (RNN-based, memory-network-based, self-attention-based, GNN-based). Deep KT models achieve best prediction accuracy but sacrifice interpretability. The concept drift study is particularly relevant: KT models trained on historical data degrade when student learning patterns shift -- e.g., curriculum changes, new teaching methods, or individual learning trajectory changes. This means any student model must be continuously updated, not just trained once. Explainable KT addresses the black-box problem by integrating MIRT parameters, generating interpretable predictions about which specific knowledge components a student has mastered or not. Option Tracing (JLA 2024) extends KT by tracking misconception-specific response patterns alongside correct-answer skills using million-level K-12 math data.",
+      "maturity": "HIGH -- KT is a mature field with decades of research. Deep KT is MATURE. Concept drift awareness and explainability are EMERGING.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2105.15106v4",
+        "https://arxiv.org/html/2511.00704v1",
+        "https://arxiv.org/pdf/2403.07279",
+        "https://learning-analytics.info/index.php/JLA/article/view/8557"
+      ],
+      "relation_to_existing": "VALIDATES Canvas system's BKT+FSRS approach (DE-3 confirms backend retains these). However, concept drift vulnerability means the system needs continuous model updates -- the Observer feeding new data to Graphiti addresses this. The explainable KT direction aligns with the Open Learner Model goal of making student state visible and understandable. Option Tracing's misconception-specific skills concept could enhance the weakness taxonomy.",
+      "confidence": 0.90
+    },
+    {
+      "topic": "Error Learning Processes: Multi-Level Framework",
+      "insight": "A 2025 special issue in British Journal of Educational Psychology establishes that learning from errors requires processing on multiple levels: cognitive, metacognitive, motivational, emotional, affective, behavioral, and social. Motivational factors (goal orientation, self-concept, anxiety, error attitudes) significantly mediate error-to-learning conversion. This multi-level framework challenges simplistic cognitive-only error taxonomies.",
+      "detail": "Narciss (2025, BJEP) and Steuer (2025, BJEP) establish that error learning is not purely cognitive. Students process errors through: (1) Cognitive level -- understanding what went wrong; (2) Metacognitive level -- monitoring own comprehension; (3) Motivational level -- maintaining engagement after failure; (4) Emotional/affective level -- managing frustration, shame, anxiety; (5) Behavioral level -- taking corrective action; (6) Social level -- seeking help, collaborative error resolution. Motivational beliefs including academic self-concept, anxiety, fear of failure, task value, attitudes toward making errors, and causal attributions are all associated with learners' reactions to errors. A scoping review of mathematics education research 2018-2023 (Springer ZDM 2025) confirms growing emphasis on teacher-student interactions around errors.",
+      "maturity": "HIGH -- multi-level error processing is well-established in educational psychology. Recent publications bring updated evidence and emphasis on non-cognitive factors.",
+      "evidence_urls": [
+        "https://bpspsychub.onlinelibrary.wiley.com/doi/10.1111/bjep.12716",
+        "https://bpspsychub.onlinelibrary.wiley.com/doi/10.1111/bjep.12723",
+        "https://pmc.ncbi.nlm.nih.gov/articles/PMC11803059/",
+        "https://link.springer.com/article/10.1007/s11858-025-01704-0"
+      ],
+      "relation_to_existing": "CRITICAL FINDING for Wave1 weakness taxonomy validation. The 5-type taxonomy (concept misconception / reasoning error / prerequisite gap / depth-of-understanding / metacognitive bias) is INCOMPLETE because it only covers cognitive and metacognitive dimensions. Educational psychology research shows motivational, emotional, and behavioral dimensions are equally important for learning from errors. The Observer should track not just WHAT the error is but also the student's AFFECTIVE RESPONSE to errors for effective remediation.",
+      "confidence": 0.85
+    },
+    {
+      "topic": "Automated Error Classification in Programming Education",
+      "insight": "Automated identification of logical errors in programs (arXiv:2505.10913) uses explainable AST embedding models to classify student errors without requiring expert-labeled misconception databases. Error type classification in online learning platforms (arXiv:2107.06009) clusters incorrect solutions to detect frequent error patterns and uses the labeled dataset to classify new submissions. These represent the most mature examples of automatic error type detection.",
+      "detail": "SANN (Subtree-based Attention Neural Network) uses AST embeddings to identify logical errors, addressing limitations of expert-dependent labeling and black-box failure prediction. The clustering-based approach groups incorrect solutions into error-type clusters, then trains classifiers on the labeled clusters to identify error types in new submissions. Both approaches demonstrate that error classification can be automated at scale for structured domains (programming). For less structured domains (math reasoning, conceptual understanding), the problem is harder and less solved. Early detection of at-risk students (arXiv:2412.09483) uses ML models (SVM, NB, KNN, DT, LR, RF) to predict vulnerability periods but focuses on prediction rather than error classification.",
+      "maturity": "MODERATE for programming domains (well-validated). LOW for open-ended reasoning domains.",
+      "evidence_urls": [
+        "https://arxiv.org/html/2505.10913v1",
+        "https://arxiv.org/abs/2107.06009",
+        "https://arxiv.org/abs/2412.09483"
+      ],
+      "relation_to_existing": "PARTIALLY RELEVANT -- the Canvas system targets broader domains (not just programming). The AST-based approach is domain-specific. However, the clustering-based error pattern detection is a generalizable idea: the Observer could cluster similar errors across interactions to inductively discover error type categories rather than relying on a pre-specified taxonomy. This addresses the Wave1 gap about MECE validity -- let the data reveal the categories.",
+      "confidence": 0.75
+    },
+    {
+      "topic": "Open Learner Models: Visualization of Student Knowledge State",
+      "insight": "Open Learner Models (OLMs) make the student model visible to learners, driving metacognition and self-regulated learning. Systematic reviews confirm OLMs support self-monitoring, planning, and improved self-assessment. Knowledge state presentation ranges from simple mastery scores to detailed misconception displays with progress tracking. OLMs are validated as drivers for metacognitive processes.",
+      "detail": "Bull & Kay's OLM framework shows learner model visualizations that range from simple to complex: overall mastery score, per-skill mastery, misconception display, progress trajectory. The SRL systematic review (Computers & Education 2020) covers OLM approaches in higher education. Key finding: OLMs promote reflection and metacognition by making strengths and weaknesses explicit, enabling students to develop more effective learning strategies. Bloom's taxonomy provides the underlying knowledge classification: factual, conceptual, procedural, metacognitive -- four types, not five. The OLM literature assumes the student model is maintained by the system and presented to the learner, which is exactly the Canvas system's architecture (Observer detects -> Graphiti stores -> OLM displays).",
+      "maturity": "HIGH -- OLMs have decades of research. Integration with LLM-based detection is EMERGING.",
+      "evidence_urls": [
+        "https://link.springer.com/chapter/10.1007/978-3-319-45153-4_69",
+        "https://www.sciencedirect.com/science/article/pii/S0360131520300774",
+        "https://www.academia.edu/63599398/Open_Learner_Models_as_Drivers_for_Metacognitive_Processes",
+        "https://telrp.springeropen.com/articles/10.1186/s41039-020-00137-5"
+      ],
+      "relation_to_existing": "DIRECTLY VALIDATES Canvas OLM architecture (confirmed in DE-3 backend). The Observer -> Graphiti -> OLM display pipeline is exactly the pattern the literature endorses. However, the Bloom's taxonomy (4 knowledge types) is a stronger MECE framework than the Wave1 5-type taxonomy. Recommendation: align weakness categories with established OLM/Bloom's frameworks.",
+      "confidence": 0.88
     }
   ],
-  "cross_cutting_theoretical_foundations": [
-    {
-      "theory": "Dual Coding Theory (Paivio, 1971)",
-      "relevance": "Node-link knowledge graphs engage both verbal (labels, descriptions) and visual (spatial layout, colors, connections) processing channels simultaneously, creating stronger memory traces. ReactFlow's rich node customization enables this dual encoding.",
-      "strength": "STRONG - foundational cognitive psychology theory with decades of empirical support"
+
+  "cross_cutting_synthesis": {
+    "wave1_gap_resolution": {
+      "question": "Is the 5-type weakness taxonomy (concept misconception / reasoning error / prerequisite gap / depth-of-understanding / metacognitive bias) MECE?",
+      "answer": "NO -- the survey reveals multiple issues: (1) No established CDM/ITS framework uses this exact decomposition. Closest established taxonomies are Bloom's 4 knowledge types (factual/conceptual/procedural/metacognitive) and CDM skill mastery vectors. (2) Educational psychology research shows error processing has cognitive, metacognitive, motivational, emotional, behavioral, and social dimensions -- the 5-type taxonomy only covers cognitive and metacognitive. (3) 'Reasoning error' and 'concept misconception' may overlap (a reasoning error can stem from a misconception). (4) 'Depth-of-understanding' is a continuous dimension, not a discrete error type -- it is more appropriately modeled as a mastery level than an error category. (5) Multi-tier diagnostic technologies distinguish surface memorization vs. deep understanding vs. lack of knowledge, which maps better to depth levels than error types.",
+      "recommendation": "Re-derive the weakness taxonomy from established frameworks. Recommended approach: (A) Use Bloom's 4 knowledge types as the primary MECE dimension (what kind of knowledge is the weakness about?), (B) Add a severity/depth dimension from multi-tier diagnostics (surface/partial/absent), (C) Add an affective dimension (motivation/confidence/anxiety) from the error learning literature, (D) Use the Observer to inductively discover recurring error patterns (clustering approach) rather than relying solely on pre-specified categories."
     },
-    {
-      "theory": "Cognitive Theory of Multimedia Learning (Mayer, 2001)",
-      "relevance": "Spatial contiguity principle (d=0.79) directly supports canvas-based learning where related information is co-located. The system's design of embedding mastery indicators, chat, and content within the same spatial canvas follows this principle.",
-      "strength": "STRONG - meta-analytically validated with large effect sizes"
+
+    "observer_accuracy_feasibility": {
+      "target": ">80% accuracy",
+      "assessment": "FEASIBLE for structured, single-error scenarios. CHALLENGING for multi-error or open-ended reasoning. BEA 2025 best results: ~78% F1 for mistake identification. GPT-4 achieves ~80% in College Algebra for single errors, degrading with complexity. Recommendation: scope initial Observer to structured domains (math, programming) where >80% is achievable, then expand.",
+      "evidence": "BEA 2025 Shared Task results, GPT-4 College Algebra evaluation, ITS Student Model literature"
     },
-    {
-      "theory": "Constructivism / Active Learning",
-      "relevance": "Creating concept maps (g=0.72) is more effective than studying them (g=0.43). The Canvas Learning System enables active construction of knowledge graphs, aligning with the strongest effect sizes in the literature.",
-      "strength": "STRONG - consistent finding across multiple meta-analyses"
+
+    "memory_injection_architecture": {
+      "recommended_pattern": "Zettelkasten-atomic extraction (A-MEM) -> Temporal knowledge graph persistence (Graphiti) -> Hybrid retrieval (semantic + BM25 + graph traversal) -> Open Learner Model display",
+      "key_components": [
+        "Observer: generate-retrieve-rerank pipeline (arXiv:2602.02414) for misconception detection from student dialogue",
+        "Memory extraction: A-MEM's atomic decomposition of interactions into knowledge units (arXiv:2502.12110)",
+        "Memory persistence: Graphiti bi-temporal knowledge graph (arXiv:2501.13956) -- already in use",
+        "Memory governance: MemArchitect-style decay/conflict/privacy policies",
+        "Memory retrieval: hybrid search (already in Graphiti) for feeding student model to LLM context",
+        "Memory display: OLM visualization of knowledge state (established pattern)"
+      ],
+      "maturity": "Individual components are MATURE to EMERGING. Full pipeline integration is NOVEL but each component is well-validated independently."
     },
-    {
-      "theory": "Cognitive Load Theory (Sweller, 1988)",
-      "relevance": "Desktop-class performance (Tauri: 28MB RAM, 0.4s launch) reduces extraneous cognitive load compared to web apps with loading delays and memory pressure. Well-designed interactivity can promote germane load.",
-      "strength": "MODERATE - theory is strong but specific application to desktop vs web is industry-inferred rather than directly studied"
-    },
-    {
-      "theory": "Local-First Software Principles (Kleppmann et al., 2019)",
-      "relevance": "Data ownership, offline capability, and instant responsiveness improve user trust and reduce friction in learning workflows. Tauri's local-first architecture aligns with all 7 ideals identified by Ink & Switch.",
-      "strength": "MODERATE - principles are well-articulated but empirical validation in education specifically is limited"
-    }
-  ],
-  "overall_assessment": {
-    "verdict": "STRONGLY_SUPPORTED",
-    "confidence": 0.85,
-    "summary": "The Canvas Learning System's frontend technology choices (Tauri+React+ReactFlow) are well-grounded in educational research. The strongest evidence supports the core interaction paradigm: knowledge graph visualization via node-link diagrams produces consistent moderate-to-large effect sizes on learning outcomes (g=0.58-0.72 for concept mapping, d=0.79 for spatial contiguity). React/ReactFlow is the technically appropriate implementation choice for this paradigm. Tauri provides performance advantages that reduce cognitive friction, and local-first architecture addresses both accessibility (1/3 world offline) and data ownership concerns. The weakest evidence dimension is desktop-vs-web comparison, where no direct academic RCT exists, though technical benchmarks strongly favor Tauri for performance-sensitive interactive applications.",
-    "evidence_gaps": [
-      "No peer-reviewed RCT directly comparing desktop vs web education tools for learning outcomes",
-      "Limited empirical studies on local-first architecture specifically in education (vs general software)",
-      "ReactFlow specifically has no published academic evaluation (validation is by analogy to node-link diagram research)",
-      "No longitudinal studies on knowledge graph tools for self-directed learning (most studies are classroom-based)"
-    ],
+
     "strongest_evidence": [
-      "D1: Concept mapping meta-analyses (Schroeder 2018: g=0.58, n=11,814; Nesbit 2006: n=5,818) - robust, large-sample, replicated",
-      "D3: Spatial contiguity meta-analysis (g=0.63, d=0.79, n=2,426) - strong effect, well-replicated",
-      "D3: IWB meta-analysis confirms interactive visual learning tools improve cognitive outcomes"
+      "BEA 2025 Shared Task (50+ teams, standardized benchmark) -- most rigorous evaluation of AI tutor pedagogical abilities",
+      "CDM survey (arXiv:2407.05458) -- comprehensive coverage of established error diagnosis frameworks",
+      "'Memory in the Age of AI Agents' (arXiv:2512.13564) -- definitive taxonomy of agent memory",
+      "Graphiti/Zep (arXiv:2501.13956) -- formal evaluation with benchmark results, already deployed in Canvas"
+    ],
+
+    "evidence_gaps": [
+      "No benchmark exists specifically for automatic weakness TYPE classification (as opposed to binary correct/incorrect)",
+      "No published evaluation of LLM-based Observer accuracy for the specific 5-type taxonomy proposed in Wave1",
+      "No study validates Zettelkasten-atomic extraction for educational learning data specifically",
+      "Multi-error scenario diagnosis remains poorly evaluated across all surveyed work",
+      "Affective/motivational dimension detection from text-only interactions has limited benchmarks"
     ]
   },
-  "methodology_notes": {
-    "search_engines": ["Google Scholar via WebSearch", "arxiv", "PMC/PubMed", "Springer", "ACM DL", "ResearchGate", "ERIC"],
-    "search_queries_executed": 13,
-    "papers_reviewed": 35,
-    "meta_analyses_found": 7,
-    "systematic_reviews_found": 4,
-    "limitations": "WebSearch-based retrieval; no direct database API access to Scopus/WoS. Some papers accessed via abstracts only. Industry technical comparisons included alongside academic sources for D2/D4 where academic evidence was sparse."
+
+  "overall_assessment": {
+    "verdict": "PARTIALLY_SUPPORTED_NEEDS_REVISION",
+    "confidence": 0.85,
+    "summary": "The Canvas system's core architecture pattern (Observer detects errors -> Graphiti stores temporal knowledge -> OLM displays to learner) is well-supported by literature across ITS, agent memory, and OLM research. However, the specific 5-type weakness taxonomy is NOT grounded in established frameworks and should be re-derived from Bloom's knowledge types + CDM severity levels + affective dimensions. The >80% Observer accuracy target is feasible for structured single-error scenarios but will require domain-scoping for initial deployment. The memory injection pipeline using Graphiti's temporal knowledge graph is academically validated (arXiv:2501.13956) and represents a strong architectural choice. The generate-retrieve-rerank pipeline from BEA 2025 provides a validated pattern for the Observer's misconception detection component.",
+    "actionable_recommendations": [
+      "REVISE weakness taxonomy to align with Bloom's 4 knowledge types + multi-tier severity levels",
+      "SCOPE initial Observer to math/programming domains where ~80% accuracy is demonstrated",
+      "ADOPT generate-retrieve-rerank pipeline from BEA 2025 literature for Observer implementation",
+      "LEVERAGE Graphiti's bi-temporal model for tracking weakness evolution over time",
+      "ADD affective dimension tracking (confidence, frustration, engagement) to complement cognitive error detection",
+      "CONSIDER inductive error clustering (from programming education literature) to discover domain-specific error patterns rather than relying solely on pre-specified taxonomy"
+    ]
   }
 }
