@@ -215,7 +215,7 @@ class ConversationDistiller:
                 max_tokens=1500,
                 temperature=0.2,
                 api_base=ollama_base,
-                timeout=120,
+                timeout=30,  # V7: reduced from 120s; 30s covers Ollama cold start + inference
             )
             logger.info("[F9] Distillation via Ollama Qwen3 succeeded")
         except Exception as ollama_err:

@@ -313,14 +313,14 @@ async def get_node_context(
 
         group_id = DEFAULT_GROUP_ID
 
-    # Fetch mastery, tips/errors, and neighbors in parallel.
-    # Reuse the same neighbor query for both Tier 1 edge_reasons and Tier 2 neighbors
-    # to avoid duplicate Neo4j queries.
-    mastery_data = await _fetch_mastery(node_id, group_id)
-    tips, errors = await _fetch_tips_and_errors(node_id)
-
-    # Single neighbor query for both tiers
-    neighbor_records = await _fetch_neighbor_records(node_id)
+    # Fetch mastery, tips/errors, and neighbors in parallel using asyncio.gather.
+    # V7 validation found sequential queries added 4x unnecessary latency.
+    import asyncio
+    mastery_data, (tips, errors), neighbor_records = await asyncio.gather(
+        _fetch_mastery(node_id, group_id),
+        _fetch_tips_and_errors(node_id),
+        _fetch_neighbor_records(node_id),
+    )
 
     # Tier 1: edge reasons extracted from neighbor records
     edge_reasons = [
