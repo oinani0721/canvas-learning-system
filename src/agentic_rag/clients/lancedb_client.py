@@ -327,7 +327,7 @@ class LanceDBClient:
         db_path: str = "data/lancedb",  # ✅ Story 38.1 Fix: 从 backend/ 目录运行时路径正确
         embedding_dim: int = DEFAULT_EMBEDDING_DIM,
         embedding_model: str = "BAAI/bge-m3",
-        timeout_ms: int = 5000,  # Raised from 400ms: Ollama GPU embedding ~300ms + LanceDB search ~100ms
+        timeout_ms: int = 30000,  # Ollama GPU cold start ~15s, warm ~300ms. Must cover cold start.
         batch_size: int = 100,
         enable_fallback: bool = True,
     ):
