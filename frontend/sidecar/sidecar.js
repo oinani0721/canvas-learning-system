@@ -84,6 +84,10 @@ async function handleQuery(cmd) {
         allowDangerouslySkipPermissions: true,
         // H-3 fix: Safety limit to prevent unbounded agent loops (cost + security)
         maxTurns: 25,
+        // GDR-P0-4 fix: SDK v0.2.68+ silently injects effort:medium,
+        // breaking agentic tool-use workflows (Issue #214).
+        // Must explicitly set effort:high to restore proper tool-use behavior.
+        effort: 'high',
       },
     };
 

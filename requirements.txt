@@ -22,7 +22,8 @@ cryptography>=41.0.0         # 数据加密库 (Trust Score: 9.1/10)
 # ===========================
 # Epic 6: 知识图谱依赖 (v2.0 verified)
 # ===========================
-graphiti-core>=0.3.0        # Graphiti知识图谱库 - 时序图谱服务 (Trust Score: 8.2/10)
+graphiti-core>=0.28.2       # Graphiti知识图谱库 - 时序图谱服务 (Trust Score: 8.2/10)
+                            # ⚠️ CVE-2026-32247: <0.28.2 有 Cypher 注入漏洞
                             # 用于DirectGraphitiStorage (不依赖MCP/claude_tools)
 neo4j>=5.18.0               # Neo4j Python驱动 (官方包名是neo4j而不是neo4j-driver)
                             # 用于DirectNeo4jStorage和DirectGraphitiStorage

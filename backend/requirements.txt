@@ -67,7 +67,8 @@ sentence-transformers>=3.0.0
 # Knowledge Graph (Story 12.1, 22.x)
 # ✅ Verified from ADR-003: Neo4j for Graphiti knowledge graph
 neo4j>=5.0.0
-graphiti-core>=0.6.0
+graphiti-core>=0.28.2
+# ⚠️ CVE-2026-32247: <0.28.2 有 Cypher 注入漏洞，必须升级
 
 # Retry Mechanism (Story 30.2)
 # ✅ For exponential backoff retry logic
