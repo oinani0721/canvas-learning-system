@@ -2,7 +2,7 @@
   "workflow_version": "1.2.0",
   "timestamps": {
     "started": "2026-03-24T23:00:00Z",
-    "last_updated": "2026-03-24T23:05:00Z"
+    "last_updated": "2026-03-24T23:45:00Z"
   },
   "mode": "initial_scan",
   "scan_level": "exhaustive",
@@ -14,17 +14,68 @@
       "status": "completed",
       "timestamp": "2026-03-24T23:05:00Z",
       "summary": "Classified as multi-part with 3 parts: frontend(desktop), backend(backend), src-legacy(backend)"
+    },
+    {
+      "step": "step_2",
+      "status": "completed",
+      "timestamp": "2026-03-24T23:10:00Z",
+      "summary": "Technology stack analysis: Tauri2+React19+Zustand+Dexie (frontend), FastAPI+Neo4j+LanceDB+Ollama+LiteLLM (backend)"
+    },
+    {
+      "step": "step_3",
+      "status": "completed",
+      "timestamp": "2026-03-24T23:20:00Z",
+      "summary": "Exhaustive API scan: ~155 REST endpoints, 2 WebSocket, 15 MCP tools, 24 Pydantic model files"
+    },
+    {
+      "step": "step_4",
+      "status": "completed",
+      "timestamp": "2026-03-24T23:30:00Z",
+      "summary": "Frontend inventory: 30 components, 4 Zustand stores, 12 services, 3 hooks, 1 sidecar (468 lines)"
+    },
+    {
+      "step": "step_5",
+      "status": "completed",
+      "timestamp": "2026-03-24T23:40:00Z",
+      "summary": "Documentation generation: 8 markdown files covering architecture, API, data models, components, integration, development guide, source tree"
     }
   ],
-  "current_step": "step_2",
+  "current_step": "completed",
   "findings": {
-    "project_classification": "multi-part, 3 parts, Tauri+React+FastAPI+Python"
+    "project_classification": "multi-part, 3 parts, Tauri+React+FastAPI+Python",
+    "code_stats": {
+      "frontend_files": 54,
+      "frontend_lines": 14852,
+      "backend_files": 179,
+      "backend_lines": 83846,
+      "sidecar_lines": 468,
+      "src_legacy_active_lines": 23168,
+      "total_lines_approx": 145000
+    },
+    "api_endpoints": {
+      "rest": "~155",
+      "websocket": 2,
+      "mcp_tools": 15
+    },
+    "databases": ["Neo4j 5.26 (bolt:7691)", "LanceDB (local files)", "SQLite (aiosqlite)", "IndexedDB (Dexie)"],
+    "ai_providers": ["Gemini (primary)", "OpenAI", "Anthropic", "Ollama (local, qwen3:8b + bge-m3)"]
   },
   "project_types": [
     {"part_id": "frontend", "project_type_id": "desktop", "display_name": "Tauri+React Desktop App"},
     {"part_id": "backend", "project_type_id": "backend", "display_name": "FastAPI Python Backend"},
     {"part_id": "src-legacy", "project_type_id": "backend", "display_name": "Legacy Python Backend"}
   ],
-  "outputs_generated": ["project-scan-report.json"],
-  "resume_instructions": "Continue from step 2"
+  "outputs_generated": [
+    "project-scan-report.json",
+    "technology-stack.md",
+    "index.md",
+    "architecture.md",
+    "api-contracts-backend.md",
+    "data-models-backend.md",
+    "component-inventory-frontend.md",
+    "development-guide.md",
+    "integration-architecture.md",
+    "source-tree-analysis.md"
+  ],
+  "resume_instructions": "All documentation generated. Scan complete."
 }
