@@ -1,0 +1,30 @@
+{
+  "workflow_version": "1.2.0",
+  "timestamps": {
+    "started": "2026-03-24T23:00:00Z",
+    "last_updated": "2026-03-24T23:05:00Z"
+  },
+  "mode": "initial_scan",
+  "scan_level": "exhaustive",
+  "project_root": "C:/Users/Heishing/Desktop/canvas/canvas-learning-system",
+  "output_folder": "docs",
+  "completed_steps": [
+    {
+      "step": "step_1",
+      "status": "completed",
+      "timestamp": "2026-03-24T23:05:00Z",
+      "summary": "Classified as multi-part with 3 parts: frontend(desktop), backend(backend), src-legacy(backend)"
+    }
+  ],
+  "current_step": "step_2",
+  "findings": {
+    "project_classification": "multi-part, 3 parts, Tauri+React+FastAPI+Python"
+  },
+  "project_types": [
+    {"part_id": "frontend", "project_type_id": "desktop", "display_name": "Tauri+React Desktop App"},
+    {"part_id": "backend", "project_type_id": "backend", "display_name": "FastAPI Python Backend"},
+    {"part_id": "src-legacy", "project_type_id": "backend", "display_name": "Legacy Python Backend"}
+  ],
+  "outputs_generated": ["project-scan-report.json"],
+  "resume_instructions": "Continue from step 2"
+}
