@@ -1,0 +1,38 @@
+# DD-06 前端规范（Tauri+React+Vite）
+
+> **架构变更**：产品已从 Obsidian 插件迁移至 Tauri+React 独立产品。
+> 前端代码在 `frontend/src/`，旧 Obsidian 插件（`canvas-progress-tracker/obsidian-plugin/`）为 legacy。
+
+## 当前前端技术栈
+
+- **框架**: Tauri + React + TypeScript
+- **构建**: Vite
+- **状态管理**: Zustand stores (`frontend/src/stores/`)
+- **组件**: React TSX (`frontend/src/components/`)
+- **入口**: `frontend/src/App.tsx`
+
+## 前端开发规范
+
+### 文件位置
+- 新前端代码 → `frontend/src/`
+- 组件 → `frontend/src/components/`
+- Hooks → `frontend/src/hooks/`
+- 服务/API → `frontend/src/services/`
+- 状态 → `frontend/src/stores/`
+- 类型 → `frontend/src/types.ts`
+
+### ⛔ 禁止
+- ❌ 修改 `canvas-progress-tracker/obsidian-plugin/` 作为主产品功能（legacy only）
+- ❌ 使用 Obsidian Plugin API（createEl, registerEvent, ItemView 等）——这些仅适用于 legacy 插件
+- ❌ 混淆 Obsidian 插件代码和 Tauri+React 前端代码
+
+### Tauri 特定约束
+- Tauri IPC 通过 `@tauri-apps/api` 调用
+- 文件系统访问通过 Tauri fs API，不是 Node.js fs
+- 窗口管理通过 `@tauri-apps/api/window`
+
+## Legacy Obsidian 插件
+
+旧插件代码在 `canvas-progress-tracker/obsidian-plugin/` 下。
+如果需要修改 legacy 插件，仍需遵守 Obsidian 规范（eslint-plugin-obsidianmd 已配置）。
+但**主产品功能不应在 Obsidian 插件中开发**。
