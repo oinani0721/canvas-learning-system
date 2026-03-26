@@ -5,8 +5,8 @@
  * Layout:
  *   - Left: ReactFlow blank canvas for the exam session
  *   - Right: ChatPanel in Mode C (exam conversation)
- *   - Top toolbar: mode label, examined nodes count, CognitiveLoadTimer,
- *     HintButton, SkipButton, end exam button
+ *   - Top toolbar: mode label, examined nodes count, HintButton, SkipButton,
+ *     end exam button
  *
  * Callers:
  * - App.tsx: renders this when useExamStore.isExamActive === true
@@ -14,7 +14,6 @@
  * Wiring:
  * - useExamStore (all exam state)
  * - ChatPanel (exam conversation in sidebar)
- * - CognitiveLoadTimer (cognitive load tracking)
  * - HintButton (progressive hints)
  * - SkipButton (skip question)
  */
@@ -34,7 +33,6 @@ import {
 import '@xyflow/react/dist/style.css';
 import { nodeTypes } from '../nodes/nodeTypes';
 import { ChatPanel } from '../ChatPanel';
-import { CognitiveLoadTimer } from './CognitiveLoadTimer';
 import { HintButton } from './HintButton';
 import { SkipButton } from './SkipButton';
 import { useExamStore } from '../../stores/exam-store';
@@ -67,7 +65,6 @@ function ExamCanvasInner() {
   const currentExamId = useExamStore((s) => s.currentExamId);
   const sourceCanvasId = useExamStore((s) => s.sourceCanvasId);
   const examMode = useExamStore((s) => s.examMode);
-  const startTime = useExamStore((s) => s.startTime);
   const examinedNodes = useExamStore((s) => s.examinedNodes);
   const updateStatus = useExamStore((s) => s.updateStatus);
   const recordNodeExamined = useExamStore((s) => s.recordNodeExamined);
@@ -245,8 +242,6 @@ function ExamCanvasInner() {
               <span>{examinedNodes.length} examined</span>
             </div>
 
-            {/* Cognitive load timer */}
-            {startTime && <CognitiveLoadTimer startTime={startTime} />}
           </div>
 
           <div className="flex items-center gap-2">

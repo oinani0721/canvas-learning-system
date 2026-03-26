@@ -13,7 +13,7 @@
  * - App.tsx: renders when useExamStore.examStatus === 'completed'
  *
  * Wiring:
- * - useExamStore (examId, examinedNodes, startTime, hintLevel)
+ * - useExamStore (examId, examinedNodes, hintLevel)
  * - ApiClient GET /api/v1/mastery/batch (mastery data for bar chart)
  * - ApiClient POST /api/v1/exam/{examId}/calibrate (calibration vote)
  */
@@ -40,7 +40,6 @@ interface MasteryComparison {
 export function ExamSummary({ examId, onReturnDashboard }: ExamSummaryProps) {
   // Exam store data
   const examinedNodes = useExamStore((s) => s.examinedNodes);
-  const startTime = useExamStore((s) => s.startTime);
   const hintLevel = useExamStore((s) => s.hintLevel);
 
   // API client
@@ -59,9 +58,6 @@ export function ExamSummary({ examId, onReturnDashboard }: ExamSummaryProps) {
   const [masteryData, setMasteryData] = useState<MasteryComparison[]>([]);
   const [averageScore, setAverageScore] = useState<number | null>(null);
   const [masteryLoading, setMasteryLoading] = useState(true);
-
-  // Compute elapsed time string
-  const elapsedTime = computeElapsedTime(startTime);
 
   // Load mastery batch data on mount
   useEffect(() => {
@@ -282,18 +278,6 @@ export function ExamSummary({ examId, onReturnDashboard }: ExamSummaryProps) {
               color="text-[#a6e3a1]"
             />
 
-            {/* Elapsed time */}
-            <StatCard
-              label="耗时"
-              value={elapsedTime}
-              icon={
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              }
-              color="text-[#f9e2af]"
-            />
-
             {/* Average score */}
             <StatCard
               label="平均分"
@@ -434,22 +418,3 @@ function MasteryBar({
   );
 }
 
-// ─── Utility ──────────────────────────────────────────────────────────────────
-
-function computeElapsedTime(startTime: string | null): string {
-  if (!startTime) return '--';
-
-  const start = new Date(startTime).getTime();
-  const now = Date.now();
-  const diffMs = Math.max(0, now - start);
-  const totalSeconds = Math.floor(diffMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-
-  if (minutes < 1) return `${seconds}秒`;
-  if (minutes < 60) return `${minutes}分${seconds}秒`;
-
-  const hours = Math.floor(minutes / 60);
-  const remainMinutes = minutes % 60;
-  return `${hours}时${remainMinutes}分`;
-}
