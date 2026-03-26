@@ -66,6 +66,7 @@ from app.core.subject_config import (
 # Story 36.9 AC-36.9.5: Import settings for ENABLE_GRAPHITI_JSON_DUAL_WRITE config flag
 from app.config import DEFAULT_GROUP_ID, settings
 from app.services.graphiti_bridge_service import get_graphiti_bridge
+from app.services.episode_worker import EpisodeTask, get_episode_worker
 from app.core.failure_counters import (
     DUAL_WRITE_DEAD_LETTER_PATH,
     increment_dual_write_failures,
@@ -503,6 +504,34 @@ class MemoryService:
                 return False
         return False  # Should not reach here, but for safety
 
+    def _enqueue_episode(
+        self,
+        name: str,
+        episode_body: str,
+        group_id: str,
+        source_description: str = "canvas_learning_system",
+    ) -> bool:
+        """
+        Enqueue a learning episode for Graphiti processing.
+
+        Phase 2: Replaces fire-and-forget JSON dual-write and bridge calls.
+        Non-blocking. Worker processes sequentially via graphiti add_episode.
+
+        Returns True if enqueued, False if queue full or worker unavailable.
+        """
+        worker = get_episode_worker()
+        if not worker.is_ready:
+            logger.debug("Episode worker not ready, skipping enqueue")
+            return False
+
+        task = EpisodeTask(
+            name=name,
+            episode_body=episode_body,
+            group_id=group_id,
+            source_description=source_description,
+        )
+        return worker.enqueue(task)
+
     async def record_learning_event(
         self,
         user_id: str,
@@ -601,31 +630,16 @@ class MemoryService:
                     self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
                 logger.info(f"Recorded learning event: {episode_id} (subject={inferred_subject}, group_id={group_id})")
 
-            # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
-            # ✅ AC-36.9.5: Check config flag before calling dual-write
-            # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
-            if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
-                asyncio.create_task(
-                    self._write_to_graphiti_json_with_retry(
-                        episode_id=episode_id,
-                        canvas_name=canvas_path,
-                        node_id=node_id,
-                        concept=concept,
-                        score=float(score) if score is not None else None,
-                        agent_feedback=agent_type,  # Use agent_type as feedback context
-                    )
-                )
-
-            # Graphiti Bridge: Write entity-typed record for Claude Code compatibility
-            asyncio.create_task(
-                self._bridge_to_claude_graphiti(
-                    concept=concept,
-                    canvas_path=canvas_path,
-                    node_id=node_id,
-                    agent_feedback=agent_type,
-                    score=float(score) if score is not None else None,
-                    group_id=group_id,
-                )
+            # Phase 2: Enqueue to GraphitiEpisodeWorker for real add_episode
+            score_text = f" (score: {score}/100)" if score is not None else ""
+            self._enqueue_episode(
+                name=f"learning:{concept[:80]}",
+                episode_body=(
+                    f"Student learned '{concept}' using {agent_type} agent on canvas "
+                    f"'{canvas_path}'{score_text}. Node: {node_id}."
+                ),
+                group_id=group_id,
+                source_description=f"canvas_learning:{inferred_subject}",
             )
 
             return episode_id
@@ -1374,6 +1388,14 @@ class MemoryService:
                 logger.warning(
                     f"[Story 3.6] Neo4j write for {event_type} failed (non-fatal): {e}"
                 )
+
+        # Phase 2: Enqueue to GraphitiEpisodeWorker
+        self._enqueue_episode(
+            name=f"{event_type}:{meta.get('title', content[:40])}",
+            episode_body=content,
+            group_id=resolved_group_id,
+            source_description=f"canvas_learning:{event_type}",
+        )
 
         logger.info(
             f"[Story 3.6] Recorded {event_type}: id={entity_id} "
