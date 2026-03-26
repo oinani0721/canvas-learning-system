@@ -1148,9 +1148,9 @@ class MemoryService:
             for r in results:
                 episodes.append({
                     "episode_id": getattr(r, "uuid", ""),
-                    "content": getattr(r, "fact", getattr(r, "content", "")),
+                    "content": getattr(r, "fact", ""),
+                    "name": getattr(r, "name", ""),
                     "episode_type": "graphiti_search",
-                    "score": getattr(r, "score", 0.0),
                     "timestamp": (
                         getattr(r, "created_at", datetime.now()).isoformat()
                         if hasattr(r, "created_at")
