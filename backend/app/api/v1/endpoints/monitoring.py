@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional
 import structlog
 
 # ✅ Verified from Context7:/fastapi/fastapi (topic: APIRouter Query Depends)
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 # ✅ Verified from Context7:/pydantic/pydantic (topic: BaseModel)
 from pydantic import BaseModel, ConfigDict, Field
@@ -556,3 +556,30 @@ def _get_resource_metrics() -> Dict[str, Any]:
             "memory_usage_percent": 0.0,
             "disk_usage_percent": 0.0,
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Worker Monitoring Endpoint
+# [Source: Phase 2 Graphiti Real Integration - Task 5]
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@router.get(
+    "/episode-worker",
+    summary="Get episode worker health",
+    description="Returns health status and metrics for the GraphitiEpisodeWorker",
+)
+async def episode_worker_health(request: Request):
+    """Phase 2: GraphitiEpisodeWorker health and metrics.
+
+    [Source: Phase 2 Graphiti Real Integration - Task 5]
+
+    Returns:
+        dict: Worker status and metrics, or unavailable message if worker not initialized
+    """
+    worker = getattr(request.app.state, "episode_worker", None)
+    if worker is None:
+        return {"status": "unavailable", "message": "Episode worker not initialized"}
+
+    metrics = worker.metrics.to_dict()
+    metrics["status"] = "running" if worker.is_ready else "degraded"
+    return metrics
