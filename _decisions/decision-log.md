@@ -49,6 +49,21 @@
 | 2026-03-24 | GDR-P0-2 | 工具调用UI状态机 | ✅ 用户确认(Review PENDING) | Claudian 4态:pending→running→completed/error/blocked。blocked=Claude Code permission require。对话框须具备Claudian一切能力+学习扩展 |
 | 2026-03-24 | GDR-P0-3 | Observer触发机制 | ✅ 用户确认(Review PENDING) | PostToolUse hook主触发(替代prompt-based解决触发率低)。辅助:轮次结束+出错+用户说不懂。BEA 4维度提取。fire-and-track Outbox写入 |
 | 2026-03-24 | GDR-P0-4 | 安全+SDK修复 | ✅ 用户确认 | graphiti-core>=0.28.2修复CVE-2026-32247 + Agent SDK effort:high修复默认medium bug |
+| 2026-03-24 | GDA-假命名 | 假命名全量审计 | ⛔ 42处发现(12C+13H) | backend/app/零graphiti-core调用,30+函数名含"graphiti"全是Neo4j Cypher或JSON文件。3个死代码调不存在方法。根因:AI混淆写入Neo4j≠写入Graphiti |
+| 2026-03-24 | GDR-记忆重构 | 策略C asyncio.Queue+Worker | ✅ 官方验证(queue_service.py同模式) | 官方MCP server用完全相同模式。6Phase迁移计划9-13h。待P0:Gemini额度+Embedding维度 |
+| 2026-03-24 | Neo4j拓扑修正 | 7691保留学习数据专用 | ✅ 用户纠正 | 7689=开发记忆，7691=学生学习数据，不合并 |
+| 2026-03-24 | Gemini全家桶 | LLM+Embedder+Reranker | ✅ 用户确认 | GeminiClient+GeminiEmbedder+GeminiRerankerClient。CLIProxyAPI降级为备选 |
+| 2026-03-24 | GDR-CRITICAL | Gemini免费额度+Embedding维度 | ⛔ 待用户P0确认 | 免费10RPM=1episode/min,250RPD=18-35/day不够。text-embedding-004废弃需选维度。阻塞实施 |
+| 2026-03-25 | S27-GDA-1 | Neo4j用7691 | ✅ 用户确认 | docker容器Neo4j(7691)才是正确的，7688旧实例不再使用 |
+| 2026-03-25 | S27-GDA-2 | 取消教材+跨Canvas检索 | ✅ 用户确认 | RAG 6路→4路。教材映射TODO和跨Canvas关联TODO先不做 |
+| 2026-03-25 | S27-GDA-3 | group_id按白板命名 | ✅ 用户确认 | 白板名=group_id（如CS188→cs188），前端白板命名+笔记路径选择决定检索范围 |
+| 2026-03-25 | S27-GDA-4 | prompt禁止硬编码 | ✅ 用户确认 | 检验白板5层prompt必须外部文件+参考成熟案例+用户试用确认 |
+| 2026-03-25 | S27-GDA-5 | CognitiveLoadTimer移除 | ✅ 用户确认 | 计时功能已抛弃，移除组件+ExamSummary总用时 |
+| 2026-03-25 | S27-GDA-6 | Profile功能优先级 | ✅ 用户确认 | 跳转(最高)→疑惑节点(选文本创建)→考察记录/错误历史(延后) |
+| 2026-03-25 | S27-GDA-7 | Dashboard LLM管理放Phase4 | ✅ 用户确认 | Settings已有基础，Phase4补充Dashboard可见的模型状态面板 |
+| 2026-03-25 | S27-GDA-8 | 评分Bug Phase1修复 | ✅ 用户确认 | 前端scale mismatch(×2.5溢出)+后端1分变100分，Phase1立即修 |
+| 2026-03-25 | S27-GDA-9 | 考察中/命令可用 | ✅ 用户确认 | 考察中允许/explain等命令，AI引导性思考但不暴露当前题目答案（Layer4规则） |
+| 2026-03-25 | S27-GDA-10 | 疑问节点=正常对话 | ✅ 用户确认 | 检验白板中拉出的疑问节点进入正常对话模式（先学再考），下次考察时可被考察 |
 
 ## 已完成验证（Decision-Review VALIDATED）
 
@@ -69,3 +84,4 @@
 | 2026-03-17 | ~~Pencil UI范式工作流~~ | ~~已VALIDATED(18帧覆盖68场景)，见已完成验证区~~ |
 | 2026-03-17 | OBS-LINK Obsidian跳转 | Advanced URI插件安装率/Windows协议注册可靠性/Tauri openUrl延迟/降级链自动检测/Linux .desktop配置 |
 | 2026-03-24 | GDR-P0-1~P0-3 | P0-1:Tauri Channel Windows长时间streaming稳定性；P0-2:blocked状态UX流畅度；P0-3:hook触发率100%验证+Outbox WAL可靠性+graphiti-core 0.28 API兼容性 |
+| 2026-03-24 | GDA-假命名审计 | 42处假命名(12C13H)需修复+重命名+接入graphiti-core | 验证session需：(1)确认所有C级问题已修复 (2)验证重命名后命名准确性 (3)验证graphiti-core add_episode调用链打通 |
