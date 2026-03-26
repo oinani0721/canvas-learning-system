@@ -277,6 +277,28 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}")
 
+    # Phase 2: GraphitiEpisodeWorker — real Graphiti integration
+    from app.services.episode_worker import get_episode_worker, cleanup_episode_worker
+
+    episode_worker = get_episode_worker()
+    try:
+        graphiti_ready = await episode_worker.initialize_graphiti(
+            neo4j_uri=settings.NEO4J_URI,
+            neo4j_user=settings.NEO4J_USER,
+            neo4j_password=settings.NEO4J_PASSWORD,
+            google_api_key=settings.GOOGLE_API_KEY,
+        )
+        if graphiti_ready:
+            await episode_worker.start()
+            app.state.episode_worker = episode_worker
+            logger.info("[Phase 2] GraphitiEpisodeWorker started")
+        else:
+            app.state.episode_worker = episode_worker
+            logger.warning("[Phase 2] GraphitiEpisodeWorker in degraded mode (no graphiti client)")
+    except Exception as e:
+        app.state.episode_worker = None
+        logger.warning(f"[Phase 2] GraphitiEpisodeWorker init failed (non-fatal): {e}")
+
     yield  # Application runs here
 
     # Shutdown
@@ -315,6 +337,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.info("[Story 3.8] Archive scheduler stopped")
         except Exception as e:
             logger.warning(f"[Story 3.8] Archive scheduler stop failed: {e}")
+
+    # Phase 2: Stop episode worker gracefully
+    try:
+        from app.services.episode_worker import cleanup_episode_worker
+        await cleanup_episode_worker()
+        logger.info("[Phase 2] GraphitiEpisodeWorker stopped")
+    except Exception as e:
+        logger.warning(f"[Phase 2] Episode worker cleanup failed: {e}")
 
     # ✅ Story 30.3: Cleanup MemoryService singleton (Neo4j driver, etc.)
     await cleanup_memory_service()

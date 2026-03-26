@@ -428,6 +428,17 @@ class Settings(BaseSettings):
         description="Enable dual-write of learning events to Graphiti JSON storage. Default: True (safe default for Neo4j offline resilience). Story 36.9 AC-36.9.5, Story 38.4 AC-1"
     )
 
+    # Graphiti Episode Worker (Phase 2)
+    GOOGLE_API_KEY: str = Field(
+        default="",
+        description="Google API key for graphiti-core Gemini LLM/Embedder"
+    )
+
+    GRAPHITI_QUEUE_MAXSIZE: int = Field(
+        default=100,
+        description="Max episodes in graphiti worker queue before dropping"
+    )
+
     # ═══════════════════════════════════════════════════════════════════════════
     # LanceDB Auto-Index Settings (Story 38.1)
     # ═══════════════════════════════════════════════════════════════════════════
