@@ -601,7 +601,7 @@ class ReviewService:
 
         if mode == "targeted":
             # Query Graphiti for review history (Story 24.3)
-            review_history = await self._query_review_history_from_graphiti(source_canvas_name)
+            review_history = await self._query_review_history_from_memory(source_canvas_name)
 
             # AC2: Detect fallback scenario (Graphiti unavailable or no history)
             if not review_history:
@@ -1190,12 +1190,15 @@ class ReviewService:
             "retention_rate": retention_rate
         }
 
-    async def _query_weak_concepts_from_graphiti(
+    async def _query_weak_concepts_from_memory(
         self,
         canvas_name: str
     ) -> List[Dict[str, Any]]:
         """
-        Query historical weak concepts from Graphiti knowledge graph.
+        Query historical weak concepts from LearningMemoryClient (JSON storage).
+
+        Renamed from _query_weak_concepts_from_graphiti: uses LearningMemoryClient
+        (JSON-backed), not graphiti-core. See Task 10 fake naming cleanup.
 
         ✅ Verified from Story 24.1 Dev Notes (lines 224-239)
 
@@ -1429,12 +1432,15 @@ class ReviewService:
 
         return selected
 
-    async def _query_review_history_from_graphiti(
+    async def _query_review_history_from_memory(
         self,
         canvas_name: str
     ) -> List[Dict]:
         """
-        Query review history from Graphiti knowledge graph.
+        Query review history from LearningMemoryClient (JSON storage).
+
+        Renamed from _query_review_history_from_graphiti: uses LearningMemoryClient
+        (JSON-backed), not graphiti-core. See Task 10 fake naming cleanup.
 
         ✅ Verified from Story 24.3 Dev Notes (lines 538-592)
 
@@ -1489,7 +1495,7 @@ class ReviewService:
             CanvasNotFoundException: If no review history exists
         """
         # Query Graphiti for review sessions (Story 24.4)
-        reviews = await self._query_review_sessions_from_graphiti(original_canvas_path)
+        reviews = await self._query_review_sessions_from_memory(original_canvas_path)
 
         if not reviews:
             raise CanvasNotFoundException(f"No review history for: {original_canvas_path}")
@@ -1505,12 +1511,15 @@ class ReviewService:
         }
 
 
-    async def _query_review_sessions_from_graphiti(
+    async def _query_review_sessions_from_memory(
         self,
         original_canvas_path: str
     ) -> List[Dict[str, Any]]:
         """
-        Query Graphiti for all review sessions linked to original canvas.
+        Query LearningMemoryClient (JSON storage) for all review sessions linked to original canvas.
+
+        Renamed from _query_review_sessions_from_graphiti: uses LearningMemoryClient
+        (JSON-backed), not graphiti-core. See Task 10 fake naming cleanup.
 
         ✅ Verified from Story 24.4 Dev Notes (lines 268-316)
         [Source: docs/architecture/decisions/0003-graphiti-memory.md]
@@ -1520,7 +1529,7 @@ class ReviewService:
         RETURN review, r.mode, r.generated_at
         ORDER BY r.generated_at DESC
 
-        For now, using JSON storage via GraphitiEdgeClient.
+        For now, using JSON storage via LearningMemoryClient.
 
         Args:
             original_canvas_path: Path to the original canvas file

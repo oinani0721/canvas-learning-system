@@ -421,11 +421,13 @@ class Settings(BaseSettings):
     # ═══════════════════════════════════════════════════════════════════════════
     # Graphiti JSON Dual-Write Settings (Story 36.9)
     # [Source: docs/stories/36.9.story.md - AC-36.9.5]
+    # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.
     # ═══════════════════════════════════════════════════════════════════════════
 
+    # DEPRECATED: Phase 2 replaced JSON dual-write with GraphitiEpisodeWorker.
     ENABLE_GRAPHITI_JSON_DUAL_WRITE: bool = Field(
-        default=True,
-        description="Enable dual-write of learning events to Graphiti JSON storage. Default: True (safe default for Neo4j offline resilience). Story 36.9 AC-36.9.5, Story 38.4 AC-1"
+        default=False,
+        description="[DEPRECATED] Legacy JSON dual-write. Replaced by GraphitiEpisodeWorker."
     )
 
     # Graphiti Episode Worker (Phase 2)
