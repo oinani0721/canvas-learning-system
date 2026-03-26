@@ -214,19 +214,18 @@ class GraphitiEpisodeWorker:
             # Make API key available to Gemini SDK
             os.environ.setdefault("GOOGLE_API_KEY", google_api_key)
 
+            from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
             from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
             from graphiti_core.llm_client.config import LLMConfig
             from graphiti_core.llm_client.gemini_client import GeminiClient
 
-            llm_client = GeminiClient(
-                config=LLMConfig(
-                    api_key=google_api_key,
-                    model=llm_model,
-                )
-            )
+            llm_config = LLMConfig(api_key=google_api_key, model=llm_model)
+
+            llm_client = GeminiClient(config=llm_config)
             embedder = GeminiEmbedder(
                 config=GeminiEmbedderConfig(api_key=google_api_key)
             )
+            cross_encoder = GeminiRerankerClient(config=llm_config)
 
             self._graphiti = Graphiti(
                 uri=neo4j_uri,
@@ -234,6 +233,7 @@ class GraphitiEpisodeWorker:
                 password=neo4j_password,
                 llm_client=llm_client,
                 embedder=embedder,
+                cross_encoder=cross_encoder,
             )
 
             await self._graphiti.build_indices_and_constraints()
