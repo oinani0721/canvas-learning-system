@@ -2192,12 +2192,8 @@ class VerificationService:
         if difficulty.is_mastered:
             logger.info(f"Concept '{concept}' is mastered (skip recommended)")
 
-        # Story 31.4 AC-31.4.1: Query Graphiti for existing verification questions
-        history_questions = await self._get_question_history_from_graphiti(
-            concept=concept,
-            canvas_name=canvas_name,
-            group_id=group_id
-        )
+        # Phase 2: Question history will be reimplemented via Graphiti episode search
+        history_questions = []  # graceful degradation until Graphiti search is wired
 
         # Story 31.4 AC-31.4.2: Determine question angle based on history
         if history_questions:
@@ -2256,21 +2252,6 @@ class VerificationService:
                 ),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
-
-            # Story 31.4 Task 6: Store generated question to Graphiti (fire-and-forget)
-            # M2 fix: Save task reference for cleanup
-            question_type = difficulty.question_type.value if difficulty else "verification"
-            task = asyncio.create_task(
-                self._store_question_to_graphiti(
-                    question=question,
-                    concept=concept,
-                    canvas_name=canvas_name,
-                    question_type=question_type,
-                    group_id=group_id
-                )
-            )
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
 
             # Story 31.5 AC-31.5.4: Return with difficulty info if requested
             if return_difficulty_info:
@@ -2336,55 +2317,6 @@ class VerificationService:
                 "forgetting_status": None,
                 "is_mastered": False
             }
-
-    async def _get_question_history_from_graphiti(
-        self,
-        concept: str,
-        canvas_name: str,
-        group_id: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """
-        Query Graphiti for existing verification questions.
-
-        Story 31.4 AC-31.4.1: Check Graphiti before generating new questions.
-
-        Args:
-            concept: Concept to query
-            canvas_name: Canvas name for filtering
-            group_id: Optional group ID for multi-subject isolation
-
-        Returns:
-            List of historical question records
-
-        [Source: docs/stories/31.4.story.md#Task-2.2]
-        """
-        if not self._graphiti_client:
-            logger.debug("Graphiti client not available, skipping history check")
-            return []
-
-        try:
-            # Story 31.4 ADR-009: 500ms timeout for Graphiti queries (separate from Gemini 15s)
-            history = await asyncio.wait_for(
-                self._graphiti_client.search_verification_questions(
-                    concept=concept,
-                    canvas_name=canvas_name,
-                    group_id=group_id,
-                    limit=10  # Get last 10 questions for deduplication
-                ),
-                timeout=GRAPHITI_QUERY_TIMEOUT
-            )
-            return history if history else []
-
-        except asyncio.TimeoutError:
-            logger.warning(
-                f"Graphiti history query timeout for concept '{concept}' "
-                f"(timeout={GRAPHITI_QUERY_TIMEOUT}s), proceeding without history"
-            )
-            return []
-
-        except Exception as e:
-            logger.debug(f"Graphiti history query failed for concept '{concept}': {e}")
-            return []
 
     async def _generate_alternative_question(
         self,
@@ -2471,20 +2403,6 @@ class VerificationService:
                 ),
                 timeout=VERIFICATION_AI_TIMEOUT
             )
-
-            # Store the generated question to Graphiti (fire-and-forget)
-            # M2 fix: Save task reference for cleanup
-            task = asyncio.create_task(
-                self._store_question_to_graphiti(
-                    question=question,
-                    concept=concept,
-                    canvas_name=canvas_name,
-                    question_type=next_angle,
-                    group_id=group_id
-                )
-            )
-            self._background_tasks.add(task)
-            task.add_done_callback(self._background_tasks.discard)
 
             return question
 
@@ -2673,50 +2591,6 @@ class VerificationService:
             "standard": f"请解释什么是「{concept}」？",
         }
         return fallback_templates.get(angle, fallback_templates["standard"])
-
-    async def _store_question_to_graphiti(
-        self,
-        question: str,
-        concept: str,
-        canvas_name: str,
-        question_type: str = "standard",
-        group_id: Optional[str] = None
-    ) -> None:
-        """
-        Store a generated verification question to Graphiti (fire-and-forget).
-
-        Story 31.4 Task 6: Persist questions for deduplication.
-        ADR-0003: Fire-and-forget pattern - don't block on write.
-
-        Args:
-            question: The generated question text
-            concept: Associated concept
-            canvas_name: Source canvas name
-            question_type: Question angle type
-            group_id: Optional group ID for isolation
-
-        [Source: docs/stories/31.4.story.md#Task-6]
-        [Source: docs/architecture/decisions/ADR-0003]
-        """
-        if not self._graphiti_client:
-            logger.debug("Graphiti client not available, skipping question storage")
-            return
-
-        try:
-            await self._graphiti_client.add_verification_question(
-                question_text=question,
-                concept=concept,
-                canvas_name=canvas_name,
-                question_type=question_type,
-                group_id=group_id
-            )
-            logger.debug(
-                f"Stored verification question to Graphiti: concept='{concept}', type='{question_type}'"
-            )
-
-        except Exception as e:
-            # Fire-and-forget: log but don't fail
-            logger.warning(f"Failed to store question to Graphiti: {e}")
 
     async def _call_gemini_for_question(
         self,

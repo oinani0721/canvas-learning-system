@@ -10,14 +10,9 @@ Tests for:
 [Source: docs/stories/31.A.1.story.md#Testing]
 """
 
-import asyncio
-from typing import Any, Dict, List, Optional
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
-from tests.conftest import simulate_async_delay
-
 from app.services.verification_service import VerificationService
 
 
@@ -70,203 +65,6 @@ class TestVerificationServiceInjection:
         # Assert: Service created successfully with None client
         assert service._graphiti_client is None
 
-    @pytest.mark.asyncio
-    async def test_get_question_history_from_graphiti_calls_client(
-        self, mock_graphiti_client
-    ):
-        """
-        AC-31.A.1.3: search_verification_questions() is called when client exists.
-
-        Verifies that _get_question_history_from_graphiti() actually calls the
-        graphiti_client's search_verification_questions method.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        # Arrange
-        mock_graphiti_client.search_verification_questions.return_value = [
-            {
-                "question_id": "vq_001",
-                "question_text": "What is the contrapositive?",
-                "question_type": "standard",
-                "asked_at": "2025-01-01T10:00:00Z",
-            }
-        ]
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        # Act
-        history = await service._get_question_history_from_graphiti(
-            concept="逆否命题",
-            canvas_name="离散数学"
-        )
-
-        # Assert
-        mock_graphiti_client.search_verification_questions.assert_called_once()
-        assert len(history) == 1
-        assert history[0]["question_id"] == "vq_001"
-
-    @pytest.mark.asyncio
-    async def test_get_question_history_returns_empty_when_no_client(self):
-        """
-        AC-31.A.1.3: Returns empty list when graphiti_client is None.
-
-        Verifies graceful degradation - no AttributeError thrown.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        # Arrange
-        service = VerificationService(graphiti_client=None)
-
-        # Act - should not raise AttributeError
-        history = await service._get_question_history_from_graphiti(
-            concept="test_concept",
-            canvas_name="test_canvas"
-        )
-
-        # Assert
-        assert history == []
-
-    @pytest.mark.asyncio
-    async def test_get_question_history_timeout_graceful_degradation(
-        self, mock_graphiti_client
-    ):
-        """
-        AC-31.A.1.3: Timeout results in graceful degradation, not error.
-
-        Verifies that timeout returns empty list instead of raising.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        # Arrange: Make graphiti call hang indefinitely
-        async def slow_query(*args, **kwargs):
-            await simulate_async_delay(10)  # Longer than timeout
-            return []
-
-        mock_graphiti_client.search_verification_questions = slow_query
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        # Act - should timeout and return empty list
-        history = await service._get_question_history_from_graphiti(
-            concept="test_concept",
-            canvas_name="test_canvas"
-        )
-
-        # Assert
-        assert history == []
-
-    @pytest.mark.asyncio
-    async def test_get_question_history_exception_graceful_degradation(
-        self, mock_graphiti_client
-    ):
-        """
-        AC-31.A.1.3: Exceptions result in graceful degradation, not propagation.
-
-        Verifies that exceptions return empty list instead of raising.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        # Arrange: Make graphiti call raise exception
-        mock_graphiti_client.search_verification_questions.side_effect = Exception(
-            "Neo4j connection failed"
-        )
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        # Act - should catch exception and return empty list
-        history = await service._get_question_history_from_graphiti(
-            concept="test_concept",
-            canvas_name="test_canvas"
-        )
-
-        # Assert
-        assert history == []
-
-
-class TestSearchVerificationQuestionsArgs:
-    """
-    Test argument passing to search_verification_questions (Story 31.A.1 gap coverage).
-
-    Verifies that _get_question_history_from_graphiti passes correct kwargs
-    to graphiti_client.search_verification_questions.
-    """
-
-    @pytest.mark.asyncio
-    async def test_search_receives_correct_arguments(self, mock_graphiti_client):
-        """
-        Verify exact kwargs passed: concept, canvas_name, group_id, limit=10.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        await service._get_question_history_from_graphiti(
-            concept="逆否命题",
-            canvas_name="离散数学"
-        )
-
-        mock_graphiti_client.search_verification_questions.assert_called_once_with(
-            concept="逆否命题",
-            canvas_name="离散数学",
-            group_id=None,
-            limit=10
-        )
-
-    @pytest.mark.asyncio
-    async def test_search_passes_group_id(self, mock_graphiti_client):
-        """
-        Verify group_id is correctly passed through to the client.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        await service._get_question_history_from_graphiti(
-            concept="test",
-            canvas_name="test_canvas",
-            group_id="group_abc"
-        )
-
-        mock_graphiti_client.search_verification_questions.assert_called_once_with(
-            concept="test",
-            canvas_name="test_canvas",
-            group_id="group_abc",
-            limit=10
-        )
-
-    @pytest.mark.asyncio
-    async def test_returns_empty_when_client_returns_none(self, mock_graphiti_client):
-        """
-        Verify None return from search_verification_questions is handled as [].
-
-        Code: return history if history else []  (line 1859)
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        mock_graphiti_client.search_verification_questions.return_value = None
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        history = await service._get_question_history_from_graphiti(
-            concept="test", canvas_name="test_canvas"
-        )
-
-        assert history == []
-
-    @pytest.mark.asyncio
-    async def test_connection_error_graceful_degradation(self, mock_graphiti_client):
-        """
-        Verify ConnectionError is caught by generic Exception handler.
-
-        [Source: docs/stories/31.A.1.story.md#AC-31.A.1.3]
-        """
-        mock_graphiti_client.search_verification_questions.side_effect = ConnectionError(
-            "Neo4j unreachable"
-        )
-        service = VerificationService(graphiti_client=mock_graphiti_client)
-
-        history = await service._get_question_history_from_graphiti(
-            concept="test", canvas_name="test_canvas"
-        )
-
-        assert history == []
-
 
 class TestDependenciesInjection:
     """
@@ -285,7 +83,7 @@ class TestDependenciesInjection:
 
         [Source: docs/stories/31.A.1.story.md#AC-31.A.1.1]
         """
-        from unittest.mock import AsyncMock, MagicMock, patch
+        from unittest.mock import AsyncMock, MagicMock
 
         # Create mock graphiti client
         mock_client = AsyncMock()
