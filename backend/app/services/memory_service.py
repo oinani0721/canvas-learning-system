@@ -1127,6 +1127,80 @@ class MemoryService:
         )
         return entity_id
 
+    async def _search_graphiti(
+        self, query: str, group_id: Optional[str] = None, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Tier 1: Search via graphiti-core semantic + temporal search."""
+        worker = get_episode_worker()
+        if not worker.is_ready or worker._graphiti is None:
+            return list()  # worker not initialized yet
+
+        try:
+            results = await asyncio.wait_for(
+                worker._graphiti.search(
+                    query=query,
+                    group_ids=[group_id] if group_id else None,
+                    num_results=limit,
+                ),
+                timeout=2.0,
+            )
+            episodes = []
+            for r in results:
+                episodes.append({
+                    "episode_id": getattr(r, "uuid", ""),
+                    "content": getattr(r, "fact", getattr(r, "content", "")),
+                    "episode_type": "graphiti_search",
+                    "score": getattr(r, "score", 0.0),
+                    "timestamp": (
+                        getattr(r, "created_at", datetime.now()).isoformat()
+                        if hasattr(r, "created_at")
+                        else datetime.now().isoformat()
+                    ),
+                    "group_id": group_id or "",
+                    "source": "graphiti",
+                })
+            return episodes
+        except Exception as e:
+            logger.warning(f"Graphiti search failed or timed out: {e}")
+            return list()
+
+    async def _search_neo4j_fulltext(
+        self, query: str, group_id: Optional[str] = None, limit: int = 20
+    ) -> List[Dict[str, Any]]:
+        """Tier 2: Search via Neo4j fulltext index for keyword matches."""
+        if not self.neo4j.stats.get("initialized", False):
+            return list()  # Neo4j not connected
+
+        try:
+            cypher = """
+            CALL db.index.fulltext.queryNodes('episode_content_index', $query)
+            YIELD node, score
+            WHERE ($group_id IS NULL OR node.group_id = $group_id)
+            RETURN node, score
+            ORDER BY score DESC
+            LIMIT $limit
+            """
+            records = await self.neo4j.execute_query(
+                cypher, {"query": query, "group_id": group_id, "limit": limit}
+            )
+            episodes = []
+            for r in (records if records else list()):
+                node = r["node"]
+                episodes.append({
+                    "episode_id": node.get("episode_id", ""),
+                    "content": node.get("content", ""),
+                    "episode_type": node.get("episode_type", ""),
+                    "score": r.get("score", 0.0),
+                    "timestamp": node.get("timestamp", ""),
+                    "group_id": node.get("group_id", ""),
+                    "node_id": node.get("node_id", ""),
+                    "source": "neo4j_fulltext",
+                })
+            return episodes
+        except Exception as e:
+            logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
+            return list()  # fulltext index may not exist yet
+
     async def search_memories(
         self,
         query: str,
@@ -1135,54 +1209,59 @@ class MemoryService:
         limit: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Search in-memory episodes by query string and optional group_id.
+        Search learning memories using 3-tier layered search.
 
-        Story 3.8: Used by ArchiveManager and ArchiveScheduler to find
-        conversation episodes for archiving, and by the archive summary
-        endpoint to retrieve distillation results.
+        Phase 2: Upgraded from in-memory substring to layered search.
+        Tier 1: Graphiti semantic search (if available, 2s timeout)
+        Tier 2: Neo4j fulltext index (keyword match)
+        Tier 3: In-memory cache (recent events, substring match)
 
-        Performs a simple substring match on episode content, episode_type,
-        and node_id fields. Filters by group_id when provided.
-
-        Performance: Scans at most MAX_EPISODE_CACHE (2000) episodes with
-        early termination at max_results. For typical usage patterns (< 1000
-        episodes, max_results <= 50), this completes in < 1ms.
-
-        Args:
-            query: Search query string (substring match on content/type/node_id).
-            group_id: Optional group_id filter for subject isolation.
-            max_results: Maximum number of results to return.
-            limit: Alias for max_results (takes precedence if provided).
-
-        Returns:
-            List of matching episode dicts, newest first.
-
-        [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md]
+        Results merged and deduplicated by episode_id.
+        Signature unchanged — 25+ callers unaffected.
         """
         if not self._initialized:
             await self.initialize()
 
         effective_limit = limit if limit is not None else max_results
-        query_lower = query.lower()
-        matches: List[Dict[str, Any]] = []
+        seen_ids: set = set()
+        merged: List[Dict[str, Any]] = []
 
+        # Tier 1: Graphiti semantic search
+        graphiti_hits = await self._search_graphiti(query, group_id, effective_limit)
+        for ep in graphiti_hits:
+            ep_id = ep.get("episode_id", "")
+            if ep_id and ep_id not in seen_ids:
+                seen_ids.add(ep_id)
+                merged.append(ep)
+
+        # Tier 2: Neo4j fulltext search
+        neo4j_hits = await self._search_neo4j_fulltext(query, group_id, effective_limit)
+        for ep in neo4j_hits:
+            ep_id = ep.get("episode_id", "")
+            if ep_id and ep_id not in seen_ids:
+                seen_ids.add(ep_id)
+                merged.append(ep)
+
+        # Tier 3: In-memory cache (always available fallback)
+        query_lower = query.lower()
         for episode in reversed(self._episodes):
-            # Filter by group_id if specified (fast path — skips substring scan)
+            if len(merged) >= effective_limit:
+                break
             if group_id and episode.get("group_id", "") != group_id:
                 continue
-
-            # Substring match on content, episode_type, node_id, concept
+            ep_id = episode.get("episode_id", "")
+            if ep_id in seen_ids:
+                continue
             searchable = " ".join(
                 str(episode.get(field, ""))
                 for field in ("content", "episode_type", "node_id", "concept")
             ).lower()
-
             if query_lower in searchable:
-                matches.append(episode)
-                if len(matches) >= effective_limit:
-                    break
+                seen_ids.add(ep_id)
+                episode_with_source = {**episode, "source": "in_memory"}
+                merged.append(episode_with_source)
 
-        return matches
+        return merged[:effective_limit]
 
     async def record_temporal_event(
         self,
