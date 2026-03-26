@@ -225,7 +225,10 @@ class GraphitiEpisodeWorker:
 
             llm_client = GeminiClient(config=llm_config)
             embedder = GeminiEmbedder(
-                config=GeminiEmbedderConfig(api_key=google_api_key)
+                config=GeminiEmbedderConfig(
+                    api_key=google_api_key,
+                    embedding_model="gemini-embedding-001",
+                )
             )
             cross_encoder = GeminiRerankerClient(config=llm_config)
 
