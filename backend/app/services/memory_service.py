@@ -1173,15 +1173,15 @@ class MemoryService:
 
         try:
             cypher = """
-            CALL db.index.fulltext.queryNodes('episode_content_index', $query)
+            CALL db.index.fulltext.queryNodes('episode_content_index', $search_term)
             YIELD node, score
             WHERE ($group_id IS NULL OR node.group_id = $group_id)
             RETURN node, score
             ORDER BY score DESC
             LIMIT $limit
             """
-            records = await self.neo4j.execute_query(
-                cypher, {"query": query, "group_id": group_id, "limit": limit}
+            records = await self.neo4j.run_query(
+                cypher, search_term=query, group_id=group_id, limit=limit
             )
             episodes = []
             for r in (records if records else list()):
