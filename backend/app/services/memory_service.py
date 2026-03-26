@@ -1173,7 +1173,7 @@ class MemoryService:
 
         try:
             cypher = """
-            CALL db.index.fulltext.queryNodes('episode_content_index', $search_term)
+            CALL db.index.fulltext.queryNodes('episode_content', $search_term)
             YIELD node, score
             WHERE ($group_id IS NULL OR node.group_id = $group_id)
             RETURN node, score

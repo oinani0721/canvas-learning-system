@@ -202,7 +202,7 @@ class GraphitiEpisodeWorker:
         neo4j_user: str,
         neo4j_password: str,
         google_api_key: str,
-        llm_model: str = "gemini-2.0-flash",
+        llm_model: str = "gemini-2.5-flash",
     ) -> bool:
         """
         Create Graphiti instance with GeminiClient + GeminiEmbedder and build indices.
@@ -213,6 +213,8 @@ class GraphitiEpisodeWorker:
         try:
             # Make API key available to Gemini SDK
             os.environ.setdefault("GOOGLE_API_KEY", google_api_key)
+            # Control graphiti-core internal concurrency (some operations use global env)
+            os.environ["SEMAPHORE_LIMIT"] = "3"
 
             from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
             from graphiti_core.embedder.gemini import GeminiEmbedder, GeminiEmbedderConfig
@@ -234,6 +236,7 @@ class GraphitiEpisodeWorker:
                 llm_client=llm_client,
                 embedder=embedder,
                 cross_encoder=cross_encoder,
+                max_coroutines=3,
             )
 
             await self._graphiti.build_indices_and_constraints()
