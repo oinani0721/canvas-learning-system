@@ -3672,7 +3672,12 @@ class AgentService:
                 # Try both field names for compatibility
                 total_score = result.data.get("total_score", result.data.get("total", 0.0))
                 # Ensure score is in 0-100 range (normalize if needed)
-                if total_score <= 1.0 and total_score > 0:
+                # Use < 2 threshold: scores of 0-1 on 0-100 scale are impossible given
+                # the rubric (each of 4 dims scores 0-25, min real answer ~20 total).
+                # This correctly handles LLM returning 0-1 normalized float (e.g. 0.85→85)
+                # without misclassifying a legitimate integer score of 1 as 100.
+                # [GDA-8] Fix: was <= 1.0, changed to < 2 to avoid edge-case false positive.
+                if total_score < 2 and total_score > 0:
                     total_score = total_score * 100  # Convert 0-1 to 0-100
 
             # Color mapping: scoring.md defines ≥80=green, 60-79=purple, <60=red (0-100 scale)
