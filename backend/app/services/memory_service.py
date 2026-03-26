@@ -41,50 +41,24 @@ import time
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 from cachetools import TTLCache
 
 from app.core.failed_writes_constants import FAILED_WRITES_FILE, failed_writes_lock
 
 from app.clients.neo4j_client import Neo4jClient, get_neo4j_client
-# Story 36.9 AC-36.9.1: Import LearningMemoryClient for Graphiti JSON dual-write
-# ✅ Verified from backend/app/clients/graphiti_client.py#L594-L624
-from app.clients.graphiti_client import (
-    LearningMemory,
-    LearningMemoryClient,
-    get_learning_memory_client,
-)
 from app.core.subject_config import (
-    DEFAULT_SUBJECT_ID as DEFAULT_SUBJECT,
-    SKIP_DIRECTORIES_LOWER,
     build_group_id,
     extract_subject_from_canvas_path,
-    sanitize_subject_name,
 )
-# Story 36.9 AC-36.9.5: Import settings for ENABLE_GRAPHITI_JSON_DUAL_WRITE config flag
 from app.config import DEFAULT_GROUP_ID, settings
-from app.services.graphiti_bridge_service import get_graphiti_bridge
 from app.services.episode_worker import EpisodeTask, get_episode_worker
-from app.core.failure_counters import (
-    DUAL_WRITE_DEAD_LETTER_PATH,
-    increment_dual_write_failures,
-    write_dead_letter,
-)
 
 logger = logging.getLogger(__name__)
 
 # Story 31.5: Cache TTL for score history queries (30 seconds)
 SCORE_HISTORY_CACHE_TTL = 30
-
-# Story 38.6 AC-1: Increased per-attempt timeout for reliable writes (was 0.5s)
-GRAPHITI_JSON_WRITE_TIMEOUT = 2.0
-
-# Story 38.6 AC-1: Retry backoff base — now configurable via Settings (Story 36.13 AC-2)
-# These module-level constants are kept as fallback defaults only.
-GRAPHITI_RETRY_BACKOFF_BASE = 1.0
-GRAPHITI_RETRY_MAX_DELAY = 10.0
 
 # Story 38.6: FAILED_WRITES_FILE and failed_writes_lock imported from
 # app.core.failed_writes_constants (shared with agent_service.py)
@@ -180,22 +154,16 @@ class MemoryService:
     def __init__(
         self,
         neo4j_client: Optional[Neo4jClient] = None,
-        learning_memory_client: Optional[LearningMemoryClient] = None,  # Story 36.9 AC-36.9.1
     ):
         """
         Initialize MemoryService.
 
         Args:
             neo4j_client: Neo4j client instance (optional, uses singleton if not provided)
-            learning_memory_client: LearningMemoryClient instance for Graphiti JSON dual-write
-                                   (optional, uses singleton if not provided)
 
         [Source: docs/stories/22.4.story.md#MemoryService实现]
-        [Source: docs/stories/36.9.story.md#Task-1.2]
         """
         self.neo4j = neo4j_client or get_neo4j_client()
-        # Story 36.9 AC-36.9.1: Inject LearningMemoryClient for Graphiti JSON dual-write
-        self._learning_memory = learning_memory_client or get_learning_memory_client()
         self._initialized = False
         self._episodes: List[Dict[str, Any]] = []  # In-memory episode store
         # Story 38.2 AC-2: Track whether episodes have been recovered from Neo4j
@@ -205,17 +173,13 @@ class MemoryService:
         # Fix C5: Lock to prevent concurrent _episodes mutations
         self._episodes_lock = asyncio.Lock()
 
-        # Story 36.13 AC-2,4: Read configurable values from Settings
+        # Story 36.13 AC-4: Read configurable values from Settings
         try:
             from app.config import get_settings
             _settings = get_settings()
-            self._retry_base_delay = _settings.MEMORY_RETRY_BASE_DELAY
-            self._retry_max_delay = _settings.MEMORY_RETRY_MAX_DELAY
             _score_cache_maxsize = _settings.SCORE_HISTORY_CACHE_MAXSIZE
         except (ImportError, RuntimeError, AttributeError) as e:
-            logger.warning(f"Settings unavailable, using default retry/cache config: {e}")
-            self._retry_base_delay = GRAPHITI_RETRY_BACKOFF_BASE
-            self._retry_max_delay = GRAPHITI_RETRY_MAX_DELAY
+            logger.warning(f"Settings unavailable, using default cache config: {e}")
             _score_cache_maxsize = 1000
 
         # Story 31.5: Cache for score history queries (30s TTL)
@@ -226,7 +190,7 @@ class MemoryService:
         self._score_cache_lock = asyncio.Lock()
         # Story 30.24 AC-30.24.4: Track batch write failures for shutdown safety
         self._pending_failed_writes: List[Dict[str, Any]] = []
-        logger.debug("MemoryService initialized with Graphiti JSON dual-write support")
+        logger.debug("MemoryService initialized")
 
     async def initialize(self) -> bool:
         """Initialize the service and underlying clients."""
@@ -303,206 +267,7 @@ class MemoryService:
                 self._episodes_recovered = False
                 logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
 
-    async def _write_to_graphiti_json(
-        self,
-        episode_id: str,
-        canvas_name: str,
-        node_id: str,
-        concept: str,
-        score: Optional[float] = None,
-        agent_feedback: Optional[str] = None,
-        user_understanding: Optional[str] = None,
-    ) -> None:
-        """
-        Fire-and-forget write to Graphiti JSON storage.
 
-        Story 36.9: Dual-write learning memories to LearningMemoryClient (JSON storage)
-        - AC-36.9.2: Fire-and-forget pattern, does not block main flow
-        - AC-36.9.3: Silent degradation on failure with logger.warning()
-        - AC-36.9.4: 500ms timeout protection via asyncio.wait_for()
-
-        Uses existing LearningMemoryClient from graphiti_client.py:594-624.
-        Storage location: backend/data/learning_memories.json
-
-        Args:
-            episode_id: Unique episode identifier (for logging)
-            canvas_name: Canvas file path/name
-            node_id: Node ID being learned
-            concept: Concept being learned
-            score: Learning score (0-100, optional)
-            agent_feedback: Agent feedback/response (optional)
-            user_understanding: User's understanding text (optional)
-
-        [Source: docs/stories/36.9.story.md#Task-2]
-        [Source: backend/app/clients/graphiti_client.py#LearningMemoryClient]
-        """
-        try:
-            # ✅ AC-36.9.4: 500ms timeout protection
-            await asyncio.wait_for(
-                self._learning_memory.add_learning_episode(
-                    LearningMemory(
-                        canvas_name=canvas_name,
-                        node_id=node_id,
-                        concept=concept,
-                        user_understanding=user_understanding,
-                        score=score,
-                        agent_feedback=agent_feedback,
-                        timestamp=datetime.now().isoformat(),
-                    )
-                ),
-                timeout=GRAPHITI_JSON_WRITE_TIMEOUT,
-            )
-            # ✅ Task 2.5: Log success with logger.debug()
-            logger.debug(f"Graphiti JSON dual-write succeeded: {episode_id}")
-        except asyncio.TimeoutError:
-            # ✅ AC-36.9.4: Timeout protection - silent degradation
-            # Story 36.12 AC-36.12.5: Counter + dead-letter
-            count = increment_dual_write_failures()
-            logger.warning(
-                f"Graphiti JSON dual-write timeout ({GRAPHITI_JSON_WRITE_TIMEOUT}s): "
-                f"episode_id={episode_id}, total_failures={count}"
-            )
-            write_dead_letter(
-                DUAL_WRITE_DEAD_LETTER_PATH,
-                "dual_write",
-                f"TimeoutError after {GRAPHITI_JSON_WRITE_TIMEOUT}s",
-                episode_id=episode_id,
-                timeout_ms=int(GRAPHITI_JSON_WRITE_TIMEOUT * 1000),
-            )
-        except Exception as e:
-            # ✅ AC-36.9.3: Silent degradation - log warning but don't raise
-            # Story 36.12 AC-36.12.5: Counter + dead-letter
-            count = increment_dual_write_failures()
-            logger.warning(
-                f"Graphiti JSON dual-write failed: "
-                f"episode_id={episode_id}, error={e}, total_failures={count}"
-            )
-            write_dead_letter(
-                DUAL_WRITE_DEAD_LETTER_PATH,
-                "dual_write",
-                str(e),
-                episode_id=episode_id,
-            )
-
-    async def _write_to_graphiti_json_with_retry(
-        self,
-        episode_id: str,
-        canvas_name: str,
-        node_id: str,
-        concept: str,
-        score: Optional[float] = None,
-        agent_feedback: Optional[str] = None,
-        user_understanding: Optional[str] = None,
-        max_retries: int = 2
-    ) -> bool:
-        """
-        带重试的 Graphiti JSON 写入。
-
-        Story 31.A.3: 增强 _write_to_graphiti_json 的可靠性
-        - 添加指数退避重试机制
-        - 最多重试 2 次（共 3 次尝试）
-        - 记录重试和失败日志
-
-        Args:
-            episode_id: 唯一 episode 标识（用于日志）
-            canvas_name: Canvas 文件路径/名称
-            node_id: 正在学习的节点 ID
-            concept: 正在学习的概念
-            score: 学习得分 (0-100, optional)
-            agent_feedback: Agent 反馈/响应 (optional)
-            user_understanding: 用户理解文本 (optional)
-            max_retries: 最大重试次数 (default: 2)
-
-        Returns:
-            True if successful, False otherwise
-
-        [Source: docs/stories/31.A.3.story.md#AC-31.A.3.1]
-        """
-        # Story 30.10 AC-30.10.2: Check if episode already exists before writing
-        try:
-            if self._learning_memory and self._learning_memory._initialized:
-                existing = await self._learning_memory.search_memories(
-                    query=concept,
-                    canvas_name=canvas_name,
-                    node_id=node_id,
-                    limit=1
-                )
-                if existing and any(
-                    m.get("concept", "").lower() == concept.lower()
-                    and m.get("canvas_name") == canvas_name
-                    and m.get("node_id") == node_id
-                    for m in existing
-                ):
-                    logger.info(f"Skipping duplicate write for {episode_id}")
-                    return True
-        except Exception as e:
-            logger.warning(f"Idempotency check unavailable, falling back to non-idempotent write: {e}")
-
-        for attempt in range(max_retries + 1):
-            try:
-                await asyncio.wait_for(
-                    self._learning_memory.add_learning_episode(
-                        LearningMemory(
-                            canvas_name=canvas_name,
-                            node_id=node_id,
-                            concept=concept,
-                            user_understanding=user_understanding,
-                            score=score,
-                            agent_feedback=agent_feedback,
-                            timestamp=datetime.now().isoformat(),
-                        )
-                    ),
-                    timeout=GRAPHITI_JSON_WRITE_TIMEOUT,
-                )
-                if attempt > 0:
-                    logger.info(f"Graphiti write succeeded after {attempt + 1} attempts: {episode_id}")
-                else:
-                    logger.debug(f"Graphiti JSON dual-write succeeded: {episode_id}")
-                return True
-            except asyncio.TimeoutError:
-                if attempt < max_retries:
-                    # Story 36.13 AC-2: configurable retry delay
-                    delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
-                    logger.warning(f"Graphiti write timeout, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
-                    await asyncio.sleep(delay)
-                    continue
-                # Story 36.12 AC-36.12.5: Counter + dead-letter after all retries
-                count = increment_dual_write_failures()
-                logger.warning(
-                    f"Graphiti write failed after {max_retries + 1} attempts (timeout): "
-                    f"episode_id={episode_id}, total_failures={count}"
-                )
-                write_dead_letter(
-                    DUAL_WRITE_DEAD_LETTER_PATH,
-                    "dual_write",
-                    f"TimeoutError after {max_retries + 1} attempts",
-                    episode_id=episode_id,
-                    retry_count=max_retries + 1,
-                    timeout_ms=int(GRAPHITI_JSON_WRITE_TIMEOUT * 1000),
-                )
-                return False
-            except Exception as e:
-                if attempt < max_retries:
-                    # Story 36.13 AC-2: configurable retry delay
-                    delay = min(self._retry_base_delay * (2 ** attempt), self._retry_max_delay)
-                    logger.warning(f"Graphiti write error: {e}, retrying in {delay}s (attempt {attempt + 1}): {episode_id}")
-                    await asyncio.sleep(delay)
-                    continue
-                # Story 36.12 AC-36.12.5: Counter + dead-letter after all retries
-                count = increment_dual_write_failures()
-                logger.warning(
-                    f"Graphiti write failed after {max_retries + 1} attempts: "
-                    f"episode_id={episode_id}, error={e}, total_failures={count}"
-                )
-                write_dead_letter(
-                    DUAL_WRITE_DEAD_LETTER_PATH,
-                    "dual_write",
-                    str(e),
-                    episode_id=episode_id,
-                    retry_count=max_retries + 1,
-                )
-                return False
-        return False  # Should not reach here, but for safety
 
     def _enqueue_episode(
         self,
@@ -648,44 +413,6 @@ class MemoryService:
             logger.error(f"Failed to record learning event: {e}")
             raise
 
-    async def _bridge_to_claude_graphiti(
-        self,
-        concept: str,
-        canvas_path: str,
-        node_id: str,
-        agent_feedback: Optional[str] = None,
-        score: Optional[float] = None,
-        group_id: str = DEFAULT_GROUP_ID,
-        node_color: Optional[str] = None,
-        node_text: Optional[str] = None,
-    ) -> None:
-        """Fire-and-forget bridge to Claude Code-compatible Graphiti format."""
-        # Fix F1: Infer color from score when not provided (single-event path)
-        # Uses same thresholds as scoring flow (agent_service.py:3157-3163)
-        if node_color is None and score is not None:
-            if score < 60:
-                node_color = "4"   # Red → 不理解
-            elif score < 80:
-                node_color = "3"   # Purple → 似懂非懂
-            # score >= 80 → understood, no entity type needed (bridge will skip)
-
-        try:
-            bridge = await get_graphiti_bridge(
-                neo4j_client=self._neo4j_client,
-                canvas_base_path=getattr(settings, 'canvas_base_path', None),
-            )
-            await bridge.bridge_to_claude_format(
-                concept=concept,
-                canvas_path=canvas_path,
-                node_id=node_id,
-                node_color=node_color,
-                node_text=node_text,
-                agent_feedback=agent_feedback,
-                score=score,
-                group_id=group_id,
-            )
-        except Exception as e:
-            logger.warning(f"Graphiti bridge failed (non-blocking): {e}")
 
     async def get_learning_history(
         self,
@@ -1281,22 +1008,19 @@ class MemoryService:
                         "reason": err.get("error", "unknown"),
                     })
 
-        # ── Phase 2.5: Graphiti Bridge (fire-and-forget) ──
+        # ── Phase 2: Enqueue batch events to GraphitiEpisodeWorker ──
         for record in valid_records:
             p = record["payload"]
-            metadata = events[record["idx"]].get("metadata", {}) if record["idx"] < len(events) else {}
-            asyncio.create_task(
-                self._bridge_to_claude_graphiti(
-                    concept=p.get("concept", "unknown"),
-                    canvas_path=p["canvas_path"],
-                    node_id=p["node_id"],
-                    agent_feedback=p.get("agent_type"),
-                    node_color=metadata.get("new_color"),
-                    node_text=metadata.get("node_text"),
-                    group_id=build_group_id(
-                        extract_subject_from_canvas_path(p["canvas_path"])
-                    ),
-                )
+            concept = p.get("concept", "unknown")
+            inferred_subject = extract_subject_from_canvas_path(p["canvas_path"])
+            self._enqueue_episode(
+                name=f"batch_learning:{concept[:80]}",
+                episode_body=(
+                    f"Student learned '{concept}' using {p.get('agent_type', 'unknown')} agent "
+                    f"on canvas '{p['canvas_path']}'. Node: {p['node_id']}."
+                ),
+                group_id=build_group_id(inferred_subject),
+                source_description=f"canvas_batch:{inferred_subject}",
             )
 
         # ── Phase 3: 性能指标 (Story 30.11 AC-30.11.5) ──
@@ -1553,26 +1277,22 @@ class MemoryService:
 
         logger.debug(f"Recorded temporal event: {event_type} for {canvas_path}")
 
-        # ✅ Story 36.9 AC-36.9.1/AC-36.9.2: Fire-and-forget dual-write to Graphiti JSON
-        # ✅ AC-36.9.5: Check config flag before calling dual-write
-        # ✅ Story 31.A.3 AC-31.A.3.2: Use retry method for reliability
-        if getattr(settings, "ENABLE_GRAPHITI_JSON_DUAL_WRITE", True):
-            # Extract concept from metadata (node_text for node events)
-            concept = ""
-            if metadata:
-                concept = metadata.get("node_text", "") or metadata.get("concept", "")
-            if not concept:
-                concept = f"{event_type}:{node_id or edge_id or 'unknown'}"
-
-            asyncio.create_task(
-                self._write_to_graphiti_json_with_retry(
-                    episode_id=event_id,
-                    canvas_name=canvas_path,
-                    node_id=node_id or edge_id or "",
-                    concept=concept,
-                    agent_feedback=event_type,  # Use event_type as context
-                )
-            )
+        # Phase 2: Enqueue temporal event to GraphitiEpisodeWorker
+        concept = ""
+        if metadata:
+            concept = metadata.get("node_text", "") or metadata.get("concept", "")
+        if not concept:
+            concept = f"{event_type}:{node_id or edge_id or 'unknown'}"
+        inferred_subject = extract_subject_from_canvas_path(canvas_path)
+        self._enqueue_episode(
+            name=f"temporal:{event_type}:{concept[:60]}",
+            episode_body=(
+                f"Canvas event '{event_type}' on path '{canvas_path}'. "
+                f"Node: {node_id or edge_id or 'unknown'}. Concept: {concept}."
+            ),
+            group_id=build_group_id(inferred_subject),
+            source_description=f"canvas_temporal:{event_type}",
+        )
 
         return event_id
 
@@ -1620,25 +1340,25 @@ class MemoryService:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
-                logger.warning(f"[Story 38.6] Skipping malformed fallback entry")
+                logger.warning("[Story 38.6] Skipping malformed fallback entry")
                 still_pending.append(line)  # preserve malformed lines to avoid data loss
                 continue
 
             try:
-                # Use concept_id + timestamp for unique episode_id (#7)
-                cid = entry.get("concept_id", "unknown")
-                ts = entry.get("timestamp", "unknown")
-                success = await self._write_to_graphiti_json_with_retry(
-                    episode_id=f"recovery-{cid}-{ts}",
-                    canvas_name=entry.get("canvas_name", ""),
-                    node_id=entry.get("concept_id", ""),
-                    concept=entry.get("concept", "") or entry.get("concept_id", ""),
-                    score=entry.get("score"),
-                    user_understanding=entry.get("user_understanding"),
-                    agent_feedback=entry.get("agent_feedback"),
-                    max_retries=1,  # fewer retries during recovery to avoid blocking startup
+                # Phase 2: Enqueue recovered entry to GraphitiEpisodeWorker
+                concept = entry.get("concept", "") or entry.get("concept_id", "unknown")
+                canvas_name = entry.get("canvas_name", "")
+                inferred_subject = extract_subject_from_canvas_path(canvas_name)
+                enqueued = self._enqueue_episode(
+                    name=f"recovery:{concept[:80]}",
+                    episode_body=(
+                        f"Recovered learning event for concept '{concept}' "
+                        f"on canvas '{canvas_name}'."
+                    ),
+                    group_id=build_group_id(inferred_subject),
+                    source_description="canvas_recovery",
                 )
-                if success:
+                if enqueued:
                     recovered += 1
                 else:
                     still_pending.append(line)

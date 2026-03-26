@@ -13,9 +13,7 @@ Usage:
     uvicorn app.main:app --reload
 """
 
-import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncGenerator
@@ -153,45 +151,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as e:
         logger.warning(f"MemoryService pre-warm failed (non-fatal): {e}")
 
-    # ✅ Story 38.4: Log dual-write configuration status (AC-1, AC-2)
-    _dw_explicit = os.environ.get("ENABLE_GRAPHITI_JSON_DUAL_WRITE") is not None
-    if settings.ENABLE_GRAPHITI_JSON_DUAL_WRITE:
-        if _dw_explicit:
-            logger.info("Dual-write: enabled (explicit configuration)")
-        else:
-            logger.info("Dual-write: enabled (default)")
-    else:
-        logger.info("Dual-write: disabled (explicit configuration)")
-        logger.warning("JSON fallback is disabled. Neo4j outage will cause data loss.")
-
-    # ✅ Story 38.8: Sync all JSON fallback files to Neo4j on startup
-    # Replaces Story 38.6 single-file recovery with comprehensive 3-file sync
-    try:
-        from app.services.fallback_sync_service import get_fallback_sync_service
-        sync_svc = get_fallback_sync_service()
-        sync_result = await asyncio.wait_for(
-            sync_svc.sync_all_fallbacks(), timeout=60.0
-        )
-        if not sync_result.get("skipped"):
-            for key, stats in sync_result.items():
-                if isinstance(stats, dict):
-                    r = stats.get("recovered", 0)
-                    p = stats.get("pending", 0)
-                    if r > 0 or p > 0:
-                        logger.info(
-                            f"[Story 38.8] {key}: {r} synced, {p} still pending"
-                        )
-        else:
-            logger.info(
-                f"[Story 38.8] Fallback sync skipped: {sync_result.get('reason')}"
-            )
-    except asyncio.TimeoutError:
-        logger.warning(
-            "[Story 38.8] Fallback sync timed out (60s), will resume next startup"
-        )
-    except Exception as e:
-        logger.warning(f"[Story 38.8] Fallback sync failed (non-fatal): {e}")
-
     # ✅ Story 38.1 AC-3: Recover pending LanceDB index operations on startup
     try:
         from app.services.lancedb_index_service import get_lancedb_index_service
@@ -278,7 +237,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning(f"[Story 5.6] Signal adapter registration failed (non-fatal): {e}")
 
     # Phase 2: GraphitiEpisodeWorker — real Graphiti integration
-    from app.services.episode_worker import get_episode_worker, cleanup_episode_worker
+    from app.services.episode_worker import get_episode_worker
 
     episode_worker = get_episode_worker()
     try:
