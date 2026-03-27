@@ -114,20 +114,24 @@ async function handleQuery(cmd) {
         effort: 'high',
         // S29: canUseTool — SDK dedicated permission handler (sdk.d.ts:126-168)
         // Sidecar is headless (no terminal), must handle all cases to prevent hanging.
-        canUseTool: async (toolName, _input, _options) => {
+        canUseTool: async (toolName, input, _options) => {
+          // SDK v0.2.79 Zod validation requires `updatedInput` in the allow response.
+          // Without it: ZodError "expected record, received undefined" at path ["updatedInput"].
+          // The TypeScript type says optional but the runtime Zod schema requires it.
+
           // MCP backend tools: always allow (our own backend)
           if (MCP_TOOLS.has(toolName) || toolName.startsWith('mcp__')) {
-            return { behavior: 'allow' };
+            return { behavior: 'allow', updatedInput: input };
           }
           // Safe read-only SDK tools: always allow
           if (SAFE_SDK_TOOLS.has(toolName)) {
-            return { behavior: 'allow' };
+            return { behavior: 'allow', updatedInput: input };
           }
           // All other tools: allow in headless sidecar context.
           // SDK 'default' mode would prompt terminal — but we have no terminal.
           // Future: Phase 4+ can add frontend confirmation UI for sensitive tools.
           log(`[Permission] Auto-allowing tool: ${toolName}`);
-          return { behavior: 'allow' };
+          return { behavior: 'allow', updatedInput: input };
         },
         // S29 Phase 3B: PostToolUse hook for BEA 4-dimension extraction.
         // Fires after learning-relevant MCP tool calls (score_answer, record_error).
