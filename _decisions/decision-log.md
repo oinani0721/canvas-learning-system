@@ -64,6 +64,12 @@
 | 2026-03-25 | S27-GDA-8 | 评分Bug Phase1修复 | ✅ 用户确认 | 前端scale mismatch(×2.5溢出)+后端1分变100分，Phase1立即修 |
 | 2026-03-25 | S27-GDA-9 | 考察中/命令可用 | ✅ 用户确认 | 考察中允许/explain等命令，AI引导性思考但不暴露当前题目答案（Layer4规则） |
 | 2026-03-25 | S27-GDA-10 | 疑问节点=正常对话 | ✅ 用户确认 | 检验白板中拉出的疑问节点进入正常对话模式（先学再考），下次考察时可被考察 |
+| 2026-03-27 | S29-1 | bypassPermissions修复 | ✅ 用户确认 | permissionMode→default+canUseTool白名单。旧PreToolUse hook格式错误从未生效 |
+| 2026-03-27 | S29-2 | PostToolUse BEA提取 | ✅ 用户确认 | SDK native PostToolUse hook+fire-and-forget后端提取。学术依据:Anderson&Krathwohl+Dialogue-KT |
+| 2026-03-27 | S29-3 | 记忆注入Layer3验证 | ✅ 已验证 | Context Enrichment已接入Phase2三层搜索(chat-store→LearningContextService→search_memories) |
+| 2026-03-27 | S29-4 | Windows进程管理 | ✅ 已验证 | Tauri Plugin Shell原生处理Windows进程关闭,无需taskkill |
+| 2026-03-27 | S29-5 | 格式补全 | ✅ 用户确认 | record_learning_memory增加source_session_id/source_canvas_id |
+| 2026-03-27 | S29-6 | Phase4改进 | ⏳ Phase4 | transactional outbox+reranking+mid-turn retrieval(25+论文验证) |
 
 ## 已完成验证（Decision-Review VALIDATED）
 

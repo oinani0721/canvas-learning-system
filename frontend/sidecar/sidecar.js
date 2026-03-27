@@ -49,10 +49,11 @@ const SAFE_SDK_TOOLS = new Set([
   'TodoRead', 'TodoWrite', 'Task',
 ]);
 
-/** Tools whose results contain learning signals — trigger BEA extraction. */
+/** Tools whose results contain student learning signals — trigger BEA extraction.
+ *  Only tools where the STUDENT demonstrates understanding/misconception qualify.
+ *  generate_question excluded: it's tutor output, not student signal. */
 const BEA_EXTRACTION_TOOLS = new Set([
   'score_answer',
-  'generate_question',
   'record_error',
 ]);
 
@@ -148,7 +149,7 @@ async function handleQuery(cmd) {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   node_id: nodeId,
-                  session_id: '',
+                  session_id: input.session_id || '',
                   messages: [
                     { role: 'user', content: `[Tool: ${toolName}] ${inputSummary}` },
                     { role: 'assistant', content: `[Result] ${responseSummary}` },
