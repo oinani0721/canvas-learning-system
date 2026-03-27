@@ -130,7 +130,7 @@ async function handleQuery(cmd) {
           return { behavior: 'allow' };
         },
         // S29 Phase 3B: PostToolUse hook for BEA 4-dimension extraction.
-        // Fires after learning-relevant MCP tool calls (score_answer, generate_question, record_error).
+        // Fires after learning-relevant MCP tool calls (score_answer, record_error).
         // Fire-and-forget POST to backend /api/v1/memory/extract-conversation.
         // Academic basis: Anderson & Krathwohl Bloom Taxonomy + Dialogue-KT (LAK 2025).
         hooks: {
