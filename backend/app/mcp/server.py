@@ -16,6 +16,73 @@ from fastapi import FastAPI
 logger = logging.getLogger(__name__)
 
 
+def _patch_fastapi_mcp_anyof_bug() -> None:
+    """
+    Monkey-patch fastapi-mcp v0.4.0 to fix the anyOf + type schema conflict.
+
+    ROOT CAUSE (fastapi-mcp issue):
+    When a Pydantic model has ``Optional[str]`` fields, Pydantic generates JSON Schema
+    with ``anyOf: [{type: "string"}, {type: "null"}]`` and NO top-level ``type`` key.
+    fastapi-mcp ``convert_openapi_to_mcp_tools()`` sees the missing ``type`` and adds
+    ``type="string"`` (extracted from anyOf via ``get_single_param_type_from_schema``).
+    This creates an invalid schema with BOTH anyOf and type at the same level.
+
+    EFFECT:
+    The MCP client (Claude Code / Claude Desktop) uses Zod for schema validation.
+    Zod sees ``type="string"`` and requires a string value. When the AI omits optional
+    fields or sends null, Zod rejects with "expected string, received undefined".
+
+    FIX:
+    After the original conversion, strip the spurious ``type`` from any property that
+    already has ``anyOf``, ``oneOf``, or ``allOf`` composition keywords.
+    """
+    try:
+        import fastapi_mcp.openapi.convert as convert_module
+        import mcp.types as types
+
+        _original = convert_module.convert_openapi_to_mcp_tools
+
+        def _patched_convert(
+            openapi_schema: Dict[str, Any],
+            describe_all_responses: bool = False,
+            describe_full_response_schema: bool = False,
+        ) -> Tuple[List[types.Tool], Dict[str, Dict[str, Any]]]:
+            """Patched: call original, then strip spurious type from anyOf properties."""
+            tools, operation_map = _original(
+                openapi_schema,
+                describe_all_responses=describe_all_responses,
+                describe_full_response_schema=describe_full_response_schema,
+            )
+
+            composition_keywords = {"anyOf", "oneOf", "allOf"}
+            patched_count = 0
+
+            for tool in tools:
+                properties = tool.inputSchema.get("properties", {})
+                for _prop_name, prop_schema in properties.items():
+                    # If a property has both a composition keyword AND "type",
+                    # the "type" was spuriously added by fastapi-mcp. Remove it.
+                    if isinstance(prop_schema, dict) and "type" in prop_schema:
+                        if any(kw in prop_schema for kw in composition_keywords):
+                            del prop_schema["type"]
+                            patched_count += 1
+
+            if patched_count > 0:
+                logger.info(
+                    "[MCP] Stripped spurious 'type' from %d anyOf properties across %d tools",
+                    patched_count,
+                    len(tools),
+                )
+
+            return tools, operation_map
+
+        convert_module.convert_openapi_to_mcp_tools = _patched_convert
+        logger.info("[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)")
+
+    except Exception as e:
+        logger.warning("[MCP] Failed to patch fastapi-mcp anyOf bug: %s", e)
+
+
 def setup_mcp_server(app: FastAPI) -> None:
     """
     Set up the MCP server and register all tools on the FastAPI app.
@@ -31,6 +98,11 @@ def setup_mcp_server(app: FastAPI) -> None:
     """
     try:
         from fastapi_mcp import FastApiMCP
+
+        # Patch fastapi-mcp's schema conversion before creating the MCP server.
+        # This fixes the anyOf + type conflict that causes "expected string,
+        # received undefined" errors in the MCP client (Zod validation).
+        _patch_fastapi_mcp_anyof_bug()
 
         # Register tool endpoints first so they exist when FastApiMCP scans
         _register_tool_routes(app)
