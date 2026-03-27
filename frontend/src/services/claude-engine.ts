@@ -711,8 +711,10 @@ export class ClaudeEngine {
       }
 
       // MCP servers (default: backend at localhost:8001/mcp)
+      // S29 fix: Backend uses fastapi-mcp SSE transport (GET /mcp + POST /mcp/messages/).
+      // 'http' (Streamable HTTP) sends POST /mcp which returns 405.
       queryCmd.mcpServers = {
-        canvas: { type: 'http', url: DEFAULT_MCP_URL },
+        canvas: { type: 'sse', url: DEFAULT_MCP_URL },
       };
 
       // Allowed tools
