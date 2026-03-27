@@ -9,7 +9,7 @@
 # [Source: architecture.md#6-layer-defense — Layer 0: Backend Algorithm Authority]
 
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from fastapi import FastAPI
 
@@ -135,6 +135,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/query_mastery",
         response_model=QueryMasteryOutput,
         tags=[MCP_TAG],
+        operation_id="query_mastery",
         summary="Query node mastery state (BKT + FSRS)",
         description="Query the mastery state for a specific canvas node. "
         "Returns BKT mastery probability, FSRS parameters, and effective proficiency. "
@@ -147,6 +148,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/update_fsrs",
         response_model=UpdateFsrsOutput,
         tags=[MCP_TAG],
+        operation_id="update_fsrs",
         summary="Update FSRS spaced repetition parameters",
         description="Update FSRS parameters after scoring. "
         "Requires pipeline_token from score_answer (enforces step ordering). "
@@ -164,6 +166,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/update_bkt",
         response_model=UpdateBktOutput,
         tags=[MCP_TAG],
+        operation_id="update_bkt",
         summary="Update BKT mastery probability",
         description="Update Bayesian Knowledge Tracing mastery probability. "
         "Requires pipeline_token from score_answer (enforces step ordering).",
@@ -184,6 +187,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/generate_question",
         response_model=GenerateQuestionOutput,
         tags=[MCP_TAG],
+        operation_id="generate_question",
         summary="Generate a question for a concept node",
         description="Generate a question based on node content and mastery level. "
         "Returns a pipeline_token that must be passed to score_answer. "
@@ -204,6 +208,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/score_answer",
         response_model=ScoreAnswerOutput,
         tags=[MCP_TAG],
+        operation_id="score_answer",
         summary="Score a student's answer (AutoSCORE)",
         description="Score a student's answer using AutoSCORE evaluation. "
         "Requires pipeline_token from generate_question. "
@@ -222,6 +227,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/assemble_acp",
         response_model=AssembleAcpOutput,
         tags=[MCP_TAG],
+        operation_id="assemble_acp",
         summary="Assemble Assessment Context Package",
         description="Assemble an ACP data bundle for a node containing concept content, "
         "related concepts, mastery level, and learning history. "
@@ -241,6 +247,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/search_memories",
         response_model=SearchMemoriesOutput,
         tags=[MCP_TAG],
+        operation_id="search_memories",
         summary="Search learning memories (Graphiti KG)",
         description="Search the Graphiti learning memory knowledge graph. "
         "Returns relevant learning memories matching the query. "
@@ -258,6 +265,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/record_calibration",
         response_model=RecordCalibrationOutput,
         tags=[MCP_TAG],
+        operation_id="record_calibration",
         summary="Record calibration data (metacognition)",
         description="Record a calibration data point for metacognitive tracking. "
         "Captures the gap between predicted and actual performance. "
@@ -277,6 +285,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/record_learning_memory",
         response_model=RecordLearningMemoryOutput,
         tags=[MCP_TAG],
+        operation_id="record_learning_memory",
         summary="Record learning memory (Observer write path)",
         description=(
             "Record a student learning event (misconception, problem trap, "
@@ -305,6 +314,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/archive_conversation",
         response_model=ArchiveConversationOutput,
         tags=[MCP_TAG],
+        operation_id="archive_conversation",
         summary="Archive a completed conversation",
         description="Archive a conversation session to the learning memory system. "
         "Stores summary and key insights for future retrieval. "
@@ -323,6 +333,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/create_exam_node",
         response_model=CreateExamNodeOutput,
         tags=[MCP_TAG],
+        operation_id="create_exam_node",
         summary="Create an exam node on the canvas",
         description="Create a new exam/verification node on the canvas "
         "linked to a source concept node via an edge. "
@@ -345,6 +356,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/record_error",
         response_model=RecordErrorOutput,
         tags=[MCP_TAG],
+        operation_id="record_error",
         summary="Record and classify a student error (4-type)",
         description="Record a student understanding error detected during dialogue. "
         "Automatically classifies into 4 types (problem_framing, reasoning_fallacy, "
@@ -374,6 +386,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/request_hint",
         response_model=HintResponseModel,
         tags=[MCP_TAG],
+        operation_id="request_hint",
         summary="Request a progressive hint (Chain-of-Hints Level 1-4)",
         description="Generate a hint at the requested level for the current exam question. "
         "Level 1=direction, 2=keyword, 3=framework, 4=scaffolded guide. "
@@ -391,6 +404,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/skip_question",
         response_model=SkipResponseModel,
         tags=[MCP_TAG],
+        operation_id="skip_question",
         summary="Skip current exam question (no BKT/FSRS penalty)",
         description="Skip the current question without penalizing mastery. "
         "BKT p_mastery stays unchanged, FSRS has no rating event. "
@@ -411,6 +425,7 @@ def _register_tool_routes(app: FastAPI) -> None:
         "/mcp/tools/search_notes",
         response_model=NoteSearchOutput,
         tags=[MCP_TAG],
+        operation_id="search_notes",
         summary="Search Vault notes (6-source RAG pipeline)",
         description="Search the user's Vault markdown notes and related sources using "
         "the full RAG pipeline: semantic search (BGE-M3), knowledge graph (Graphiti), "
