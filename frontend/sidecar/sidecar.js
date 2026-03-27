@@ -128,6 +128,43 @@ async function handleQuery(cmd) {
           log(`[Permission] Auto-allowing tool: ${toolName}`);
           return { behavior: 'allow' };
         },
+        // S29 Phase 3B: PostToolUse hook for BEA 4-dimension extraction.
+        // Fires after learning-relevant MCP tool calls (score_answer, generate_question, record_error).
+        // Fire-and-forget POST to backend /api/v1/memory/extract-conversation.
+        // Academic basis: Anderson & Krathwohl Bloom Taxonomy + Dialogue-KT (LAK 2025).
+        hooks: {
+          PostToolUse: [{
+            hooks: [async (input) => {
+              const toolName = input.tool_name || '';
+              if (!BEA_EXTRACTION_TOOLS.has(toolName)) {
+                return { continue: true };
+              }
+              // Fire-and-forget: extract learning signals from tool interaction
+              const backendUrl = process.env.CANVAS_BACKEND_URL || 'http://localhost:8001';
+              const inputSummary = JSON.stringify(input.tool_input || {}).slice(0, 500);
+              const responseSummary = JSON.stringify(input.tool_response || {}).slice(0, 1000);
+              fetch(`${backendUrl}/api/v1/memory/extract-conversation`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  node_id: nodeId,
+                  session_id: '',
+                  messages: [
+                    { role: 'user', content: `[Tool: ${toolName}] ${inputSummary}` },
+                    { role: 'assistant', content: `[Result] ${responseSummary}` },
+                  ],
+                }),
+                signal: AbortSignal.timeout(30000),
+              }).then(r => {
+                if (r.ok) log(`[PostToolUse] BEA extraction for ${toolName}: OK`);
+                else log(`[PostToolUse] BEA extraction failed: HTTP ${r.status}`);
+              }).catch(err => {
+                log(`[PostToolUse] BEA extraction error (non-fatal): ${err.message || err}`);
+              });
+              return { continue: true };
+            }],
+          }],
+        },
       },
     };
 
