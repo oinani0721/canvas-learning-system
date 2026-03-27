@@ -102,6 +102,8 @@ class RecordLearningMemoryInput(BaseModel):
     topic: str = Field(..., min_length=1, max_length=100, description="Broader topic (e.g. 'Search', 'MDPs').")
     details: str = Field(..., description="What the student got wrong and what is correct. Be specific.")
     severity: Optional[str] = Field(None, description="'critical' | 'moderate' | 'minor'. Judge by depth of misunderstanding.")
+    source_session_id: Optional[str] = Field(None, description="Session ID where this learning event was detected.")
+    source_canvas_id: Optional[str] = Field(None, description="Canvas/board ID where the event occurred.")
 
 
 class RecordLearningMemoryOutput(BaseModel):
@@ -305,6 +307,8 @@ async def record_learning_memory(
     topic: str,
     details: str,
     severity: Optional[str] = None,
+    source_session_id: Optional[str] = None,
+    source_canvas_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Record a learning event (misconception, problem trap, logical fallacy,
@@ -371,6 +375,8 @@ async def record_learning_memory(
                 "node_id": node_id,
                 "source": "observer_agent",
                 "name": name,
+                "source_session_id": source_session_id,
+                "source_canvas_id": source_canvas_id,
             },
             group_id=DEFAULT_GROUP_ID,
         )

@@ -296,6 +296,8 @@ def _register_tool_routes(app: FastAPI) -> None:
             topic=input.topic,
             details=input.details,
             severity=input.severity,
+            source_session_id=input.source_session_id,
+            source_canvas_id=input.source_canvas_id,
         )
 
     # ═══════════════════════════════════════════════════════════════════════════
