@@ -77,6 +77,13 @@ def _patch_fastapi_mcp_anyof_bug() -> None:
             return tools, operation_map
 
         convert_module.convert_openapi_to_mcp_tools = _patched_convert
+
+        # Also patch the local reference in fastapi_mcp.server, because it uses
+        # `from fastapi_mcp.openapi.convert import convert_openapi_to_mcp_tools`
+        # which creates a bound local reference that wouldn't see our module-level patch.
+        import fastapi_mcp.server as server_module
+
+        server_module.convert_openapi_to_mcp_tools = _patched_convert
         logger.info("[MCP] Patched fastapi-mcp anyOf+type schema conflict (v0.4.0 bug)")
 
     except Exception as e:
