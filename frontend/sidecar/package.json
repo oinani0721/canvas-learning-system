@@ -6,6 +6,6 @@
   "main": "sidecar.js",
   "type": "module",
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.74"
+    "@anthropic-ai/claude-agent-sdk": "^0.2.79"
   }
 }
