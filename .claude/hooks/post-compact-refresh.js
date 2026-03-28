@@ -4,7 +4,7 @@
  */
 process.stdout.write(
   '⛔⛔⛔ 上下文已压缩 — 核心规则重新加载:\n' +
-  '1. 每轮 Graphiti: search_memory_facts → 回复 → add_memory\n' +
+  '1. 每轮 Graphiti: search_memory_facts(exclude_invalidated:true) → 回复 → add_memory\n' +
   '2. DD-03 禁mock | DD-04 参考案例落地(Context7+WebSearch)\n' +
   '3. DD-05 前端先Pencil | DD-06 Obsidian适配(禁innerHTML/inline style/createElement)\n' +
   '4. DD-10 新功能对照MVP刚需14项 | DD-12 范围约束(frontend只改前端)\n' +

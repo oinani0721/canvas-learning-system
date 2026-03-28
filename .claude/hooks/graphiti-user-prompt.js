@@ -17,7 +17,7 @@ process.stdin.on('end', () => {
     const isFrontend = /前端|UI|界面|组件|Svelte|样式|白板.*设计|面板/i.test(prompt);
     const isObsidianPlugin = /obsidian|plugin|插件|canvas.*plugin|modal|view|settings.*tab|css.*style|dom|createEl|main\.ts/i.test(prompt);
 
-    let msg = '⛔ 回复前执行: search_memory_facts(graphiti-canvas, group_id:"canvas-dev", query:"{用户消息关键词}", max_facts:30)';
+    let msg = '⛔ 回复前执行: search_memory_facts(graphiti-canvas, group_id:"canvas-dev", query:"{用户消息关键词}", max_facts:30, exclude_invalidated:true)';
 
     if (isCodeExplore) {
       msg += '\n⛔ 代码场景：必须启动独立 agent 对抗性审查，记录 [Code-Review]。详见 CLAUDE.md。';
@@ -25,16 +25,18 @@ process.stdin.on('end', () => {
 
     if (isDecisionScene) {
       msg += '\n⛔ 决策场景：向用户解释技术方案时，MUST 先调用 Skill("深度澄清") 将技术概念翻译为用户可理解的语言。用户是甲方，听不懂专业术语。';
+      msg += '\n⛔ DD-01/04 技术组合验证：提出任何多组件组合前，必须 WebSearch 验证组合的社区成功案例。未验证的组合必须标注❌并向用户增量提问确认。禁止拼凑未经验证的组合。';
     }
 
     if (isImplScene) {
       msg += '\n⛔ 实施场景[DD-03/04]: Context7+WebSearch查证成熟案例→参考落地→LSP检查→禁止mock';
       msg += '\n⛔ 开发完成后必须：(1) 启动独立 Agent 对抗性代码审查→记录[Code-Review] (2) commit + push backup';
       msg += '\n⛔ DD-11 管道打通性：并行Agent完成后，主Agent必须检查每个新函数是否有调用方。无调用方=死代码，必须接线。';
+      msg += '\n⛔ DD-07 用户验收：代码修改后必须提供最小验收步骤（如何启动→如何操作→预期看到什么），让用户在实际产品中看到变化。';
     }
 
     if (isNewFeature) {
-      msg += '\n⛔ 新功能[DD-10]: 先思考是否为用户刚需？search_memory_facts检索用户初衷和MVP刚需清单';
+      msg += '\n⛔ 新功能[DD-10]: 先思考是否为用户刚需？search_memory_facts(exclude_invalidated:true)检索用户初衷和MVP刚需清单';
     }
 
     if (isFrontend) {
@@ -42,17 +44,14 @@ process.stdin.on('end', () => {
     }
 
     if (isObsidianPlugin) {
-      msg += '\n⛔ DD-06 Obsidian 插件场景：' +
-        '\n  - 禁止 innerHTML（用 createEl/createDiv/setText）' +
-        '\n  - 禁止 element.style.X =（用 CSS class + styles.css）' +
-        '\n  - 禁止 document.createElement（用 containerEl.createEl）' +
-        '\n  - addEventListener 必须用 this.registerEvent() 包裹' +
-        '\n  - Context7 查 obsidian-api 文档确认 API 用法' +
-        '\n  - 编辑后运行: cd canvas-progress-tracker/obsidian-plugin && npm run lint:obsidian';
+      msg += '\n⛔ DD-06 注意：产品已迁移至 Tauri+React（frontend/src/）。' +
+        '\n  - 主产品前端用 React 规范，不用 Obsidian Plugin API' +
+        '\n  - 如果修改 legacy Obsidian 插件（canvas-progress-tracker/），仍需遵守 Obsidian 规范' +
+        '\n  - 禁止在 frontend/src/ 中使用 createEl/registerEvent/ItemView 等 Obsidian API';
     }
 
     process.stdout.write(msg);
   } catch (e) {
-    process.stdout.write('⛔ 回复前执行 search_memory_facts。');
+    process.stdout.write('⛔ 回复前执行 search_memory_facts(exclude_invalidated:true)。');
   }
 });
