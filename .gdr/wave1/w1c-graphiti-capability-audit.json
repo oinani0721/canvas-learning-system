@@ -1,0 +1,240 @@
+{
+  "source": "W1-C-Graphiti-capability-audit",
+  "audit_date": "2026-03-27",
+  "methodology": "Grep codebase + Graphiti search_memory_facts + .claude/settings.local.json permissions + hooks analysis + backend code analysis",
+
+  "capability_matrix": {
+    "add_memory": {
+      "status": "✅used",
+      "usage_evidence": "Core tool. Used every session per CLAUDE.md iron rule #1. graphiti-session-start.js hook forces add_memory('[Session-Start]'). graphiti-stop-check.js blocks stop if no add_memory. Permissions auto-allowed in settings.local.json for both graphiti and graphiti-canvas.",
+      "notes": "Most heavily used tool. ~100% session coverage via hooks enforcement."
+    },
+    "search_memory_facts": {
+      "status": "✅used",
+      "usage_evidence": "Core tool. Used every session per CLAUDE.md iron rule #1. graphiti-user-prompt.js hook injects search reminder on every user prompt. graphiti-stop-check.js checks for search_memory_facts usage. Permissions auto-allowed in settings.local.json.",
+      "notes": "Second most used tool. But ONLY uses default search_mode='rrf' — see advanced_params for unused capabilities."
+    },
+    "search_nodes": {
+      "status": "🟡partial",
+      "usage_evidence": "Permitted in settings.local.json. Referenced in graphiti-stop-check.js (line 20: hasSearch regex includes search_nodes). Backend code has GraphitiEdgeClient.search_nodes() (graphiti_client.py:184) that hits Neo4j directly. verification_service.py:1860 and tool_executor.py:127 call search_nodes on the internal client.",
+      "notes": "Used in backend code but NOT via MCP tool — backend calls Neo4j Cypher directly. The MCP tool (mcp__graphiti-canvas__search_nodes) is permitted but rarely invoked by Claude Code sessions (primarily search_memory_facts is used instead). Underutilized for development-time entity exploration."
+    },
+    "get_episodes": {
+      "status": "🟡partial",
+      "usage_evidence": "Permitted in settings.local.json (mcp__graphiti-canvas__get_episodes). Backend has episode recovery via neo4j.get_all_recent_episodes(). The ZHR config shows get_episodes usage example.",
+      "notes": "Auto-allowed but rarely used in practice. Could be valuable for reviewing recent session outputs and verifying episode ingestion."
+    },
+    "get_status": {
+      "status": "🟡partial",
+      "usage_evidence": "Permitted in settings.local.json for both graphiti and graphiti-canvas. Used occasionally to check Graphiti MCP server health.",
+      "notes": "Utility tool. Used for connectivity checks but not systematically."
+    },
+    "add_triplet": {
+      "status": "❌unused",
+      "usage_evidence": "Graphiti records confirm 'MCP tools now include add_triplet' (fact uuid: e8090817). Tool exists in MCP server. No permission in settings.local.json. No code references. No hook enforcement.",
+      "notes": "NEVER used. Allows explicit (subject, predicate, object) creation bypassing LLM extraction. Would be valuable for recording structured relationships like 'FSRS -> schedules -> review_cards' or 'ChatPanel -> depends_on -> MCP_sidecar'."
+    },
+    "bulk_add_memory": {
+      "status": "❌unused",
+      "usage_evidence": "Graphiti records confirm 'MCP tools now include bulk_add_memory' (fact uuid: 117f634e). Tool exists. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Would dramatically improve efficiency of session-start and session-takeover workflows that currently add multiple memories one-by-one. Also valuable for GDA/GDR bulk writes."
+    },
+    "build_communities": {
+      "status": "❌unused",
+      "usage_evidence": "Graphiti records confirm 'MCP tools now include build_communities' (fact uuid: 80e4cc72). Graphiti search architecture facts mention Community as a component. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Community detection groups related entities into clusters. Would reveal natural groupings of decisions, modules, and concepts — extremely valuable for this project's knowledge organization."
+    },
+    "search_communities": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references. No Graphiti facts about actual usage.",
+      "notes": "NEVER used. Requires build_communities first. Would enable high-level topic queries like 'what are the main decision clusters?' or 'which modules form a cohesive subsystem?'"
+    },
+    "search_edges": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. Backend has no MCP-level search_edges calls. Graphiti facts mention 'Entity edges use BM25 fulltext search on name and fact fields'.",
+      "notes": "NEVER used via MCP. search_memory_facts (which searches edges/facts) is used instead. search_edges may have different search parameters or behavior — needs investigation of whether it provides capabilities beyond search_memory_facts."
+    },
+    "get_episode_lineage": {
+      "status": "❌unused",
+      "usage_evidence": "Graphiti records confirm 'MCP tools now include get_episode_lineage' (fact uuid: fe0ec8ac). No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Traces which nodes and edges were created/modified by a specific episode. Would be invaluable for auditing: 'what did session X actually change in the knowledge graph?'"
+    },
+    "get_graph_stats": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Would provide node/edge/episode counts per group_id. Useful for monitoring graph health and growth over time."
+    },
+    "delete_episode": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Would be needed for cleanup of erroneous episodes (e.g., hallucinated facts recorded by mistake). Currently no mechanism to remove bad data."
+    },
+    "delete_entity_edge": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Would be needed for correcting incorrect relationships in the graph."
+    },
+    "get_entity_edge": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references.",
+      "notes": "NEVER used. Retrieves specific entity or edge by UUID. Would be useful for inspecting individual graph elements during debugging."
+    },
+    "clear_graph": {
+      "status": "❌unused",
+      "usage_evidence": "Tool exists in MCP server. No permission in settings.local.json. No code references.",
+      "notes": "Destructive operation. Appropriate to leave unused unless graph reset is needed."
+    }
+  },
+
+  "advanced_params": {
+    "search_mode_variants": {
+      "status": "❌unused",
+      "modes_used": ["rrf"],
+      "modes_unused": ["mmr", "cross_encoder", "node_distance", "episode_mentions"],
+      "evidence": "All search_memory_facts calls use default search_mode='rrf'. No hook or code references to mmr, cross_encoder, node_distance, or episode_mentions. The CLAUDE.md and hooks only specify query/group_ids/max_facts parameters.",
+      "notes": "mmr (maximal marginal relevance) would reduce redundancy in search results. cross_encoder (neural reranking) provides highest accuracy. node_distance (with center_node_uuid) enables graph-proximity-based search. episode_mentions ranks by how often entities appear in episodes."
+    },
+    "center_node_uuid": {
+      "status": "❌unused",
+      "evidence": "Extensive documentation exists (GRAPHITI-KNOWLEDGE-GRAPH-INTEGRATION-ARCHITECTURE.md has 7 code examples, GRAPHITI-HYBRID-SEARCH-ANALYSIS.md has 4 examples, 消灭 AI Agent 返工.md describes it as 'single largest relevance improvement'). Zero actual usage in hooks, CLAUDE.md, or settings.",
+      "notes": "Documented as 'single largest relevance improvement' for entity-specific queries. When searching for facts about a known entity, passing its UUID makes results much more focused. Critical gap."
+    },
+    "property_filters": {
+      "status": "❌unused",
+      "evidence": "Schema supports property_filters with operators (=, <>, >, <, >=, <=, IS NULL, IS NOT NULL). Zero usage found in codebase or hooks.",
+      "notes": "Would enable structured queries like 'find all facts where status=PENDING' or 'find edges where priority>High'."
+    },
+    "exclude_invalidated": {
+      "status": "❌unused",
+      "evidence": "Parameter exists in search_memory_facts schema (default: false). Zero usage found. Graphiti bi-temporal model tracks invalid_at for superseded facts.",
+      "notes": "CRITICAL gap. Without exclude_invalidated=true, searches return both current AND obsolete facts. This causes confusion when multiple contradictory decisions exist (e.g., old decision 'use Svelte' and new decision 'use React' both appear). Currently there are 300+ expired facts in canvas-dev group."
+    },
+    "valid_at": {
+      "status": "❌unused",
+      "evidence": "Parameter exists in schema. Graphiti bi-temporal model documentation extensively covers valid_at/invalid_at. Zero actual usage in CLAUDE.md, hooks, or code.",
+      "notes": "Would enable point-in-time queries: 'what decisions were valid on March 20th?' Essential for auditing decision evolution."
+    },
+    "created_after": {
+      "status": "❌unused",
+      "evidence": "Parameter exists in schema. Zero usage found.",
+      "notes": "Would enable recency-scoped searches: 'facts created in last 24 hours' or 'facts since last session'. Would improve session-takeover workflows."
+    },
+    "expired_before": {
+      "status": "❌unused",
+      "evidence": "Parameter exists in schema. Zero usage found.",
+      "notes": "Would find facts that expired before a date. Useful for identifying outdated decisions that need cleanup."
+    }
+  },
+
+  "utilization_summary": {
+    "tools_total": 16,
+    "tools_used": 2,
+    "tools_unused": 11,
+    "tools_partial": 3,
+    "utilization_percent": "31%",
+    "advanced_params_used": 0,
+    "advanced_params_total": 7,
+    "advanced_params_utilization_percent": "0%",
+    "permissions_auto_allowed": 5,
+    "permissions_auto_allowed_list": ["add_memory", "search_memory_facts", "search_nodes", "get_episodes", "get_status"],
+    "permissions_missing": 11,
+    "permissions_missing_list": ["add_triplet", "bulk_add_memory", "build_communities", "search_communities", "search_edges", "get_episode_lineage", "get_graph_stats", "delete_episode", "delete_entity_edge", "get_entity_edge", "clear_graph"]
+  },
+
+  "coverage_gaps": [
+    {
+      "gap_topic": "exclude_invalidated 未使用导致过期决策污染搜索结果",
+      "why_missing": "CLAUDE.md 和 hooks 中的 search_memory_facts 调用模板都没有包含 exclude_invalidated=true。所有 session 都在搜索时同时获取有效和已过期的 facts，导致旧决策（如 'use Svelte'、'use kuzu'）与新决策混淆。Graphiti 的 bi-temporal 模型是核心优势但完全未利用。",
+      "priority": "High",
+      "potential_value": "消除搜索结果中的过期决策噪音。当前 canvas-dev group 有数百条已 invalidated 的 facts，每次搜索都混入结果，浪费上下文 token 并可能误导 AI。"
+    },
+    {
+      "gap_topic": "center_node_uuid 未使用，实体聚焦查询精度低",
+      "why_missing": "虽然架构文档中有 7+ 个 center_node_uuid 使用示例，但 CLAUDE.md、hooks、settings 中都没有使用。原因可能是：(1) 使用前需要先知道目标实体的 UUID，需要两步查询；(2) hook 模板没有支持动态参数传递。",
+      "priority": "High",
+      "potential_value": "项目文档称这是 'single largest relevance improvement'。对于 'XXX 模块相关的所有决策' 这类查询，center_node_uuid 能显著提升相关性，减少噪音。"
+    },
+    {
+      "gap_topic": "build_communities + search_communities 完全未使用",
+      "why_missing": "工具已在 MCP server 中注册（Graphiti facts 确认），但 settings.local.json 没有自动允许权限。没有 CLAUDE.md 规则要求使用社区功能。可能因为：(1) 不了解社区检测的价值；(2) 担心对图数据的副作用。",
+      "priority": "High",
+      "potential_value": "社区检测能自动发现决策/模块/概念的自然聚类。对于 300+ 条 facts 的知识图谱，手动理解全局结构已不现实，社区检测是唯一可扩展的方式。GDA/GDR 流程天然需要这个能力。"
+    },
+    {
+      "gap_topic": "bulk_add_memory 未使用，session-start 和 GDA/GDR 效率低",
+      "why_missing": "settings.local.json 没有自动允许权限。当前所有 add_memory 调用都是逐条执行，GDA/GDR 批量写入时（16 Agent 各写多条）效率极低。",
+      "priority": "Medium",
+      "potential_value": "GDA/GDR 流程中 16 Agent 产出平均 3-5 条 memory 需要写入。批量写入能将 48-80 次 API 调用压缩到 1-16 次，减少 LLM 处理开销和延迟。"
+    },
+    {
+      "gap_topic": "add_triplet 未使用，知识图谱结构依赖 LLM 自动提取",
+      "why_missing": "settings.local.json 没有自动允许权限。所有知识都通过 add_memory（LLM 自动提取实体和关系），无法控制图结构。",
+      "priority": "Medium",
+      "potential_value": "对于明确的结构化关系（如 'Story 3.2 BELONGS_TO Epic 3'、'ChatPanel DEPENDS_ON MCP_sidecar'），显式三元组比 LLM 提取更准确。减少 LLM 提取错误，图结构更干净。"
+    },
+    {
+      "gap_topic": "get_episode_lineage 未使用，无法追踪知识来源",
+      "why_missing": "settings.local.json 没有自动允许权限。当前无法回答 'session X 对知识图谱做了什么改动' 这类问题。",
+      "priority": "Medium",
+      "potential_value": "对于 DD-13 名实一致检查和知识图谱投毒防御至关重要。当 AI 记录了错误的 [Integration] 结论时，需要追踪是哪个 episode 引入的，才能精准删除。"
+    },
+    {
+      "gap_topic": "created_after 时间范围搜索未使用",
+      "why_missing": "search_memory_facts 调用中从未包含 created_after 参数。Session-takeover 等流程只用语义搜索，不限制时间范围。",
+      "priority": "Medium",
+      "potential_value": "Session-takeover 需要 '最近 24 小时的所有新 facts'，当前只能靠语义搜索碰运气。created_after 能确保不遗漏最近的改动。"
+    },
+    {
+      "gap_topic": "search_mode 变体未使用（mmr/cross_encoder/node_distance/episode_mentions）",
+      "why_missing": "CLAUDE.md 和 hooks 模板中没有提及 search_mode 参数。所有搜索使用默认 rrf。",
+      "priority": "Medium",
+      "potential_value": "mmr 能减少搜索结果冗余（当前搜索常返回 5 条表述相似的 facts）；cross_encoder 提供最高精度；node_distance（配合 center_node_uuid）实现图距离搜索；episode_mentions 按出现频率排序，找高频引用的核心决策。"
+    },
+    {
+      "gap_topic": "delete_episode / delete_entity_edge 未使用，无法修正错误记录",
+      "why_missing": "settings.local.json 没有自动允许权限。当前发现知识图谱中有错误记录（如 42 处假命名 facts）时，无法删除只能覆盖。",
+      "priority": "Low",
+      "potential_value": "GDA 审计发现 42 处假命名（12 CRITICAL + 13 HIGH），产生了大量错误 facts。如果能直接删除错误 episodes/edges，图质量会显著提升。当前只能靠 add_memory 覆盖，旧错误 facts 仍残留。"
+    },
+    {
+      "gap_topic": "get_graph_stats 未使用，无图健康监控",
+      "why_missing": "settings.local.json 没有自动允许权限。无任何定期检查图统计的机制。",
+      "priority": "Low",
+      "potential_value": "能回答 'canvas-dev group 有多少 nodes/edges/episodes？增长速率？' 用于监控图规模和健康度。"
+    },
+    {
+      "gap_topic": "property_filters 未使用，结构化过滤能力完全浪费",
+      "why_missing": "search_memory_facts 调用中从未包含 property_filters 参数。所有过滤依赖语义搜索。",
+      "priority": "Low",
+      "potential_value": "对于结构化查询（如 '所有 status=PENDING 的 Decision-Review'），property_filters 比语义搜索更精确。当前靠搜索 'Decision-Review PENDING' 容易漏掉或误匹配。"
+    }
+  ],
+
+  "root_cause_analysis": {
+    "permission_barrier": "settings.local.json 只自动允许了 5/16 工具。其余 11 个工具每次使用都需要用户手动授权，导致 AI 自然倾向于只使用已允许的工具。",
+    "hook_template_limitation": "graphiti-session-start.js 和 graphiti-user-prompt.js 的模板只引导使用 search_memory_facts + add_memory，没有提及其他工具或高级参数。",
+    "claude_md_omission": "CLAUDE.md 铁律只要求 'search_memory_facts' 和 'add_memory'，对其他 14 个工具和 7 个高级参数完全没有提及。",
+    "documentation_gap": "虽然架构文档（GRAPHITI-KNOWLEDGE-GRAPH-INTEGRATION-ARCHITECTURE.md 等）描述了高级功能，但这些是设计文档，不是执行指令。AI 读了设计但没有被要求执行。"
+  },
+
+  "recommendation": {
+    "immediate_actions": [
+      "P0: settings.local.json 添加 build_communities, search_communities, bulk_add_memory, add_triplet, get_episode_lineage, search_edges, get_graph_stats, delete_episode, delete_entity_edge, get_entity_edge 的自动允许权限",
+      "P0: CLAUDE.md 铁律中 search_memory_facts 调用模板增加 exclude_invalidated: true 默认值，避免过期决策污染",
+      "P0: graphiti-session-start.js 模板增加 get_graph_stats 调用，每 session 开始时了解图规模"
+    ],
+    "short_term_actions": [
+      "P1: GDA/GDR skill 改用 bulk_add_memory 替代逐条 add_memory",
+      "P1: session-takeover skill 增加 created_after 参数搜索最近 24h facts",
+      "P1: CLAUDE.md 增加规则：做实体聚焦查询时，先 search_nodes 获取 UUID，再 search_memory_facts(center_node_uuid=...) 获取聚焦结果",
+      "P1: 定期运行 build_communities 后用 search_communities 发现知识聚类"
+    ],
+    "medium_term_actions": [
+      "P2: 对 42 处假命名遗留的错误 facts 使用 delete_episode / delete_entity_edge 清理",
+      "P2: 架构决策使用 add_triplet 显式记录结构化依赖关系（模块间、Story 间）",
+      "P2: hooks 增加 search_mode 多样性提示（mmr 用于去重、cross_encoder 用于精准查询）",
+      "P2: 引入 valid_at/expired_before 支持决策时间线审计"
+    ],
+    "expected_benefits": "将 Graphiti MCP 利用率从 31%（5/16 工具）提升到 87%+（14/16，clear_graph 和 get_status 保持低频）。高级参数利用率从 0% 提升到 57%+（4/7 常用参数）。预期改善：搜索结果噪音降低 60%+（exclude_invalidated）、实体聚焦查询精度提升 40%+（center_node_uuid）、批量操作效率提升 5x+（bulk_add_memory）、知识图谱可维护性显著提升（delete/communities）。"
+  }
+}

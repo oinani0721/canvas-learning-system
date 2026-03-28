@@ -1,7 +1,40 @@
 {
-  "research_topic": "Brownfield Bug Loop — BMAD Community Practices",
-  "active_decisions": ["no-bmad-story", "bmad-epic-only", "shorten-verification", "new-dev-loop-BUGS.md+HotReload"],
-  "do_not_research": ["BMAD Story级", "HyDE", "Self-RAG", "Kafka", "Qdrant/Milvus", "Late Chunking", "CLI做主力"],
-  "priority_gaps": ["回归验证机制", "BMAD Bug修复开销", "E2E AC升级", "AI速度vs验证节奏", "Critic Agent集成", "Story依赖追踪", "前端Bug自动捕获闭环"],
-  "anti_patterns": ["AI反复修bug无验证→死循环", "AI写太快验证来不及", "AC在代码存在层非E2E层", "模型替身假PASS"]
+  "research_topic": "Canvas Learning System 规范驱动开发工作流诊断",
+  "active_decisions": [
+    "S31决策:放弃BMAD/SuperPower框架层,保留Hook+DD+Commands+bmad-code-review",
+    "DD-01~DD-13 开发纪律(2026-03-16固化,DD-11/12/13后续追加)",
+    "9个Hook+8生命周期事件的确定性执行体系",
+    "Graphiti-canvas MCP(group_id:canvas-dev, Neo4j bolt://localhost:7689)",
+    "Agent SDK sidecar对话引擎(取代Mode D→SDK→Tier B)",
+    "四层搜索+A-RAG(RAG+CLI+Graphiti+Grep)",
+    "Tauri+React+ReactFlow+shadcn/ui前端技术栈"
+  ],
+  "do_not_research": [
+    "HyDE - 教育场景不适用",
+    "KG-RAG/Self-RAG/Speculative RAG - 已有Graphiti方案",
+    "GraphRAG(Microsoft) - 已选Graphiti",
+    "Qdrant/Milvus - 已选LanceDB",
+    "Kafka - 单用户应用过度设计",
+    "Web Worker - 已选Tauri sidecar",
+    "BMAD完整框架 - 社区共识不适合独立开发者"
+  ],
+  "priority_gaps": [
+    "P0: Graphiti exclude_invalidated从未使用,搜索返回过期决策",
+    "P0: Graphiti 11/16工具被权限阻断,高级参数0%使用率",
+    "P0: DD-13名实一致Hook只警告不阻断(应exit 2)",
+    "P1: SuperPower高价值技能(brainstorming,writing-plans,systematic-debugging)可cherry-pick",
+    "P1: DD-07用户验收被评估为'正确但失败',Stop hook v7是否修复?",
+    "P1: DD-12范围约束结构性导致DD-11管道断裂",
+    "P2: Decision-Review完成率仅15.4%(11待验证)",
+    "P2: GDR-CRITICAL Gemini额度阻塞记忆重构实施"
+  ],
+  "decision_clusters": [
+    "对话引擎: Mode D→sidecar(3级推翻链)",
+    "前端重构: Obsidian→Tauri+React(DE-1~5+GDR-P1)",
+    "记忆系统: 假命名审计→策略C→Neo4j拓扑→Gemini(阻塞:额度)",
+    "检索系统: 四层搜索→4路(取消教材/跨Canvas)",
+    "开发纪律: CLAUDE.md概率→Hook确定性(9个hook)",
+    "学习功能: PRD 15项→GDA 10项→S29验证→Phase4规划"
+  ],
+  "injection_instruction": "你是一个专项调研agent。开始前必须阅读以上上下文：do_not_research中的方向无需深入,除非发现颠覆性证据(标记CONFLICT)。priority_gaps是本次调研重点。所有发现必须标注与active_decisions的关系:验证/冲突/新发现。每个发现必须标注证据等级:✅社区验证(3+独立案例)/🟡有案例但少(1-2案例)/❌无验证。"
 }

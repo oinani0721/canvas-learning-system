@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-03-28T06:30:00Z",
+  "session": "S31-GDR-Wave3-WRITE",
+  "total_decisions": 9,
+  "new_written": 9,
+  "updated": 0,
+  "skipped_duplicate": 0,
+  "details": [
+    {
+      "name": "[Decision] BMAD 放弃确认 — 社区验证通过 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts record S31 abandon decision and BMAD framework issues, but no consolidated record with community validation evidence (Issue #2003, 5+ independent sources). Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] SuperPower 0%激活根因确认 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts mention 5 root causes and 0/78 activation, but no consolidated conclusion with cherry-pick methodology (brainstorming/writing-plans/systematic-debugging to CLAUDE.md). Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] 自定义/commands替代方案 — 社区验证通过 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts show inquiry about community validation for custom commands, but no conclusion that all 5 commands have 5-10+ independent implementations including Anthropic official code-review plugin. Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] 最佳工作流 = CLAUDE.md + Hooks + Plan Mode (Boris工作流) — S31-GDR",
+      "action": "new",
+      "reason": "No existing record of Boris Cherny workflow recommendation, 350K LOC case study, or GSD 4:1 token overhead comparison. Entirely new GDR finding.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] Graphiti + Agentic RAG = 强可行 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts show Agentic RAG maturity assessment and Graphiti integration inquiries, but no consolidated feasibility conclusion with Zep official LangGraph integration, DMR 94.8%, KA-RAG 91.4% evidence. Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] Graphiti 能力利用度P0修复 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts record S30 MCP Server enhancement (exclude_invalidated/created_after parameters added), but no P0 fix decision about default values, 11 tools needing permission unlock, and search recipe recommendations. Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] Hook执行可靠性层级 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts mention exit 2 blocking and PreToolUse enforcement, but no quantified reliability ranking across all mechanism types (PreToolUse 95% > UserPromptSubmit 98% > Stop 70-80% > CLAUDE.md 70% > SP HARD-GATE 65-75%). Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] TDD策略 = PostToolUse auto-test + SP TDD skill — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts mention TDD in Wave2 tasks and PostToolUse hook passing review, but no consolidated TDD strategy decision with two-layer architecture (PostToolUse auto-test + SP TDD skill) and 4-7x token overhead constraint. Written as new GDR conclusion.",
+      "evidence_level": "GREEN",
+      "status": "Decision-Review PENDING"
+    },
+    {
+      "name": "[Decision] Bug宪法+渐进披露 — 社区验证通过 — S31-GDR",
+      "action": "new",
+      "reason": "Existing facts reference Bug Constitution creation and progressive disclosure strategy, but no consolidated decision with 3-layer architecture (hot/warm/cold), arXiv validation, 8+ community implementations, and Context7 partial verification note. Written as new GDR conclusion.",
+      "evidence_level": "GREEN_PARTIAL",
+      "status": "Decision-Review PENDING"
+    }
+  ]
+}
