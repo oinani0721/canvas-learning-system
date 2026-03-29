@@ -4,6 +4,9 @@
 Real-DB integration tests for AC-31.A.2.5: API endpoint dependency injection fix.
 Also includes edge case and regression tests with real Neo4j.
 
+Each test creates its own Neo4jClient to avoid event-loop-scope conflicts
+with shared conftest fixtures (session/module scoped async fixtures).
+
 These tests verify:
 - API endpoint DI wiring uses Annotated[..., Depends(...)] (no stub needed)
 - MemoryService reads/writes against a real Neo4j test container
@@ -21,7 +24,9 @@ import pytest
 from app.clients.neo4j_client import Neo4jClient
 from app.services.memory_service import MemoryService
 
-pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
+# Only mark integration; async tests use pytest.mark.asyncio per-class
+# to avoid applying asyncio mark to synchronous DI-inspection tests.
+pytestmark = [pytest.mark.integration]
 
 NEO4J_TEST_URI = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7692")
 NEO4J_TEST_USER = os.getenv("NEO4J_TEST_USER", "neo4j")
@@ -60,6 +65,7 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
 # AC-31.A.2.5: API Endpoint Dependency Injection Fix (signature-level)
 # These tests verify code structure — they don't need Neo4j but belong in the
 # integration suite because they test the real DI chain end-to-end.
+# Synchronous tests — no asyncio mark needed.
 # =============================================================================
 
 
@@ -116,9 +122,11 @@ class TestAC31A25_ApiDependencyInjection:
 
 # =============================================================================
 # Edge Cases and Regression Tests — Real Neo4j
+# Each test creates its own Neo4jClient — NO shared fixtures.
 # =============================================================================
 
 
+@pytest.mark.asyncio
 class TestEdgeCasesReal:
     """Regression and edge case tests for learning history read against real Neo4j."""
 

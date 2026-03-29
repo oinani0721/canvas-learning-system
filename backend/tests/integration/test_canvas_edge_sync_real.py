@@ -3,6 +3,9 @@
 """
 Real-DB integration tests for Canvas Edge automatic sync to Neo4j.
 
+Each test creates its own Neo4jClient to avoid event-loop-scope conflicts
+with shared conftest fixtures (session/module scoped async fixtures).
+
 Tests verify with a real Neo4j test container:
 - AC-1: sync triggered after add_edge() completes
 - AC-2: fire-and-forget pattern (background task)
@@ -27,7 +30,6 @@ from app.clients.neo4j_edge_client import Neo4jEdgeClient
 from app.clients.neo4j_learning_base import EdgeRelationship
 from app.services.canvas_service import CanvasService
 from app.services.memory_service import MemoryService
-from tests.conftest import wait_for_condition
 
 pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
@@ -44,6 +46,37 @@ def _make_neo4j_client() -> Neo4jClient:
         password=NEO4J_TEST_PASSWORD,
         database=NEO4J_TEST_DATABASE,
     )
+
+
+async def _wait_for_condition(
+    condition_fn,
+    *,
+    timeout: float = 2.0,
+    interval: float = 0.05,
+    description: str = "condition",
+):
+    """Poll until condition_fn returns truthy or timeout.
+
+    Local copy to avoid importing from tests.conftest which pulls in
+    session-scoped async fixtures that cause event-loop-scope conflicts.
+    """
+    loop = asyncio.get_running_loop()
+    start = loop.time()
+    last_error = None
+    while (loop.time() - start) < timeout:
+        try:
+            result = condition_fn()
+            if asyncio.iscoroutine(result):
+                result = await result
+            if result:
+                return result
+        except (AssertionError, Exception) as e:
+            last_error = e
+        await asyncio.sleep(interval)
+    msg = f"{description} not met within {timeout}s"
+    if last_error:
+        msg += f" (last error: {last_error})"
+    raise TimeoutError(msg)
 
 
 async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
@@ -210,7 +243,7 @@ class TestAddEdgeWithNeo4jSyncReal:
                 )
                 return len(rows) > 0
 
-            await wait_for_condition(_edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j")
+            await _wait_for_condition(_edge_in_neo4j, timeout=5.0, description="edge persisted to Neo4j")
 
             # Verify canvas file also updated
             updated_canvas = json.loads(canvas_path.read_text())
