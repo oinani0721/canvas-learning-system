@@ -485,15 +485,19 @@ class MemoryService:
         memory_episodes = [e for e in self._episodes if e.get("user_id") == user_id]
 
         # Apply date filters to in-memory episodes
+        # S34 Bug fix #3: Normalize both sides to str for consistent comparison
+        # (Neo4j returns offset-aware DateTime, in-memory uses ISO strings)
         if start_date:
+            start_str = str(start_date.isoformat()) if hasattr(start_date, 'isoformat') else str(start_date)
             memory_episodes = [
                 e for e in memory_episodes
-                if datetime.fromisoformat(e["timestamp"]) >= start_date
+                if str(e.get("timestamp", "")) >= start_str
             ]
         if end_date:
+            end_str = str(end_date.isoformat()) if hasattr(end_date, 'isoformat') else str(end_date)
             memory_episodes = [
                 e for e in memory_episodes
-                if datetime.fromisoformat(e["timestamp"]) <= end_date
+                if str(e.get("timestamp", "")) <= end_str
             ]
 
         # Apply concept filter
@@ -530,9 +534,19 @@ class MemoryService:
             episodes.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
         # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps
-        # Run sync file I/O in thread to avoid blocking the event loop (#3)
+        # S34 Bug fix #1+#2: Filter by user_id and date range before merge
         failed_scores = await asyncio.to_thread(self.load_failed_scores)
         if failed_scores:
+            # Bug fix #1: Filter by user_id (prevent cross-user data leakage)
+            if user_id:
+                failed_scores = [fs for fs in failed_scores if fs.get("user_id", "") == user_id]
+            # Bug fix #2: Apply same date filters as memory_episodes
+            if start_date:
+                s_str = str(start_date.isoformat()) if hasattr(start_date, 'isoformat') else str(start_date)
+                failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) >= s_str]
+            if end_date:
+                e_str = str(end_date.isoformat()) if hasattr(end_date, 'isoformat') else str(end_date)
+                failed_scores = [fs for fs in failed_scores if str(fs.get("timestamp", "")) <= e_str]
             # Deduplicate: only include fallback entries not already in episodes
             existing_keys = {
                 (e.get("node_id", ""), e.get("timestamp", "")) for e in episodes
@@ -1500,6 +1514,7 @@ class MemoryService:
                         "node_id": entry.get("concept_id", ""),
                         "concept": entry.get("concept", "") or entry.get("concept_id", ""),
                         "score": entry.get("score"),
+                        "user_id": entry.get("user_id", ""),  # S34 fix: include for filtering
                         "source": "fallback",
                         "error_reason": entry.get("error_reason", ""),
                     })

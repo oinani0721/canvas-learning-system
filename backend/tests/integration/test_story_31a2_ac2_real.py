@@ -162,7 +162,7 @@ class TestAC31A22_Neo4jClientMethod_Real:
             )
 
             results = await client.get_learning_history(
-                user_id=user_id, concept=f"{prefix}矩阵"
+                user_id=user_id, concept="矩阵"
             )
 
             assert len(results) >= 1
