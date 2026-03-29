@@ -204,7 +204,7 @@ async def get_agent_service(
             )
             logger.info(f"GeminiClient created: model={settings.AI_MODEL_NAME} (dynamic), "
                        f"provider={settings.AI_PROVIDER}")
-        except (ValueError, TypeError, RuntimeError) as e:
+        except Exception as e:
             logger.error(f"Failed to create GeminiClient: {e}")
     else:
         logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
@@ -1036,7 +1036,7 @@ async def build_batch_processing_deps():
                 api_key=settings.AI_API_KEY,
                 base_url=settings.AI_BASE_URL if settings.AI_BASE_URL else None,
             )
-        except (ValueError, TypeError, RuntimeError) as e:
+        except Exception as e:
             logger.error(f"Failed to create GeminiClient for batch processing: {e}")
 
     # 2. CanvasService with memory_client (same logic as get_canvas_service)

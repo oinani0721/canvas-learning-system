@@ -592,7 +592,7 @@ class VerificationService:
                         logger.info(f"Skipping mastered concept: '{concept}'")
                     else:
                         filtered.append(concept)
-                except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
+                except Exception as e:
                     logger.warning(f"Mastery check failed for '{concept}': {e}, including concept")
                     filtered.append(concept)
 
@@ -727,7 +727,7 @@ class VerificationService:
                     },
                     group_id=canvas_name.split("/")[0] if "/" in canvas_name else canvas_name,
                 )
-            except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
+            except Exception as e:
                 logger.warning(f"G-PIPE-006: Failed to persist exam attempt (non-fatal): {e}")
 
         # 决定下一步动作
@@ -1129,7 +1129,7 @@ class VerificationService:
             )
             return ["默认概念"]
 
-        except (OSError, json.JSONDecodeError, RuntimeError) as e:
+        except Exception as e:
             logger.warning(
                 f"Canvas extraction failed for {canvas_name}: {e}, "
                 "using degraded fallback concepts [默认概念]"
@@ -1173,14 +1173,14 @@ class VerificationService:
         if self._canvas_service:
             try:
                 canvas_data = await self._canvas_service.read_canvas(file_path)
-            except (OSError, json.JSONDecodeError, RuntimeError) as e:
+            except Exception as e:
                 logger.debug(f"Canvas service read failed: {e}, trying direct file read")
 
         # Method 2: Direct file read as fallback
         if canvas_data is None:
             try:
                 canvas_data = await asyncio.to_thread(self._read_canvas_file_sync, file_path)
-            except (OSError, FileNotFoundError, json.JSONDecodeError) as e:
+            except Exception as e:
                 logger.error(f"Direct canvas file read failed: {e}")
                 return ["默认概念"]
 
@@ -1430,7 +1430,7 @@ class VerificationService:
 
                     return quality, raw_score, False, None
 
-            except (RuntimeError, AttributeError, ValueError, TypeError, ConnectionError) as e:
+            except Exception as e:
                 logger.debug(f"Agent service scoring call failed: {e}")
 
         # Fallback to mock evaluation
@@ -1602,7 +1602,7 @@ class VerificationService:
             )
             return default_result
 
-        except (RuntimeError, AttributeError, ConnectionError) as e:
+        except Exception as e:
             logger.warning(f"Difficulty calculation failed for '{concept}': {e}, using default")
             return default_result
 
@@ -1800,7 +1800,7 @@ class VerificationService:
             )
             return None
 
-        except (RuntimeError, AttributeError, ConnectionError) as e:
+        except Exception as e:
             # AC5: Graceful degradation
             logger.error(f"RAG query failed for concept '{concept}': {e}")
             return None
@@ -1850,7 +1850,7 @@ class VerificationService:
                             "relationship": r.get("relationship", "related"),
                             "direction": r.get("direction", "unknown"),
                         })
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            except Exception as e:
                 logger.debug(f"Graph fetch_connected failed: {e}")
 
         async def fetch_siblings():
@@ -1869,7 +1869,7 @@ class VerificationService:
                     s = r.get("sibling", "")
                     if s:
                         sibling_concepts.append(s)
-            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
+            except Exception as e:
                 logger.debug(f"Graph fetch_siblings failed: {e}")
 
         async def fetch_learning_memories():
@@ -1888,7 +1888,7 @@ class VerificationService:
                             "content": content,
                             "score": r.get("score", 0.0),
                         })
-            except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
+            except Exception as e:
                 logger.debug(f"Graph fetch_learning_memories failed: {e}")
 
         try:
@@ -1956,7 +1956,7 @@ class VerificationService:
         except asyncio.TimeoutError:
             logger.warning(f"FSRS history timeout for '{concept}' ({timeout}s)")
             return None
-        except (RuntimeError, AttributeError, ConnectionError) as e:
+        except Exception as e:
             logger.warning(f"FSRS history failed for '{concept}': {e}")
             return None
 
@@ -2043,7 +2043,7 @@ class VerificationService:
 
             return result
 
-        except (RuntimeError, AttributeError, ConnectionError) as e:
+        except Exception as e:
             logger.warning(f"Cross-canvas lookup failed for '{concept}': {e}")
             return []
 
@@ -2697,7 +2697,7 @@ class VerificationService:
                             if question.startswith(prefix):
                                 question = question[len(prefix):].strip()
                         return question if question else f"请解释什么是「{concept}」？"
-            except (RuntimeError, AttributeError, ValueError, TypeError, ConnectionError) as e:
+            except Exception as e:
                 logger.warning(f"Agent service question generation failed: {e}")
 
         # Fallback: return basic question
@@ -2797,7 +2797,7 @@ class VerificationService:
                                     concept=concept,
                                     agent_feedback=hint_text[:200],
                                 )
-                            except (RuntimeError, AttributeError, asyncio.TimeoutError) as mem_err:
+                            except Exception as mem_err:
                                 logger.warning(f"hint-generation memory write failed (non-blocking): {mem_err}")
                         return hint_text
             except asyncio.TimeoutError:

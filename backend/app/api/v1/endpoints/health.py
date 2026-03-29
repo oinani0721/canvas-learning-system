@@ -906,16 +906,15 @@ async def check_neo4j_health(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Graphiti Health Check Endpoint (Story 30.3)
+# Knowledge Graph (Neo4j) Health Check Endpoint (Story 30.3)
 # [Source: docs/stories/30.3.memory-api-health-endpoints.story.md - AC-30.3.7]
-# [Source: specs/data/graphiti-health-response.schema.json]
+# S34: renamed class to match actual Neo4j backend (DD-13 name-body coherence)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class GraphitiHealthResponse(BaseModel):
+class KnowledgeGraphHealthResponse(BaseModel):
     """
-    Graphiti健康检查响应.
+    知识图谱(Neo4j)健康检查响应.
 
-    [Source: specs/data/graphiti-health-response.schema.json]
     [Source: docs/stories/30.3.memory-api-health-endpoints.story.md - AC-30.3.7]
     """
     status: str = Field(
@@ -936,15 +935,15 @@ class GraphitiHealthResponse(BaseModel):
 
 
 @router.get(
-    "/health/graphiti",
-    response_model=GraphitiHealthResponse,
-    summary="Graphiti连接状态检查",
-    description="检查Graphiti客户端初始化状态和图统计信息",
-    operation_id="check_graphiti_health",
+    "/health/knowledge-graph",
+    response_model=KnowledgeGraphHealthResponse,
+    summary="知识图谱(Neo4j)连接状态检查",
+    description="检查Neo4j知识图谱连接状态和图统计信息",
+    operation_id="check_knowledge_graph_health",
     responses={
         200: {
             "description": "Graphiti健康检查结果",
-            "model": GraphitiHealthResponse,
+            "model": KnowledgeGraphHealthResponse,
             "content": {
                 "application/json": {
                     "examples": {
@@ -975,7 +974,7 @@ class GraphitiHealthResponse(BaseModel):
 )
 async def check_knowledge_graph_health(
     settings: Settings = Depends(get_settings)  # noqa: B008
-) -> GraphitiHealthResponse:
+) -> KnowledgeGraphHealthResponse:
     """
     检查知识图谱（Neo4j）健康状态.
 
@@ -987,14 +986,14 @@ async def check_knowledge_graph_health(
     [Source: specs/data/graphiti-health-response.schema.json]
 
     Returns:
-        GraphitiHealthResponse: 健康检查结果
+        KnowledgeGraphHealthResponse: 健康检查结果
     """
     logger.debug("Graphiti health check requested")
 
     # Check if Neo4j (underlying backend) is enabled
     if not settings.neo4j_enabled:
         logger.info("Graphiti unavailable: Neo4j is disabled")
-        return GraphitiHealthResponse(
+        return KnowledgeGraphHealthResponse(
             status="error",
             error="Graphiti unavailable: Neo4j is disabled in configuration"
         )
@@ -1013,7 +1012,7 @@ async def check_knowledge_graph_health(
         health_ok = await neo4j_client.health_check()
 
         if not health_ok:
-            return GraphitiHealthResponse(
+            return KnowledgeGraphHealthResponse(
                 status="error",
                 error="Graphiti unavailable: Neo4j not connected"
             )
@@ -1026,7 +1025,7 @@ async def check_knowledge_graph_health(
             "episode_count": stats.get("episode_count", 0)
         }
 
-        return GraphitiHealthResponse(
+        return KnowledgeGraphHealthResponse(
             status="ok",
             graph_stats=graph_stats,
             last_episode_timestamp=stats.get("last_episode_timestamp")
@@ -1035,7 +1034,7 @@ async def check_knowledge_graph_health(
     except Exception as e:
         error_msg = str(e)
         logger.error(f"Graphiti health check failed: {error_msg}")
-        return GraphitiHealthResponse(
+        return KnowledgeGraphHealthResponse(
             status="error",
             error=f"Graphiti client error: {error_msg}"
         )
@@ -1805,7 +1804,7 @@ async def get_memory_system_logs(
             with open(log_file, 'r', encoding='utf-8') as f:
                 all_lines = f.readlines()
                 logs = [line.strip() for line in all_lines[-lines:]]
-        except (OSError, UnicodeDecodeError) as e:
+        except Exception as e:
             logger.warning(f"Failed to read memory system logs: {e}")
             logs = [f"[ERROR] Failed to read log file: {e}"]
 
