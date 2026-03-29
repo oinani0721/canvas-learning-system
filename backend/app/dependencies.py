@@ -210,13 +210,10 @@ async def get_agent_service(
         logger.warning("AI_API_KEY not configured, AgentService will not have AI capabilities")
 
     # Story 36.11: Inject LearningMemoryClient for memory fallback when Neo4j unavailable
-    memory_client = None
-    try:
-        from .clients.graphiti_client import get_learning_memory_client
-        memory_client = get_learning_memory_client()
-        logger.debug("LearningMemoryClient injected into AgentService")
-    except Exception as e:
-        logger.warning(f"LearningMemoryClient not available for AgentService: {e}")
+    # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
+    from .clients.graphiti_client import get_learning_memory_client
+    memory_client = get_learning_memory_client()
+    logger.debug("LearningMemoryClient injected into AgentService")
 
     # ✅ FIX-Canvas-Write: Pass canvas_service to AgentService for direct Canvas writes
     # Story 36.7: Pass neo4j_client to AgentService for learning memory queries
@@ -368,14 +365,10 @@ async def get_context_enrichment_service(
     cross_canvas_service = get_cross_canvas_service()
 
     # P1 Fix: Inject LearningMemoryClient for learning memory enrichment
-    # Without this, ContextEnrichmentService._search_learning_relations() returns []
-    learning_memory_service = None
-    try:
-        from .clients.graphiti_client import get_learning_memory_client
-        learning_memory_service = get_learning_memory_client()
-        logger.debug("LearningMemoryClient injected into ContextEnrichmentService")
-    except Exception as e:
-        logger.warning(f"LearningMemoryClient not available for context enrichment: {e}")
+    # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
+    from .clients.graphiti_client import get_learning_memory_client
+    learning_memory_service = get_learning_memory_client()
+    logger.debug("LearningMemoryClient injected into ContextEnrichmentService")
 
     # Story 36.13 AC-5: Pass TTLCache maxsize from Settings
     service = ContextEnrichmentService(
@@ -583,12 +576,9 @@ async def get_verification_service(
             )
         neo4j_client = get_neo4j_client_dep()
         # Fix C2: inject memory_client for hint-generation memory writes
-        vs_memory_client = None
-        try:
-            from .clients.graphiti_client import get_learning_memory_client
-            vs_memory_client = get_learning_memory_client()
-        except Exception as e:
-            logger.warning(f"LearningMemoryClient not available for VS AgentService: {e}")
+        # S34 G-PIPE fix: 强制注入 — JSON file client, init failure = code bug
+        from .clients.graphiti_client import get_learning_memory_client
+        vs_memory_client = get_learning_memory_client()
         agent_service = AgentService(
             gemini_client=gemini_client,
             neo4j_client=neo4j_client,
