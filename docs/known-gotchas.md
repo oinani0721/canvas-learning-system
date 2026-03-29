@@ -1,7 +1,7 @@
 # Known Gotchas — Canvas Learning System
 
 > **Session 启动时自动注入。`/parallel-fix` 运行后自动更新。**
-> Last updated: 2026-03-27
+> Last updated: 2026-03-29
 
 ---
 
@@ -11,7 +11,7 @@
 |----|------|------|---------|---------|
 | G-FAKE-001 | 42+函数名含"graphiti"但从未 import graphiti-core，实际调用 Neo4j Cypher | AI 混淆：写入 Neo4j ≠ 写入 Graphiti | ⛔ GDA-S24审计发现，12C+13H | DD-13 name-body-coherence.js 自动检测 |
 | G-FAKE-002 | 3个函数调用不存在的方法（死代码调用链） | 未验证调用链完整性 | ⛔ 需修复 | DD-13 Certificate-Based Review |
-| G-FAKE-003 | Memory query API 端点全部返回空数据 | 占位实现从未被替换 | ⛔ 需真实查询 Neo4j/LanceDB | DD-03 pretool-guard.js 阻断空返回 |
+| G-FAKE-003 | ~~Memory query API 端点全部返回空数据~~ | ~~占位实现从未被替换~~ | ✅ S33诊断纠正：7个memory端点均为真实实现，DI正确接线。返回空是因为Neo4j无数据（正确行为） | DD-03 |
 | G-FAKE-004 | Agent API 端点大量使用硬编码假数据 | 原型阶段占位未清理 | ⛔ S18审查发现 | DD-03 |
 | G-FAKE-005 | Frontend /explain/four-level 等端点使用假实现 | 前后端分离时占位 | ⛔ 需接入真实 LLM | DD-03 |
 
@@ -48,6 +48,21 @@
 | G-API-001 | fastapi-mcp anyOf+type schema 冲突 | MCP 工具 schema 生成不兼容 | ✅ S29 monkey-patch修复 | 自定义 schema 后处理 |
 | G-API-002 | MCP route 缺少 explicit operation_id 导致工具名错误 | FastAPI 自动生成的 operation_id 不稳定 | ✅ S29 15路由全部修复 | 每个路由显式设置 operation_id |
 
+## G-SILENT: 静默失败 (S33新增)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-SILENT-001 | Review Schedule 在 scheduler 不可用时静默返回 200+空数据 | review.py:596 无错误信号 | ⛔ 需修复 | API 应返回 503 或 degraded 标记 |
+| G-SILENT-002 | Cross-Canvas Search 硬编码返回空列表 | cross_canvas.py:557 placeholder | ⛔ 需实现 | DD-03 |
+
+## G-PARAM: 参数/类型 Bug (S33 real-DB 测试暴露，已修复)
+
+| ID | 问题 | 根因 | 修复状态 | 防止规则 |
+|----|------|------|---------|---------|
+| G-PARAM-001 | search_nodes() query 参数名冲突+双WHERE | graphiti_client.py params["query"] 与 run_query(query) 冲突 | ✅ S33修复：$query→$searchTerm + WHERE合并 | real DB 测试 |
+| G-PARAM-002 | MemoryService DateTime vs str 排序 TypeError | Neo4j 返回 DateTime 对象，in-memory 用 ISO string | ✅ S33修复：sort key 用 str() 统一 | real DB 测试 |
+| G-PARAM-003 | conftest neo4j_test_session cleanup TypeError | 位置参数 dict 传给 **kwargs | ✅ S33修复：改为 keyword arg | real DB 测试 |
+
 ## G-PERF: 性能问题
 
 | ID | 问题 | 根因 | 修复状态 | 防止规则 |
@@ -61,10 +76,12 @@
 
 | 分类 | 总计 | 已修复 | 待修复 |
 |------|------|--------|--------|
-| G-FAKE | 5 | 0 | 5 |
+| G-FAKE | 5 | 1 | 4 |
 | G-PIPE | 7 | 1 | 6 |
 | G-TYPE | 2 | 2 | 0 |
 | G-ASYNC | 2 | 2 | 0 |
 | G-API | 2 | 2 | 0 |
 | G-PERF | 2 | 1 | 1 |
-| **合计** | **20** | **8** | **12** |
+| G-SILENT | 2 | 0 | 2 |
+| G-PARAM | 3 | 3 | 0 |
+| **合计** | **25** | **12** | **13** |
