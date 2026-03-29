@@ -711,6 +711,25 @@ class VerificationService:
         state["last_quality"] = quality
         state["last_score"] = score
 
+        # G-PIPE-006 Fix: Persist exam attempt to memory (close the feedback loop)
+        if self._memory_service:
+            try:
+                await self._memory_service.record_knowledge_entity(
+                    event_type="exam_attempt",
+                    content=f"Verification: {current_concept} scored {score}/100 ({quality})",
+                    metadata={
+                        "concept": current_concept,
+                        "score": score,
+                        "quality": quality,
+                        "canvas_name": canvas_name,
+                        "session_id": session_id,
+                        "degraded": degraded,
+                    },
+                    group_id=canvas_name.split("/")[0] if "/" in canvas_name else canvas_name,
+                )
+            except Exception as e:
+                logger.warning(f"G-PIPE-006: Failed to persist exam attempt (non-fatal): {e}")
+
         # 决定下一步动作
         hints_given = state["hints_given"]
         max_hints = state["max_hints"]
