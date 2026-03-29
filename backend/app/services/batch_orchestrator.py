@@ -677,6 +677,7 @@ class BatchOrchestrator:
                 prompt = f"Process node {node_id} from canvas {canvas_path}"
 
             # EPIC-33 P0: Use routing engine if agent_type is unspecified/generic
+            # Step 3: Uses async version with LLM semantic fallback for low-confidence
             effective_agent_type = agent_type
             if self.routing_engine is not None and node_content:
                 try:
@@ -686,14 +687,15 @@ class BatchOrchestrator:
                         node_text=node_content,
                         agent_override=agent_type if agent_type != "auto" else None,
                     )
-                    routing_result = self.routing_engine.route_single_node(routing_req)
+                    routing_result = await self.routing_engine.route_single_node_async(routing_req)
                     if routing_result and routing_result.confidence >= 0.7:
                         effective_agent_type = routing_result.recommended_agent
                         logger.debug(
                             f"[EPIC-33] Routing engine: {node_id} → "
-                            f"{effective_agent_type} (confidence={routing_result.confidence:.2f})"
+                            f"{effective_agent_type} (confidence={routing_result.confidence:.2f}, "
+                            f"reason={routing_result.reason})"
                         )
-                except (ImportError, ValueError, TypeError, AttributeError) as e:
+                except (ImportError, ValueError, TypeError, AttributeError, RuntimeError) as e:
                     logger.warning(f"[EPIC-33] Routing engine failed, using original agent_type: {e}")
 
             # Call agent through agent_service

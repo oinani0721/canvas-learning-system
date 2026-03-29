@@ -27,6 +27,7 @@ Routing Matrix (from Story 33.5 AC1):
 [Source: specs/data/agent-type.schema.json#L14-L29]
 """
 
+import json
 import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
@@ -163,6 +164,30 @@ CONTENT_PATTERN_MAP: Dict[str, Dict[str, Any]] = {
 
 # Default fallback agent when no patterns match or confidence is low
 DEFAULT_FALLBACK_AGENT = "oral-explanation"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Agent Descriptions for LLM Intent Classification (Step 3 Semantic Fallback)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+AGENT_DESCRIPTIONS: Dict[str, str] = {
+    "oral-explanation": "口语化解释 — 像教授课堂讲解一样的口头讲解，适合一般性概念定义和解释类问题",
+    "comparison-table": "概念对比表 — 对比两个或多个容易混淆的概念的异同、区别、联系",
+    "clarification-path": "深度澄清路径 — 系统性的深度解释，适合'如何理解'、'怎么理解'类深度理解问题",
+    "example-teaching": "例题教学 — 通过具体例子、实例、练习题来教学，适合需要实际应用的概念",
+    "memory-anchor": "记忆锚点 — 创建助记法、类比、故事来帮助长期记忆",
+    "deep-decomposition": "深度拆解 — 对复杂概念进行层层分解的深度分析，适合复杂多层次的知识体系",
+}
+
+INTENT_CLASSIFICATION_SYSTEM = (
+    "你是教育内容分类器。根据学习主题选择最合适的教学方式。"
+    "只返回JSON，不要其他文字。"
+)
+
+INTENT_CLASSIFICATION_USER = (
+    "可选教学方式：\n{descriptions}\n\n"
+    "学习主题：{node_text}\n\n"
+    '返回JSON：{{"agent_type": "名称", "confidence": 0.0到1.0}}'
+)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Confidence Thresholds & Scoring Constants
@@ -479,6 +504,92 @@ class AgentRoutingEngine:
             reason=reason
         )
 
+    async def _llm_classify_intent(self, node_text: str) -> Optional[Tuple[str, float]]:
+        """
+        Use LLM to classify intent when regex confidence is low.
+
+        Returns (agent_type, confidence) or None if classification fails.
+        """
+        try:
+            import litellm
+        except ImportError:
+            logger.debug("litellm not available, skipping semantic routing")
+            return None
+
+        descriptions = "\n".join(
+            f"- {name}: {desc}" for name, desc in AGENT_DESCRIPTIONS.items()
+        )
+        user_msg = INTENT_CLASSIFICATION_USER.format(
+            descriptions=descriptions, node_text=node_text[:200]
+        )
+
+        try:
+            from app.core.litellm_config import get_litellm_config
+            config = get_litellm_config()
+            model = config.get_scoring_model()
+        except Exception:
+            model = "gemini/gemini-2.0-flash"
+
+        try:
+            response = await litellm.acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": INTENT_CLASSIFICATION_SYSTEM},
+                    {"role": "user", "content": user_msg},
+                ],
+                temperature=0.1,
+                max_tokens=80,
+            )
+            text = response.choices[0].message.content.strip()
+            # Strip markdown code fences if present
+            if text.startswith("```"):
+                text = text.split("\n", 1)[-1].rsplit("```", 1)[0].strip()
+            result = json.loads(text)
+            agent_type = result.get("agent_type", "")
+            confidence = float(result.get("confidence", 0.5))
+            if agent_type in AGENT_DESCRIPTIONS:
+                return (agent_type, min(confidence, 0.95))
+            logger.debug(f"LLM returned unknown agent_type: {agent_type}")
+        except Exception:
+            logger.debug("LLM intent classification failed, using regex result")
+
+        return None
+
+    async def route_single_node_async(self, request: RoutingRequest) -> RoutingResult:
+        """
+        Route a single node with LLM semantic fallback for low-confidence cases.
+
+        Uses regex as fast primary path. When confidence < 0.7 and no override,
+        calls LLM intent classification as fallback.
+        """
+        # Fast path: regex routing
+        result = self.route_single_node(request)
+
+        # If high/medium confidence or manual override, return immediately
+        if result.confidence >= CONFIDENCE_LOW_THRESHOLD or result.reason == "manual_override":
+            return result
+
+        # Semantic fallback for low confidence / no match
+        llm_result = await self._llm_classify_intent(request.node_text)
+        if llm_result:
+            agent_type, confidence = llm_result
+            logger.info(
+                f"Semantic routing for node {request.node_id}: "
+                f"{agent_type} (conf={confidence:.2f}), "
+                f"regex was: {result.recommended_agent} (conf={result.confidence:.2f})"
+            )
+            return RoutingResult(
+                node_id=request.node_id,
+                recommended_agent=agent_type,
+                confidence=confidence,
+                patterns_matched=result.patterns_matched,
+                fallback_agent=result.recommended_agent,
+                reason=f"semantic_classification (regex_fallback: {result.recommended_agent})",
+            )
+
+        # LLM failed, return regex result as-is
+        return result
+
     def route_batch(self, request: BatchRoutingRequest) -> BatchRoutingResponse:
         """
         Route a batch of nodes to their best matching agents.
@@ -555,6 +666,7 @@ __all__ = [
     "PATTERN_VERSION",
     "DEFAULT_FALLBACK_AGENT",
     "ORAL_EXPLANATION_WEIGHT",
+    "AGENT_DESCRIPTIONS",
     # Routing decision thresholds
     "CONFIDENCE_HIGH_THRESHOLD",
     "CONFIDENCE_MEDIUM_THRESHOLD",
