@@ -32,6 +32,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/pretool-guard.js",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/mock-import-guard.js",
+            "timeout": 2000
           }
         ]
       }
