@@ -590,68 +590,94 @@ def provider_factory_clean():
 
 import os
 
-@pytest.fixture(scope="module")
-async def real_neo4j_client():
+@pytest.fixture(scope="session")
+async def neo4j_available():
+    """Session-scoped guard: skip all real-DB tests if test Neo4j is unreachable.
+
+    Uses the dedicated test Neo4j container (port 7692), NOT the product DB (7691).
+    Start with: docker compose --profile test up -d neo4j-test
     """
-    Real Neo4j client for integration tests.
+    from app.clients.neo4j_client import Neo4jClient
 
-    Story 31.A.5 AC-31.A.5.1: Requires Docker Neo4j service.
+    uri = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7692")
+    user = os.getenv("NEO4J_TEST_USER", "neo4j")
+    password = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 
-    Environment variables (with defaults for CI):
-        NEO4J_URI: bolt://localhost:7687
-        NEO4J_USER: neo4j
-        NEO4J_PASSWORD: test_password
+    client = Neo4jClient(uri=uri, user=user, password=password, database="neo4j")
+    try:
+        await client.initialize()
+        if getattr(client, "is_fallback_mode", False):
+            pytest.skip("Neo4j test container not available (fallback mode)")
+        yield client
+    except Exception as e:
+        pytest.skip(f"Neo4j test container not available: {e}")
+    finally:
+        try:
+            await client.cleanup()
+        except Exception:
+            pass
+
+
+@pytest.fixture(scope="module")
+async def real_neo4j_client(neo4j_available):
+    """Real Neo4j client for integration tests.
+
+    Points to the DEDICATED TEST container (port 7692), isolated from product data (7691).
+    Depends on neo4j_available to graceful-skip when Docker is not running.
 
     Usage:
         @pytest.mark.integration
         @pytest.mark.asyncio
         async def test_something(real_neo4j_client):
             await real_neo4j_client.run_query("...")
-
-    [Source: docs/stories/31.A.5.story.md#3.2-测试基础设施]
     """
     from app.clients.neo4j_client import Neo4jClient
 
-    # Get config from environment (CI-compatible)
-    uri = os.getenv("NEO4J_URI", "bolt://localhost:7687")
-    user = os.getenv("NEO4J_USER", "neo4j")
-    password = os.getenv("NEO4J_PASSWORD", "test_password")
+    uri = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7692")
+    user = os.getenv("NEO4J_TEST_USER", "neo4j")
+    password = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 
-    client = Neo4jClient(
-        uri=uri,
-        user=user,
-        password=password,
-        database="neo4j",
-    )
+    client = Neo4jClient(uri=uri, user=user, password=password, database="neo4j")
 
     try:
         await client.initialize()
-
-        # Clean up test data before tests
         await client.run_query(
             "MATCH (n) WHERE n.id STARTS WITH 'test_' DETACH DELETE n"
         )
-
         yield client
-
     finally:
-        # Clean up test data after tests
         try:
             await client.run_query(
                 "MATCH (n) WHERE n.id STARTS WITH 'test_' DETACH DELETE n"
             )
         except Exception:
-            pass  # Ignore cleanup errors
+            pass
+
+
+@pytest.fixture
+async def neo4j_test_session(real_neo4j_client):
+    """Function-scoped Neo4j session with UUID-based isolation and auto-cleanup.
+
+    Each test gets a unique prefix. All nodes created with this prefix are
+    cleaned up automatically after the test, preventing data collision.
+    """
+    import uuid
+    prefix = f"test_{uuid.uuid4().hex[:8]}_"
+    yield real_neo4j_client, prefix
+    try:
+        await real_neo4j_client.run_query(
+            "MATCH (n) WHERE n.id STARTS WITH $prefix DETACH DELETE n",
+            {"prefix": prefix},
+        )
+    except Exception:
+        pass
 
 
 @pytest.fixture(scope="module")
 async def real_memory_service(real_neo4j_client):
-    """
-    Real MemoryService with Neo4j for integration tests.
+    """Real MemoryService with Neo4j for integration tests.
 
-    Story 31.A.5: Creates a fresh MemoryService instance with real Neo4j.
-
-    [Source: docs/stories/31.A.5.story.md#AC-31.A.5.1]
+    Uses the dedicated test container (port 7692).
     """
     from app.services.memory_service import MemoryService
 
