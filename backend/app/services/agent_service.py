@@ -3645,10 +3645,10 @@ class AgentService:
             # Fix B: Inject mastery level into scoring context
             scoring_context = rag_context or ""
             try:
-                from app.services.mastery_engine import MasteryEngine, load_mastery_config
+                from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
                 from app.clients.neo4j_client import get_neo4j_client
-                _m_engine = MasteryEngine(load_mastery_config())
+                _m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 _m_store = MasteryStore(get_neo4j_client())
                 _m_concept = await _m_store.get_concept(node_id, group_id=DEFAULT_GROUP_ID)
                 if _m_concept and _m_concept.interaction_count > 0:
@@ -3713,14 +3713,14 @@ class AgentService:
             # Mastery engine update (BKT + FSRS hybrid)
             mastery_data = {}
             try:
-                from app.services.mastery_engine import MasteryEngine, load_mastery_config
+                from app.services.mastery_engine import get_mastery_engine
                 from app.services.mastery_store import MasteryStore
                 from app.clients.neo4j_client import get_neo4j_client
                 from memory.temporal.fsrs_manager import get_rating_from_score
 
                 grade = get_rating_from_score(total_score)
                 concept_id = node_id  # Use node_id as concept_id
-                engine = MasteryEngine(load_mastery_config())
+                engine = get_mastery_engine()  # Uses fusion-enabled singleton
                 store = MasteryStore(get_neo4j_client())
                 concept = await store.get_or_create_concept(
                     concept_id,

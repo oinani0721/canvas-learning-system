@@ -567,11 +567,11 @@ class ReviewService:
         # Expand eligible_nodes with mastery-weak concepts not caught by color filter
         mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
         try:
-            from app.services.mastery_engine import MasteryEngine, load_mastery_config
+            from app.services.mastery_engine import get_mastery_engine
             from app.services.mastery_store import MasteryStore
             from app.clients.neo4j_client import get_neo4j_client
 
-            m_engine = MasteryEngine(load_mastery_config())
+            m_engine = get_mastery_engine()  # Uses fusion-enabled singleton
             m_store = MasteryStore(get_neo4j_client())
             from app.config import DEFAULT_GROUP_ID
             all_mastery = await m_store.get_all_concepts(group_id=DEFAULT_GROUP_ID)

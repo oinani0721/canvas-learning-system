@@ -600,11 +600,22 @@ class MasteryEngine:
 _engine_instance: MasteryEngine | None = None
 
 
+def set_mastery_engine(engine: MasteryEngine) -> None:
+    """Set the global singleton MasteryEngine (called from main.py after fusion setup).
+
+    This ensures all callers of get_mastery_engine() receive the same instance
+    with fusion engine and signal adapters already attached.
+    """
+    global _engine_instance
+    _engine_instance = engine
+    logger.info("MasteryEngine singleton set (fusion-enabled)")
+
+
 def get_mastery_engine() -> MasteryEngine:
     """Get or create the singleton MasteryEngine instance.
 
-    Provides a service-layer accessor so that event handlers and other
-    services don't need to import private helpers from API endpoint modules.
+    After main.py startup, returns the fusion-enabled engine set via set_mastery_engine().
+    Before startup (or if set_mastery_engine was never called), creates a plain engine.
     """
     global _engine_instance
     if _engine_instance is None:

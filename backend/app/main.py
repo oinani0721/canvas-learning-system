@@ -200,7 +200,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # ✅ Story 5.6: Register signal adapters for mastery fusion engine
     try:
-        from app.services.mastery_engine import MasteryEngine
+        from app.services.mastery_engine import MasteryEngine, set_mastery_engine
         from app.services.mastery_fusion import MasteryFusionEngine
         from app.services.signal_registry import (
             BKTMasterySignal,
@@ -225,7 +225,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         fusion_engine = MasteryFusionEngine(signal_registry)
         mastery_engine.set_fusion_engine(fusion_engine)
 
-        # Store in app state for dependency injection
+        # Store in app state AND set as global singleton for DI
+        set_mastery_engine(mastery_engine)  # All get_mastery_engine() calls now return this instance
         app.state.mastery_engine = mastery_engine
         app.state.signal_registry = signal_registry
         app.state.fusion_engine = fusion_engine
