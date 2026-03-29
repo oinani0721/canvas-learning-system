@@ -211,7 +211,7 @@ class GraphitiEdgeClient(GraphitiClientBase):
         try:
             # Build Cypher query based on filters
             where_clauses = []
-            params: Dict[str, Any] = {"query": query, "limit": limit}
+            params: Dict[str, Any] = {"searchTerm": query, "limit": limit}
 
             if canvas_path:
                 where_clauses.append("n.canvas_path = $canvasPath")
@@ -225,15 +225,21 @@ class GraphitiEdgeClient(GraphitiClientBase):
                 where_clauses.append("n.entity_type IN $entityTypes")
                 params["entityTypes"] = entity_types
 
-            where_clause = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            # Build text search condition
+            text_search = (
+                "(n.text CONTAINS $searchTerm OR n.id CONTAINS $searchTerm"
+                " OR n.name CONTAINS $searchTerm OR n.episode_body CONTAINS $searchTerm"
+                " OR n.concept CONTAINS $searchTerm)"
+            )
+            if where_clauses:
+                combined_where = f"WHERE {' AND '.join(where_clauses)} AND {text_search}"
+            else:
+                combined_where = f"WHERE {text_search}"
 
             # Search both :Node and :EntityNode labels for cross-system compatibility
             cypher_query = f"""
             MATCH (n)
-            {where_clause}
-            WHERE (n.text CONTAINS $query OR n.id CONTAINS $query
-                   OR n.name CONTAINS $query OR n.episode_body CONTAINS $query
-                   OR n.concept CONTAINS $query)
+            {combined_where}
             RETURN n.id as node_id, coalesce(n.text, n.episode_body) as content,
                    n.canvas_path as canvas_path, n.group_id as group_id,
                    n.entity_type as entity_type, n.name as name,

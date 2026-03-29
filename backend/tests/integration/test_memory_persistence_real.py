@@ -71,11 +71,7 @@ async def _poll_neo4j(
 class TestRealCrossSessionPersistence:
     """Data recorded by one MemoryService is visible to a fresh instance."""
 
-    @pytest.mark.xfail(
-        reason="BUG: Neo4j returns DateTime objects but MemoryService._recover_episodes_from_neo4j "
-        "compares them with ISO strings. S33 exposed: '<' not supported between DateTime and str.",
-        strict=True,
-    )
+
     async def test_history_persists_across_service_instances(self):
         """A fresh MemoryService reads history written by a prior instance."""
         client = _make_client()
@@ -114,10 +110,7 @@ class TestRealCrossSessionPersistence:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
 
-    @pytest.mark.xfail(
-        reason="BUG: Neo4j DateTime vs str comparison in MemoryService (same as above).",
-        strict=True,
-    )
+
     async def test_all_fields_complete_after_restart(self):
         """All recorded fields survive a service restart via Neo4j."""
         client = _make_client()
@@ -165,10 +158,7 @@ class TestRealCrossSessionPersistence:
 class TestRealQueryBehavior:
     """Prove query results originate from Neo4j, not in-memory cache."""
 
-    @pytest.mark.xfail(
-        reason="BUG: Neo4j DateTime vs str comparison in MemoryService.",
-        strict=True,
-    )
+
     async def test_returned_from_neo4j(self):
         """A fresh service with empty _episodes still returns data from Neo4j."""
         client = _make_client()
@@ -213,10 +203,7 @@ class TestRealQueryBehavior:
 class TestRealFilteringAndPagination:
     """Test Cypher-level filtering and pagination against real Neo4j."""
 
-    @pytest.mark.xfail(
-        reason="BUG: Neo4j DateTime vs str comparison in MemoryService.",
-        strict=True,
-    )
+
     async def test_concept_filter_cypher(self):
         """Concept partial-match filter works at the Cypher level."""
         client = _make_client()
@@ -323,10 +310,7 @@ class TestRealFilteringAndPagination:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
 
-    @pytest.mark.xfail(
-        reason="BUG: Neo4j DateTime vs str comparison in MemoryService.",
-        strict=True,
-    )
+
     async def test_pagination_limit_skip(self):
         """Pagination correctly limits and offsets results."""
         client = _make_client()

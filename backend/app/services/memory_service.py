@@ -524,8 +524,10 @@ class MemoryService:
                     existing_keys.add(key)
 
         # Sort by timestamp (newest first)
+        # Neo4j returns neo4j.time.DateTime objects, in-memory uses ISO strings;
+        # str() normalizes both to sortable strings.
         if episodes:
-            episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            episodes.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
         # Story 38.6 AC-4: Merge failed scores from fallback so user never sees gaps
         # Run sync file I/O in thread to avoid blocking the event loop (#3)
@@ -539,8 +541,8 @@ class MemoryService:
                 key = (fs.get("node_id", ""), fs.get("timestamp", ""))
                 if key not in existing_keys:
                     episodes.append(fs)
-            # Re-sort after merge
-            episodes.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+            # Re-sort after merge (str() normalizes DateTime vs string)
+            episodes.sort(key=lambda x: str(x.get("timestamp", "")), reverse=True)
 
         # Pagination
         total = len(episodes)

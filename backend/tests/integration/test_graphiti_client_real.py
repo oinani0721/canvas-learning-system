@@ -120,12 +120,6 @@ class TestRealGraphitiEdgeClientMethods:
             await _cleanup_prefix(client, prefix)
             await client.cleanup()
 
-    @pytest.mark.xfail(
-        reason="BUG: search_nodes passes 'query' as both positional and keyword arg to run_query(). "
-        "S33 real-DB migration exposed this — params dict has key 'query' which collides with "
-        "run_query(query=..., **params). Needs production fix in graphiti_client.py:244.",
-        strict=True,
-    )
     async def test_search_nodes_returns_results(self):
         """search_nodes() finds nodes by text content in real Neo4j."""
         client = _make_client()
