@@ -120,7 +120,7 @@ async def _get_or_create_verification_service():
     try:
         from app.dependencies import get_rag_service
         rag_service = get_rag_service()
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"RAG service not available for VerificationService: {e}")
 
     # 2. Cross-canvas service (Story 24.5)
@@ -128,7 +128,7 @@ async def _get_or_create_verification_service():
     try:
         from app.dependencies import get_cross_canvas_service
         cross_canvas_service = get_cross_canvas_service()
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"CrossCanvas service not available: {e}")
 
     # 3. Textbook context service (Story 24.5 AC4)
@@ -142,7 +142,7 @@ async def _get_or_create_verification_service():
             canvas_base_path=settings.canvas_base_path,
             config=textbook_config
         )
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"TextbookContext service not available: {e}")
 
     # 4. Graphiti client (Story 31.4 - question deduplication)
@@ -150,7 +150,7 @@ async def _get_or_create_verification_service():
     try:
         from app.dependencies import get_graphiti_temporal_client
         graphiti_client = get_graphiti_temporal_client()
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"Graphiti client not available for deduplication: {e}")
 
     # 5. Memory service (Story 31.5 - difficulty adaptation, async)
@@ -158,7 +158,7 @@ async def _get_or_create_verification_service():
     try:
         from app.services.memory_service import get_memory_service
         memory_service = await get_memory_service()
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"MemoryService not available for difficulty adaptation: {e}")
 
     # 6. Agent service (Story 31.1 - AI scoring + question generation)
@@ -180,7 +180,7 @@ async def _get_or_create_verification_service():
             gemini_client=gemini_client,
             neo4j_client=neo4j_client
         )
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"AgentService not available for AI scoring: {e}")
 
     # 7. Canvas service (EPIC-36 P0 Fix - concept extraction)
@@ -188,7 +188,7 @@ async def _get_or_create_verification_service():
     try:
         from app.services.canvas_service import CanvasService
         canvas_service = CanvasService(canvas_base_path=settings.canvas_base_path)
-    except Exception as e:
+    except (ImportError, RuntimeError, AttributeError) as e:
         logger.warning(f"CanvasService not available for concept extraction: {e}")
 
     _verification_service_instance = VerificationService(
@@ -322,7 +322,7 @@ async def _get_difficulty_data(
 
         return None
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, AttributeError) as e:
         logger.warning(f"Difficulty data retrieval failed (graceful degradation): {e}", exc_info=True)
         return None
 
@@ -465,7 +465,7 @@ async def _generate_ai_questions(
 
         return None
 
-    except Exception as e:
+    except (RuntimeError, ValueError, asyncio.TimeoutError, AttributeError, json.JSONDecodeError) as e:
         logger.warning(f"AI question generation failed for canvas: {e}")
         return None
 
@@ -482,7 +482,7 @@ def _read_canvas(canvas_path: Path) -> Optional[Dict[str, Any]]:
             return None
         with open(canvas_path, "r", encoding="utf-8") as f:
             return json.load(f)
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, ValueError) as e:
         logger.error(f"Error reading canvas {canvas_path}: {e}")
         return None
 
@@ -500,7 +500,7 @@ def _write_canvas(canvas_path: Path, canvas_data: Dict[str, Any]) -> bool:
         with open(canvas_path, "w", encoding="utf-8") as f:
             json.dump(canvas_data, f, ensure_ascii=False, indent=2)
         return True
-    except Exception as e:
+    except OSError as e:
         logger.error(f"Error writing canvas {canvas_path}: {e}")
         return False
 

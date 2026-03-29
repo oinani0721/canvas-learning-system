@@ -228,7 +228,7 @@ async def get_canvas_index_status(
                     table_name=table_name
                 )
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError) as e:
             logger.debug(f"Error querying index status: {e}")
             return CanvasIndexStatusResponse(
                 canvas_path=canvas_path,
@@ -328,7 +328,7 @@ async def index_canvas(
             with open(full_path, 'r', encoding='utf-8') as f:
                 canvas_data = json.load(f)
             nodes = canvas_data.get("nodes", [])
-        except Exception as e:
+        except (json.JSONDecodeError, OSError, ValueError) as e:
             logger.error(f"Failed to read canvas file: {e}")
             nodes = None
 

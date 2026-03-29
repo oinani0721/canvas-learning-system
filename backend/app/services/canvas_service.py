@@ -277,7 +277,7 @@ class CanvasService:
             asyncio.create_task(self._safe_write_memory_event(event_type, context))
             logger.debug(f"Triggered memory event: {event_type.value} for {canvas_name}")
 
-        except Exception as e:
+        except (RuntimeError, TypeError) as e:
             # Task 4: Silent degradation - log but don't raise
             logger.error(f"Memory event trigger failed: {event_type.value} for {canvas_name}: {e}")
             # Don't re-raise - CRUD operation should succeed
@@ -368,7 +368,7 @@ class CanvasService:
             svc = get_lancedb_index_service()
             if svc is not None:
                 svc.schedule_index(canvas_name, self.canvas_base_path, trigger_node_id=node_id)
-        except Exception as e:
+        except (ImportError, AttributeError, RuntimeError) as e:
             logger.warning(f"[Story 38.1] Failed to schedule LanceDB index for {canvas_name}: {e}")
 
     async def _sync_edge_to_neo4j(
@@ -839,7 +839,7 @@ class CanvasService:
                 )
             )
             logger.debug(f"Scheduled edge sync to Neo4j: {new_edge['id']}")
-        except Exception as e:
+        except (RuntimeError, TypeError) as e:
             # AC-4: Silent degradation - log but don't raise
             logger.warning(f"Failed to schedule edge sync to Neo4j: {e}")
 
@@ -876,7 +876,7 @@ class CanvasService:
         try:
             asyncio.create_task(self._delete_edge_from_neo4j(edge_id))
             logger.debug(f"Scheduled edge deletion sync to Neo4j: {edge_id}")
-        except Exception as e:
+        except (RuntimeError, TypeError) as e:
             logger.warning(f"Failed to schedule edge deletion sync to Neo4j: {e}")
 
         return True
@@ -918,7 +918,7 @@ class CanvasService:
             else:
                 logger.debug(f"Edge {edge_id} not found in Neo4j (may not have been synced)")
             return result
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.error(f"Failed to delete edge {edge_id} from Neo4j: {e}")
             return None
 
@@ -945,7 +945,7 @@ class CanvasService:
                 for node in canvas_data.get("nodes", []):
                     if node.get("id") == node_id:
                         return (canvas_name, node)
-            except Exception:
+            except (OSError, json.JSONDecodeError, CanvasNotFoundException, ValueError):
                 continue
         return (None, None)
 
@@ -980,7 +980,7 @@ class CanvasService:
                 for edge in canvas_data.get("edges", []):
                     if edge.get("fromNode") == node_id or edge.get("toNode") == node_id:
                         matching_edges.append(edge)
-            except Exception:
+            except (OSError, json.JSONDecodeError, CanvasNotFoundException, ValueError):
                 continue
         return matching_edges
 

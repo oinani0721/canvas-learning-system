@@ -292,7 +292,7 @@ class DifficultyMatcher:
                     ),
                 )
                 await db.commit()
-        except Exception as e:
+        except (OSError, aiosqlite.Error, ValueError) as e:
             logger.error(f"[Story 7.4] Failed to persist difficulty log: {e}")
 
         # 5. Update sliding window
@@ -352,7 +352,7 @@ class DifficultyMatcher:
                 f"node={node_id} proficiency={proficiency:.3f} "
                 f"match_rate={match_rate:.2%} consecutive={CONSECUTIVE_MISMATCH_ALERT_THRESHOLD}"
             )
-        except Exception as e:
+        except (RuntimeError, TypeError, ValueError, ImportError) as e:
             logger.error(f"[Story 6.10] Failed to emit DIFFICULTY_MISMATCH_ALERT: {e}")
 
     # ───────────────────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ class DifficultyMatcher:
                     )
                     for row in rows
                 ]
-        except Exception as e:
+        except (OSError, aiosqlite.Error, ValueError) as e:
             logger.error(f"[Story 7.4] Failed to fetch recent records: {e}")
 
         return stats

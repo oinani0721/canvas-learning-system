@@ -121,7 +121,7 @@ class LanceDBIndexService:
 
         try:
             lines = self._pending_file.read_text(encoding="utf-8").strip().splitlines()
-        except Exception as e:
+        except (OSError, FileNotFoundError) as e:
             logger.warning(f"[Story 38.1] Failed to read pending file: {e}")
             return {"recovered": 0, "pending": 0}
 
@@ -216,7 +216,7 @@ class LanceDBIndexService:
             logger.info(
                 f"[Story 38.1] LanceDB auto-index completed for {canvas_name}{node_ctx}"
             )
-        except (RetryError, Exception) as e:
+        except Exception as e:
             # [Review H3] AC-2: include trigger node ID in warning
             logger.warning(
                 f"[Story 38.1] LanceDB index update failed for canvas {canvas_name}"
@@ -259,7 +259,7 @@ class LanceDBIndexService:
         try:
             if hasattr(client, "initialize"):
                 await client.initialize()
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             # [Review M3] initialize() is idempotent; log but don't block indexing
             logger.debug(f"[Story 38.1] LanceDB client.initialize() skipped: {e}")
 
@@ -307,7 +307,7 @@ class LanceDBIndexService:
             self._client_unavailable = True
             logger.warning(f"[Story 38.1] LanceDB client not available: {e}")
             return None
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning(f"[Story 38.1] LanceDB client init failed: {e}")
             return None
 
@@ -331,7 +331,7 @@ class LanceDBIndexService:
             with self._file_lock:
                 with open(self._pending_file, "a", encoding="utf-8") as f:
                     f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.error(f"[Story 38.1] Failed to persist pending index: {e}")
 
 

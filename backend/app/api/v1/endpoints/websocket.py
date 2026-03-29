@@ -77,7 +77,7 @@ async def validate_session(session_id: str) -> bool:
 
     try:
         return await _session_validator(session_id)
-    except Exception as e:
+    except (RuntimeError, ConnectionError, ValueError) as e:
         logger.error(f"Session validation error: {e}")
         return False
 
@@ -158,7 +158,7 @@ async def websocket_intelligent_parallel(
                 )
                 try:
                     await websocket.send_json(error_event.model_dump(mode="json"))
-                except Exception:
+                except (RuntimeError, ConnectionError):
                     pass
                 break
 
@@ -178,7 +178,7 @@ async def websocket_intelligent_parallel(
                 retry_after=5,
             )
             await websocket.send_json(error_event.model_dump(mode="json"))
-        except Exception:
+        except (RuntimeError, ConnectionError):
             pass
 
     finally:

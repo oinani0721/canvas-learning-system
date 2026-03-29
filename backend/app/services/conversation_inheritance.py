@@ -13,6 +13,7 @@ Callers:
 - learning_context_service.get_node_context() — integrates inherited context into Tier 2
 """
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import Optional
@@ -120,7 +121,7 @@ async def _fetch_neighbor_records_for_inheritance(node_id: str) -> list[dict]:
         if records:
             return [dict(r) for r in records]
         return list()
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch neighbors for inheritance (node=%s): %s", node_id, e)
         return list()
 
@@ -179,6 +180,6 @@ async def _fetch_distillation_summary(
 
         return summary, insights
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch distillation for node %s: %s", node_id, e)
         return "", list()

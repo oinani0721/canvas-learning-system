@@ -139,7 +139,7 @@ class ProviderFactory:
                 logger.error(f"Failed to initialize provider {config.name}")
                 return False
 
-        except Exception as e:
+        except (ImportError, AttributeError, TypeError, ValueError) as e:
             logger.error(f"Error registering provider {config.name}: {e}")
             return False
 
@@ -588,7 +588,7 @@ class ProviderFactory:
         try:
             provider = self._select_provider()
             return provider.name if provider else None
-        except Exception:
+        except (KeyError, AttributeError, TypeError):
             return None
 
     async def close_all(self) -> None:
@@ -596,7 +596,7 @@ class ProviderFactory:
         for provider in self._providers.values():
             try:
                 await provider.close()
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 logger.error(f"Error closing provider {provider.name}: {e}")
 
         self._providers.clear()

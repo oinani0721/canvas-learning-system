@@ -17,6 +17,7 @@ Provides:
 import asyncio
 import logging
 import os
+import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -283,7 +284,7 @@ class CostTracker:
                 await db.commit()
 
             logger.debug(f"[Story 7.2] Inserted {len(entries)} LLM call logs")
-        except Exception as e:
+        except (sqlite3.Error, OSError) as e:
             logger.error(f"[Story 7.2] Failed to insert logs: {e}")
             raise
 
@@ -399,7 +400,7 @@ class CostTracker:
                     "errors": errors,
                 }
 
-        except Exception as e:
+        except (sqlite3.Error, OSError, ValueError, KeyError) as e:
             logger.error(f"[Story 7.2] Failed to get stats: {e}")
             return self._empty_stats()
 
@@ -442,7 +443,7 @@ class CostTracker:
                     "avg_latency_ms": round(row["avg_latency_ms"], 1) if row else 0.0,
                     "total_recent": row["total"] if row else 0,
                 }
-        except Exception as e:
+        except (sqlite3.Error, OSError, ValueError, KeyError) as e:
             logger.warning(f"[Story 7.2] Health probe failed: {e}")
             return {"success_rate": 1.0, "avg_latency_ms": 0, "total_recent": 0}
 
@@ -485,7 +486,7 @@ class CostTracker:
                 )
             return {"compressed": delete_count, "deleted": delete_count}
 
-        except Exception as e:
+        except (sqlite3.Error, OSError) as e:
             logger.error(f"[Story 7.2] Log rotation failed: {e}")
             return {"compressed": 0, "deleted": 0}
 
@@ -498,7 +499,7 @@ class CostTracker:
                 await self.rotate_logs()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (sqlite3.Error, OSError) as e:
                 logger.warning(f"[Story 7.2] Rotation loop error: {e}")
 
     @staticmethod

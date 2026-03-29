@@ -146,7 +146,7 @@ class SubjectResolver:
 
             return True
 
-        except Exception as e:
+        except (OSError, yaml.YAMLError, ValueError, KeyError) as e:
             logger.error(f"Failed to load config: {e}")
             self.config = SubjectMappingConfig()
             return False
@@ -471,7 +471,7 @@ class SubjectResolver:
             logger.info(f"SubjectResolver config saved to {self.config_path}")
             return True
 
-        except Exception as e:
+        except (OSError, yaml.YAMLError) as e:
             logger.error(f"Failed to save config: {e}")
             return False
 

@@ -90,7 +90,7 @@ class SyncService:
                         await self._execute_operation(tx, op, request.canvas_id, request.subject_id)
                         results.append(SyncOperationResult(operation_id=op.operation_id, success=True))
                         synced += 1
-                    except Exception as e:
+                    except (RuntimeError, ConnectionError) as e:
                         logger.warning(
                             "[Story 1.5] Sync operation failed: op_id=%s entity=%s/%s error=%s",
                             op.operation_id,

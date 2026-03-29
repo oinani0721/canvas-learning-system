@@ -298,7 +298,7 @@ class Neo4jClient:
             self._health_status = True
             return True
 
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, OSError, IOError) as e:
             logger.error(f"JSON fallback initialization failed: {e}")
             self._initialized = True  # Still mark as initialized to avoid loops
             return False
@@ -308,7 +308,7 @@ class Neo4jClient:
         try:
             with open(self._storage_path, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, ensure_ascii=False, indent=2, default=str)
-        except Exception as e:
+        except (OSError, IOError, TypeError) as e:
             logger.error(f"Failed to save JSON data: {e}")
 
     async def _close_driver(self) -> None:
@@ -318,7 +318,7 @@ class Neo4jClient:
                 await self._driver.close()
                 self._driver = None
                 logger.info("Neo4j driver closed")
-            except Exception as e:
+            except (RuntimeError, OSError) as e:
                 logger.error(f"Error closing Neo4j driver: {e}")
 
     async def health_check(self) -> bool:
@@ -349,7 +349,7 @@ class Neo4jClient:
             logger.debug("Neo4j health check passed")
             return True
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, Neo4jError) as e:
             logger.warning(f"Neo4j health check failed: {e}")
             self._health_status = False
             self._last_health_check = datetime.now()

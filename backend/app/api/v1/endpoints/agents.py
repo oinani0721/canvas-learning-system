@@ -1011,7 +1011,7 @@ async def score_understanding(
                 )
                 images = await _load_images_for_agent(resolved_refs)
                 logger.info(f"[Score] Loaded {len(images)} images for scoring agent")
-        except Exception as img_err:
+        except (OSError, ValueError, RuntimeError) as img_err:
             logger.warning(f"[Score] Image extraction failed, continuing without images: {img_err}")
             images = []
 
@@ -1212,7 +1212,7 @@ async def _call_explanation(
             else:
                 logger.debug("[Story 12.E.5] No image references found in content")
 
-        except Exception as img_err:
+        except (OSError, ValueError, RuntimeError) as img_err:
             # AC 5.3, 5.4: Graceful degradation - image extraction failure doesn't block agent
             logger.warning(
                 f"[Story 12.E.5] Image extraction/loading failed, continuing without images: {img_err}"
@@ -1947,7 +1947,7 @@ async def recommend_action(
                     f"trend={trend.value}, consecutive_low={consecutive_low}"
                 )
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, TypeError) as e:
             # Graceful degradation: continue without history
             logger.warning(f"[Story 31.3] Failed to get learning history: {e}")
             history_context = None

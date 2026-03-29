@@ -362,7 +362,7 @@ class RAGService:
             weak = sorted(concept_map.values(), key=lambda x: x.get("score", 1.0))
             return weak[:limit]
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError, KeyError, ValueError) as e:
             logger.warning(f"get_weak_concepts: failed to query learning memory: {e}")
             return []
 

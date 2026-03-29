@@ -9,6 +9,7 @@
 #
 # [Source: _bmad-output/implementation-artifacts/6-5 through 6-8]
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -82,7 +83,7 @@ async def sync_node_to_source_canvas(
             group_id=group_id,
             created_at=now_iso,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.error(f"[Story 6.5] Failed to sync node to Neo4j: {e}")
         return ExamNodeSyncResponse(
             node_id=request.node_id,
@@ -113,7 +114,7 @@ async def sync_node_to_source_canvas(
             group_id=group_id,
             created_at=now_iso,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.5] Edge creation failed (non-fatal): {e}")
         edge_created = False
 
@@ -154,7 +155,7 @@ async def sync_node_to_source_canvas(
                     current_source = data.get("parent")
                 else:
                     break  # source_node is an original exam node (depth=1)
-            except Exception:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError):
                 break  # On query failure, use depth computed so far
 
         # DiscoveredNode model validates the data; we persist directly to Neo4j
@@ -185,7 +186,7 @@ async def sync_node_to_source_canvas(
             group_id=group_id,
             created_at=now_iso,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, TypeError) as e:
         logger.debug(f"[Story 6.5] DiscoveredNode record save failed (non-fatal): {e}")
 
     logger.info(
@@ -230,7 +231,7 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
     try:
         max_allowed_level = await _get_max_hint_level_by_mastery(request.node_id)
         hint_available = max_allowed_level > 0
-    except Exception as e:
+    except (RuntimeError, AttributeError, ConnectionError) as e:
         logger.debug(f"[F12] Mastery check failed (allowing all hints): {e}")
 
     if not hint_available:
@@ -276,7 +277,7 @@ async def generate_hint(self, request: HintRequest) -> HintResponse:
                     first_line = first_line.lstrip("#").strip()
                 if first_line:
                     concept_name = first_line[:100]
-    except Exception as e:
+    except (OSError, json.JSONDecodeError, RuntimeError, ValueError, TypeError, AttributeError) as e:
         logger.debug(f"[Story 6.6] Failed to resolve node title for {request.node_id}: {e}")
 
     system_prompt = template.replace("{{question}}", request.question_context)
@@ -365,7 +366,7 @@ async def _get_max_hint_level_by_mastery(node_id: str) -> int:
             return 3  # Up to partial framework
         return 4  # Full scaffolding
 
-    except Exception as e:
+    except (RuntimeError, AttributeError, ConnectionError) as e:
         logger.debug(f"[F12] Mastery lookup failed for {node_id}, defaulting to full hints: {e}")
         return 4
 
@@ -440,7 +441,7 @@ async def skip_question(self, request: SkipRequest) -> SkipResponse:
             exam_id=request.exam_id,
             skipped_json=json.dumps(existing, ensure_ascii=False),
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, TypeError) as e:
         logger.warning(f"[Story 6.6] Skip record save failed (non-fatal): {e}")
 
     logger.info(f"[Story 6.6] Skipped node {request.node_id} in exam {request.exam_id} -- no BKT/FSRS penalty")
@@ -493,7 +494,7 @@ async def _update_exam_lifecycle_status(self, exam_id: str, new_status: ExamStat
             status=new_status.value,
             updated_at=now_iso,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.error(f"[Story 6.7] Failed to update exam status: {e}")
         return ExamStatusUpdateResponse(
             exam_id=exam_id,
@@ -612,7 +613,7 @@ async def complete_exam(self, request: ExamCompleteRequest, group_id: str = DEFA
             data = records[0] if isinstance(records[0], dict) else records[0].data()
             record_id = data.get("id", request.exam_id)
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.error(f"[Story 6.8] Failed to save exam record: {e}")
         return ExamCompleteResponse(
             exam_id=request.exam_id,
@@ -636,7 +637,7 @@ async def complete_exam(self, request: ExamCompleteRequest, group_id: str = DEFA
             nodes_examined=len(request.score_history),
             mastery_trend=mastery_trend,
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.8] Session status update failed (non-fatal): {e}")
 
     session = await self.get_session(request.exam_id)
@@ -709,7 +710,7 @@ async def get_exam_records(
             summaries.append(ExamRecordSummary(**data))
 
         return ExamRecordListResponse(records=summaries, total=total, page=page, limit=limit)
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.8] Failed to list exam records: {e}")
         return ExamRecordListResponse(records=list(), total=0, page=page, limit=limit)
 
@@ -761,7 +762,7 @@ async def get_exam_record(self, exam_id: str, group_id: str = DEFAULT_GROUP_ID) 
             conversation_log=_safe_json_to_list(data.get("conversation_log_json")),
             mastery_changes=_safe_json_to_list(data.get("mastery_changes_json")),
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, ValueError, TypeError, AttributeError) as e:
         logger.error(f"[Story 6.8] Failed to get exam record {exam_id}: {e}")
         return None
 
@@ -804,7 +805,7 @@ async def get_records_by_canvas(self, canvas_id: str, group_id: str = DEFAULT_GR
             page=1,
             limit=len(summaries),
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"[Story 6.8] Failed to get records for canvas {canvas_id}: {e}")
         return ExamRecordListResponse(records=list(), total=0)
 

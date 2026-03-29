@@ -369,7 +369,7 @@ class EventBus:
 
             logger.info(f"EventBus: recovered {recovered} events from outbox")
 
-        except Exception as exc:
+        except (OSError, json.JSONDecodeError, ValueError, KeyError) as exc:
             logger.error(f"EventBus: outbox recovery failed: {exc}")
 
         return recovered

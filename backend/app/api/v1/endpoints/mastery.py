@@ -115,7 +115,7 @@ async def get_batch_mastery(group_id: str = Query(default=DEFAULT_GROUP_ID)):
         if config_path.exists():
             with open(config_path, "r", encoding="utf-8") as f:
                 exam_weights = json.load(f).get("topic_exam_weights", {})
-    except Exception:
+    except (OSError, json.JSONDecodeError, ValueError, KeyError):
         pass
 
     topic_summary = {}
@@ -184,7 +184,7 @@ async def get_board_mastery(
                         fsrs_next_review = due
                     elif hasattr(due, "isoformat"):
                         fsrs_next_review = due.isoformat()
-            except Exception:
+            except (ValueError, TypeError, AttributeError, KeyError):
                 pass  # Graceful degradation: no due date if card parse fails
 
         items.append({

@@ -89,7 +89,7 @@ async def list_subjects_from_neo4j(neo4j_driver: "AsyncDriver") -> List[dict]:
                     "created_at": rec.get("createdAt", ""),
                     "color": rec.get("color"),
                 })
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError) as e:
         logger.warning(f"Failed to list subjects from Neo4j: {e}")
     return subjects
 

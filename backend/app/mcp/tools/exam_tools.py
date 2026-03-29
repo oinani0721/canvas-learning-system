@@ -16,6 +16,8 @@ import logging
 import uuid
 from typing import Any, Dict, List, Optional
 
+# Note: asyncio.TimeoutError is used for narrowed exception handling in service calls
+
 from pydantic import BaseModel, Field
 
 from app.audit.guardian import get_audit_guardian
@@ -231,7 +233,7 @@ async def generate_question(
 
             store = get_mastery_store()
             mastery_data = await store.get_concept(node_id)
-        except Exception as e:
+        except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 3.2] Mastery data not available for difficulty selection: {e}")
 
         # Auto-select difficulty based on mastery if not specified
@@ -266,7 +268,7 @@ async def generate_question(
             )
             q_text = questions[0] if questions else f"Please explain the concept of '{node_title}' in your own words."
             ref_answer = None
-        except Exception as e:
+        except (RuntimeError, ValueError, AttributeError) as e:
             # Fallback: generate a basic question from the content
             logger.warning(f"[Story 3.2] QuestionGenerator failed, using fallback: {e}")
             q_text = f"Please explain the concept of '{node_title}' in your own words."
@@ -297,11 +299,11 @@ async def generate_question(
                         question=q_text,
                         proficiency=effective_prof,
                     )
-                except Exception as diff_err:
+                except (RuntimeError, ValueError, asyncio.TimeoutError) as diff_err:
                     logger.error(f"[Story 6.10] Difficulty evaluation failed: {diff_err}")
 
             asyncio.create_task(_evaluate_difficulty())
-        except Exception as diff_setup_err:
+        except (ImportError, AttributeError) as diff_setup_err:
             logger.debug(f"[Story 6.10] Difficulty matcher not available: {diff_setup_err}")
 
         return GenerateQuestionOutput(
@@ -406,7 +408,7 @@ async def score_answer(
             _, ctx_node_data = await ctx_canvas_svc.find_node_across_canvases(node_id)
             if ctx_node_data:
                 question_context = ctx_node_data.get("text", ctx_node_data.get("content", ""))
-        except Exception as ctx_err:
+        except (OSError, ValueError, AttributeError) as ctx_err:
             logger.debug(f"[Story 3.2] Failed to get question context for scoring: {ctx_err}")
 
         autoscore_result = await scorer.evaluate(
@@ -445,7 +447,7 @@ async def score_answer(
                     source="autoscore",
                 )
                 await event_bus.publish(score_event)
-            except Exception as evt_err:
+            except (RuntimeError, AttributeError, asyncio.TimeoutError) as evt_err:
                 logger.warning(f"[Story 6.4] SCORE_SUBMITTED event failed: {evt_err}")
         else:
             # Story 6.9 AC-4: Low faithfulness — record but don't update mastery
@@ -567,7 +569,7 @@ async def assemble_acp(
                                     node_found.get("text", node_found.get("title", ""))
                                 )
                             # Skip cross-canvas lookup to avoid N+1
-                    except Exception as batch_err:
+                    except (OSError, ValueError, KeyError) as batch_err:
                         logger.debug(f"[Story 3.2] assemble_acp batch fetch failed: {batch_err}")
                         # Fallback: individual lookups for remaining
                         for rid in related_ids:
@@ -579,9 +581,9 @@ async def assemble_acp(
                                     related_concepts.append(
                                         related_node.get("text", related_node.get("title", ""))
                                     )
-                            except Exception:
+                            except (OSError, ValueError):
                                 pass
-            except Exception as e:
+            except (RuntimeError, AttributeError, OSError) as e:
                 logger.debug(f"[Story 3.2] assemble_acp: failed to get related nodes: {e}")
 
         # Get mastery level
@@ -593,7 +595,7 @@ async def assemble_acp(
             concept_state = await store.get_concept(node_id)
             if concept_state:
                 mastery_level = concept_state.p_mastery
-        except (ImportError, Exception):
+        except (ImportError, RuntimeError, AttributeError, asyncio.TimeoutError):
             pass
 
         return AssembleAcpOutput(

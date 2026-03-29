@@ -428,7 +428,7 @@ class CORSExceptionMiddleware(BaseHTTPMiddleware):
                 "method": request.method,
                 "query_params": safe_params,
             }
-        except Exception:
+        except (ValueError, TypeError, AttributeError, UnicodeDecodeError):
             return {
                 "path": "[extraction failed]",
                 "method": request.method,
@@ -552,7 +552,7 @@ app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 try:
     from app.mcp import setup_mcp_server
     setup_mcp_server(app)
-except Exception as e:
+except (ImportError, AttributeError) as e:
     logger.warning(f"[Story 3.2] MCP server setup skipped: {e}")
 
 # ═══════════════════════════════════════════════════════════════════════════════

@@ -78,7 +78,7 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
             num_results=num_results,
             query_type="hybrid",
         )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, ValueError) as e:
         # Fallback to vector-only if hybrid not available
         try:
             results = await _lancedb_client.search(
@@ -86,7 +86,7 @@ async def search_vault_notes(query: str, num_results: int = 8) -> str:
                 table_name="vault_notes",
                 num_results=num_results,
             )
-        except Exception as e2:
+        except (RuntimeError, ConnectionError, ValueError) as e2:
             return f"[Error] Search failed: {str(e2)[:200]}"
 
     if not results:
@@ -192,7 +192,7 @@ async def search_knowledge_graph(
 
         return _format_results(formatted, "KnowledgeGraph")
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, KeyError) as e:
         logger.error(f"[ReactAgent] KG search failed: {e}")
         return f"[Error] Knowledge graph search failed: {str(e)[:200]}"
 
@@ -320,7 +320,7 @@ async def record_learning_memory(
         )
         logger.info(f"React agent recorded memory: {name}")
         return f"[OK] Recorded {entity_type}: {concept}"
-    except Exception as e:
+    except (RuntimeError, ConnectionError) as e:
         logger.error(f"Failed to record memory: {e}")
         return f"[Error] Recording failed: {str(e)[:200]}"
 
@@ -358,7 +358,7 @@ async def search_obsidian_cli(query: str, limit: int = 10) -> str:
         return f"[No results] Obsidian CLI found nothing for: '{query}'"
     except subprocess.TimeoutExpired:
         return "[Error] Obsidian CLI timed out. Use search_vault_notes instead."
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         return f"[Error] Obsidian CLI failed: {str(e)[:200]}. Use search_vault_notes instead."
 
 
@@ -384,7 +384,7 @@ async def get_note_outline(file_name: str) -> str:
         if result.returncode == 0 and result.stdout.strip():
             return f"[Outline: {file_name}]\n{result.stdout.strip()}"
         return f"[No outline] Could not get outline for: '{file_name}'"
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         return f"[Error] Outline failed: {str(e)[:200]}"
 
 
@@ -410,7 +410,7 @@ async def find_backlinks(file_name: str) -> str:
         if result.returncode == 0 and result.stdout.strip():
             return f"[Backlinks: {file_name}]\n{result.stdout.strip()}"
         return f"[No backlinks] No notes link to: '{file_name}'"
-    except Exception as e:
+    except (OSError, subprocess.SubprocessError) as e:
         return f"[Error] Backlinks failed: {str(e)[:200]}"
 
 

@@ -486,7 +486,7 @@ class QuestionGenerator:
             canvas_data = await canvas_svc.read_canvas(canvas_id)
             nodes = canvas_data.get("nodes", list())
             return nodes if nodes else list()
-        except Exception as e:
+        except (ImportError, OSError, json.JSONDecodeError, KeyError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get canvas nodes: {e}")
             return list()
 
@@ -499,7 +499,7 @@ class QuestionGenerator:
             canvas_svc = CanvasService(canvas_base_path=settings.canvas_base_path)
             _canvas_name, node_data = await canvas_svc.find_node_across_canvases(node_id)
             return node_data if node_data else dict()
-        except Exception as e:
+        except (ImportError, OSError, json.JSONDecodeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get node content: {e}")
             return dict()
 
@@ -518,7 +518,7 @@ class QuestionGenerator:
                     "mastery_level": getattr(concept, "mastery_level", 0.0),
                     "mastery_label": getattr(concept, "mastery_label", "Not Assessed"),
                 }
-        except Exception as e:
+        except (ImportError, AttributeError, ValueError) as e:
             logger.debug(f"[Story 6.3] Failed to get mastery data: {e}")
         return {
             "p_mastery": 0.1,
@@ -549,7 +549,7 @@ class QuestionGenerator:
                 degree = data.get("degree", 0)
                 # Normalize: more connections = higher relevance, capped at 1.0
                 return min(1.0, degree / 5.0)
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] KG relevance query failed: {e}")
         return 0.5  # Default moderate relevance
 
@@ -575,7 +575,7 @@ class QuestionGenerator:
                 if content:
                     tips.append(content)
             return tips
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] Failed to get tips: {e}")
             return list()
 
@@ -604,7 +604,7 @@ class QuestionGenerator:
                     }
                 )
             return errors
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] Failed to get error history: {e}")
             return list()
 
@@ -628,7 +628,7 @@ class QuestionGenerator:
                 if rationale:
                     reasons.append(rationale)
             return reasons
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] Failed to get edge reasons: {e}")
             return list()
 
@@ -650,7 +650,7 @@ class QuestionGenerator:
             if records:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
                 return data.get("summary", "")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.3] Failed to get conversation summary: {e}")
         return ""
 

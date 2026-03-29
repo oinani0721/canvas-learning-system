@@ -504,7 +504,7 @@ class RollbackService:
             if hasattr(self._graph_sync_service, "cleanup"):
                 try:
                     await self._graph_sync_service.cleanup()
-                except Exception as e:
+                except (OSError, RuntimeError) as e:
                     logger.warning(f"GraphSyncService cleanup error: {e}")
 
         if self._snapshot_manager is not None:
@@ -512,7 +512,7 @@ class RollbackService:
             if hasattr(self._snapshot_manager, "stop_auto_scheduler"):
                 try:
                     await self._snapshot_manager.stop_auto_scheduler()
-                except Exception as e:
+                except (OSError, RuntimeError) as e:
                     logger.warning(f"SnapshotManager cleanup error: {e}")
 
         self._initialized = False

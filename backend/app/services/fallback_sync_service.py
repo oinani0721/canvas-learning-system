@@ -8,6 +8,7 @@
 #   2. app/data/canvas_events_fallback.json  (Story 38.5 - Canvas CRUD)
 #   3. data/learning_memories.json  (Story 38.4 - dual-write)
 
+import asyncio
 import json
 import logging
 import threading
@@ -61,7 +62,7 @@ class FallbackSyncService:
 
         try:
             healthy = await self._neo4j.health_check()
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Neo4j health check failed: {e}")
             return {"skipped": True, "reason": f"health check failed: {e}"}
 
@@ -73,21 +74,21 @@ class FallbackSyncService:
         # Priority 1: failed_writes (scoring failures)
         try:
             result["failed_writes"] = await self._sync_failed_writes()
-        except Exception as e:
+        except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] failed_writes sync error: {e}")
             result["failed_writes"] = {"recovered": 0, "pending": 0, "error": str(e)}
 
         # Priority 2: canvas_events
         try:
             result["canvas_events"] = await self._sync_canvas_events()
-        except Exception as e:
+        except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] canvas_events sync error: {e}")
             result["canvas_events"] = {"recovered": 0, "pending": 0, "error": str(e)}
 
         # Priority 3: learning_memories
         try:
             result["learning_memories"] = await self._sync_learning_memories()
-        except Exception as e:
+        except (OSError, RuntimeError, ConnectionError) as e:
             logger.warning(f"[Story 38.8] learning_memories sync error: {e}")
             result["learning_memories"] = {"recovered": 0, "pending": 0, "error": str(e)}
 
@@ -116,7 +117,7 @@ class FallbackSyncService:
         with failed_writes_lock:
             try:
                 raw = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip()
-            except Exception as e:
+            except OSError as e:
                 logger.warning(f"[Story 38.8] Cannot read failed_writes: {e}")
                 return {"recovered": 0, "pending": 0}
 
@@ -146,7 +147,7 @@ class FallbackSyncService:
                     recovered += 1
                 else:
                     still_pending.append(line)
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] failed_writes replay error: {e}")
                 still_pending.append(line)
 
@@ -169,7 +170,7 @@ class FallbackSyncService:
                         new_lines = current_lines[len(lines):]
                 else:
                     current_lines = []
-            except Exception:
+            except OSError:
                 current_lines = []
 
             merged = still_pending + new_lines
@@ -202,7 +203,7 @@ class FallbackSyncService:
             if not raw:
                 return {"recovered": 0, "pending": 0}
             events: List[Dict[str, Any]] = json.loads(raw)
-        except (json.JSONDecodeError, Exception) as e:
+        except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"[Story 38.8] Cannot parse canvas_events_fallback: {e}")
             return {"recovered": 0, "pending": 0}
 
@@ -226,7 +227,7 @@ class FallbackSyncService:
                     recovered += 1
                 else:
                     still_pending.append(event)
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] canvas_event replay error: {e}")
                 still_pending.append(event)
 
@@ -265,7 +266,7 @@ class FallbackSyncService:
                 return {"recovered": 0, "pending": 0}
             data = json.loads(raw)
             memories: List[Dict[str, Any]] = data.get("memories", [])
-        except (json.JSONDecodeError, Exception) as e:
+        except (json.JSONDecodeError, OSError) as e:
             logger.warning(f"[Story 38.8] Cannot parse learning_memories: {e}")
             return {"recovered": 0, "pending": 0}
 
@@ -289,7 +290,7 @@ class FallbackSyncService:
                     recovered += 1
                 else:
                     failed += 1
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(f"[Story 38.8] learning_memory replay error: {e}")
                 failed += 1
 
@@ -354,7 +355,7 @@ class FallbackSyncService:
                     f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', "
                     f"fallback timestamp={ts}"
                 )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Neo4j scoring replay failed: {e}")
             return False
 
@@ -368,7 +369,7 @@ class FallbackSyncService:
                     score=int(score),
                     timestamp=ts,
                 )
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(
                     f"[Story 38.8] Score history record failed (non-fatal): {e}"
                 )
@@ -413,7 +414,7 @@ class FallbackSyncService:
                     f"[Story 38.8] Unknown canvas event type: {event_type}"
                 )
                 return True  # Don't block on unknown types
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Canvas event replay failed: {e}")
             return False
 
@@ -465,7 +466,7 @@ class FallbackSyncService:
                     f"[Story 38.8] Conflict: Neo4j has newer data for '{concept}', "
                     f"fallback timestamp={ts}"
                 )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 38.8] Learning memory replay failed: {e}")
             return False
 
@@ -485,7 +486,7 @@ class FallbackSyncService:
                     SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8")
                 )
                 return data.get(file_key, {}).get("index", 0)
-            except (json.JSONDecodeError, Exception):
+            except (json.JSONDecodeError, OSError, KeyError):
                 return 0
 
     def _save_checkpoint(self, file_key: str, index: int) -> None:
@@ -497,7 +498,7 @@ class FallbackSyncService:
                     data = json.loads(
                         SYNC_CHECKPOINT_FILE.read_text(encoding="utf-8")
                     )
-                except (json.JSONDecodeError, Exception):
+                except (json.JSONDecodeError, OSError):
                     data = {}
 
             data[file_key] = {
@@ -528,7 +529,7 @@ class FallbackSyncService:
                     )
                 else:
                     SYNC_CHECKPOINT_FILE.unlink(missing_ok=True)
-            except (json.JSONDecodeError, Exception):
+            except (json.JSONDecodeError, OSError):
                 pass
 
     # ─────────────────────────────────────────────────────────────────────
@@ -613,7 +614,7 @@ class FallbackSyncService:
             )
             subject = extract_subject_from_canvas_path(canvas_name)
             return build_group_id(subject, canvas_name)
-        except Exception:
+        except (ImportError, AttributeError, ValueError):
             return None
 
 

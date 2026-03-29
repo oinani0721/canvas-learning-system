@@ -549,7 +549,7 @@ def _get_resource_metrics() -> Dict[str, Any]:
             "memory_usage_percent": 0.0,
             "disk_usage_percent": 0.0,
         }
-    except Exception as e:
+    except (OSError, RuntimeError, AttributeError) as e:
         logger.error("monitoring.resource_metrics_failed", error=str(e))
         return {
             "cpu_usage_percent": 0.0,

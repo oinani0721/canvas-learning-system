@@ -28,6 +28,7 @@ Features:
 
 import asyncio
 import logging
+import sqlite3
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -479,7 +480,7 @@ class LLMCallLogger(_LiteLLMCustomLogger):
 
             await self._add_to_buffer(log_entry)
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             # Never let logging errors affect the main LLM call flow
             logger.warning(f"[Story 7.2] Failed to log LLM success: {e}")
 
@@ -535,7 +536,7 @@ class LLMCallLogger(_LiteLLMCustomLogger):
 
             await self._add_to_buffer(log_entry)
 
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError) as e:
             logger.warning(f"[Story 7.2] Failed to log LLM failure: {e}")
 
     async def log_call(self, log_entry: LLMCallLog) -> None:
@@ -588,7 +589,7 @@ class LLMCallLogger(_LiteLLMCustomLogger):
 
         try:
             await self._cost_tracker.insert_logs(entries)
-        except Exception as e:
+        except (sqlite3.Error, OSError, ValueError, TypeError) as e:
             logger.error(f"[Story 7.2] Failed to flush {len(entries)} log entries: {e}")
             # Re-add failed entries to buffer (up to 2x batch size to prevent unbounded growth)
             if len(self._buffer) < self.BATCH_SIZE * 2:
@@ -602,7 +603,7 @@ class LLMCallLogger(_LiteLLMCustomLogger):
                 await self._flush_buffer()
             except asyncio.CancelledError:
                 break
-            except Exception as e:
+            except (sqlite3.Error, OSError, ValueError, TypeError) as e:
                 logger.warning(f"[Story 7.2] Periodic flush error: {e}")
 
 

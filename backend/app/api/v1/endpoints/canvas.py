@@ -91,7 +91,7 @@ def _parse_nodes(raw_nodes: List[dict]) -> List[NodeRead]:
                     color=n.get("color"),
                 )
             )
-        except Exception as exc:
+        except (KeyError, ValueError, TypeError) as exc:
             logger.warning("Skipping malformed node %s: %s", n.get("id"), exc)
     return result
 
@@ -111,7 +111,7 @@ def _parse_edges(raw_edges: List[dict]) -> List[EdgeRead]:
                     label=e.get("label"),
                 )
             )
-        except Exception as exc:
+        except (KeyError, ValueError, TypeError) as exc:
             logger.warning("Skipping malformed edge %s: %s", e.get("id"), exc)
     return result
 

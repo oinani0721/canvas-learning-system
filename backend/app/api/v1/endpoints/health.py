@@ -1805,7 +1805,7 @@ async def get_memory_system_logs(
             with open(log_file, 'r', encoding='utf-8') as f:
                 all_lines = f.readlines()
                 logs = [line.strip() for line in all_lines[-lines:]]
-        except Exception as e:
+        except (OSError, UnicodeDecodeError) as e:
             logger.warning(f"Failed to read memory system logs: {e}")
             logs = [f"[ERROR] Failed to read log file: {e}"]
 

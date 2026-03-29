@@ -150,7 +150,7 @@ class BugTracker:
                 endpoint=endpoint,
                 error_type=type(error).__name__
             )
-        except Exception as write_error:
+        except OSError as write_error:
             # Don't fail the request if bug logging fails
             logger.error(
                 "bug_log_write_failed",
@@ -192,14 +192,14 @@ class BugTracker:
                     if line:
                         try:
                             bugs.append(BugRecord.model_validate_json(line))
-                        except Exception as parse_error:
+                        except (ValueError, KeyError) as parse_error:
                             # Skip malformed lines
                             logger.warning(
                                 "bug_log_parse_error",
                                 line_preview=line[:100],
                                 error=str(parse_error)
                             )
-        except Exception as read_error:
+        except OSError as read_error:
             logger.error(
                 "bug_log_read_failed",
                 error=str(read_error)
@@ -220,7 +220,7 @@ class BugTracker:
             if self.log_path.exists():
                 self.log_path.unlink()
             return True
-        except Exception as e:
+        except OSError as e:
             logger.error("bug_log_clear_failed", error=str(e))
             return False
 

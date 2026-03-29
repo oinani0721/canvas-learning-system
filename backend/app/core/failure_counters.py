@@ -118,5 +118,5 @@ def write_dead_letter(
         # volume grows, consider asyncio.to_thread() or aiofiles.
         with open(file_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
-    except Exception as e:
+    except OSError as e:
         logger.error(f"Failed to write dead-letter entry to {file_path}: {e}")

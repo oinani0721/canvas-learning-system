@@ -151,7 +151,7 @@ def _try_decode_base64(text):
             decoded = base64.b64decode(match).decode("utf-8", errors="ignore")
             if decoded.isprintable() and len(decoded) > 5:
                 return decoded
-        except Exception:
+        except (ValueError, UnicodeDecodeError):
             continue
     return None
 
@@ -166,7 +166,7 @@ def _try_decode_hex(text):
             decoded = bytes.fromhex(match).decode("utf-8", errors="ignore")
             if decoded.isprintable() and len(decoded) > 5:
                 return decoded
-        except Exception:
+        except (ValueError, UnicodeDecodeError):
             continue
     return None
 
@@ -289,5 +289,5 @@ def _log_injection_detection(result, input_text, latency_ms):
             input_preview=input_text[:100] + "..." if len(input_text) > 100 else input_text,
             latency_ms=round(latency_ms, 2),
         )
-    except Exception as e:
+    except (ValueError, TypeError, RuntimeError, OSError) as e:
         logger.error(f"[prompt_injection_guard] Failed to emit structured log: {e}")

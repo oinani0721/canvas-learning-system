@@ -209,7 +209,7 @@ class RecommendationService:
                         source_type="graph_pattern",
                         reason=f"共同关联 {shared} 个概念",
                     ))
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Graph pattern detection failed: {e}")
 
         return candidates
@@ -225,7 +225,7 @@ class RecommendationService:
             records = await self.neo4j_client.run_query(query, canvas_id=canvas_id)
             for rec in records:
                 titles[rec["id"]] = rec.get("title") or "未命名"
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to fetch node titles: {e}")
         return titles
 
@@ -243,7 +243,7 @@ class RecommendationService:
             records = await self.neo4j_client.run_query(query, canvas_id=canvas_id)
             for rec in records:
                 labels.append(rec["label"])
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to fetch edge labels: {e}")
         return labels
 

@@ -39,7 +39,7 @@ def _load_config() -> Dict[str, Any]:
                 _config = json.load(f)
                 logger.info(f"Loaded reference priority config: {len(_config.get('source_priorities', []))} rules")
                 return _config
-    except Exception as e:
+    except (json.JSONDecodeError, ValueError, KeyError, OSError) as e:
         logger.warning(f"Failed to load reference_priority.json: {e}, using defaults")
 
     _config = default

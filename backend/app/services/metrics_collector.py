@@ -259,7 +259,7 @@ class HealthStatus:
                 "cpu_percent": resource_metrics.get("cpu", {}).get("percent"),
                 "memory_percent": resource_metrics.get("memory", {}).get("percent"),
             }
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.error("health_check.resource_error", error=str(e))
             components["resources"] = {"status": "error", "error": str(e)}
 
@@ -270,7 +270,7 @@ class HealthStatus:
                 "status": "healthy",
                 "invocations_total": agent_metrics.get("invocations_total", 0)
             }
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.error("health_check.agent_metrics_error", error=str(e))
             components["agent_metrics"] = {"status": "error", "error": str(e)}
 
@@ -281,7 +281,7 @@ class HealthStatus:
                 "status": "healthy",
                 "queries_total": memory_metrics.get("queries_total", 0)
             }
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             logger.error("health_check.memory_metrics_error", error=str(e))
             components["memory_metrics"] = {"status": "error", "error": str(e)}
 

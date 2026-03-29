@@ -232,7 +232,7 @@ class MultimodalService:
                 encoding="utf-8",
             )
             tmp_path.replace(self._persistence_path)
-        except Exception as e:
+        except (TypeError, ValueError, OSError) as e:
             logger.error("Failed to save content index: %s", e)
 
     def _load_index(self) -> None:
@@ -258,7 +258,7 @@ class MultimodalService:
             logger.info(
                 "Loaded %d items from content index", len(self._content_store)
             )
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, ValueError, KeyError) as e:
             logger.error("Failed to load content index: %s", e)
 
     # ── Thumbnail generation ──────────────────────────────────────────────
@@ -307,7 +307,7 @@ class MultimodalService:
                 "Install with: pip install Pillow"
             )
             return None
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.warning("Thumbnail generation failed for %s: %s", content_id, e)
             return None
 
@@ -552,7 +552,7 @@ class MultimodalService:
         try:
             with open(file_path, "wb") as f:
                 f.write(file_bytes)
-        except Exception as e:
+        except OSError as e:
             logger.error("Failed to save file: %s", e)
             raise MultimodalServiceError(f"Failed to save file: {e}")
 
@@ -667,7 +667,7 @@ class MultimodalService:
             raise MultimodalServiceError(
                 f"URL fetch failed: HTTP {e.response.status_code}"
             )
-        except Exception as e:
+        except (httpx.HTTPError, ConnectionError) as e:
             raise MultimodalServiceError(f"URL fetch failed: {e}")
 
         # Extract filename from URL
@@ -696,7 +696,7 @@ class MultimodalService:
         try:
             with open(file_path, "wb") as f:
                 f.write(content_bytes)
-        except Exception as e:
+        except OSError as e:
             logger.error("Failed to save URL content: %s", e)
             raise MultimodalServiceError(f"Failed to save content: {e}")
 
@@ -910,7 +910,7 @@ class MultimodalService:
             try:
                 file_path.unlink()
                 file_deleted = True
-            except Exception as e:
+            except OSError as e:
                 logger.warning("Failed to delete file: %s", e)
 
         # Delete thumbnail if exists
@@ -921,7 +921,7 @@ class MultimodalService:
                 try:
                     thumb_path.unlink()
                     thumbnail_deleted = True
-                except Exception as e:
+                except OSError as e:
                     logger.warning("Failed to delete thumbnail: %s", e)
 
         # Remove from store
@@ -1135,7 +1135,7 @@ class MultimodalService:
             if thumb_path.exists():
                 with open(thumb_path, "rb") as f:
                     return base64.b64encode(f.read()).decode("utf-8")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.warning("Failed to load thumbnail %s: %s", thumbnail_path, e)
         return None
 
@@ -1379,7 +1379,7 @@ class MultimodalService:
                     if vector and len(vector) == 768:
                         return vector
                 return None  # Service exists but returned invalid vector
-            except Exception as e:
+            except (RuntimeError, ConnectionError, ValueError) as e:
                 if attempt < EMBEDDING_MAX_RETRIES:
                     logger.warning(
                         f"Embedding attempt {attempt + 1}/{EMBEDDING_MAX_RETRIES + 1} failed: {e}, "

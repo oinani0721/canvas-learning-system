@@ -142,7 +142,7 @@ class FileNotificationChannel(NotificationChannel):
                     f"{alert.message}\n"
                 )
             return True
-        except Exception as e:
+        except (OSError, FileNotFoundError) as e:
             logger.error(
                 "file_notification.failed",
                 error=str(e),
@@ -199,7 +199,7 @@ class ObsidianNotificationChannel(NotificationChannel):
                 "data": alert.to_dict(),
             })
             return True
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError, TypeError) as e:
             logger.error(
                 "obsidian_notification.failed",
                 error=str(e),
@@ -260,7 +260,7 @@ class WebhookNotificationChannel(NotificationChannel):
         except ImportError:
             logger.error("webhook_notification.httpx_not_installed")
             return False
-        except Exception as e:
+        except (httpx.HTTPError, httpx.TimeoutException, ConnectionError, OSError) as e:
             logger.error(
                 "webhook_notification.failed",
                 error=str(e),

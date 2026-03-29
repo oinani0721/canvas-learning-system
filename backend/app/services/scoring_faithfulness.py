@@ -447,7 +447,7 @@ def _log_scoring_faithfulness(
             exam_id=getattr(autoscore_result, "exam_id", ""),
             latency_ms=round(result.latency_ms, 2),
         )
-    except Exception as e:
+    except (TypeError, ValueError, AttributeError, OSError) as e:
         logger.error(f"[Story 6.9] Failed to emit structured log: {e}")
 
     # Record for health_monitor aggregation (reuse Story 7.1 pattern)
@@ -455,7 +455,7 @@ def _log_scoring_faithfulness(
         from app.middleware.llm_call_logger import get_llm_call_logger
 
         get_llm_call_logger().record_faithfulness_score(result.faithfulness_score)
-    except Exception:
+    except (ImportError, AttributeError, RuntimeError):
         pass
 
 

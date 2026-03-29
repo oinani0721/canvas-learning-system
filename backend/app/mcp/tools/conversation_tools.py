@@ -12,6 +12,8 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
+# Note: asyncio.TimeoutError is used for narrowed exception handling in service calls
+
 from pydantic import BaseModel, Field
 
 from app.audit.guardian import get_audit_guardian
@@ -261,7 +263,7 @@ async def create_exam_node(
                 },
                 group_id=DEFAULT_GROUP_ID,
             )
-        except Exception as mem_err:
+        except (RuntimeError, AttributeError, asyncio.TimeoutError) as mem_err:
             logger.debug(f"[Story 3.2] create_exam_node: memory recording failed (non-fatal): {mem_err}")
 
         return CreateExamNodeOutput(

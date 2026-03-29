@@ -137,7 +137,7 @@ class PromptRegistry:
                 )
             except PromptLoadError:
                 raise
-            except Exception as exc:
+            except (OSError, ValueError, UnicodeDecodeError) as exc:
                 raise PromptLoadError(
                     message=f"Failed to load template: {exc}",
                     prompt_name=name,

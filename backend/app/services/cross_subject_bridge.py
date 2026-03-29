@@ -10,6 +10,7 @@ Tags source: node keywords, frontmatter tags.
 [Source: _bmad-output/implementation-artifacts/1-9-multi-subject-kg-isolation.md#Task 7]
 """
 
+import asyncio
 import logging
 from typing import Dict, List, Set
 
@@ -103,7 +104,7 @@ async def expand_search_subjects(
             )
             records = await result.data()
             all_subject_ids = [r["id"] for r in records if r.get("id")]
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"expand_search_subjects: failed to list subjects: {e}")
         return [current_subject_id]
 
@@ -169,7 +170,7 @@ async def get_subject_tags_from_neo4j(
                 if concepts and isinstance(concepts, list):
                     for concept in concepts:
                         tags.add(concept.lower().strip())
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning(f"Failed to get tags for subject {subject_id}: {e}")
 
     return tags

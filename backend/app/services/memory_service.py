@@ -262,7 +262,7 @@ class MemoryService:
                         self._episodes = self._episodes[-self.MAX_EPISODE_CACHE:]
                 self._episodes_recovered = True
                 logger.info(f"MemoryService: recovered {added} episodes from Neo4j ({len(records)} returned, {len(records) - added} deduped)")
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 # AC-3: Graceful degradation — start with empty history
                 self._episodes_recovered = False
                 logger.warning(f"MemoryService: Neo4j unavailable, starting with empty history ({e})")
@@ -471,7 +471,7 @@ class MemoryService:
             )
             episodes = neo4j_results or []
             logger.debug(f"Retrieved {len(episodes)} episodes from Neo4j for user {user_id}")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             # ✅ Story 31.A.2: Fallback to memory if Neo4j fails
             logger.warning(f"Neo4j query failed, falling back to memory: {e}")
 
@@ -704,7 +704,7 @@ class MemoryService:
 
             return result
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.error(f"Failed to get score history for {concept_id}: {e}")
             # Return empty result on error (graceful degradation per ADR-009)
             return ScoreHistoryResponse(
@@ -842,7 +842,7 @@ class MemoryService:
             else:
                 layers["graphiti"]["status"] = "error"
                 layers["graphiti"]["error"] = "Neo4j not connected"
-        except Exception as e:
+        except (RuntimeError, AttributeError, KeyError) as e:
             layers["graphiti"]["status"] = "error"
             layers["graphiti"]["error"] = str(e)
 
@@ -854,7 +854,7 @@ class MemoryService:
             # For now, assume LanceDB is available if we can import it
             layers["semantic"]["status"] = "ok"
             layers["semantic"]["vector_count"] = 0  # Placeholder
-        except Exception as e:
+        except (ImportError, RuntimeError) as e:
             layers["semantic"]["status"] = "error"
             layers["semantic"]["error"] = str(e)
 
@@ -961,7 +961,7 @@ class MemoryService:
                 episode_ids.append(episode_id)
                 processed += 1
 
-            except Exception as e:
+            except (ValueError, KeyError, TypeError) as e:
                 failed += 1
                 errors.append({"index": idx, "error": str(e)})
 
@@ -977,7 +977,7 @@ class MemoryService:
                     try:
                         await self.neo4j.record_episode(record["payload"])
                         return None
-                    except Exception as e:
+                    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                         return {"index": record["idx"], "error": str(e)}
 
             results = await asyncio.gather(
@@ -1110,7 +1110,7 @@ class MemoryService:
                     "timestamp": episode["timestamp"],
                     "group_id": resolved_group_id,
                 })
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.warning(
                     f"[Story 3.6] Neo4j write for {event_type} failed (non-fatal): {e}"
                 )
@@ -1162,7 +1162,7 @@ class MemoryService:
                     "source": "graphiti",
                 })
             return episodes
-        except Exception as e:
+        except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
             logger.warning(f"Graphiti search failed or timed out: {e}")
             return list()
 
@@ -1199,7 +1199,7 @@ class MemoryService:
                     "source": "neo4j_fulltext",
                 })
             return episodes
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"Neo4j fulltext search failed (non-fatal): {e}")
             return list()  # fulltext index may not exist yet
 
@@ -1352,7 +1352,7 @@ class MemoryService:
                             edge_label=metadata.get("edge_label") if metadata else None
                         )
 
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 # Silent degradation - log but don't raise
                 logger.warning(f"Neo4j write failed for temporal event: {e}")
 
@@ -1407,7 +1407,7 @@ class MemoryService:
         with failed_writes_lock:
             try:
                 lines = FAILED_WRITES_FILE.read_text(encoding="utf-8").strip().splitlines()
-            except Exception as e:
+            except (OSError, UnicodeDecodeError) as e:
                 logger.warning(f"[Story 38.6] Failed to read fallback file: {e}")
                 return {"recovered": 0, "pending": 0}
 
@@ -1443,7 +1443,7 @@ class MemoryService:
                     recovered += 1
                 else:
                     still_pending.append(line)
-            except Exception:
+            except (RuntimeError, asyncio.TimeoutError):
                 still_pending.append(line)
 
         # Rewrite file with only still-pending entries under lock
@@ -1467,7 +1467,7 @@ class MemoryService:
                                 raise
                 else:
                     FAILED_WRITES_FILE.unlink(missing_ok=True)
-            except Exception as e:
+            except (OSError, PermissionError) as e:
                 logger.warning(f"[Story 38.6] Failed to update fallback file: {e}")
 
         logger.info(
@@ -1505,7 +1505,7 @@ class MemoryService:
                     })
                 except json.JSONDecodeError:
                     continue
-        except Exception as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"[Story 38.6] Failed to load failed scores: {e}")
 
         return results
@@ -1558,7 +1558,7 @@ class MemoryService:
                 f"[Story 30.24] Flushed {len(self._pending_failed_writes)} "
                 f"pending failed writes to {FAILED_WRITES_FILE}"
             )
-        except Exception as e:
+        except (OSError, TypeError, ValueError) as e:
             logger.error(f"[Story 30.24] Failed to flush pending writes: {e}")
         finally:
             self._pending_failed_writes.clear()
@@ -1622,7 +1622,7 @@ async def cleanup_memory_service() -> None:
         try:
             await _memory_service_instance.neo4j.cleanup()
             logger.info("Neo4j driver cleaned up during shutdown")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, OSError) as e:
             logger.warning(f"Neo4j driver cleanup failed: {e}")
         _memory_service_instance = None
         logger.info("MemoryService singleton cleaned up")

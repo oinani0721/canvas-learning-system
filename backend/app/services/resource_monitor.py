@@ -354,7 +354,7 @@ class ResourceMonitor:
             while self._running:
                 try:
                     self.collect_metrics()
-                except Exception as e:
+                except (OSError, RuntimeError) as e:
                     logger.error(
                         "resource_monitor.collection_error",
                         error=str(e)

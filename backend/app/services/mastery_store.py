@@ -10,6 +10,7 @@ to avoid schema changes to the existing graph model.
 Story 5.5: CalibrationRecord persistence (mastery_calibration_records JSON property)
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -56,7 +57,7 @@ class MasteryStore:
                 props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
                 return ConceptState.from_neo4j_props(props)
             return None
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to get concept {concept_id}: {e}")
             return None
 
@@ -83,7 +84,7 @@ class MasteryStore:
                 props=props,
             )
             logger.debug(f"Saved mastery state for {concept.concept_id}")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.error(f"Failed to save concept {concept.concept_id}: {e}")
 
     async def get_all_concepts(self, group_id: str = DEFAULT_GROUP_ID) -> list[ConceptState]:
@@ -106,7 +107,7 @@ class MasteryStore:
                 props = record["props"] if isinstance(record, dict) else record.data()["props"]
                 results.append(ConceptState.from_neo4j_props(props))
             return results
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to get all concepts for {group_id}: {e}")
             return []
 
@@ -172,7 +173,7 @@ class MasteryStore:
                 grade=grade,
                 source=source,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to record interaction for {concept_id}: {e}")
 
     async def record_override_event(
@@ -198,7 +199,7 @@ class MasteryStore:
                 level=level,
                 reason=reason,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to record override for {concept_id}: {e}")
 
     async def find_concept_by_name(
@@ -231,7 +232,7 @@ class MasteryStore:
                 props = records[0]["props"] if isinstance(records[0], dict) else records[0].data()["props"]
                 return ConceptState.from_neo4j_props(props)
             return None
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to find concept by name '{name}': {e}")
             return None
 
@@ -294,7 +295,7 @@ class MasteryStore:
             )
             return await self.get_all_concepts(group_id)
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to get board concepts for '{board_id}': {e}")
             # Graceful degradation: same pattern as get_all_concepts
             empty: list[ConceptState] = []
@@ -320,7 +321,7 @@ class MasteryStore:
                 concept_id=concept_id,
                 color=color,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to record self-assess for {concept_id}: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -387,7 +388,7 @@ class MasteryStore:
                 f"Saved calibration record for {record.node_id}: "
                 f"quadrant={record.quadrant.value} is_dangerous={record.is_dangerous}"
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, json.JSONDecodeError, TypeError, ValueError) as e:
             logger.error(f"Failed to save calibration record for {record.node_id}: {e}")
 
     async def get_calibration_records(

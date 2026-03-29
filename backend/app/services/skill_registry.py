@@ -143,7 +143,7 @@ class SkillRegistry:
                     skill.skill_id,
                     skill.name,
                 )
-            except Exception as exc:
+            except (OSError, ValueError, UnicodeDecodeError) as exc:
                 logger.warning(
                     "[SkillRegistry] Failed to parse skill file %s: %s",
                     md_file.name,

@@ -125,7 +125,7 @@ async def _write_neo4j_triplet(
         )
         return WriteStatus(success=True)
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, OSError) as e:
         logger.error(
             "Neo4j write failed for edge %s: %s",
             rationale.edge_id,
@@ -238,7 +238,7 @@ async def _write_lancedb(
             error="LanceDB client not available (agentic_rag not installed)",
         )
 
-    except Exception as e:
+    except (RuntimeError, ConnectionError, OSError, ValueError) as e:
         logger.error(
             "LanceDB write failed for edge %s: %s",
             rationale.edge_id,

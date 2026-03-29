@@ -245,7 +245,7 @@ class AlertManager:
 
             try:
                 is_firing, value = self._evaluate_expression(rule.expression)
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(
                     "alert_manager.rule_evaluation_failed",
                     rule=rule.name,

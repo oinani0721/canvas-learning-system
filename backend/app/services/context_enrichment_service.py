@@ -111,7 +111,7 @@ def get_node_content(node: dict, vault_path: str) -> str:
                 "file_permission_denied", node_id=node_id, path=str(abs_path)
             )
             return ""
-        except Exception as e:
+        except OSError as e:
             struct_logger.warning(
                 "file_read_error", node_id=node_id, error=str(e)
             )
@@ -252,7 +252,7 @@ def extract_and_resolve_wikilinks(
                     if len(file_content) > max_content_length:
                         entry["content"] += "..."
                 entry["resolved"] = True
-            except Exception as e:
+            except (OSError, UnicodeDecodeError) as e:
                 logger.debug(f"Wikilink resolution failed for {file_ref}: {e}")
 
         results.append(entry)
@@ -757,7 +757,7 @@ class ContextEnrichmentService:
                     "lecture_path": lecture_path,
                     "lecture_title": assoc.target_canvas_title,
                 }
-            except Exception as e:
+            except (RuntimeError, OSError, asyncio.TimeoutError, KeyError) as e:
                 logger.warning(f"Failed to fetch lecture {assoc.target_canvas_path}: {e}")
                 return None
 
@@ -924,7 +924,7 @@ class ContextEnrichmentService:
                         f"Found {len(textbook_ctx.contexts)} textbook refs, "
                         f"{len(textbook_ctx.prerequisites)} prerequisites"
                     )
-            except Exception as e:
+            except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
                 logger.warning(f"Failed to get textbook context: {e}")
                 # Continue without textbook context
 
@@ -983,7 +983,7 @@ class ContextEnrichmentService:
                             node_count=len(cross_ctx.get("relevant_nodes", [])),
                             is_exercise=is_exercise
                         )
-            except Exception as e:
+            except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
                 logger.warning(f"Failed to get cross-canvas context: {e}")
                 # Story 36.8 AC6: Continue without cross-canvas context (graceful degradation)
 
@@ -1013,7 +1013,7 @@ class ContextEnrichmentService:
                     logger.debug(
                         f"Found {len(learning_results)} learning memory relations for {node_id}"
                     )
-            except Exception as e:
+            except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
                 logger.warning(f"Failed to get learning memory relations: {e}")
                 # Continue without learning memory context (graceful degradation)
 
@@ -1041,7 +1041,7 @@ class ContextEnrichmentService:
                     logger.debug(
                         f"Resolved {len(resolved)} wikilinks from target node {node_id}"
                     )
-            except Exception as e:
+            except (OSError, ValueError, AttributeError) as e:
                 logger.warning(f"Wikilink resolution failed for {node_id}: {e}")
 
         logger.debug(
@@ -1479,7 +1479,7 @@ class ContextEnrichmentService:
 
             return result
 
-        except Exception as e:
+        except (RuntimeError, OSError, asyncio.TimeoutError, KeyError) as e:
             logger.warning(f"Failed to read lecture canvas {lecture_path}: {e}")
             # Return basic info even if we can't read the lecture canvas
             result = {
@@ -1608,7 +1608,7 @@ class ContextEnrichmentService:
             logger.debug(f"Learning memory search for '{query[:50]}...': {len(results)} results")
             return results
 
-        except Exception as e:
+        except (RuntimeError, asyncio.TimeoutError, AttributeError) as e:
             logger.warning(f"Learning memory search failed: {e}")
             return []
 

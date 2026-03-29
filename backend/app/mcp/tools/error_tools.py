@@ -11,6 +11,8 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
+# Note: asyncio.TimeoutError is used for narrowed exception handling in service calls
+
 from pydantic import BaseModel, Field
 
 from app.audit.guardian import get_audit_guardian
@@ -129,7 +131,7 @@ async def record_error(
                 group_id=DEFAULT_GROUP_ID,
             )
             logger.info(f"[Story 3.6] Misconception recorded: type={result.error_type.value} node={node_id}")
-        except Exception as e:
+        except (RuntimeError, AttributeError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 3.6] Graphiti write failed (non-fatal): {e}")
 
         return RecordErrorOutput(

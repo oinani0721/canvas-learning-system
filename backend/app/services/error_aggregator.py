@@ -222,7 +222,7 @@ class ErrorAggregator:
                     (category, error_type, source_module, stack_summary, now),
                 )
                 await db.commit()
-        except Exception as e:
+        except (OSError, aiosqlite.Error) as e:
             logger.error(f"[Story 7.4] Failed to persist error log: {e}")
 
         logger.debug(f"[Story 7.4] Error recorded: category={category} type={error_type}")

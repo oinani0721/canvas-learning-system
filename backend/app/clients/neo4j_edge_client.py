@@ -182,7 +182,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
 
             return success
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"add_edge_relationship failed: {e}")
             self._error_count += 1
             return False
@@ -277,7 +277,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
             scored_results.sort(key=lambda x: x["score"], reverse=True)
             return scored_results
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"search_nodes failed: {e}")
             return []
 
@@ -338,7 +338,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 for r in results
             ]
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"get_related_memories failed: {e}")
             return []
 
@@ -374,7 +374,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
 
             return await self.add_edge_relationship(relationship)
 
-        except Exception as e:
+        except (KeyError, AttributeError, TypeError) as e:
             logger.warning(f"add_episode_for_edge failed: {e}")
             return False
 
@@ -443,7 +443,7 @@ class Neo4jEdgeClient(Neo4jLearningBase):
                 f"Canvas edge sync timeout for {canvas_name} "
                 f"after {self._timeout_ms}ms"
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError) as e:
             result["error"] = str(e)
             logger.error(f"Canvas edge sync error: {e}")
 
@@ -711,7 +711,7 @@ class LearningMemoryClient:
 
             self._initialized = True
             return True
-        except Exception as e:
+        except (json.JSONDecodeError, ValueError, OSError, IOError) as e:
             logger.error(f"LearningMemoryClient init failed: {e}")
             return False
 
@@ -720,7 +720,7 @@ class LearningMemoryClient:
         try:
             with open(self._storage_path, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, ensure_ascii=False, indent=2)
-        except Exception as e:
+        except (OSError, IOError, TypeError) as e:
             logger.error(f"Failed to save learning memories: {e}")
 
     async def add_learning_episode(
@@ -758,7 +758,7 @@ class LearningMemoryClient:
                 f"Added learning episode: {memory.canvas_name}/{memory.concept}"
             )
             return True
-        except Exception as e:
+        except (OSError, IOError, TypeError, ValueError) as e:
             logger.error(f"Failed to add learning episode: {e}")
             return False
 

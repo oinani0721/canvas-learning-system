@@ -7,6 +7,7 @@
 #
 # [Source: Agent Architecture Upgrade Plan - Phase 2]
 
+import asyncio
 import logging
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -73,7 +74,10 @@ class ToolExecutor:
                 )
             else:
                 return f"[Error] Unknown tool: {name}"
-        except Exception as e:
+        except (KeyError, TypeError, ValueError) as e:
+            logger.error(f"Tool execution error: {name}({args}) -> {e}")
+            return f"[Error] Tool '{name}' failed: {str(e)[:200]}"
+        except (OSError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.error(f"Tool execution error: {name}({args}) -> {e}")
             return f"[Error] Tool '{name}' failed: {str(e)[:200]}"
 
@@ -96,7 +100,7 @@ class ToolExecutor:
                 table_name="vault_notes",
                 num_results=num_results,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
             # Fallback: try the default table
             logger.warning(f"vault_notes table search failed ({e}), trying canvas_explanations")
             try:
@@ -105,7 +109,7 @@ class ToolExecutor:
                     table_name="canvas_explanations",
                     num_results=num_results,
                 )
-            except Exception as e2:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e2:
                 return f"[Error] LanceDB search failed: {str(e2)[:200]}"
 
         if not results:
@@ -129,7 +133,7 @@ class ToolExecutor:
                 entity_types=entity_types,
                 num_results=num_results,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             return f"[Error] Knowledge graph search failed: {str(e)[:200]}"
 
         if not results:

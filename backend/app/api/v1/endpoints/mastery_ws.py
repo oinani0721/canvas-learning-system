@@ -95,7 +95,7 @@ class MasteryConnectionManager:
             try:
                 await ws.send_text(payload)
                 sent += 1
-            except Exception as exc:
+            except (ConnectionError, RuntimeError, OSError) as exc:
                 logger.debug(f"Mastery WS broadcast failed for one client: {exc}")
                 failed.append(ws)
 
@@ -203,7 +203,7 @@ async def _heartbeat_loop(websocket: WebSocket) -> None:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
                 await websocket.send_text(ping_msg)
-            except Exception:
+            except (ConnectionError, RuntimeError, OSError):
                 break
     except asyncio.CancelledError:
         raise

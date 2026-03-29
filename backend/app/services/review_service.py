@@ -592,7 +592,7 @@ class ReviewService:
 
             logger.info(f"Mastery enrichment: {len(review_candidates)} weak concepts, "
                         f"{len(eligible_nodes)} total eligible after enrichment")
-        except Exception as e:
+        except (ImportError, RuntimeError, ConnectionError, ValueError, TypeError, AttributeError) as e:
             logger.debug(f"Mastery enrichment skipped (non-blocking): {e}")
 
         weak_concepts_data = []

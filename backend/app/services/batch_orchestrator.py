@@ -19,6 +19,7 @@ Architecture References:
 """
 
 import asyncio
+import json
 import structlog
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -692,7 +693,7 @@ class BatchOrchestrator:
                             f"[EPIC-33] Routing engine: {node_id} → "
                             f"{effective_agent_type} (confidence={routing_result.confidence:.2f})"
                         )
-                except Exception as e:
+                except (ImportError, ValueError, TypeError, AttributeError) as e:
                     logger.warning(f"[EPIC-33] Routing engine failed, using original agent_type: {e}")
 
             # Call agent through agent_service
@@ -880,7 +881,7 @@ class BatchOrchestrator:
                 )
             return content
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
             logger.warning(
                 f"[Story 33.6] Failed to get node content (non-blocking): {e}"
             )

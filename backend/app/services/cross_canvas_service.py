@@ -257,7 +257,7 @@ class CrossCanvasService:
                     f"CrossCanvasService initialized with {len(self._associations_cache)} "
                     f"associations loaded from Neo4j"
                 )
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.error(f"Failed to load associations from Neo4j: {e}")
                 self._initialized = True  # Continue without Neo4j data
         else:
@@ -320,7 +320,7 @@ class CrossCanvasService:
 
                 self._associations_cache[association_id] = association
 
-            except Exception as e:
+            except (ValueError, TypeError, AttributeError, KeyError) as e:
                 logger.warning(f"Failed to parse association {association_id}: {e}")
 
         logger.info(f"Loaded {len(self._associations_cache)} associations from Neo4j")
@@ -470,7 +470,7 @@ class CrossCanvasService:
                     bidirectional=False,
                     auto_generated=False
                 )
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.error(f"Failed to persist association to Neo4j: {e}")
                 # Continue with in-memory storage as fallback
 
@@ -529,7 +529,7 @@ class CrossCanvasService:
                     confidence=confidence,
                     shared_concepts=common_concepts
                 )
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.error(f"Failed to persist association update to Neo4j: {e}")
 
         logger.info(f"Updated association {association_id}")
@@ -550,7 +550,7 @@ class CrossCanvasService:
         if self._neo4j_client:
             try:
                 await self._neo4j_client.delete_canvas_association(association_id)
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
                 logger.error(f"Failed to delete association from Neo4j: {e}")
 
         del self._associations_cache[association_id]
@@ -730,7 +730,7 @@ class CrossCanvasService:
                 )
                 return association
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(
                 f"Neo4j query failed for lecture lookup: {e}, "
                 "will fall back to in-memory cache"
@@ -1349,7 +1349,7 @@ def get_cross_canvas_service(
             try:
                 from app.clients.neo4j_client import get_neo4j_client
                 neo4j_client = get_neo4j_client()
-            except Exception as e:
+            except (ImportError, RuntimeError, ConnectionError) as e:
                 logger.warning(f"Failed to get Neo4jClient: {e}")
                 neo4j_client = None
 

@@ -13,6 +13,7 @@ Connects REST endpoints to real backend services:
 """
 
 import asyncio
+import json
 import logging
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -284,7 +285,7 @@ class IntelligentParallelService:
                 groups=groups,
                 timeout=timeout,
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
             logger.error(
                 f"Background batch execution failed for session {session_id}: {e}"
             )
@@ -321,7 +322,7 @@ class IntelligentParallelService:
 
         try:
             session = await self._session_manager.get_session(session_id)
-        except Exception:
+        except (RuntimeError, ConnectionError, KeyError, ValueError) as exc:
             # SessionNotFoundError or similar
             return None
 
@@ -476,7 +477,7 @@ class IntelligentParallelService:
         # Check session exists
         try:
             session = await self._session_manager.get_session(session_id)
-        except Exception:
+        except (RuntimeError, ConnectionError, KeyError, ValueError) as exc:
             return None
 
         # Check if already terminal (completed, partial_failure, failed, cancelled)
@@ -501,7 +502,7 @@ class IntelligentParallelService:
             await self._session_manager.transition_state(
                 session_id, SessionStatus.CANCELLED
             )
-        except Exception as e:
+        except (RuntimeError, ConnectionError, ValueError) as e:
             logger.warning(f"Session cancel: state transition failed: {e}")
 
         logger.info(
@@ -575,7 +576,7 @@ class IntelligentParallelService:
                 )
             return content
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
             logger.warning(
                 f"[Story 33.10] Failed to get node content (non-blocking): {e}"
             )
@@ -685,7 +686,7 @@ class IntelligentParallelService:
         try:
             await self._session_manager.get_session(session_id)
             return True
-        except Exception:
+        except (RuntimeError, ConnectionError, KeyError, ValueError):
             return False
 
     async def notify_progress(

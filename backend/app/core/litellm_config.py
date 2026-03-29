@@ -221,6 +221,6 @@ def register_litellm_callbacks() -> bool:
             "LLM calls can still be logged via llm_call_logger.log_call()"
         )
         return False
-    except Exception as e:
+    except (AttributeError, TypeError, ValueError) as e:
         logger.warning(f"[Story 7.2] Failed to register LiteLLM callbacks: {e}")
         return False

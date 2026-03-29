@@ -69,7 +69,7 @@ class AutoScorer:
                 section = self._extract_section(combined, stage)
                 if section:
                     return section
-        except Exception:
+        except (KeyError, OSError, ValueError, AttributeError):
             pass
 
         # Strategy 2: Direct file load from prompts/scoring/

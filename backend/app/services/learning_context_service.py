@@ -14,6 +14,7 @@ Data sources:
 [Source: _bmad-output/implementation-artifacts/3-4-learning-context-auto-injection.md]
 """
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Optional
@@ -107,7 +108,7 @@ async def _fetch_mastery(node_id: str, group_id: str) -> dict:
                     result["node_name"] = records[0].get("name") or node_id
             except Exception:
                 pass
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch mastery for %s: %s", node_id, e)
     return result
 
@@ -159,7 +160,7 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                         "remedy": meta.get("remedy", ""),
                     }
                 )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch tips/errors for %s: %s", node_id, e)
 
     # Also try LearningMemoryClient as secondary source
@@ -180,7 +181,7 @@ async def _fetch_tips_and_errors(node_id: str) -> tuple[list[dict], list[dict]]:
                         "annotated_at": mem.get("timestamp", ""),
                     }
                 )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, ImportError, AttributeError) as e:
         logger.debug("LearningMemoryClient unavailable for %s: %s", node_id, e)
 
     return tips, errors
@@ -214,7 +215,7 @@ async def _fetch_edge_reasons(node_id: str) -> list[dict]:
                         "reason": rec.get("reason") or rec.get("label") or "",
                     }
                 )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch edge reasons for %s: %s", node_id, e)
     return reasons
 
@@ -276,7 +277,7 @@ async def assemble_tier2(node_id: str) -> dict:
                         "edge_reason": rec.get("reason") or rec.get("label") or "",
                     }
                 )
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch neighbors for %s: %s", node_id, e)
 
     return {"neighbors": neighbors}
@@ -387,7 +388,7 @@ async def _fetch_inherited_context(node_id: str, group_id: str) -> list[dict]:
             }
             for ctx in inherited
         ]
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError, AttributeError) as e:
         logger.warning("Failed to fetch inherited context for %s: %s", node_id, e)
         return list()
 
@@ -414,7 +415,7 @@ async def _fetch_neighbor_records(node_id: str) -> list[dict]:
         )
         for rec in records or []:
             records_out.append(dict(rec))
-    except Exception as e:
+    except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
         logger.warning("Failed to fetch neighbors for %s: %s", node_id, e)
     return records_out
 

@@ -271,7 +271,7 @@ class TextbookContextService:
                 config = json.loads(content)
                 self._config_cache[config_path] = config
                 return config
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"[TextbookContextService] Failed to load config: {e}")
 
         # Return empty config if file doesn't exist
@@ -345,7 +345,7 @@ class TextbookContextService:
                             content_preview=node_text[:100]
                         ))
 
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"[TextbookContextService] Failed to search canvas {canvas_path}: {e}")
 
         return contexts
@@ -526,7 +526,7 @@ class TextbookContextService:
                     'associations': [],
                     'settings': {'auto_link': True}
                 }
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"[TextbookContextService] Failed to load config, creating new: {e}")
             config = {
                 'version': '1.0.0',
@@ -593,7 +593,7 @@ class TextbookContextService:
         try:
             content = full_path.read_text(encoding='utf-8')
             config = json.loads(content)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, FileNotFoundError) as e:
             logger.warning(f"[TextbookContextService] Failed to load config for removal: {e}")
             return False
 

@@ -15,6 +15,7 @@
 #
 # [Source: _bmad-output/implementation-artifacts/3-8-dialog-archive-async-generation.md#Task 1]
 
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from enum import Enum
@@ -122,7 +123,7 @@ class ArchiveManager:
                 )
             if self._archive_log:
                 logger.info(f"[Story 3.8] Restored {len(self._archive_log)} archive markers from Graphiti")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError, KeyError) as e:
             logger.warning(f"[Story 3.8] Failed to restore archive markers: {e}")
 
     async def check_and_archive(self, node_id: str) -> Optional[ArchiveStatus]:
@@ -184,7 +185,7 @@ class ArchiveManager:
                 result = await self.check_and_archive(node_id)
                 if result:
                     results.append(result)
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
                 logger.warning(f"[Story 3.8] Batch archive failed for node {node_id}: {e}")
 
         if results:
@@ -420,7 +421,7 @@ class ArchiveManager:
             if total > 0:
                 logger.info(f"[Story 5.8] Stored {total} extraction records for node {node_id}")
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, AttributeError, ValueError) as e:
             logger.warning(f"[Story 5.8] Failed to store extraction records for {node_id}: {e}")
 
     async def _get_node_messages(self, node_id: str) -> List[Dict[str, Any]]:
@@ -526,7 +527,7 @@ class ArchiveManager:
                 last_archived_at=datetime.now(timezone.utc).isoformat(),
             )
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
             logger.warning(f"[Story 3.8] Failed to mark messages archived: {e}")
 
     def _estimate_tokens(self, messages: List[Dict[str, Any]]) -> int:

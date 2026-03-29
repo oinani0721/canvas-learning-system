@@ -16,6 +16,7 @@ Story 6.7: pause_exam, resume_exam — cognitive load control
 Story 6.8: complete_exam, get_exam_records — exam record persistence
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -292,7 +293,7 @@ class ExamService:
                 data = records[0] if isinstance(records[0], dict) else records[0].data()
                 if data.get("cnt", 0) > 0:
                     return "exam"
-        except Exception as e:
+        except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.1] Canvas type check failed: {e}")
 
         return "regular"
@@ -318,7 +319,7 @@ class ExamService:
             canvas_data = await canvas_svc.read_canvas(canvas_id)
             nodes = canvas_data.get("nodes", list())
             return nodes if nodes else list(_EMPTY_NODE_LIST)
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, FileNotFoundError) as e:
             logger.debug(f"[Story 6.3] Failed to read canvas {canvas_id}: {e}")
             return list(_EMPTY_NODE_LIST)
 
@@ -357,7 +358,7 @@ class ExamService:
                 current_node_id=session.current_node_id or "",
                 created_at=session.created_at,
             )
-        except Exception as e:
+        except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 6.1] Failed to persist exam session to Neo4j: {e}")
 
     async def _load_session_from_neo4j(self, exam_id: str) -> Optional[ExamSessionResponse]:
@@ -374,7 +375,7 @@ class ExamService:
             records = await client.run_query(query, exam_id=exam_id)
             if records:
                 return self._neo4j_record_to_session(records[0])
-        except Exception as e:
+        except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.debug(f"[Story 6.1] Failed to load exam session: {e}")
         return None
 
@@ -430,7 +431,7 @@ class ExamService:
                 current_node_id=data.get("current_node_id") or None,
                 created_at=str(data.get("created_at", "")),
             )
-        except Exception as e:
+        except (ValueError, TypeError, AttributeError, KeyError, json.JSONDecodeError) as e:
             logger.debug(f"[Story 6.1] Failed to parse Neo4j record: {e}")
             return None
 

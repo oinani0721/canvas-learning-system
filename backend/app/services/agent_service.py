@@ -128,7 +128,7 @@ def _record_failed_write(
         logger.warning(
             f"[Story 38.6] Score write failed after retries, saved to fallback: {concept_id}"
         )
-    except Exception as e:
+    except (OSError, TypeError, ValueError) as e:
         logger.error(f"[Story 38.6] Failed to write to fallback file: {e}")
 
 
@@ -562,7 +562,7 @@ def extract_explanation_text(response: Any) -> Tuple[str, bool]:
                     }
                 )
                 return text.strip(), True
-        except Exception as e:
+        except (AttributeError, KeyError, TypeError, ValueError) as e:
             # ✅ Story 12.G.1: 提取器异常时记录详情 (AC 2)
             if debug_enabled:
                 logger.warning(
@@ -1429,11 +1429,11 @@ class AgentService:
             graphiti_client = None
             try:
                 lancedb_client = LanceDBClient.get_instance()  # type: ignore[attr-defined]
-            except Exception:
+            except (RuntimeError, OSError, ConnectionError, AttributeError):
                 logger.debug("Phase 2: LanceDB client not available for tool executor")
             try:
                 graphiti_client = GraphitiClient.get_instance()  # type: ignore[attr-defined]
-            except Exception:
+            except (RuntimeError, OSError, ConnectionError, AttributeError):
                 logger.debug("Phase 2: Graphiti client not available for tool executor")
 
             if ToolExecutor is None:
@@ -1456,7 +1456,7 @@ class AgentService:
             logger.warning(f"Phase 2: Cannot import agentic_rag clients: {e}")
             self._tool_calling_enabled = False
             return None
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning(f"Phase 2: ToolExecutor init failed: {e}")
             return None
 
@@ -1487,12 +1487,12 @@ class AgentService:
                 lancedb_client = LanceDBClient(db_path=lancedb_path)
                 await lancedb_client.initialize()
                 logger.debug(f"Phase 4: LanceDB client created and initialized at {lancedb_path}")
-            except Exception as e:
+            except (RuntimeError, OSError, ConnectionError) as e:
                 logger.debug(f"Phase 4: LanceDB client not available: {e}")
 
             try:
                 graphiti_client = GraphitiClient.get_instance()  # type: ignore[attr-defined]
-            except Exception:
+            except (RuntimeError, OSError, ConnectionError, AttributeError):
                 logger.debug("Phase 4: Graphiti client not available")
 
             init_react_tools(
@@ -1512,7 +1512,7 @@ class AgentService:
         except ImportError as e:
             logger.warning(f"Phase 4: Cannot import react_agent: {e}")
             return False
-        except Exception as e:
+        except (RuntimeError, OSError, ConnectionError) as e:
             logger.warning(f"Phase 4: React Agent init failed: {e}")
             return False
 
@@ -1617,7 +1617,7 @@ class AgentService:
                 if memory_context:
                     context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
                     logger.debug("[Phase2.5] Preloaded learning memories into React Agent context")
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
                 logger.warning(f"[Phase2.5] Memory preload failed for React Agent: {e}")
 
         # NOTE: thinking_budget disabled for React Agent — Gemini's thinking mode
@@ -1698,7 +1698,7 @@ class AgentService:
                 memory_context = await self._get_learning_memories(content=memory_query)
                 if memory_context:
                     system_prompt = f"{system_prompt}\n\n## 学习历史记忆\n{memory_context}"
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
                 logger.warning(f"[Score-React] Memory preload failed: {e}")
 
         api_key = self._gemini_client.api_key
@@ -1838,7 +1838,7 @@ class AgentService:
                 timestamp=timestamp,
             )
             logger.info(f"Recorded color transition: {name}")
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ImportError) as e:
             logger.warning(f"Failed to record color transition: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════════
@@ -1963,7 +1963,7 @@ class AgentService:
         except asyncio.TimeoutError:
             logger.warning(f"[Story 36.7] Memory query timeout (500ms) for: {content[:30]}...")
             return ""
-        except Exception as e:
+        except (RuntimeError, ConnectionError, ValueError) as e:
             logger.warning(f"[Story 36.7] Memory query failed: {e}")
             return ""
 
@@ -2029,7 +2029,7 @@ class AgentService:
             # Format results for Agent context
             return self._format_learning_memories(results)
 
-        except Exception as e:
+        except (RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"[Story 36.7] Neo4j query error: {e}")
             return ""
 
@@ -2067,7 +2067,7 @@ class AgentService:
                         timestamp_str = dt.strftime("%Y-%m-%d")
                     else:
                         timestamp_str = str(timestamp)[:10]
-                except Exception:
+                except (ValueError, TypeError):
                     timestamp_str = str(timestamp)[:10]
             else:
                 timestamp_str = "N/A"
@@ -2141,7 +2141,7 @@ class AgentService:
 
             return True
 
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError) as e:
             # [Story 12.I.4] Removed emoji to fix Windows GBK encoding
             logger.error(f"[FIX-Canvas-Write] FAILED: Could not write nodes to canvas {canvas_name}: {e}")
             return False
@@ -2923,7 +2923,7 @@ class AgentService:
                 if memory_context:
                     context = f"{context}\n\n{memory_context}" if context else memory_context
                     logger.debug("[Phase2.5] Injected learning memories into multimodal context")
-            except Exception as e:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
                 logger.warning(f"[Phase2.5] Memory preload failed for multimodal: {e}")
 
         start_time = datetime.now()
@@ -3120,7 +3120,7 @@ class AgentService:
                 if memory_context:
                     context = f"{context}\n\n{memory_context}" if context else memory_context
                     logger.debug("[Phase2.5] Preloaded memories for multimodal scoring")
-            except Exception:
+            except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError):
                 pass  # Non-blocking
 
         # Initial scoring call — use multimodal path when images are available
@@ -3300,7 +3300,7 @@ class AgentService:
                             if memory_context:
                                 context = f"{context}\n\n## 学习历史记忆\n{memory_context}" if context else f"## 学习历史记忆\n{memory_context}"
                                 logger.debug("[R1-Fix] Pre-injected memory before two-phase pipeline")
-                        except Exception as e:
+                        except (RuntimeError, ConnectionError, asyncio.TimeoutError, ValueError) as e:
                             logger.warning(f"[R1-Fix] Memory pre-injection failed: {e}")
 
                     try:
@@ -3656,7 +3656,7 @@ class AgentService:
                     _label = _m_engine.mastery_label(_m_concept)
                     mastery_ctx = f"\n\n[学生掌握度] {_label} ({_eff:.0%}), 交互次数: {_m_concept.interaction_count}"
                     scoring_context = f"{scoring_context}{mastery_ctx}" if scoring_context else mastery_ctx
-            except Exception:
+            except (ImportError, RuntimeError, AttributeError, ValueError):
                 pass  # Non-blocking: mastery context is optional for scoring
             result = await self.call_scoring("", content, context=scoring_context, canvas_name=canvas_name, node_id=node_id, images=images)
 
@@ -3730,7 +3730,7 @@ class AgentService:
                 concept = engine.update_on_interaction(concept, grade)
                 await store.save_concept(concept)
                 mastery_data = engine.concept_to_response(concept)
-            except Exception as mastery_err:
+            except (ImportError, RuntimeError, ConnectionError, AttributeError, ValueError) as mastery_err:
                 logger.warning(f"Mastery update failed (non-blocking): {mastery_err}")
 
             scores.append({
@@ -3768,7 +3768,7 @@ class AgentService:
                             if node.get("id") == node_id:
                                 old_color = node.get("color", "4")
                                 break
-                except Exception:
+                except (OSError, RuntimeError, ValueError):
                     pass  # Use default
 
             if old_color != new_color:
@@ -3992,7 +3992,7 @@ class AgentService:
                         canvas_name, node_id, canvas_data
                     )
                 logger.info(f"[FIX-4.4] Found {len(user_understandings)} user understandings for node {node_id}")
-        except Exception as e:
+        except (OSError, json.JSONDecodeError, ValueError, KeyError) as e:
             logger.warning(f"[FIX-4.4] Failed to read user understandings: {e}")
 
         # ✅ Story 12.E.2: 构建 user_understanding 字符串用于 JSON 字段
@@ -4403,7 +4403,7 @@ class AgentService:
                 logger.debug(f"Recorded learning episode: {canvas_name}/{node_id}")
             return success
 
-        except Exception as e:
+        except (ImportError, RuntimeError, ConnectionError, asyncio.TimeoutError) as e:
             logger.warning(f"Failed to record learning episode: {e}")
             return False
 
@@ -4513,7 +4513,7 @@ class AgentService:
         try:
             asyncio.create_task(_write_with_timeout())
             logger.debug(f"[Story 30.4] Memory write task created for {agent_type}")
-        except Exception as e:
+        except (RuntimeError, TypeError) as e:
             # Even task creation failure should be silent
             logger.error(f"[Story 30.4] Failed to create memory write task: {e}")
 
@@ -4573,7 +4573,7 @@ class AgentService:
                         agent_feedback=agent_feedback
                     )
                 )
-        except Exception as e:
+        except (RuntimeError, TypeError) as e:
             # Silent degradation
             logger.error(f"[Story 30.4] Sync memory trigger failed: {e}")
 
