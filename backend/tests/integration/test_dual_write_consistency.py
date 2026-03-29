@@ -178,9 +178,10 @@ class TestDualWriteConsistency:
         await learning_memory.initialize()
 
         # 创建 MemoryService
-        # MemoryService.__init__ only accepts neo4j_client (learning_memory_client removed)
+        # MemoryService.__init__ parameter is learning_memory_client (not learning_memory)
         service = MemoryService(
             neo4j_client=real_neo4j_client,
+            learning_memory_client=learning_memory
         )
         await service.initialize()
 
@@ -288,7 +289,7 @@ class TestDualWriteConsistency:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            # learning_memory_client removed from MemoryService.__init__
+            learning_memory_client=learning_memory
         )
         await service.initialize()
 
@@ -355,11 +356,11 @@ class TestGraphitiWriteReliability:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
+            learning_memory_client=mock_learning_memory
         )
         await service.initialize()
 
-        # TODO: _write_to_graphiti_json_with_retry 已移除，需重写此测试
-        pytest.skip("_write_to_graphiti_json_with_retry removed from MemoryService")
+        # 直接调用重试方法
         result = await service._write_to_graphiti_json_with_retry(
             episode_id="test-episode",
             canvas_name="test.canvas",
@@ -398,11 +399,11 @@ class TestGraphitiWriteReliability:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
+            learning_memory_client=mock_learning_memory
         )
         await service.initialize()
 
-        # TODO: _write_to_graphiti_json_with_retry 已移除，需重写此测试
-        pytest.skip("_write_to_graphiti_json_with_retry removed from MemoryService")
+        # 调用重试方法
         result = await service._write_to_graphiti_json_with_retry(
             episode_id="test-episode",
             canvas_name="test.canvas",

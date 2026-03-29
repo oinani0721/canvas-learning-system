@@ -665,9 +665,20 @@ async def neo4j_test_session(real_neo4j_client):
     prefix = f"test_{uuid.uuid4().hex[:8]}_"
     yield real_neo4j_client, prefix
     try:
+        # Clean up nodes with id property (User, Node, etc.)
         await real_neo4j_client.run_query(
             "MATCH (n) WHERE n.id STARTS WITH $prefix DETACH DELETE n",
-            {"prefix": prefix},
+            prefix=prefix,
+        )
+        # Clean up Concept nodes (use name, not id)
+        await real_neo4j_client.run_query(
+            "MATCH (c:Concept) WHERE c.name STARTS WITH $prefix DETACH DELETE c",
+            prefix=prefix,
+        )
+        # Clean up Canvas nodes (use path, not id)
+        await real_neo4j_client.run_query(
+            "MATCH (cv:Canvas) WHERE cv.path STARTS WITH $prefix DETACH DELETE cv",
+            prefix=prefix,
         )
     except Exception:
         pass
