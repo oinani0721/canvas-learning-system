@@ -973,13 +973,13 @@ class GraphitiHealthResponse(BaseModel):
         }
     }
 )
-async def check_graphiti_health(
+async def check_knowledge_graph_health(
     settings: Settings = Depends(get_settings)  # noqa: B008
 ) -> GraphitiHealthResponse:
     """
-    检查Graphiti健康状态.
+    检查知识图谱（Neo4j）健康状态.
 
-    此端点验证Graphiti客户端的初始化状态和图统计信息。
+    S34 G-FAKE-001: renamed from check_graphiti_health (actual backend is Neo4j).
 
     ✅ Verified from Story 30.3 AC-30.3.7
 

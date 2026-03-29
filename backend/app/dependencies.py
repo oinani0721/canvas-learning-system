@@ -42,9 +42,9 @@ from .services.review_service import ReviewService
 from .services.textbook_context_service import TextbookContextConfig, TextbookContextService
 from .services.verification_service import VerificationService
 
-# Story 36.1: Unified GraphitiClient Architecture
+# Story 36.1: Unified Learning Client Architecture (S34 G-FAKE-001: renamed)
 from .clients.neo4j_client import Neo4jClient, get_neo4j_client
-from .clients.graphiti_client import GraphitiEdgeClient
+from .clients.graphiti_client import Neo4jEdgeClient
 
 logger = logging.getLogger(__name__)
 
@@ -367,12 +367,12 @@ async def get_context_enrichment_service(
     # Story 25.3: Get CrossCanvasService singleton for cross-canvas context
     cross_canvas_service = get_cross_canvas_service()
 
-    # P1 Fix: Inject LearningMemoryClient for Graphiti learning memory enrichment
-    # Without this, ContextEnrichmentService._search_graphiti_relations() always returns []
-    graphiti_service = None
+    # P1 Fix: Inject LearningMemoryClient for learning memory enrichment
+    # Without this, ContextEnrichmentService._search_learning_relations() returns []
+    learning_memory_service = None
     try:
         from .clients.graphiti_client import get_learning_memory_client
-        graphiti_service = get_learning_memory_client()
+        learning_memory_service = get_learning_memory_client()
         logger.debug("LearningMemoryClient injected into ContextEnrichmentService")
     except Exception as e:
         logger.warning(f"LearningMemoryClient not available for context enrichment: {e}")
@@ -382,7 +382,7 @@ async def get_context_enrichment_service(
         canvas_service=canvas_service,
         textbook_service=textbook_service,
         cross_canvas_service=cross_canvas_service,
-        graphiti_service=graphiti_service,  # P1 Fix: Enable Graphiti learning memory context
+        learning_memory_service=learning_memory_service,
         association_cache_maxsize=settings.ENRICHMENT_CACHE_MAXSIZE,
     )
 
@@ -544,7 +544,7 @@ async def get_verification_service(
 
     # Story 31.A.1 AC-31.A.1.1: Get GraphitiTemporalClient singleton
     # [Source: docs/stories/31.A.1.story.md#AC-31.A.1.1]
-    graphiti_client = get_graphiti_temporal_client()
+    graphiti_client = get_neo4j_temporal_client()
     if graphiti_client:
         logger.debug("GraphitiTemporalClient injected into VerificationService")
     else:
@@ -726,63 +726,32 @@ Neo4jClientDep = Annotated[Neo4jClient, Depends(get_neo4j_client_dep)]
 
 
 # =============================================================================
-# GraphitiClient Dependency (Story 36.1)
+# Neo4jEdgeClient Dependency (Story 36.1, S34 renamed)
 # [Source: docs/stories/36.1.story.md#Unified-GraphitiClient-Architecture]
 # =============================================================================
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies with yield cleanup)
-async def get_graphiti_client(
+async def get_neo4j_edge_client_dep(
     neo4j_client: Neo4jClientDep
-) -> AsyncGenerator[GraphitiEdgeClient, None]:
+) -> AsyncGenerator[Neo4jEdgeClient, None]:
     """
-    Get GraphitiEdgeClient instance with Neo4jClient dependency injection.
+    Get Neo4jEdgeClient instance with Neo4jClient dependency injection.
 
-    Story 36.1 AC-36.1.3: Neo4jClient injection
-    - Reuses Story 30.2 connection pool (50 connections, 30s timeout)
-    - Reuses existing retry mechanism (tenacity 3x exponential backoff)
-    - Reuses existing JSON fallback (NEO4J_MOCK=true)
-
-    This is the unified entry point for Graphiti operations. The GraphitiEdgeClient
-    inherits from GraphitiClientBase and delegates Neo4j operations to the injected
-    Neo4jClient, ensuring the entire application uses the same connection pool.
-
-    ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: dependencies-with-yield)
+    S34 G-FAKE-001: renamed from get_graphiti_client.
+    Story 36.1 AC-36.1.3: Neo4jClient injection via DI.
 
     Dependency Chain:
-        get_neo4j_client_dep() → neo4j_client (singleton)
-        get_graphiti_client(neo4j_client) → graphiti_client
-
-    Args:
-        neo4j_client: Neo4jClient singleton (injected via Depends)
+        get_neo4j_client_dep() → neo4j_client
+        get_neo4j_edge_client_dep(neo4j_client) → edge_client
 
     Yields:
-        GraphitiEdgeClient: Graphiti client with Neo4j dependency injection
-
-    Example:
-        ```python
-        @router.post("/canvas/{canvas_name}/edges")
-        async def add_edge(
-            canvas_name: str,
-            edge: EdgeData,
-            graphiti: GraphitiEdgeClient = Depends(get_graphiti_client)
-        ):
-            relationship = EdgeRelationship(
-                canvas_path=canvas_name,
-                from_node_id=edge.from_id,
-                to_node_id=edge.to_id,
-                edge_label=edge.label
-            )
-            return await graphiti.add_edge_relationship(relationship)
-        ```
-
-    [Source: docs/stories/36.1.story.md#AC-36.1.3]
-    [Source: docs/architecture/decisions/ADR-003-AGENTIC-RAG-ARCHITECTURE.md]
+        Neo4jEdgeClient: Edge client with Neo4j dependency injection
     """
-    logger.debug("Creating GraphitiEdgeClient with Neo4jClient injection")
+    logger.debug("Creating Neo4jEdgeClient with Neo4jClient injection")
 
-    # Create GraphitiEdgeClient with injected Neo4jClient
+    # Create Neo4jEdgeClient with injected Neo4jClient
     # This ensures the same connection pool is used across the application
-    client = GraphitiEdgeClient(neo4j_client=neo4j_client)
+    client = Neo4jEdgeClient(neo4j_client=neo4j_client)
 
     # Initialize if needed
     if not client._initialized:
@@ -792,19 +761,22 @@ async def get_graphiti_client(
         yield client
     finally:
         await client.cleanup()
-        logger.debug("GraphitiEdgeClient cleanup completed")
+        logger.debug("Neo4jEdgeClient cleanup completed")
 
 
-# Type alias for GraphitiClient dependency
-GraphitiClientDep = Annotated[GraphitiEdgeClient, Depends(get_graphiti_client)]
+# Type alias for Neo4jEdgeClient dependency (S34 renamed)
+Neo4jEdgeClientDep = Annotated[Neo4jEdgeClient, Depends(get_neo4j_edge_client_dep)]
+# Backward compat aliases (S34 G-FAKE-001)
+get_graphiti_client = get_neo4j_edge_client_dep
+GraphitiClientDep = Neo4jEdgeClientDep
 
 
 # =============================================================================
-# GraphitiTemporalClient Dependency (Story 31.4)
+# Neo4jTemporalClient Dependency (Story 31.4, S34 renamed)
 # [Source: docs/stories/31.4.story.md#Task-4]
 # =============================================================================
 
-# Import GraphitiTemporalClient from src/agentic_rag
+# Import Neo4jTemporalClient from src/agentic_rag (S34: renamed from GraphitiTemporalClient)
 import sys
 from pathlib import Path as _PathLib
 
@@ -814,10 +786,10 @@ if str(_src_path) not in sys.path:
     sys.path.insert(0, str(_src_path))
 
 # Lazy import to avoid circular dependency issues
-_graphiti_temporal_client_instance = None
+_neo4j_temporal_client_instance = None
 
 
-def get_graphiti_temporal_client():
+def get_neo4j_temporal_client():
     """
     Get GraphitiTemporalClient singleton instance.
 
@@ -836,7 +808,7 @@ def get_graphiti_temporal_client():
         ```python
         @router.get("/verification/history/{concept}")
         async def get_history(concept: str):
-            client = get_graphiti_temporal_client()
+            client = get_neo4j_temporal_client()
             if client:
                 return await client.search_verification_questions(concept)
             return {"items": []}
@@ -846,10 +818,10 @@ def get_graphiti_temporal_client():
     [Source: docs/stories/36.1.story.md#AC-36.1.3]
     [Source: src/agentic_rag/clients/graphiti_temporal_client.py]
     """
-    global _graphiti_temporal_client_instance
+    global _neo4j_temporal_client_instance
 
-    if _graphiti_temporal_client_instance is not None:
-        return _graphiti_temporal_client_instance
+    if _neo4j_temporal_client_instance is not None:
+        return _neo4j_temporal_client_instance
 
     try:
         # Story 36.1 AC-36.1.3: Get Neo4jClient for dependency injection
@@ -858,7 +830,7 @@ def get_graphiti_temporal_client():
         from agentic_rag.clients.graphiti_temporal_client import GraphitiTemporalClient
 
         # Fix: Inject neo4j_client (required parameter)
-        _graphiti_temporal_client_instance = GraphitiTemporalClient(
+        _neo4j_temporal_client_instance = GraphitiTemporalClient(
             neo4j_client=neo4j_client,
             timeout_ms=500,
             enable_fallback=True
@@ -867,7 +839,7 @@ def get_graphiti_temporal_client():
             "GraphitiTemporalClient singleton initialized with Neo4jClient "
             f"(mode={neo4j_client.stats.get('mode', 'unknown') if neo4j_client else 'none'})"
         )
-        return _graphiti_temporal_client_instance
+        return _neo4j_temporal_client_instance
 
     except ImportError as e:
         logger.warning(
@@ -883,8 +855,12 @@ def get_graphiti_temporal_client():
         )
         return None
     except Exception as e:
-        logger.error(f"Failed to initialize GraphitiTemporalClient: {type(e).__name__}: {e}")
+        logger.error(f"Failed to initialize Neo4jTemporalClient: {type(e).__name__}: {e}")
         return None
+
+
+# Backward compat alias (S34 G-FAKE-001)
+get_graphiti_temporal_client = get_neo4j_temporal_client
 
 
 # =============================================================================
@@ -1172,8 +1148,9 @@ __all__ = [
     "get_verification_service",
     "get_rag_service_dep",  # Story 12.A.2
     "get_neo4j_client_dep",  # Story 36.1
-    "get_graphiti_client",  # Story 36.1
-    "get_graphiti_temporal_client",  # Story 31.4
+    "get_neo4j_edge_client_dep",  # Story 36.1 (S34 renamed)
+    "get_graphiti_client",  # backward compat alias
+    "get_neo4j_temporal_client",  # Story 31.4
     "get_multimodal_service_dep",  # Story 35.1
     "get_session_manager",  # EPIC-33
     "get_intelligent_grouping_service",  # EPIC-33
@@ -1191,7 +1168,8 @@ __all__ = [
     "VerificationServiceDep",
     "RAGServiceDep",  # Story 12.A.2
     "Neo4jClientDep",  # Story 36.1
-    "GraphitiClientDep",  # Story 36.1
+    "Neo4jEdgeClientDep",  # Story 36.1 (S34 renamed)
+    "GraphitiClientDep",  # backward compat alias
     "MultimodalServiceDep",  # Story 35.1
     "SessionManagerDep",  # EPIC-33
     "IntelligentGroupingServiceDep",  # EPIC-33

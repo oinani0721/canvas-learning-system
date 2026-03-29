@@ -1,7 +1,7 @@
 # Known Gotchas — Canvas Learning System
 
 > **Session 启动时自动注入。`/parallel-fix` 运行后自动更新。**
-> Last updated: 2026-03-29
+> Last updated: 2026-03-29 (S34: G-FAKE-001 fixed)
 
 ---
 
@@ -9,7 +9,7 @@
 
 | ID | 问题 | 根因 | 修复状态 | 防止规则 |
 |----|------|------|---------|---------|
-| G-FAKE-001 | 42+函数名含"graphiti"但从未 import graphiti-core，实际调用 Neo4j Cypher | AI 混淆：写入 Neo4j ≠ 写入 Graphiti | ⛔ GDA-S24审计发现，12C+13H | DD-13 name-body-coherence.js 自动检测 |
+| G-FAKE-001 | ~~42+函数名含"graphiti"但从未 import graphiti-core~~ | ~~AI 混淆：写入 Neo4j ≠ 写入 Graphiti~~ | ✅ S34批量重命名：核心类(GraphitiEdgeClient→Neo4jEdgeClient等17项)、文件(graphiti_client.py→neo4j_edge_client.py等3个)、Service函数5个。32 real tests全通过。残留：API模型名+config属性（API兼容性保留） | DD-13 name-body-coherence.js 自动检测 |
 | G-FAKE-002 | 3个函数调用不存在的方法（死代码调用链） | 未验证调用链完整性 | ⛔ 需修复 | DD-13 Certificate-Based Review |
 | G-FAKE-003 | ~~Memory query API 端点全部返回空数据~~ | ~~占位实现从未被替换~~ | ✅ S33诊断纠正：7个memory端点均为真实实现，DI正确接线。返回空是因为Neo4j无数据（正确行为） | DD-03 |
 | G-FAKE-004 | Agent API 端点大量使用硬编码假数据 | 原型阶段占位未清理 | ⛔ S18审查发现 | DD-03 |
@@ -76,7 +76,7 @@
 
 | 分类 | 总计 | 已修复 | 待修复 |
 |------|------|--------|--------|
-| G-FAKE | 5 | 1 | 4 |
+| G-FAKE | 5 | 2 | 3 |
 | G-PIPE | 7 | 1 | 6 |
 | G-TYPE | 2 | 2 | 0 |
 | G-ASYNC | 2 | 2 | 0 |
@@ -84,4 +84,4 @@
 | G-PERF | 2 | 1 | 1 |
 | G-SILENT | 2 | 0 | 2 |
 | G-PARAM | 3 | 3 | 0 |
-| **合计** | **25** | **12** | **13** |
+| **合计** | **25** | **13** | **12** |

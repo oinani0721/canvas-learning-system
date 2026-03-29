@@ -6,7 +6,7 @@
 Edge rationale recording endpoint.
 
 Exposes record_edge_rationale as a FastAPI endpoint (MCP tool target).
-Performs dual-write to Graphiti (structured KG-triplet) and LanceDB (vector).
+Performs dual-write to Neo4j (structured KG-triplet) and LanceDB (vector).
 Supports partial failure semantics (207 Multi-Status).
 
 [Source: _bmad-output/implementation-artifacts/4-2-edge-dialog-agent-reasoning.md#Task 2]
@@ -33,20 +33,20 @@ edges_router = APIRouter()
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Graphiti Write — Structured KG-Triplet
+# Neo4j Write — Structured KG-Triplet
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-async def _write_graphiti(
+async def _write_neo4j_triplet(
     rationale: EdgeRationaleCreate,
     record_id: str,
 ) -> WriteStatus:
     """
-    Write edge rationale to Graphiti/Neo4j as structured KG-triplet.
+    Write edge rationale to Neo4j as structured KG-triplet.
 
     Story 4.2 AC-3: Uses Agent self-report channel.
     Writes via Neo4j client directly as an :EdgeRationale node,
-    following the existing GraphitiBridgeService pattern.
+    following the existing Neo4j direct-write pattern.
 
     Story 4.2 AC-5: Time-series aware — new rationale creates new node,
     does not overwrite old (append-only for version history).
@@ -119,7 +119,7 @@ async def _write_graphiti(
         )
 
         logger.info(
-            "Graphiti/Neo4j write succeeded for edge %s (record %s)",
+            "Neo4j write succeeded for edge %s (record %s)",
             rationale.edge_id,
             record_id,
         )
@@ -127,7 +127,7 @@ async def _write_graphiti(
 
     except Exception as e:
         logger.error(
-            "Graphiti/Neo4j write failed for edge %s: %s",
+            "Neo4j write failed for edge %s: %s",
             rationale.edge_id,
             str(e),
         )
@@ -257,7 +257,7 @@ async def _write_lancedb(
     response_model=EdgeRationaleResponse,
     summary="记录 Edge 连线理由",
     description=(
-        "Agent 调用此端点记录用户对连线理由的解释。执行 Graphiti + LanceDB 双写，支持部分失败（207 Multi-Status）。"
+        "Agent 调用此端点记录用户对连线理由的解释。执行 Neo4j + LanceDB 双写，支持部分失败（207 Multi-Status）。"
     ),
     responses={
         200: {"description": "双写全部成功"},
@@ -277,7 +277,7 @@ async def record_edge_rationale(
 
     Dual-write flow:
     1. Generate unique record_id
-    2. Write to Graphiti (structured KG-triplet) — independent try-catch
+    2. Write to Neo4j (structured KG-triplet) — independent try-catch
     3. Write to LanceDB (vectorized rationale) — independent try-catch
     4. Return combined status (200/207/500)
     """
@@ -294,7 +294,7 @@ async def record_edge_rationale(
 
     # Story 4.2 AC-3: Dual-write async — both writes run concurrently
     graphiti_status, lancedb_status = await asyncio.gather(
-        _write_graphiti(rationale, record_id),
+        _write_neo4j_triplet(rationale, record_id),
         _write_lancedb(rationale, record_id),
     )
 
@@ -313,7 +313,7 @@ async def record_edge_rationale(
         # 207 Multi-Status: one succeeded, one failed
         http_status = 207
         logger.warning(
-            "Partial dual-write for edge %s: graphiti=%s, lancedb=%s",
+            "Partial dual-write for edge %s: neo4j=%s, lancedb=%s",
             rationale.edge_id,
             graphiti_status.success,
             lancedb_status.success,
@@ -322,7 +322,7 @@ async def record_edge_rationale(
         # Both failed
         http_status = status.HTTP_500_INTERNAL_SERVER_ERROR
         logger.error(
-            "Both writes failed for edge %s: graphiti=%s, lancedb=%s",
+            "Both writes failed for edge %s: neo4j=%s, lancedb=%s",
             rationale.edge_id,
             graphiti_status.error,
             lancedb_status.error,

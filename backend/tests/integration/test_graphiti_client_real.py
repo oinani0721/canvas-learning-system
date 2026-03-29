@@ -1,5 +1,5 @@
 """
-S33 Migration: Real Neo4j integration tests for GraphitiEdgeClient.
+S33 Migration: Real Neo4j integration tests for Neo4jEdgeClient.
 
 Each test creates its own Neo4jClient to avoid event-loop-scope conflicts.
 
@@ -11,7 +11,7 @@ import uuid
 
 import pytest
 
-from app.clients.graphiti_client import GraphitiEdgeClient
+from app.clients.graphiti_client import Neo4jEdgeClient  # S34: renamed from GraphitiEdgeClient
 from app.clients.graphiti_client_base import EdgeRelationship
 from app.clients.neo4j_client import Neo4jClient
 
@@ -50,15 +50,15 @@ async def _cleanup_prefix(client: Neo4jClient, prefix: str) -> None:
         pass
 
 
-class TestRealGraphitiEdgeClientDI:
+class TestRealNeo4jEdgeClientDI:
     """DI wiring tests against real Neo4j."""
 
     async def test_injection_with_real_client(self):
-        """GraphitiEdgeClient receives and exposes the injected Neo4jClient."""
+        """Neo4jEdgeClient receives and exposes the injected Neo4jClient."""
         client = _make_client()
         try:
             await client.initialize()
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
 
             assert graphiti._neo4j is client
             assert graphiti.is_neo4j_enabled is True
@@ -68,7 +68,7 @@ class TestRealGraphitiEdgeClientDI:
             await client.cleanup()
 
 
-class TestRealGraphitiEdgeClientMethods:
+class TestRealNeo4jEdgeClientMethods:
     """Functional tests against real Neo4j."""
 
     async def test_initialize_real(self):
@@ -76,7 +76,7 @@ class TestRealGraphitiEdgeClientMethods:
         client = _make_client()
         try:
             await client.initialize()
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
             result = await graphiti.initialize()
 
             assert result is True
@@ -90,7 +90,7 @@ class TestRealGraphitiEdgeClientMethods:
         prefix = f"test_{uuid.uuid4().hex[:8]}_"
         try:
             await client.initialize()
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
             await graphiti.initialize()
 
             relationship = EdgeRelationship(
@@ -137,7 +137,7 @@ class TestRealGraphitiEdgeClientMethods:
                 canvas=f"{prefix}test.canvas",
             )
 
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
             await graphiti.initialize()
 
             results = await graphiti.search_nodes(
@@ -155,7 +155,7 @@ class TestRealGraphitiEdgeClientMethods:
         client = _make_client()
         try:
             await client.initialize()
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
             result = await graphiti.health_check()
 
             assert result is True
@@ -167,12 +167,12 @@ class TestRealGraphitiEdgeClientMethods:
         client = _make_client()
         try:
             await client.initialize()
-            graphiti = GraphitiEdgeClient(neo4j_client=client)
+            graphiti = Neo4jEdgeClient(neo4j_client=client)
             await graphiti.initialize()
 
             stats = graphiti.stats
 
-            assert stats["class_name"] == "GraphitiEdgeClient"
+            assert stats["class_name"] == "Neo4jEdgeClient"
             assert stats["is_neo4j_enabled"] is True
             assert stats["is_fallback_mode"] is False
             assert "neo4j_stats" in stats
@@ -182,16 +182,16 @@ class TestRealGraphitiEdgeClientMethods:
 
 
 class TestRealConnectionPool:
-    """Connection pool sharing: multiple GraphitiEdgeClient instances reuse one Neo4jClient."""
+    """Connection pool sharing: multiple Neo4jEdgeClient instances reuse one Neo4jClient."""
 
     async def test_multiple_clients_share_pool(self):
-        """Three GraphitiEdgeClient instances share the same Neo4jClient."""
+        """Three Neo4jEdgeClient instances share the same Neo4jClient."""
         client = _make_client()
         try:
             await client.initialize()
-            g1 = GraphitiEdgeClient(neo4j_client=client)
-            g2 = GraphitiEdgeClient(neo4j_client=client)
-            g3 = GraphitiEdgeClient(neo4j_client=client)
+            g1 = Neo4jEdgeClient(neo4j_client=client)
+            g2 = Neo4jEdgeClient(neo4j_client=client)
+            g3 = Neo4jEdgeClient(neo4j_client=client)
 
             assert g1._neo4j is g2._neo4j is g3._neo4j
 

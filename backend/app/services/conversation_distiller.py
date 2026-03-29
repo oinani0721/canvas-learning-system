@@ -160,20 +160,20 @@ class ConversationDistiller:
         group_id: str,
     ) -> DistillationResult:
         """
-        Distill a conversation and persist results to Graphiti.
+        Distill a conversation and persist results.
 
         Args:
             messages: List of message dicts.
             node_id: Canvas node ID.
-            group_id: Graphiti group_id for memory isolation.
+            group_id: group_id for memory isolation.
 
         Returns:
             DistillationResult.
         """
         result = await self.distill(messages, node_id)
 
-        # Persist to Graphiti
-        await self._persist_to_graphiti(result, node_id, group_id)
+        # Persist distillation results
+        await self._persist_distillation(result, node_id, group_id)
 
         return result
 
@@ -297,19 +297,19 @@ class ConversationDistiller:
             qa_highlights=qa_highlights,
         )
 
-    async def _persist_to_graphiti(
+    async def _persist_distillation(
         self,
         result: DistillationResult,
         node_id: str,
         group_id: str,
     ) -> None:
         """
-        Persist distillation results to Graphiti.
+        Persist distillation results.
 
         Args:
             result: The distillation result to persist.
             node_id: Canvas node ID.
-            group_id: Graphiti group_id.
+            group_id: group_id for memory isolation.
         """
         try:
             from app.services.memory_service import get_memory_service

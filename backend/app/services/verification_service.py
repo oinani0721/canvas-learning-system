@@ -1677,9 +1677,9 @@ class VerificationService:
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
                 prompt_parts.append(f"同Canvas概念网络: {siblings}")
-            if graph_context.get("graphiti_memories"):
+            if graph_context.get("learning_memories"):
                 prompt_parts.append("图谱知识片段：")
-                for m in graph_context["graphiti_memories"][:3]:
+                for m in graph_context["learning_memories"][:3]:
                     prompt_parts.append(f"  - {m['content']}")
 
         # 第二优先级：FSRS 学习轨迹（个性化层）
@@ -1805,7 +1805,7 @@ class VerificationService:
 
         connected_concepts: List[Dict[str, str]] = []
         sibling_concepts: List[str] = []
-        graphiti_memories: List[Dict[str, Any]] = []
+        learning_memories: List[Dict[str, Any]] = []
 
         async def fetch_connected():
             if not neo4j:
@@ -1853,7 +1853,7 @@ class VerificationService:
             except Exception as e:
                 logger.debug(f"Graph fetch_siblings failed: {e}")
 
-        async def fetch_graphiti_memories():
+        async def fetch_learning_memories():
             if not self._graphiti_client:
                 return
             try:
@@ -1865,17 +1865,17 @@ class VerificationService:
                 for r in results:
                     content = r.get("content", "")
                     if content:
-                        graphiti_memories.append({
+                        learning_memories.append({
                             "content": content,
                             "score": r.get("score", 0.0),
                         })
             except Exception as e:
-                logger.debug(f"Graph fetch_graphiti_memories failed: {e}")
+                logger.debug(f"Graph fetch_learning_memories failed: {e}")
 
         try:
             await asyncio.wait_for(
                 asyncio.gather(
-                    fetch_connected(), fetch_siblings(), fetch_graphiti_memories(),
+                    fetch_connected(), fetch_siblings(), fetch_learning_memories(),
                     return_exceptions=True
                 ),
                 timeout=timeout
@@ -1885,13 +1885,13 @@ class VerificationService:
         except Exception as e:
             logger.warning(f"Graph context failed for '{concept}': {e}")
 
-        if not connected_concepts and not sibling_concepts and not graphiti_memories:
+        if not connected_concepts and not sibling_concepts and not learning_memories:
             return None
 
         return {
             "connected_concepts": connected_concepts,
             "sibling_concepts": sibling_concepts,
-            "graphiti_memories": graphiti_memories,
+            "learning_memories": learning_memories,
         }
 
     async def _get_fsrs_history_for_prompt(
@@ -2071,9 +2071,9 @@ class VerificationService:
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
                 prompt_parts.append(f"同Canvas概念网络: {siblings}")
-            if graph_context.get("graphiti_memories"):
+            if graph_context.get("learning_memories"):
                 prompt_parts.append("图谱知识片段：")
-                for m in graph_context["graphiti_memories"][:3]:
+                for m in graph_context["learning_memories"][:3]:
                     prompt_parts.append(f"  - {m['content']}")
 
         # 第二优先级：FSRS 学习轨迹（个性化）
@@ -2527,9 +2527,9 @@ class VerificationService:
             if graph_context.get("sibling_concepts"):
                 siblings = ", ".join(graph_context["sibling_concepts"][:8])
                 prompt_parts.append(f"同Canvas概念网络: {siblings}")
-            if graph_context.get("graphiti_memories"):
+            if graph_context.get("learning_memories"):
                 prompt_parts.append("图谱知识片段：")
-                for m in graph_context["graphiti_memories"][:3]:
+                for m in graph_context["learning_memories"][:3]:
                     prompt_parts.append(f"  - {m['content']}")
             prompt_parts.append("")
 

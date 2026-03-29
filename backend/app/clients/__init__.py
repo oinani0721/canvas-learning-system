@@ -7,11 +7,15 @@ Client modules for external services.
 """
 
 from app.clients.claude_client import ClaudeClient, get_claude_client, reset_claude_client
-from app.clients.graphiti_client import GraphitiEdgeClient, get_graphiti_client
+from app.clients.graphiti_client import Neo4jEdgeClient, get_neo4j_edge_client
+# Backward compat aliases (S34 G-FAKE-001)
+from app.clients.graphiti_client import GraphitiEdgeClient, get_graphiti_client  # noqa: F811
 
 __all__ = [
-    "GraphitiEdgeClient",
-    "get_graphiti_client",
+    "Neo4jEdgeClient",
+    "get_neo4j_edge_client",
+    "GraphitiEdgeClient",  # backward compat alias
+    "get_graphiti_client",  # backward compat alias
     "ClaudeClient",
     "get_claude_client",
     "reset_claude_client",

@@ -309,7 +309,7 @@ async def reset_override(
 
 
 @mastery_router.post("/mastery/graphiti-sync")
-async def graphiti_sync(
+async def knowledge_graph_sync(
     req: GraphitiSyncRequest,
     group_id: str = Query(default=DEFAULT_GROUP_ID),
 ):

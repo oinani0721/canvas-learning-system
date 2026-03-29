@@ -335,9 +335,9 @@ class EnrichedContext:
     lecture_canvas_path: Optional[str] = None
     lecture_canvas_title: Optional[str] = None
 
-    # Story 12.A.3: Graphiti relations
-    graphiti_relations: Optional[List[Dict]] = None
-    has_graphiti_refs: bool = False
+    # Story 12.A.3: Learning memory relations (Neo4j-backed, not graphiti-core)
+    learning_relations: Optional[List[Dict]] = None
+    has_learning_refs: bool = False
 
     # Round 4 Step 2: Wikilink references from target node text
     wikilink_context: Optional[str] = None
@@ -368,7 +368,7 @@ class ContextEnrichmentService:
         canvas_service,
         textbook_service=None,
         cross_canvas_service=None,
-        graphiti_service=None,
+        learning_memory_service=None,
         association_cache_maxsize: int = 1000,  # Story 36.13 AC-5
     ):
         """
@@ -378,17 +378,17 @@ class ContextEnrichmentService:
             canvas_service: CanvasService instance for reading Canvas data
             textbook_service: Optional TextbookContextService for textbook references
             cross_canvas_service: Optional CrossCanvasService for cross-Canvas associations
-            graphiti_service: Optional LearningMemoryClient for Graphiti relations
+            learning_memory_service: Optional LearningMemoryClient for learning memory relations
             association_cache_maxsize: Max entries in association cache (Story 36.13 AC-5)
 
         [Story 25.3: Added cross_canvas_service parameter]
-        [Story 12.A.3: Added graphiti_service parameter]
+        [Story 12.A.3: Added learning_memory_service parameter (was graphiti_service)]
         [Story 36.13: Added association_cache_maxsize parameter]
         """
         self._canvas_service = canvas_service
         self._textbook_service = textbook_service
         self._cross_canvas_service = cross_canvas_service
-        self._graphiti_service = graphiti_service
+        self._learning_memory_service = learning_memory_service
 
         # Story 36.8: Cache for association lookups (30s TTL)
         # NFR-P0: Bounded TTLCache replaces bare dict to prevent unbounded memory growth
@@ -786,7 +786,7 @@ class ContextEnrichmentService:
         canvas_name: str,
         node_id: str,
         hop_depth: int = 1,
-        include_graphiti: bool = True
+        include_learning_memory: bool = True
     ) -> EnrichedContext:
         """
         Get enriched context for a node including adjacent node content.
@@ -795,9 +795,9 @@ class ContextEnrichmentService:
             canvas_name: Canvas file name
             node_id: Target node ID to enrich
             hop_depth: Number of hops to traverse (default 1-hop)
-            include_graphiti: Whether to include Graphiti relations (default True)
+            include_learning_memory: Whether to include learning memory relations (default True)
 
-        [Story 12.A.3: Added include_graphiti parameter for Graphiti MCP integration]
+        [Story 12.A.3: Added include_learning_memory parameter for learning memory integration]
 
         Returns:
             EnrichedContext with target node, adjacent nodes, and combined context
@@ -991,35 +991,35 @@ class ContextEnrichmentService:
         if cross_canvas_context_str:
             enriched_context = f"{enriched_context}\n\n{cross_canvas_context_str}"
 
-        # 9. Story 12.A.3: Get Graphiti relations if enabled
-        graphiti_relations_list = []
-        has_graphiti_refs = False
-        graphiti_context_str = None
+        # 9. Story 12.A.3: Get learning memory relations if enabled
+        learning_relations_list = []
+        has_learning_refs = False
+        learning_context_str = None
 
-        if include_graphiti and self._graphiti_service:
+        if include_learning_memory and self._learning_memory_service:
             try:
-                # Search Graphiti using target node content as query
+                # Search learning memory using target node content as query
                 node_text = target_node.get("text", "")[:200]  # First 200 chars as query
-                graphiti_results = await self._search_graphiti_relations(
+                learning_results = await self._search_learning_relations(
                     query=node_text,
                     canvas_name=canvas_name,
                     node_id=node_id
                 )
 
-                if graphiti_results:
-                    has_graphiti_refs = True
-                    graphiti_relations_list = graphiti_results
-                    graphiti_context_str = self._format_graphiti_context(graphiti_results)
+                if learning_results:
+                    has_learning_refs = True
+                    learning_relations_list = learning_results
+                    learning_context_str = self._format_learning_context(learning_results)
                     logger.debug(
-                        f"Found {len(graphiti_results)} Graphiti relations for {node_id}"
+                        f"Found {len(learning_results)} learning memory relations for {node_id}"
                     )
             except Exception as e:
-                logger.warning(f"Failed to get Graphiti relations: {e}")
-                # Continue without Graphiti context (graceful degradation)
+                logger.warning(f"Failed to get learning memory relations: {e}")
+                # Continue without learning memory context (graceful degradation)
 
-        # 10. Combine Graphiti context
-        if graphiti_context_str:
-            enriched_context = f"{enriched_context}\n\n{graphiti_context_str}"
+        # 10. Combine learning memory context
+        if learning_context_str:
+            enriched_context = f"{enriched_context}\n\n{learning_context_str}"
 
         # 11. Round 4 Step 2: Resolve wikilinks in target node text
         wikilink_context_str = None
@@ -1049,7 +1049,7 @@ class ContextEnrichmentService:
             f"{len(adjacent_nodes)} adjacent nodes found, "
             f"textbook_refs={has_textbook_refs}, "
             f"cross_canvas_refs={has_cross_canvas_refs}, "
-            f"graphiti_refs={has_graphiti_refs}, "
+            f"learning_refs={has_learning_refs}, "
             f"wikilink_refs={has_wikilink_refs}, "
             f"incoming={len(incoming_edges)}, outgoing={len(outgoing_edges)}, "
             f"siblings={len(sibling_nodes_list)}"
@@ -1081,9 +1081,9 @@ class ContextEnrichmentService:
             has_cross_canvas_refs=has_cross_canvas_refs,
             lecture_canvas_path=lecture_canvas_path,
             lecture_canvas_title=lecture_canvas_title,
-            # Story 12.A.3: Graphiti relations
-            graphiti_relations=graphiti_relations_list,
-            has_graphiti_refs=has_graphiti_refs,
+            # Story 12.A.3: Learning memory relations
+            learning_relations=learning_relations_list,
+            has_learning_refs=has_learning_refs,
             # Round 4 Step 2: Wikilink references
             wikilink_context=wikilink_context_str,
             has_wikilink_refs=has_wikilink_refs,
@@ -1566,20 +1566,20 @@ class ContextEnrichmentService:
 
         return "\n".join(parts)
 
-    async def _search_graphiti_relations(
+    async def _search_learning_relations(
         self,
         query: str,
         canvas_name: Optional[str] = None,
         node_id: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Search Graphiti for related learning memories and concepts.
+        Search learning memory for related concepts and historical records.
 
-        Uses LearningMemoryClient.search_memories() to find relevant historical
-        learning records that can provide additional context for the agent.
+        Uses LearningMemoryClient.search_memories() (Neo4j-backed) to find
+        relevant historical learning records for additional agent context.
 
-        [Source: Story 12.A.3 AC4 - Agent receives Graphiti-related concepts]
-        [Source: Story 12.A.3 Task 2 - Integrate Graphiti MCP tool]
+        [Source: Story 12.A.3 AC4 - Agent receives learning memory concepts]
+        [Source: Story 12.A.3 Task 2 - Integrate learning memory service]
 
         Args:
             query: Search query (typically node text content)
@@ -1589,49 +1589,49 @@ class ContextEnrichmentService:
         Returns:
             List of related memory dicts with relevance scores
         """
-        if not self._graphiti_service:
-            logger.warning("_search_graphiti_relations: graphiti_service not available, returning empty")
+        if not self._learning_memory_service:
+            logger.warning("_search_learning_relations: learning_memory_service not available, returning empty")
             return []
 
         try:
             # Initialize service if needed
-            await self._graphiti_service.initialize()
+            await self._learning_memory_service.initialize()
 
             # Search for related memories
-            results = await self._graphiti_service.search_memories(
+            results = await self._learning_memory_service.search_memories(
                 query=query,
                 canvas_name=canvas_name,
                 node_id=node_id,
                 limit=5  # Limit to top 5 most relevant
             )
 
-            logger.debug(f"Graphiti search for '{query[:50]}...': {len(results)} results")
+            logger.debug(f"Learning memory search for '{query[:50]}...': {len(results)} results")
             return results
 
         except Exception as e:
-            logger.warning(f"Graphiti search failed: {e}")
+            logger.warning(f"Learning memory search failed: {e}")
             return []
 
-    def _format_graphiti_context(self, graphiti_results: List[Dict[str, Any]]) -> str:
+    def _format_learning_context(self, learning_results: List[Dict[str, Any]]) -> str:
         """
-        Format Graphiti results for inclusion in enriched context.
+        Format learning memory results for inclusion in enriched context.
 
         Formats historical learning memories as context for the agent prompt.
 
-        [Source: Story 12.A.3 AC4 - Format Graphiti relations for agent]
+        [Source: Story 12.A.3 AC4 - Format learning memory relations for agent]
 
         Args:
-            graphiti_results: List of memory dicts from search_memories()
+            learning_results: List of memory dicts from search_memories()
 
         Returns:
-            Formatted Graphiti context string
+            Formatted learning memory context string
         """
-        if not graphiti_results:
+        if not learning_results:
             return ""
 
-        parts = ["--- 历史学习记忆 (Graphiti Relations) ---"]
+        parts = ["--- 历史学习记忆 (Learning Memory) ---"]
 
-        for memory in graphiti_results:
+        for memory in learning_results:
             concept = memory.get("concept", "未知概念")
             relevance = memory.get("relevance", 0.0)
             timestamp = memory.get("timestamp", "")[:10] if memory.get("timestamp") else ""
