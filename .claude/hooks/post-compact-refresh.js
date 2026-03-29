@@ -1,16 +1,26 @@
 /**
- * PostCompact — 上下文压缩后重新注入核心规则
- * 防止压缩后规则权重衰减
+ * PostCompact — v2 精简版
+ *
+ * v2 改进：不再强制读取整个 development-discipline.md（自相矛盾：
+ * 压缩上下文后又立刻重新填满）。只注入 CURRENT_TASK.md 保持任务连续性。
  */
+const fs = require('fs');
+const path = require('path');
+
+let taskContent = '';
+try {
+  const taskPath = path.join(
+    process.env.CLAUDE_PROJECT_DIR || '.',
+    '_decisions', 'CURRENT_TASK.md'
+  );
+  taskContent = fs.readFileSync(taskPath, 'utf-8');
+} catch (e) {
+  taskContent = '(CURRENT_TASK.md not found)';
+}
+
 process.stdout.write(
-  '⛔⛔⛔ 上下文已压缩 — 核心规则重新加载:\n' +
-  '1. 每轮 Graphiti: search_memory_facts(exclude_invalidated:true) → 回复 → add_memory\n' +
-  '2. DD-03 禁mock | DD-04 参考案例落地(Context7+WebSearch)\n' +
-  '3. DD-05 前端先Pencil | DD-06 Obsidian适配(禁innerHTML/inline style/createElement)\n' +
-  '4. DD-10 新功能对照MVP刚需14项 | DD-12 范围约束(frontend只改前端)\n' +
-  '5. 代码审查必须独立Agent | 技术决策先 Skill("深度澄清")\n' +
-  '6. Agent 完成后 add_memory("[Agent-Activity]") 记录修改文件+原因\n' +
-  '7. Agent 错误记 "[Agent-Error]"\n' +
-  '8. 读取 docs/known-gotchas.md 刷新已知Bug记忆\n' +
-  '⛔ 读取 .claude/rules/development-discipline.md 刷新完整规则'
+  '上下文已压缩。当前任务状态:\n' +
+  taskContent + '\n\n' +
+  '核心规则: DD-03禁mock | DD-13名实一致 | DD-11新函数需调用方 | DD-07提供验收步骤\n' +
+  '继续 CURRENT_TASK.md 中标记为"当前步骤"的工作。'
 );
