@@ -459,8 +459,8 @@ async def get_rollback_service(
         history_limit=settings.rollback_history_limit,
         snapshot_interval=settings.rollback_snapshot_interval,
         max_snapshots=settings.rollback_max_snapshots,
-        graphiti_timeout_ms=settings.rollback_graphiti_timeout_ms,
-        enable_graphiti_sync=settings.rollback_enable_graphiti_sync,
+        graphiti_timeout_ms=settings.rollback_graph_sync_timeout_ms,
+        enable_graphiti_sync=settings.rollback_enable_graph_sync,
         enable_auto_backup=settings.rollback_enable_auto_backup,
     )
     try:

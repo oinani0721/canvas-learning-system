@@ -236,12 +236,12 @@ class Settings(BaseSettings):
         description="Maximum snapshots per Canvas before auto-cleanup"
     )
 
-    ROLLBACK_GRAPHITI_TIMEOUT_MS: int = Field(
+    ROLLBACK_GRAPH_SYNC_TIMEOUT_MS: int = Field(
         default=200,
-        description="Graphiti sync timeout in milliseconds"
+        description="Graph sync timeout in milliseconds"
     )
 
-    ROLLBACK_ENABLE_GRAPHITI_SYNC: bool = Field(
+    ROLLBACK_ENABLE_GRAPH_SYNC: bool = Field(
         default=True,
         description="Enable Graphiti knowledge graph synchronization"
     )
@@ -691,14 +691,14 @@ class Settings(BaseSettings):
         return self.ROLLBACK_MAX_SNAPSHOTS
 
     @property
-    def rollback_graphiti_timeout_ms(self) -> int:
-        """Alias for ROLLBACK_GRAPHITI_TIMEOUT_MS (lowercase for convenience)."""
-        return self.ROLLBACK_GRAPHITI_TIMEOUT_MS
+    def rollback_graph_sync_timeout_ms(self) -> int:
+        """Alias for ROLLBACK_GRAPH_SYNC_TIMEOUT_MS (lowercase for convenience)."""
+        return self.ROLLBACK_GRAPH_SYNC_TIMEOUT_MS
 
     @property
-    def rollback_enable_graphiti_sync(self) -> bool:
-        """Alias for ROLLBACK_ENABLE_GRAPHITI_SYNC (lowercase for convenience)."""
-        return self.ROLLBACK_ENABLE_GRAPHITI_SYNC
+    def rollback_enable_graph_sync(self) -> bool:
+        """Alias for ROLLBACK_ENABLE_GRAPH_SYNC (lowercase for convenience)."""
+        return self.ROLLBACK_ENABLE_GRAPH_SYNC
 
     @property
     def rollback_storage_path(self) -> str:

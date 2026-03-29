@@ -103,13 +103,6 @@ def log_neo4j_query_failed(query: str, error: str):
     memory_logger.error(f"NEO4J_QUERY_FAILED | query={query_preview} | error={error}")
 
 
-def log_graphiti_status(status: str, error: str = None):
-    """记录 Graphiti 状态"""
-    if error:
-        memory_logger.warning(f"GRAPHITI_STATUS | status={status} | error={error}")
-    else:
-        memory_logger.info(f"GRAPHITI_STATUS | status={status}")
-
 
 def log_lancedb_status(status: str, path: str = None, error: str = None):
     """记录 LanceDB 状态"""
