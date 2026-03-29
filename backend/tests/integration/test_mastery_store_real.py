@@ -182,26 +182,68 @@ class TestRealGetAllConcepts:
 
 
 # ============================================================================
-# get_or_create — TODO(human)
+# get_or_create
 # ============================================================================
 
 
 class TestRealGetOrCreateConcept:
-    """get_or_create_concept — BKT initialization logic.
+    """get_or_create_concept — BKT initialization logic."""
 
-    TODO(human): Write test_get_or_create_new_and_existing below.
-    """
+    async def test_creates_new_with_bkt_defaults(self):
+        """New concept gets p_mastery from BKT P_L0 for its difficulty."""
+        from app.models.mastery_state import DEFAULT_BKT_PARAMS
 
-    async def test_get_or_create_new_and_existing(self):
-        # TODO(human): Your code here.
-        # Test that get_or_create_concept:
-        # 1. Creates new concept with BKT P_L0 initialization if not found
-        #    Hint: DEFAULT_BKT_PARAMS["medium"]["P_L0"] = 0.1
-        #          DEFAULT_BKT_PARAMS["hard"]["P_L0"] = 0.05
-        # 2. Returns existing concept unchanged (don't overwrite p_mastery)
-        #
-        # Use pattern: _make_client(), uuid group_id, try/finally cleanup
-        pass
+        client = _make_client()
+        gid = f"test_{uuid.uuid4().hex[:8]}"
+        try:
+            await client.initialize()
+            store = MasteryStore(client)
+
+            # Medium difficulty (default) → P_L0 = 0.1
+            result = await store.get_or_create_concept(
+                "new_medium", topic="Algebra", name="Quadratic", group_id=gid,
+            )
+            assert result.concept_id == "new_medium"
+            assert abs(result.p_mastery - DEFAULT_BKT_PARAMS["medium"]["P_L0"]) < 0.01
+
+            # Hard difficulty → P_L0 = 0.05
+            result_hard = await store.get_or_create_concept(
+                "new_hard", topic="Analysis", name="Limits", group_id=gid,
+                bkt_difficulty="hard",
+            )
+            assert abs(result_hard.p_mastery - DEFAULT_BKT_PARAMS["hard"]["P_L0"]) < 0.01
+
+            # Verify both persisted in DB
+            all_c = await store.get_all_concepts(group_id=gid)
+            assert len(all_c) == 2
+        finally:
+            await _cleanup_group(client, gid)
+            await client.cleanup()
+
+    async def test_returns_existing_unchanged(self):
+        """Existing concept is returned as-is — p_mastery not overwritten."""
+        client = _make_client()
+        gid = f"test_{uuid.uuid4().hex[:8]}"
+        try:
+            await client.initialize()
+            store = MasteryStore(client)
+
+            # Pre-save a concept with high p_mastery
+            pre = ConceptState(
+                concept_id="existing_c", topic="Graph", name="BFS", p_mastery=0.9,
+            )
+            await store.save_concept(pre, group_id=gid)
+
+            # get_or_create should return the existing, not overwrite to P_L0
+            result = await store.get_or_create_concept(
+                "existing_c", topic="Graph", name="BFS", group_id=gid,
+            )
+            assert abs(result.p_mastery - 0.9) < 0.01, (
+                f"Existing p_mastery should be preserved, got {result.p_mastery}"
+            )
+        finally:
+            await _cleanup_group(client, gid)
+            await client.cleanup()
 
 
 # ============================================================================
