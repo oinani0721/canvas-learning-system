@@ -1,4 +1,7 @@
 # ✅ Verified from Story 12.4 AC 2 - Learning Behavior Tracking
+# NOTE [G-PIPE-002]: Complete implementation (331 lines), instantiated by TemporalMemory
+# but record_behavior() is never called. Retained as future feature for activity tracking.
+# See docs/known-gotchas.md G-PIPE-002.
 """
 Behavior Tracker Module
 

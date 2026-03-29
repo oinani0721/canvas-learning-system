@@ -70,6 +70,8 @@
 | 2026-03-27 | S29-4 | Windows进程管理 | ✅ 已验证 | Tauri Plugin Shell原生处理Windows进程关闭,无需taskkill |
 | 2026-03-27 | S29-5 | 格式补全 | ✅ 用户确认 | record_learning_memory增加source_session_id/source_canvas_id |
 | 2026-03-27 | S29-6 | Phase4改进 | ⏳ Phase4 | transactional outbox+reranking+mid-turn retrieval(25+论文验证) |
+| 2026-03-29 | S35-Step3 | Hybrid语义路由 | ✅ 已实现(Review PENDING) | regex主路径+LLM(Gemini Flash)低置信度fallback。否决全替换/纯LLM。社区:Semantic Router+MathDial+MOOCPost |
+| 2026-03-29 | S35-Step4 | Fusion Engine单例接入 | ✅ 已实现(Review PENDING) | set_mastery_engine()统一全局单例。修复3处独立MasteryEngine。5信号加权融合替代min(p,R)。G-PIPE管道打通 |
 
 ## 已完成验证（Decision-Review VALIDATED）
 

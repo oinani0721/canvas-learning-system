@@ -566,6 +566,7 @@ class ReviewService:
         # === Mastery enrichment (Phase 1.5) ===
         # Expand eligible_nodes with mastery-weak concepts not caught by color filter
         mastery_lookup: dict = {}  # node_text[:50] -> effective_proficiency
+        enrichment_available = False  # G-SILENT-001: signal whether enrichment succeeded
         try:
             from app.services.mastery_engine import get_mastery_engine
             from app.services.mastery_store import MasteryStore
@@ -590,13 +591,14 @@ class ReviewService:
                     eligible_nodes.append(node)
                     eligible_ids.add(node.get("id"))
 
+            enrichment_available = True
             logger.info(f"Mastery enrichment: {len(review_candidates)} weak concepts, "
                         f"{len(eligible_nodes)} total eligible after enrichment")
         except (ImportError, RuntimeError, ConnectionError, ValueError, TypeError, AttributeError) as e:
-            logger.debug(f"Mastery enrichment skipped (non-blocking): {e}")
+            logger.warning(f"Mastery enrichment unavailable (degraded mode): {e}")
 
         weak_concepts_data = []
-        weight_config = {"weak_weight": weak_weight, "mastered_weight": mastered_weight, "applied": False}
+        weight_config = {"weak_weight": weak_weight, "mastered_weight": mastered_weight, "applied": False, "enrichment_available": enrichment_available}
         fallback_used = False  # AC2 of Story 24.6: Track fallback usage
 
         if mode == "targeted":
