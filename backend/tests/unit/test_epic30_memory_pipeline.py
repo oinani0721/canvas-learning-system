@@ -89,20 +89,12 @@ def _build_mock_neo4j(
     return neo4j
 
 
-def _build_mock_learning_memory() -> MagicMock:
-    """Create a mock LearningMemoryClient."""
-    client = MagicMock()
-    client.add_learning_episode = AsyncMock(return_value=None)
-    return client
-
-
-async def _create_memory_service(neo4j=None, lm=None):
+async def _create_memory_service(neo4j=None):
     """Instantiate and initialize a MemoryService with mocks."""
     from app.services.memory_service import MemoryService
 
     svc = MemoryService(
         neo4j_client=neo4j or _build_mock_neo4j(),
-        learning_memory_client=lm or _build_mock_learning_memory(),
     )
     await svc.initialize()
     return svc

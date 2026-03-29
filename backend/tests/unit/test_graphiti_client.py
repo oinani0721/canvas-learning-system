@@ -290,7 +290,7 @@ class TestGraphitiEdgeClientMethods:
         stats = graphiti_client.get_stats()
 
         assert "class_name" in stats
-        assert stats["class_name"] == "GraphitiEdgeClient"
+        assert stats["class_name"] == "Neo4jEdgeClient"
         assert "initialized" in stats
         assert "is_neo4j_enabled" in stats
         assert "is_fallback_mode" in stats

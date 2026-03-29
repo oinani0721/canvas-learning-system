@@ -60,7 +60,7 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_fresh_mode_parameter_accepted(self, review_service):
         """AC1: API accepts mode='fresh' parameter"""
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
@@ -74,7 +74,7 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_targeted_mode_parameter_accepted(self, review_service):
         """AC1: API accepts mode='targeted' parameter"""
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
@@ -90,7 +90,7 @@ class TestReviewModeSupport:
     @pytest.mark.asyncio
     async def test_fresh_mode_no_graphiti_query(self, review_service):
         """AC2: Fresh mode should not query Graphiti history"""
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
@@ -124,7 +124,7 @@ class TestReviewModeSupport:
             {"concept_id": "node2", "rating": 1, "timestamp": "2025-01-02"},
         ]
 
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
@@ -144,7 +144,7 @@ class TestReviewModeSupport:
             {"concept_id": "node2", "rating": 4, "timestamp": "2025-01-02"},  # Mastered
         ]
 
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
@@ -211,7 +211,7 @@ class TestReviewModeSupport:
             {"concept_id": "node1", "rating": 2, "timestamp": "2025-01-01"},
         ]
 
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
@@ -230,7 +230,7 @@ class TestReviewModeSupport:
         """AC6: Weights should be between 0 and 1"""
         mock_history = []
 
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 
@@ -281,7 +281,7 @@ class TestReviewModeFallback:
     @pytest.mark.asyncio
     async def test_targeted_mode_fallback_when_graphiti_unavailable(self, review_service):
         """AC2 Story 24.6: Fallback triggered when Graphiti unavailable"""
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             # Simulate Graphiti returning empty (unavailable/error)
             mock_query.return_value = []
@@ -297,7 +297,7 @@ class TestReviewModeFallback:
     @pytest.mark.asyncio
     async def test_fallback_returns_all_eligible_concepts(self, review_service):
         """AC2 Story 24.6: Fallback returns all eligible concepts with equal probability"""
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = []
 
@@ -328,7 +328,7 @@ class TestReviewModeFallback:
             {"concept_id": "node1", "rating": 2, "timestamp": "2025-01-01"},
         ]
 
-        with patch.object(review_service, '_query_review_history_from_graphiti',
+        with patch.object(review_service, '_query_review_history_from_memory',
                          new_callable=AsyncMock) as mock_query:
             mock_query.return_value = mock_history
 

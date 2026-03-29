@@ -97,7 +97,7 @@ class TestMultiReviewProgress:
         [Source: docs/stories/24.4.story.md#AC1]
         """
         # Mock the query method
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=sample_review_history
         )
 
@@ -119,7 +119,7 @@ class TestMultiReviewProgress:
 
         [Source: docs/stories/24.4.story.md#AC2]
         """
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=sample_review_history
         )
 
@@ -143,7 +143,7 @@ class TestMultiReviewProgress:
 
         [Source: docs/stories/24.4.story.md#AC4]
         """
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=sample_review_history
         )
 
@@ -182,7 +182,7 @@ class TestMultiReviewProgress:
             }
         ]
 
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=stable_history
         )
 
@@ -220,7 +220,7 @@ class TestMultiReviewProgress:
             }
         ]
 
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=down_history
         )
 
@@ -240,7 +240,7 @@ class TestMultiReviewProgress:
 
         [Source: docs/stories/24.4.story.md#AC6]
         """
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=[]
         )
 
@@ -268,7 +268,7 @@ class TestMultiReviewProgress:
             }
         ]
 
-        review_service._query_review_sessions_from_graphiti = AsyncMock(
+        review_service._query_review_sessions_from_memory = AsyncMock(
             return_value=single_history
         )
 
@@ -405,10 +405,10 @@ class TestGraphitiQueryIntegration:
         ])
 
         with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_memory_client):
-            result = await review_service._query_review_history_from_graphiti("离散数学.canvas")
+            result = await review_service._query_review_history_from_memory("离散数学.canvas")
 
-        # _query_review_history_from_graphiti returns raw history records (no filtering)
-        # Filtering/aggregation is done by _query_review_sessions_from_graphiti
+        # _query_review_history_from_memory returns raw history records (no filtering)
+        # Filtering/aggregation is done by _query_review_sessions_from_memory
         assert len(result) == 3  # All records returned as-is from memory_client
 
     @pytest.mark.asyncio
@@ -429,9 +429,9 @@ class TestGraphitiQueryIntegration:
         ])
 
         with patch('app.clients.graphiti_client.get_learning_memory_client', return_value=mock_memory_client):
-            result = await review_service._query_review_history_from_graphiti("test.canvas")
+            result = await review_service._query_review_history_from_memory("test.canvas")
 
-        # _query_review_history_from_graphiti returns raw records, not aggregated
+        # _query_review_history_from_memory returns raw records, not aggregated
         assert len(result) == 4  # All 4 records returned as-is
         assert result[0]["concept"] == "C1"
         assert result[0]["score"] == 24

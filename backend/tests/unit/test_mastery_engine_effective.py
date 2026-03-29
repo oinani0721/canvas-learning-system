@@ -24,6 +24,7 @@ def engine():
     engine = MasteryEngine.__new__(MasteryEngine)
     engine.config = MasteryConfig()
     engine.fsrs_manager = None
+    engine._fusion_engine = None
     return engine
 
 

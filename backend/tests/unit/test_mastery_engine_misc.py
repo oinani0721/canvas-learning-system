@@ -13,6 +13,7 @@ def engine():
     engine = MasteryEngine.__new__(MasteryEngine)
     engine.config = MasteryConfig()
     engine.fsrs_manager = None
+    engine._fusion_engine = None
     return engine
 
 
@@ -164,9 +165,10 @@ class TestConceptToResponse:
         expected_keys = {
             "concept_id", "name", "topic", "effective_proficiency",
             "mastery_level", "mastery_label", "mastery_color",
-            "retrievability", "freshness", "override_active",
-            "override_value", "self_assess_value", "false_mastery_risk",
-            "interaction_count", "fluent_count", "p_mastery",
+            "retrievability", "freshness", "fsrs_due_date",
+            "override_active", "override_value", "self_assess_value",
+            "false_mastery_risk", "interaction_count", "fluent_count",
+            "p_mastery", "last_interaction_ts", "fusion_details",
         }
         assert set(resp.keys()) == expected_keys
 
