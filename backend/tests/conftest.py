@@ -599,7 +599,9 @@ async def neo4j_available():
     """
     from app.clients.neo4j_client import Neo4jClient
 
-    uri = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7692")
+    uri = os.environ.get("NEO4J_TEST_URI")
+    if not uri:
+        pytest.skip("NEO4J_TEST_URI not set — refusing to guess (safety)")
     user = os.getenv("NEO4J_TEST_USER", "neo4j")
     password = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 
@@ -633,7 +635,9 @@ async def real_neo4j_client(neo4j_available):
     """
     from app.clients.neo4j_client import Neo4jClient
 
-    uri = os.getenv("NEO4J_TEST_URI", "bolt://localhost:7692")
+    uri = os.environ.get("NEO4J_TEST_URI")
+    if not uri:
+        pytest.skip("NEO4J_TEST_URI not set — refusing to guess (safety)")
     user = os.getenv("NEO4J_TEST_USER", "neo4j")
     password = os.getenv("NEO4J_TEST_PASSWORD", "testpassword")
 
@@ -641,8 +645,18 @@ async def real_neo4j_client(neo4j_available):
 
     try:
         await client.initialize()
+        # Startup cleanup: cover all node types, not just test_ prefix on id
         await client.run_query(
             "MATCH (n) WHERE n.id STARTS WITH 'test_' DETACH DELETE n"
+        )
+        await client.run_query(
+            "MATCH (n:Concept) WHERE n.name STARTS WITH 'test_' DETACH DELETE n"
+        )
+        await client.run_query(
+            "MATCH (n:Canvas) WHERE n.path STARTS WITH 'test_' DETACH DELETE n"
+        )
+        await client.run_query(
+            "MATCH (n:MemoryNode) WHERE n.concept STARTS WITH 'test_' DETACH DELETE n"
         )
         yield client
     finally:

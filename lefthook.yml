@@ -195,6 +195,16 @@ pre-push:
           echo "[Pre-push] Vault sync OK."
         fi
 
+    # --- Frontend test: Run vitest before push ---
+    frontend-test:
+      glob: "frontend/src/**/*.{ts,tsx}"
+      run: |
+        if [ -d "frontend/node_modules" ]; then
+          echo "[Pre-push] Running frontend tests..."
+          cd frontend && npx vitest run --run 2>&1 | tail -20
+          echo "[Pre-push] Frontend tests done."
+        fi
+
     # --- Backend smoke test: Quick test before push ---
     backend-smoke:
       run: |

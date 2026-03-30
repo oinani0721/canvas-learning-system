@@ -1,0 +1,29 @@
+# Canvas Learning System - Claude Dev Container
+# Python 3.12 (NOT 3.14-rc: mutmut/vulture AST parsing breaks on 3.14)
+FROM python:3.12-slim-bookworm
+
+RUN apt-get update && apt-get install -y \
+    curl git tmux iptables iproute2 jq \
+    build-essential python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Node.js 22 + Claude Code
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y nodejs \
+    && npm install -g @anthropic-ai/claude-code
+
+# Python testing & quality tools
+RUN pip install --no-cache-dir pytest pytest-cov pytest-asyncio \
+    mutmut hypothesis vulture \
+    fastapi uvicorn ruff schemathesis pydantic
+
+# ralphex - session loop orchestrator
+RUN curl -L -o /usr/local/bin/ralphex \
+    https://github.com/umputun/ralphex/releases/latest/download/ralphex-linux-amd64 \
+    && chmod +x /usr/local/bin/ralphex
+
+# Firewall init script
+COPY .devcontainer/init-firewall.sh /usr/local/bin/init-firewall.sh
+RUN chmod +x /usr/local/bin/init-firewall.sh
+
+WORKDIR /workspace

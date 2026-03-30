@@ -25,10 +25,11 @@ argument-hint: <feature-description>
 
 ## Phase 1: 需求澄清（一次一个问题）
 
-1. 读取相关架构文档和 MVP 清单:
+1. 读取相关架构文档、MVP 清单和已知问题:
    - `docs/architecture.md`
    - `_decisions/mvp-plan.md`
    - `_decisions/decision-log.md`
+   - `docs/known-gotchas.md` — ⛔ 必须读取，防止重复已知 Bug
 
 2. 搜索 Graphiti 已有相关决策:
    ```

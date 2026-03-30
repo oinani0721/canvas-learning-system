@@ -17,6 +17,7 @@
 
 # Force LF for TypeScript/JavaScript
 *.ts text eol=lf
+*.tsx text eol=lf
 *.js text eol=lf
 *.mjs text eol=lf
 *.cjs text eol=lf
@@ -25,6 +26,8 @@
 # Force LF for config files
 *.css text eol=lf
 *.md text eol=lf
+*.toml text eol=lf
+Dockerfile text eol=lf
 lefthook.yml text eol=lf
 commitlint.config.js text eol=lf
 

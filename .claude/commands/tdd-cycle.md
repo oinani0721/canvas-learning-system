@@ -22,10 +22,18 @@ argument-hint: <feature-or-function-description>
 
 ## Phase 1: RED — 编写失败测试
 
+先读取已知问题，注入子 Agent:
+```
+Read docs/known-gotchas.md
+```
+
 启动 **test-writer 子 Agent**（独立上下文，防止与实现互相污染）:
 
 ```
 Agent(prompt: "你是 TDD test-writer。只写测试，不写实现。
+
+## 已知问题（来自 known-gotchas.md，必须覆盖相关条目）
+{gotchas 中与当前功能相关的条目}
 
 任务: 为以下功能编写测试: $ARGUMENTS
 
@@ -50,6 +58,9 @@ Agent(prompt: "你是 TDD test-writer。只写测试，不写实现。
 
 ```
 Agent(prompt: "你是 TDD implementer。只写让测试通过的最小代码。
+
+## 已知问题（避免重蹈覆辙）
+{gotchas 中与当前功能相关的条目}
 
 规则:
 1. 读取测试文件理解预期行为

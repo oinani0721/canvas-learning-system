@@ -59,12 +59,13 @@ services:
     container_name: canvas-learning-system-neo4j-test
     profiles:
       - test
+      - dev
 
     environment:
       - NEO4J_AUTH=neo4j/testpassword
       - NEO4J_PLUGINS=["apoc"]
-      - NEO4J_dbms_memory_heap_initial__size=256m
-      - NEO4J_dbms_memory_heap_max__size=512m
+      - NEO4J_dbms_memory_heap_initial__size=512m
+      - NEO4J_dbms_memory_heap_max__size=1G
 
     ports:
       - "7479:7474"  # HTTP Browser - test instance
@@ -175,6 +176,41 @@ services:
     networks:
       - canvas-network
       - cliproxyapi-network
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Claude Dev Container - Automated development pipeline
+  # ═══════════════════════════════════════════════════════════════════════════
+  claude-dev:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile.claude
+    container_name: claude-dev
+    profiles:
+      - dev
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_CONFIG_DIR=/workspace/.claude
+      - CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+      - TERM=tmux-256color
+      - NEO4J_TEST_URI=bolt://neo4j-test:7687
+    volumes:
+      - .:/workspace
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - canvas-network
+    depends_on:
+      neo4j-test:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      /bin/bash -c "/usr/local/bin/init-firewall.sh &&
+      tmux new-session -d -s main &&
+      tail -f /dev/null"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Networks
