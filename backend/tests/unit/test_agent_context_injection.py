@@ -38,7 +38,7 @@ def enrichment_service(mock_canvas_service, mock_graphiti_service):
     """Create ContextEnrichmentService with graphiti_service."""
     return ContextEnrichmentService(
         canvas_service=mock_canvas_service,
-        graphiti_service=mock_graphiti_service,
+        learning_memory_service=mock_graphiti_service,
     )
 
 
@@ -75,7 +75,7 @@ class TestGraphitiSearchDelegation:
         """AC-36.7.2: Returns empty list when graphiti_service is None."""
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=None,
+            learning_memory_service=None,
         )
 
         results = await service._search_graphiti_relations(query="test")

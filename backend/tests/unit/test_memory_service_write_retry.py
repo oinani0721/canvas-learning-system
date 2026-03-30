@@ -55,10 +55,11 @@ def mock_learning_memory_client():
 @pytest.fixture
 def memory_service(mock_neo4j_client, mock_learning_memory_client):
     """Create MemoryService with mocked dependencies."""
-    return MemoryService(
+    svc = MemoryService(
         neo4j_client=mock_neo4j_client,
-        learning_memory_client=mock_learning_memory_client,
     )
+    svc._learning_memory = mock_learning_memory_client
+    return svc
 
 
 class TestWriteToGraphitiJsonWithRetry:

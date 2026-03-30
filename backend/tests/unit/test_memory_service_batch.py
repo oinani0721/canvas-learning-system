@@ -40,8 +40,8 @@ class TestRecordBatchLearningEventsConcept:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 

@@ -46,10 +46,8 @@ class TestMemoryRetryDelayFromSettings:
     def test_retry_delay_reads_settings(self):
         """MemoryService uses configurable retry delays."""
         with patch("app.services.memory_service.get_neo4j_client") as mock_neo4j, \
-             patch("app.services.memory_service.get_learning_memory_client") as mock_lmc, \
              patch("app.config.get_settings") as mock_settings:
             mock_neo4j.return_value = MagicMock()
-            mock_lmc.return_value = MagicMock()
             s = MagicMock()
             s.MEMORY_RETRY_BASE_DELAY = 2.5
             s.MEMORY_RETRY_MAX_DELAY = 15.0
@@ -107,10 +105,8 @@ class TestMemoryServiceCacheFromSettings:
     def test_cache_uses_custom_maxsize(self):
         """MemoryService score_history_cache respects Settings maxsize."""
         with patch("app.services.memory_service.get_neo4j_client") as mock_neo4j, \
-             patch("app.services.memory_service.get_learning_memory_client") as mock_lmc, \
              patch("app.config.get_settings") as mock_settings:
             mock_neo4j.return_value = MagicMock()
-            mock_lmc.return_value = MagicMock()
             s = MagicMock()
             s.MEMORY_RETRY_BASE_DELAY = 1.0
             s.MEMORY_RETRY_MAX_DELAY = 10.0

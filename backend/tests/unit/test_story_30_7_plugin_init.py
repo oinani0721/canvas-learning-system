@@ -73,7 +73,8 @@ def _make_service(*, mode="JSON_FALLBACK", initialized_flag=True,
         connected=connected,
     )
     lm = _make_mock_lm()
-    svc = MemoryService(neo4j_client=neo4j, learning_memory_client=lm)
+    svc = MemoryService(neo4j_client=neo4j)
+    svc._learning_memory = lm
     svc._initialized = True
     svc._episodes_recovered = True
     return svc, neo4j
@@ -158,7 +159,8 @@ class TestStory307HealthStatus:
         """
         neo4j = _make_mock_neo4j()
         lm = _make_mock_lm()
-        svc = MemoryService(neo4j_client=neo4j, learning_memory_client=lm)
+        svc = MemoryService(neo4j_client=neo4j)
+        svc._learning_memory = lm
         # Do NOT set _initialized = True — let get_health_status trigger it
         assert svc._initialized is False
 
@@ -176,7 +178,8 @@ class TestStory307HealthStatus:
         """
         neo4j = _make_mock_neo4j()
         lm = _make_mock_lm()
-        svc = MemoryService(neo4j_client=neo4j, learning_memory_client=lm)
+        svc = MemoryService(neo4j_client=neo4j)
+        svc._learning_memory = lm
         svc._episodes_recovered = True
         assert svc._initialized is False
 
@@ -201,7 +204,8 @@ class TestStory307HealthStatus:
         """
         neo4j = _make_mock_neo4j()
         lm = _make_mock_lm()
-        svc = MemoryService(neo4j_client=neo4j, learning_memory_client=lm)
+        svc = MemoryService(neo4j_client=neo4j)
+        svc._learning_memory = lm
         svc._initialized = True
         svc._episodes_recovered = True
 

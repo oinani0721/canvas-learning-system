@@ -216,10 +216,10 @@ SERVICES_DI_CONFIG = {
         "init_class_name": "ContextEnrichmentService",
         # canvas_service is REQUIRED (no default), others are optional
         "critical_params": [
-            "textbook_service", "cross_canvas_service", "graphiti_service"
+            "textbook_service", "cross_canvas_service", "learning_memory_service"
         ],
         "critical_attrs": [
-            "_textbook_service", "_cross_canvas_service", "_graphiti_service"
+            "_textbook_service", "_cross_canvas_service", "_learning_memory_service"
         ],
     },
     "ReviewService": {

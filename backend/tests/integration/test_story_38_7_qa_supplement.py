@@ -142,7 +142,8 @@ class TestDegradedDualWriteStrengthened:
         learning_mem.add_memory = MagicMock()
         learning_mem.save = MagicMock()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         initial_count = len(ms._episodes)

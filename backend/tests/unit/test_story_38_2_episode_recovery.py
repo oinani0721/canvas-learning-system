@@ -42,10 +42,11 @@ def mock_learning_memory_client():
 @pytest.fixture
 def memory_service(mock_neo4j_client, mock_learning_memory_client):
     """Create MemoryService with mocked dependencies."""
-    return MemoryService(
+    svc = MemoryService(
         neo4j_client=mock_neo4j_client,
-        learning_memory_client=mock_learning_memory_client,
     )
+    svc._learning_memory = mock_learning_memory_client
+    return svc
 
 
 def _make_episodes(count: int):
@@ -272,8 +273,8 @@ class TestRecoveryIntegration:
         # Session 1: Record events
         svc1 = MemoryService(
             neo4j_client=mock_neo4j_client,
-            learning_memory_client=mock_learning_memory_client,
         )
+        svc1._learning_memory = mock_learning_memory_client
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[])
         mock_neo4j_client.create_learning_relationship = AsyncMock(return_value=True)
         await svc1.initialize()
@@ -287,8 +288,8 @@ class TestRecoveryIntegration:
         # Session 2: New service instance, Neo4j has the data
         svc2 = MemoryService(
             neo4j_client=mock_neo4j_client,
-            learning_memory_client=mock_learning_memory_client,
         )
+        svc2._learning_memory = mock_learning_memory_client
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(return_value=[
             {
                 "user_id": "u1",
@@ -313,8 +314,8 @@ class TestRecoveryIntegration:
         """AC-3: Degraded startup → lazy recovery on first query."""
         svc = MemoryService(
             neo4j_client=mock_neo4j_client,
-            learning_memory_client=mock_learning_memory_client,
         )
+        svc._learning_memory = mock_learning_memory_client
 
         # Startup: Neo4j down
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(

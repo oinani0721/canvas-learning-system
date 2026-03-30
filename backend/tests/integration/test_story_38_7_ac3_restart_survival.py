@@ -41,7 +41,8 @@ class TestAC3RestartSurvival:
         neo4j = make_mock_neo4j(episodes=stored_episodes)
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         assert ms._episodes_recovered is True
@@ -68,7 +69,8 @@ class TestAC3RestartSurvival:
         neo4j = make_mock_neo4j(episodes=stored_episodes)
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         python_episodes = [e for e in ms._episodes if e["concept"] == "Python"]

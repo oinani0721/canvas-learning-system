@@ -130,8 +130,8 @@ def memory_service(mock_neo4j, mock_learning_memory):
 
     svc = MemoryService(
         neo4j_client=mock_neo4j,
-        learning_memory_client=mock_learning_memory,
     )
+    svc._learning_memory = mock_learning_memory
     svc._initialized = True
     svc._episodes_recovered = True
     return svc
@@ -592,8 +592,8 @@ class TestHealthEndpoint:
 
         svc = MemoryService(
             neo4j_client=broken_neo4j,
-            learning_memory_client=mock_lm,
         )
+        svc._learning_memory = mock_lm
         svc._initialized = True
         svc._episodes_recovered = True
 
@@ -653,31 +653,31 @@ class TestDependencyInjectionChain:
         assert svc.neo4j is mock
 
     @pytest.mark.asyncio
-    async def test_p1_memory_service_learning_memory_client_not_none(self):
+    async def test_p1_memory_service_learning_memory_can_be_set(self):
         """
         [P1] Given MemoryService instantiated via default constructor,
-        When accessing self._learning_memory,
-        Then it is not None (get_learning_memory_client() provides a singleton).
+        When setting _learning_memory after construction,
+        Then it is accessible and not None.
         """
         # Given / When
         from app.services.memory_service import MemoryService
 
         mock_neo4j = _make_mock_neo4j_client()
         mock_lm = _make_mock_learning_memory_client()
-        with patch("app.services.memory_service.get_neo4j_client", return_value=mock_neo4j), \
-             patch("app.services.memory_service.get_learning_memory_client", return_value=mock_lm):
+        with patch("app.services.memory_service.get_neo4j_client", return_value=mock_neo4j):
             svc = MemoryService()
+        svc._learning_memory = mock_lm
 
         # Then
         assert svc._learning_memory is not None
         assert svc._learning_memory is mock_lm
 
     @pytest.mark.asyncio
-    async def test_p1_explicit_injection_takes_precedence(self):
+    async def test_p1_explicit_injection_via_attribute(self):
         """
-        [P1] Given explicit neo4j_client and learning_memory_client args,
-        When MemoryService is instantiated,
-        Then the explicit args are used (not the defaults from singletons).
+        [P1] Given explicit neo4j_client arg and _learning_memory set after construction,
+        When examining the service,
+        Then the explicit values are used (not the defaults from singletons).
         """
         from app.services.memory_service import MemoryService
 
@@ -686,8 +686,8 @@ class TestDependencyInjectionChain:
 
         svc = MemoryService(
             neo4j_client=custom_neo4j,
-            learning_memory_client=custom_lm,
         )
+        svc._learning_memory = custom_lm
 
         assert svc.neo4j is custom_neo4j
         assert svc._learning_memory is custom_lm
@@ -725,8 +725,8 @@ class TestDependencyInjectionChain:
 
         svc = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        svc._learning_memory = mock_learning_memory
 
         # When
         result = await svc.initialize()

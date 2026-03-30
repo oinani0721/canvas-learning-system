@@ -238,8 +238,8 @@ class TestResilienceE2E:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning,
         )
+        service._learning_memory = mock_learning
 
         # This should NOT raise
         await service._write_to_graphiti_json(

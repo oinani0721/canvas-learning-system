@@ -46,8 +46,8 @@ class TestBatchParallelExecution:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -158,8 +158,8 @@ class TestBatchPartialFailure:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -251,8 +251,8 @@ class TestBatchSemaphore:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -317,8 +317,8 @@ class TestBatchNeo4jDegradation:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -371,8 +371,8 @@ class TestBatchIdempotencyCompat:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 

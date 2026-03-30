@@ -287,8 +287,8 @@ class TestMemoryServiceDualWriteFailure:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning,
         )
+        service._learning_memory = mock_learning
 
         await service._write_to_graphiti_json(
             episode_id="ep-timeout",
@@ -312,8 +312,8 @@ class TestMemoryServiceDualWriteFailure:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning,
         )
+        service._learning_memory = mock_learning
 
         await service._write_to_graphiti_json(
             episode_id="ep-error",
@@ -338,8 +338,8 @@ class TestMemoryServiceDualWriteFailure:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning,
         )
+        service._learning_memory = mock_learning
 
         dl_path = tmp_path / "failed_dual_writes.jsonl"
         with patch(

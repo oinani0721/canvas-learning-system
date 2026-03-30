@@ -156,8 +156,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_disconnected,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         events = [
@@ -191,8 +191,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_connected,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         health = await service.get_health_status()
@@ -208,8 +208,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_disconnected,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         health = await service.get_health_status()
@@ -225,8 +225,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_json_fallback,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         health = await service.get_health_status()
@@ -246,8 +246,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_connected,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         events = [
@@ -278,8 +278,8 @@ class TestNeo4jResilienceRecovery:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_disconnected,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         events = [

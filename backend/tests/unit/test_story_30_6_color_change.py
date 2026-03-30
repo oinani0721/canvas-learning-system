@@ -65,7 +65,8 @@ def _reset_memory_singleton():
 def memory_service():
     neo4j = _make_mock_neo4j()
     lm = _make_mock_learning_memory()
-    svc = MemoryService(neo4j_client=neo4j, learning_memory_client=lm)
+    svc = MemoryService(neo4j_client=neo4j)
+    svc._learning_memory = lm
     svc._initialized = True
     svc._episodes_recovered = True
     return svc

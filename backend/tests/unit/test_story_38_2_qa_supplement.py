@@ -46,10 +46,11 @@ def mock_learning_memory_client():
 @pytest.fixture
 def memory_service(mock_neo4j_client, mock_learning_memory_client):
     """Create MemoryService with mocked dependencies."""
-    return MemoryService(
+    svc = MemoryService(
         neo4j_client=mock_neo4j_client,
-        learning_memory_client=mock_learning_memory_client,
     )
+    svc._learning_memory = mock_learning_memory_client
+    return svc
 
 
 # ---- Cypher mode tests (non-JSON-fallback) ----
@@ -450,8 +451,8 @@ class TestConcurrentRecoveryProtection:
 
         svc = MemoryService(
             neo4j_client=mock_neo4j_client,
-            learning_memory_client=mock_learning_memory_client,
         )
+        svc._learning_memory = mock_learning_memory_client
         # Startup: Neo4j down
         mock_neo4j_client.get_all_recent_episodes = AsyncMock(
             side_effect=Exception("Connection refused")

@@ -54,7 +54,8 @@ class TestAC5Recovery:
 
         neo4j = make_mock_neo4j()
         learning_mem = make_mock_learning_memory()
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         ms._initialized = True
         ms._episodes_recovered = True
 
@@ -87,7 +88,8 @@ class TestAC5Recovery:
 
         neo4j = make_mock_neo4j()
         learning_mem = make_mock_learning_memory()
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         ms._initialized = True
         ms._episodes_recovered = True
 
@@ -144,7 +146,8 @@ class TestAC5Recovery:
         """
         neo4j = make_mock_neo4j()
         learning_mem = make_mock_learning_memory()
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         ms._initialized = True
 
         with tempfile.NamedTemporaryFile(
@@ -225,7 +228,8 @@ class TestCrossStoryDataFlow:
 
         neo4j = make_mock_neo4j()
         learning_mem = make_mock_learning_memory()
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         ms._initialized = True
         ms._episodes_recovered = True
 

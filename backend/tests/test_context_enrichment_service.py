@@ -462,7 +462,7 @@ class TestContextEnrichmentWithGraphiti:
         """Create ContextEnrichmentService with Graphiti service."""
         return ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=mock_graphiti_service,
+            learning_memory_service=mock_graphiti_service,
         )
 
     @pytest.mark.asyncio
@@ -513,7 +513,7 @@ class TestContextEnrichmentWithGraphiti:
         # Arrange
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=mock_graphiti_service,
+            learning_memory_service=mock_graphiti_service,
         )
 
         # Act
@@ -537,7 +537,7 @@ class TestContextEnrichmentWithGraphiti:
         # Arrange - no graphiti_service provided
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=None,
+            learning_memory_service=None,
         )
 
         # Act
@@ -568,7 +568,7 @@ class TestContextEnrichmentWithGraphiti:
 
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=mock_graphiti,
+            learning_memory_service=mock_graphiti,
         )
 
         # Act - should not raise exception
@@ -598,7 +598,7 @@ class TestContextEnrichmentWithGraphiti:
 
         service = ContextEnrichmentService(
             canvas_service=mock_canvas_service,
-            graphiti_service=mock_graphiti,
+            learning_memory_service=mock_graphiti,
         )
 
         # Act

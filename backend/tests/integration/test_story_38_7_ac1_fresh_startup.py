@@ -76,7 +76,8 @@ class TestAC1FreshEnvironmentStartup:
         ])
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         assert ms._episodes_recovered is True
@@ -96,7 +97,8 @@ class TestAC1FreshEnvironmentStartup:
         )
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         assert ms._episodes_recovered is False

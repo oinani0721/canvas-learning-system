@@ -178,11 +178,10 @@ class TestDualWriteConsistency:
         await learning_memory.initialize()
 
         # 创建 MemoryService
-        # MemoryService.__init__ parameter is learning_memory_client (not learning_memory)
         service = MemoryService(
             neo4j_client=real_neo4j_client,
-            learning_memory_client=learning_memory
         )
+        service._learning_memory = learning_memory
         await service.initialize()
 
         try:
@@ -289,8 +288,8 @@ class TestDualWriteConsistency:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=learning_memory
         )
+        service._learning_memory = learning_memory
         await service.initialize()
 
         # 写入应该因 Neo4j 失败而抛出异常
@@ -356,8 +355,8 @@ class TestGraphitiWriteReliability:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         # 直接调用重试方法
@@ -399,8 +398,8 @@ class TestGraphitiWriteReliability:
 
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
 
         # 调用重试方法

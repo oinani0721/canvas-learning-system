@@ -105,7 +105,8 @@ class TestAC2FullLearningFlow:
         neo4j = make_mock_neo4j()
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         await ms.initialize()
 
         await ms.record_learning_event(

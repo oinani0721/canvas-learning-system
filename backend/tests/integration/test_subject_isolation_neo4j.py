@@ -48,8 +48,8 @@ class TestGroupIdQueryIsolation:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -184,8 +184,8 @@ class TestNeo4jGroupIdFiltering:
         from app.services.memory_service import MemoryService
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory,
         )
+        service._learning_memory = mock_learning_memory
         await service.initialize()
         return service
 
@@ -250,7 +250,7 @@ class TestDIChainIntegrity:
         )
 
     def test_context_enrichment_graphiti_injected(self):
-        """P1 regression: get_context_enrichment_service injects graphiti_service."""
+        """P1 regression: get_context_enrichment_service injects learning_memory_service."""
         source_file = Path(__file__).parent.parent.parent / "app" / "dependencies.py"
         code = source_file.read_text(encoding="utf-8")
 
@@ -260,8 +260,8 @@ class TestDIChainIntegrity:
             end = code.find("\ndef ", start + 1)
         func_code = code[start:end]
 
-        assert "graphiti_service" in func_code, (
-            "P1: get_context_enrichment_service must inject graphiti_service"
+        assert "learning_memory_service" in func_code, (
+            "P1: get_context_enrichment_service must inject learning_memory_service"
         )
 
     def test_verification_service_accepts_all_required_deps(self):
@@ -313,7 +313,7 @@ class TestDIParameterCompleteness:
         assert "memory_client=memory_client" in func_code, "Missing memory_client injection"
 
     def test_context_enrichment_di_passes_graphiti(self):
-        """dependencies.py passes graphiti_service to ContextEnrichmentService."""
+        """dependencies.py passes learning_memory_service to ContextEnrichmentService."""
         source_file = Path(__file__).parent.parent.parent / "app" / "dependencies.py"
         code = source_file.read_text(encoding="utf-8")
 
@@ -321,7 +321,7 @@ class TestDIParameterCompleteness:
         end = code.find("\n\n# Type alias for ContextEnrichmentService", start)
         func_code = code[start:end]
 
-        assert "graphiti_service=graphiti_service" in func_code, "Missing graphiti_service injection"
+        assert "learning_memory_service=learning_memory_service" in func_code, "Missing learning_memory_service injection"
 
     def test_subject_mapping_yaml_exists(self):
         """AC-30.15.5: subject_mapping.yaml exists and is not corrupted."""

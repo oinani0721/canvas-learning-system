@@ -59,10 +59,11 @@ def mock_neo4j_client():
 @pytest.fixture
 def memory_service_with_real_json(mock_neo4j_client, real_learning_memory_client):
     """Create MemoryService with real LearningMemoryClient."""
-    return MemoryService(
+    svc = MemoryService(
         neo4j_client=mock_neo4j_client,
-        learning_memory_client=real_learning_memory_client,
     )
+    svc._learning_memory = real_learning_memory_client
+    return svc
 
 
 class TestMemoryGraphitiIntegration:
@@ -144,8 +145,8 @@ class TestMemoryGraphitiIntegration:
 
         service = MemoryService(
             neo4j_client=mock_neo4j_client,
-            learning_memory_client=failing_client,
         )
+        service._learning_memory = failing_client
         await service.initialize()
 
         # Act

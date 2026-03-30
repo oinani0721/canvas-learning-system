@@ -62,7 +62,7 @@ def test_both_writes_succeed_returns_200(client, valid_rationale_payload):
     """When both Graphiti and LanceDB writes succeed, return 200."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ),
@@ -89,7 +89,7 @@ def test_graphiti_ok_lancedb_fail_returns_207(client, valid_rationale_payload):
     """When Graphiti succeeds but LanceDB fails, return 207 Multi-Status."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ),
@@ -115,7 +115,7 @@ def test_lancedb_ok_graphiti_fail_returns_207(client, valid_rationale_payload):
     """When LanceDB succeeds but Graphiti fails, return 207 Multi-Status."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(False, "Neo4j client not available"),
         ),
@@ -141,7 +141,7 @@ def test_both_writes_fail_returns_500(client, valid_rationale_payload):
     """When both Graphiti and LanceDB fail, return 500."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(False, "Neo4j down"),
         ),
@@ -165,7 +165,7 @@ def test_graphiti_exception_does_not_block_lancedb(client, valid_rationale_paylo
     """Graphiti failure should not prevent LanceDB write from completing."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(False, "ConnectionRefusedError"),
         ) as stub_g,
@@ -190,7 +190,7 @@ def test_lancedb_exception_does_not_block_graphiti(client, valid_rationale_paylo
     """LanceDB failure should not prevent Graphiti write from completing."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ) as stub_g,
@@ -215,7 +215,7 @@ def test_partial_failure_includes_error_details(client, valid_rationale_payload)
     """207 response includes specific error details for each failed write."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ),
@@ -240,7 +240,7 @@ def test_strategy_fields_accepted(client, valid_rationale_payload):
     are accepted in the request and passed to the write functions."""
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ) as stub_g,
@@ -274,7 +274,7 @@ def test_strategy_fields_defaults(client):
     }
     with (
         patch(
-            "app.api.v1.endpoints.edges._write_graphiti",
+            "app.api.v1.endpoints.edges._write_neo4j_triplet",
             new_callable=AsyncMock,
             return_value=_ws(True),
         ) as stub_g,

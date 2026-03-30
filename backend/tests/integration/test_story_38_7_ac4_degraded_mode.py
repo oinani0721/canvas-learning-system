@@ -145,7 +145,8 @@ class TestAC4DegradedMode:
         )
         learning_mem = make_mock_learning_memory()
 
-        ms = MemoryService(neo4j_client=neo4j, learning_memory_client=learning_mem)
+        ms = MemoryService(neo4j_client=neo4j)
+        ms._learning_memory = learning_mem
         ms._initialized = True
         ms._episodes_recovered = True
 

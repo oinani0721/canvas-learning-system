@@ -204,14 +204,13 @@ class TestMemoryServiceDependencyInjection:
         mock_learning_memory = MagicMock()
 
         # 创建 MemoryService
-        # MemoryService.__init__ parameter is learning_memory_client (not learning_memory)
         service = MemoryService(
             neo4j_client=mock_neo4j,
-            learning_memory_client=mock_learning_memory
         )
+        # Set learning memory client after construction
+        service._learning_memory = mock_learning_memory
 
         # 验证注入成功
-        # MemoryService stores learning_memory_client as self._learning_memory
         assert service._learning_memory is mock_learning_memory, \
             "LearningMemoryClient should be injected"
 
