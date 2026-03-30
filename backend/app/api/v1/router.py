@@ -13,7 +13,7 @@ that can be mounted on the main FastAPI application.
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: APIRouter)
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import debug, health
+from app.api.v1.endpoints import debug, health, ping
 from app.api.v1.endpoints.agents import agents_router
 from app.api.v1.endpoints.archive import archive_router  # Story 3.8
 from app.api.v1.endpoints.canvas import canvas_router
@@ -55,6 +55,9 @@ router = APIRouter()
 
 # ✅ Verified from Context7:/websites/fastapi_tiangolo (topic: include_router tags)
 router.include_router(health.router, tags=["System"], responses={500: {"description": "Internal server error"}})
+
+# Ping endpoint — simple connectivity check
+router.include_router(ping.router, tags=["System"])
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # System Infrastructure Health (Story 1.1)
