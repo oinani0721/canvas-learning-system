@@ -66,13 +66,21 @@ if command -v uv &>/dev/null; then
     info "uv already installed"
 else
     curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Source uv for this session
-    [ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
-    export PATH="$HOME/.local/bin:$PATH"
 fi
+# Source uv for this session (required even if already installed)
+[ -f "$HOME/.local/bin/env" ] && . "$HOME/.local/bin/env"
+export PATH="$HOME/.local/bin:$PATH"
 
-# Install Python testing/quality tools
-pip install --quiet mutmut hypothesis vulture pytest pytest-cov pytest-asyncio ruff
+# Install Python CLI tools via uv tool (PEP 668 safe, no --break-system-packages)
+for tool in mutmut vulture ruff pytest hypothesis; do
+    if command -v "$tool" &>/dev/null; then
+        info "$tool already installed"
+    else
+        uv tool install "$tool" && info "Installed $tool" || warn "Failed to install $tool"
+    fi
+done
+# pytest plugins need to go into pytest's tool venv
+uv tool install pytest --with pytest-cov --with pytest-asyncio 2>/dev/null || true
 
 info "=== Phase 0.5: Clone project to WSL2 native filesystem ==="
 CANVAS_DIR="$HOME/canvas/canvas-learning-system"
@@ -83,11 +91,13 @@ if [ -d "$CANVAS_DIR/.git" ]; then
 else
     mkdir -p "$HOME/canvas"
     cd "$HOME/canvas"
-    git clone https://github.com/oinani0721/canvas-learning-system.git
+    git clone https://github.com/oinani0721/canvas-learning-system-backup.git canvas-learning-system
     cd canvas-learning-system
 
-    # Add backup remote
-    git remote add backup https://github.com/oinani0721/canvas-learning-system-backup.git 2>/dev/null || true
+    # Add origin remote (main repo)
+    git remote add origin https://github.com/oinani0721/canvas-learning-system.git 2>/dev/null || true
+    # Rename default remote to backup for consistency with Windows setup
+    git remote rename origin backup 2>/dev/null || true
 fi
 
 info "=== Phase 0.5b: Install project dependencies ==="
@@ -99,10 +109,16 @@ if [ -f "frontend/package.json" ]; then
     info "Frontend dependencies installed"
 fi
 
-# Backend deps
+# Backend deps (use uv venv to avoid PEP 668)
 if [ -f "backend/pyproject.toml" ] || [ -f "backend/setup.py" ]; then
-    cd backend && pip install -e ".[dev]" 2>/dev/null || pip install -e . && cd ..
-    info "Backend dependencies installed"
+    cd backend
+    if [ ! -d ".venv" ]; then
+        uv venv
+    fi
+    uv pip install -e ".[dev]" 2>/dev/null || uv pip install -e .
+    cd ..
+    info "Backend dependencies installed (in backend/.venv)"
+    info "Activate with: source backend/.venv/bin/activate"
 fi
 
 info "=== Phase 0.6: Agent Teams environment ==="
