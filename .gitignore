@@ -150,3 +150,6 @@ node_modules/
 
 # 敏感文件（绝不推送）
 CLAUDE.md
+
+# MCP 配置（含 API keys 和本地路径，环境相关）
+.mcp.json
