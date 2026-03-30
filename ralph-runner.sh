@@ -19,7 +19,7 @@ while [ $I -lt $MAX ]; do
         sleep 15
     fi
 
-    claude --command auto-epic
+    claude -p "/auto-epic" --allowedTools "Read,Write,Edit,Bash,Grep,Glob,Agent"
     EXIT_CODE=$?
 
     if [ $EXIT_CODE -ne 0 ]; then
